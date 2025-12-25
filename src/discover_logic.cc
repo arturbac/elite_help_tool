@@ -343,7 +343,7 @@ auto value_class(events::scan_detailed_scan_t const & obj) noexcept -> planet_va
      or stralgo::starts_with(obj.PlanetClass, "Metal rich"sv))
     value = planet_value_e::high;
   else if(stralgo::starts_with(obj.PlanetClass, "High metal"sv)
-          or stralgo::starts_with(obj.PlanetClass, "Sudarsky class II"sv))
+          or stralgo::starts_with(obj.PlanetClass, "Sudarsky class II "sv))
     value = planet_value_e::medium;
   return value;
   }
@@ -465,14 +465,14 @@ auto discovery_state_t::simple_discovery(std::string_view input) const -> void
           sell_value_t value{aprox_value(obj)};
 
           spdlog::info(
-            " [{}]{}{:5}{} - {} [discovery: {}cr mapping: {}cr]",
+            " [{}]{}{:5}- {} [discovery: {}cr mapping: {}cr] {}",
             obj.scan.BodyID,
             value_color(obj.value),
             obj.name,
-            color_codes_t::reset,
             obj.planet_class,
             format_credits_value(value.discovery),
-            format_credits_value(value.mapping)
+            format_credits_value(value.mapping),
+            color_codes_t::reset
           );
           }
 
