@@ -1,0 +1,63 @@
+{
+  "version": 4,
+  "configurePresets": [
+    {
+      "name": "cfg-debug",
+      "hidden": true,
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "cfg-release",
+      "hidden": true,
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_CXX_FLAGS": "-DNDEBUG",
+        "CMAKE_C_FLAGS": "-DNDEBUG"
+      }
+    },
+    {
+      "name": "cfg-asan",
+      "hidden": true,
+      "cacheVariables": {
+        "ENABLE_SANITIZATION": "ON",
+        "CMAKE_CXX_FLAGS_RELWITHDEBINFO": "-DNDEBUG -g -O1 -fvisibility=default -fno-omit-frame-pointer -fsanitize=address -fsanitize-address-use-after-scope -fsanitize=undefined -fsanitize=alignment",
+        "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=address -fsanitize=undefined",
+        "CMAKE_SHARED_LINKER_FLAGS": "-fsanitize=address -fsanitize=undefined",
+        "CMAKE_MODULE_LINKER_FLAGS": "-fsanitize=address -fsanitize=undefined"
+      }
+    },
+    {
+      "name": "cfg-relwithdebinfo",
+      "hidden": true,
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+      }
+    },
+    {
+      "name": "cfg-enable-symbol-visibility",
+      "hidden": true,
+      "cacheVariables": {
+        "BUILD_WITH_SYMBOLS_VISIBLE": "ON"
+      }
+    },
+    {
+      "name": "cfg-build-shared",
+      "hidden": true,
+      "inherits": [
+        "cfg-enable-symbol-visibility"
+      ],
+      "cacheVariables": {
+        "BUILD_SHARED_LIBS": "ON"
+      }
+    },
+    {
+      "name": "cfg-build-static",
+      "hidden": true,
+      "cacheVariables": {
+        "BUILD_SHARED_LIBS": "OFF"
+      }
+    }
+  ]
+}

@@ -1,0 +1,125 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 28,
+    "patch": 0
+  },
+  "include": [
+    "cmake/presets/cfg-build-tools.json",
+    "cmake/presets/cfg-build-modes.json",
+    "cmake/presets/cfg-options.json"
+  ],
+  "configurePresets": [
+    {
+      "name": "cfg-base",
+      "hidden": true,
+      "generator": "Ninja",
+      "inherits": [
+        "cfg-cmake-export-compile-commands",
+        "cfg-disable-precompile-headers",
+        "cfg-clang"
+      ],
+      "cacheVariables": {
+        "CMAKE_INSTALL_PREFIX": "${sourceDir}/install",
+        "CMAKE_CXX_STANDARD": "23"
+      }
+    },
+    {
+      "name": "eht-release",
+      "inherits": [
+        "cfg-base",
+        "cfg-build-dir",
+        "cfg-nologging",
+        "cfg-build-static",
+        "cfg-release"
+      ],
+      "cacheVariables": {
+        "DISABLE_WARNINGS": "ON"
+      }
+    },
+    {
+      "name": "eht-release-unit-tests",
+      "inherits": [
+        "eht-release",
+        "cfg-unit-tests-targeo"
+      ],
+      "cacheVariables": {
+        "ENABLE_GIT_REPO_INFO": "OFF"
+      }
+    },
+    {
+      "name": "eht-release-asan",
+      "inherits": [
+        "cfg-base",
+        "cfg-build-dir",
+        "cfg-logging",
+        "cfg-build-shared",
+        "cfg-asan",
+        "cfg-unit-tests-targeo",
+        "cfg-relwithdebinfo"
+      ],
+      "cacheVariables": {
+        "ENABLE_GIT_REPO_INFO": "OFF"
+      }
+    },
+    {
+      "name": "eht-release-perf",
+      "inherits": [
+        "cfg-base",
+        "cfg-build-dir",
+        "cfg-logging",
+        "cfg-build-shared",
+        "cfg-relwithdebinfo",
+        "cfg-enable-symbol-visibility",
+        "cfg-unit-tests-targeo"
+      ],
+      "cacheVariables": {
+        "CMAKE_CXX_FLAGS_RELWITHDEBINFO": "-ggdb",
+        "CMAKE_C_FLAGS_RELWITHDEBINFO": "-ggdb",
+        "DISABLE_WARNINGS": "ON"
+      }
+    },
+    {
+      "name": "eht-release-tsan",
+      "inherits": [
+        "cfg-base",
+        "cfg-build-dir",
+        "cfg-logging",
+        "cfg-build-shared",
+        "cfg-release",
+        "cfg-tsan",
+        "cfg-unit-tests-targeo"
+      ]
+    },
+    {
+      "name": "eht-release-asan-cached",
+      "inherits": [
+        "eht-release-asan",
+        "cfg-ccache"
+      ],
+      "cacheVariables": {
+        "DISABLE_WARNINGS": "ON"
+      }
+    },
+    {
+      "name": "kdev-eht-debug",
+      "inherits": [
+        "cfg-base",
+        "cfg-logging",
+        "cfg-build-shared",
+        "cfg-unit-tests-components",
+        "cfg-unit-tests-targeo",
+        "cfg-debug",
+        "cfg-enable-symbol-visibility"
+      ]
+    },
+    {
+      "name": "eht-debug",
+      "inherits": [
+        "cfg-build-dir",
+        "kdev-eht-debug"
+      ]
+    }
+  ]
+}

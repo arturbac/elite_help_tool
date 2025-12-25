@@ -1,0 +1,126 @@
+{
+  "version": 4,
+  "configurePresets": [
+    {
+    "name": "cfg-build-dir",
+    "hidden": true,
+    "binaryDir": "${sourceDir}/build/${presetName}"
+    },
+
+    {
+      "name": "cfg-tsan",
+      "hidden": true,
+      "cacheVariables": {
+        "ENABLE_SANITIZATION": "ON",
+        "CMAKE_CXX_FLAGS": "-ggdb -fvisibility=default -fno-omit-frame-pointer -fsanitize=thread",
+        "CMAKE_CXX_FLAGS_RELEASE": "-ggdb -fvisibility=default -fno-omit-frame-pointer -fsanitize=thread",
+        "CMAKE_CXX_FLAGS_RELWITHDEBINFO": "-ggdb -fvisibility=default -fno-omit-frame-pointer -fsanitize=thread",
+        "CMAKE_CXX_FLAGS_DEBUG": "-ggdb -fvisibility=default -fno-omit-frame-pointer -fsanitize=thread",
+        "CMAKE_SHARED_LINKER_FLAGS": "-fsanitize=thread",
+        "CMAKE_SHARED_LINKER_FLAGS_RELEASE": "-fsanitize=thread",
+        "CMAKE_SHARED_LINKER_FLAGS_RELWITHDEBINFO": "-fsanitize=thread",
+        "CMAKE_SHARED_LINKER_FLAGS_DEBUG": "-fsanitize=thread",
+        "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=thread",
+        "CMAKE_EXE_LINKER_FLAGS_RELEASE": "-fsanitize=thread",
+        "CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO": "-fsanitize=thread",
+        "CMAKE_EXE_LINKER_FLAGS_DEBUG": "-fsanitize=thread"
+      }
+    },
+    {
+      "name": "cfg-unit-tests-common",
+      "hidden": true,
+      "cacheVariables": {
+        "ENABLE_TESTING": "ON"
+      }
+    },
+    {
+      "name": "cfg-unit-tests-components",
+      "hidden": true,
+      "inherits": [ "cfg-unit-tests-common" ],
+      "cacheVariables": {
+        "ENABLE_COMPONENTS_UNITS_TESTS": "ON",
+        "BOOST_TEST_EUROPE_MAP_PATH": "$env{BOOST_TEST_EUROPE_MAP_PATH}"
+      }
+    },
+    {
+      "name": "cfg-unit-tests-targeo",
+      "hidden": true,
+      "inherits": [ "cfg-unit-tests-common" ],
+      "cacheVariables": {
+        "ENABLE_TARGEO_UNITS_TESTS": "ON"
+      }
+    },
+    {
+      "name": "cfg-cmake-export-compile-commands",
+      "hidden": true,
+      "cacheVariables": {
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    },
+    {
+      "name": "cfg-online-am",
+      "hidden": true,
+      "cacheVariables": {
+        "BUILD_ONLINE_AUTOMAPA": "ON"
+      }
+    },
+    {
+      "name": "cfg-offline-am",
+      "hidden": true,
+      "cacheVariables": {
+        "BUILD_ONLINE_AUTOMAPA": "OFF"
+      }
+    },
+    {
+      "name": "cfg-disable-precompile-headers",
+      "hidden": true,
+      "cacheVariables": {
+        "CMAKE_DISABLE_PRECOMPILE_HEADERS": "ON"
+      }
+    },
+    {
+      "name": "cfg-logging",
+      "hidden": true,
+      "cacheVariables": {
+        "LOG_DISABLED": "OFF",
+        "LOGANDTRACE_DISABLED": "OFF"
+      }
+    },
+    {
+      "name": "cfg-nologging",
+      "hidden": true,
+      "cacheVariables": {
+        "LOG_DISABLED": "ON",
+        "LOGANDTRACE_DISABLED": "ON"
+      }
+    },
+    {
+      "name": "cfg-opengl",
+      "hidden": true,
+      "cacheVariables": {
+        "USES_OPEN_GL": "ON"
+      }
+    },
+    {
+      "name": "cfg-agg",
+      "hidden": true,
+      "cacheVariables": {
+        "USES_OPEN_GL": "OFF"
+      }
+    },
+    {
+      "name": "cfg-profiler-disabled",
+      "hidden": true,
+      "cacheVariables": {
+        "PROFILER": "OFF"
+      }
+    },
+    {
+      "name": "cfg-profiler-enabled",
+      "hidden": true,
+      "cacheVariables": {
+        "PROFILER": "ON"
+      }
+    }
+  ]
+}
