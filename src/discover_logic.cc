@@ -303,6 +303,70 @@ static auto body_short_name(std::string_view system, std::string_view name) -> s
   return name.substr(system.size());
   }
 
+[[nodiscard]]
+static auto aprox_value(body_t const & body) noexcept -> sell_value_t
+  {
+  sell_value_t result{};
+  auto it{std::ranges::find(
+    exploration_values,
+    body.planet_class,
+    [](planet_value_info_t const & body) noexcept -> std::string_view { return body.planet_class; }
+  )};
+  if(it != exploration_values.end())
+    {
+    planet_value_info_t const & info{*it};
+    double disc_mult{1.0};
+    double map_mult{1.0};
+    if(not body.was_discovered)
+      disc_mult = info.bonus_first_fss;
+    if(not body.was_mapped)
+      map_mult = info.bonus_first_dss;
+
+    if(not body.scan.TerraformState.empty() and info.terraform_multiplier > 1.0)
+      {
+      disc_mult *= info.terraform_multiplier;
+      map_mult *= info.terraform_multiplier;
+      }
+
+    result.discovery = uint32_t(std::round(info.discovery_value * disc_mult));
+    result.mapping = uint32_t(std::round(info.mapping_value * map_mult));
+    }
+  return result;
+  }
+
+[[nodiscard]]
+auto value_class(events::scan_detailed_scan_t const & obj) noexcept -> planet_value_e
+  {
+  planet_value_e value{};
+  if(not obj.TerraformState.empty() or stralgo::starts_with(obj.PlanetClass, "Water"sv)
+     or stralgo::starts_with(obj.PlanetClass, "Earth"sv) or stralgo::starts_with(obj.PlanetClass, "Ammonia"sv)
+     or stralgo::starts_with(obj.PlanetClass, "Metal rich"sv))
+    value = planet_value_e::high;
+  else if(stralgo::starts_with(obj.PlanetClass, "High metal"sv)
+          or stralgo::starts_with(obj.PlanetClass, "Sudarsky class II"sv))
+    value = planet_value_e::medium;
+  return value;
+  }
+
+[[nodiscard]]
+static auto format_credits_value(uint32_t value) -> std::string
+  {
+  auto s_t = std::to_string(value);
+  auto res_t = std::string{};
+
+  int count_t = 0;
+  for(auto const & c_t: s_t | std::views::reverse)
+    {
+    if(count_t != 0 && count_t % 3 == 0)
+      res_t += '\'';
+    res_t += c_t;
+    count_t++;
+    }
+
+  std::ranges::reverse(res_t);
+  return res_t;
+  }
+
 auto discovery_state_t::simple_discovery(std::string_view input) const -> void
   {
   state_t & state{*this->state};
@@ -397,14 +461,20 @@ auto discovery_state_t::simple_discovery(std::string_view input) const -> void
           return color;
         };
         for(body_t const & obj: state.bodies)
+          {
+          sell_value_t value{aprox_value(obj)};
+
           spdlog::info(
-            " [{}]{}{:5}{} - {}",
+            " [{}]{}{:5}{} - {} [discovery: {}cr mapping: {}cr]",
             obj.scan.BodyID,
             value_color(obj.value),
             obj.name,
             color_codes_t::reset,
-            obj.planet_class
+            obj.planet_class,
+            format_credits_value(value.discovery),
+            format_credits_value(value.mapping)
           );
+          }
 
         std::vector<events::scan_detailed_scan_t> visiting_medium, visiting_high;
         auto filter_medium = std::ranges::views::filter(
@@ -452,7 +522,7 @@ auto discovery_state_t::simple_discovery(std::string_view input) const -> void
             );
             prev = loc;
             }
-          info("visiting order {} [{:1.1f}Ls]: {}",label, total_ls, order_str);
+          info("visiting order {} [{:1.1f}Ls]: {}", label, total_ls, order_str);
         };
         auto calculate_order_for = [&state, &order_info](std::span<events::scan_detailed_scan_t const> visiting)
         {
@@ -523,13 +593,7 @@ auto discovery_state_t::simple_discovery(std::string_view input) const -> void
         if(state.fss_complete)
           return;
 
-        planet_value_e value{};
-        if("Terraformable"sv == obj.TerraformState or stralgo::starts_with(obj.PlanetClass, "Water"sv)
-           or stralgo::starts_with(obj.PlanetClass, "Earth"sv) or stralgo::starts_with(obj.PlanetClass, "Ammonia"sv))
-          value = planet_value_e::high;
-        else if(stralgo::starts_with(obj.PlanetClass, "High metal"sv))
-          value = planet_value_e::medium;
-
+        planet_value_e const value{value_class(obj)};
         spdlog::info(
           "{} {} {} {} {}{}",
           body_short_name(obj.StarSystem, obj.BodyName),

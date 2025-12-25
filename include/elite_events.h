@@ -592,7 +592,43 @@ struct discovery_state_t
   auto simple_discovery(std::string_view input) const -> void;
   };
 
+struct planet_value_info_t
+  {
+  std::string_view planet_class;
+  uint32_t discovery_value;  // FSS (Base)
+  uint32_t mapping_value;    // FSS + DSS + Efficiency (Base)
+  double bonus_first_fss;    // Multiplier for being the first to scan
+  double bonus_first_dss;    // Multiplier for being the first to map
+  double terraform_multiplier{1.0}; // Nowe pole
+  };
 
+static constexpr std::array<planet_value_info_t, 19> exploration_values{
+  {{"Metal rich body", 65'000, 250'000, 1.5, 3.45},
+   {"High metal content body", 30'000, 110'000, 1.5, 3.45, 5.4 },
+   {"Rocky body", 500, 1'500, 1.5, 3.45, 260.0},
+   {"Icy body", 500, 1'500, 1.5, 3.45},
+   {"Rocky ice body", 500, 1'800, 1.5, 3.45},
+   {"Earthlike body", 270'000, 1'100'000, 1.5, 3.45},
+   {"Water world", 140'000, 550'000, 1.5, 3.45, 2.1},
+   {"Ammonia world", 140'000, 580'000, 1.5, 3.45},
+   {"Water giant", 1'000, 4'000, 1.5, 3.45},
+   {"Water giant with life", 1'500, 6'000, 1.5, 3.45},
+   {"Gas giant with water based life", 3'000, 12'000, 1.5, 3.45},
+   {"Gas giant with ammonia based life", 1'500, 6'000, 1.5, 3.45},
+   {"Sudarsky class I gas giant", 2'500, 10'000, 1.5, 3.45},
+   {"Sudarsky class II gas giant", 28'000, 110'000, 1.5, 3.45},
+   {"Sudarsky class III gas giant", 1'000, 4'000, 1.5, 3.45},
+   {"Sudarsky class IV gas giant", 3'000, 12'000, 1.5, 3.45},
+   {"Sudarsky class V gas giant", 3'500, 14'000, 1.5, 3.45},
+   {"Helium rich gas giant", 3'000, 12'000, 1.5, 3.45},
+   {"Helium gas giant", 500, 2'000, 1.5, 3.45}}
+};
+
+struct sell_value_t
+{
+  uint32_t discovery;
+  uint32_t mapping;
+};
 /*
  * Pru Theia LV-I c24-0
  * Praea Theia DM-M d7-4
