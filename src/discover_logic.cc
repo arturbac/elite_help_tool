@@ -406,25 +406,34 @@ auto discovery_state_t::simple_discovery(std::string_view input) const -> void
             obj.planet_class
           );
 
-        std::vector<events::scan_detailed_scan_t> visiting_bodies;
-        auto filtered = std::ranges::views::filter(
+        std::vector<events::scan_detailed_scan_t> visiting_medium, visiting_high;
+        auto filter_medium = std::ranges::views::filter(
           state.bodies, [](body_t const & body) -> bool { return body.value > planet_value_e::low; }
+        );
+        auto filter_high = std::ranges::views::filter(
+          state.bodies, [](body_t const & body) -> bool { return body.value > planet_value_e::medium; }
         );
 
         std::ranges::transform(
-          filtered,
-          std::back_inserter(visiting_bodies),
+          filter_medium,
+          std::back_inserter(visiting_medium),
           [](body_t const & body) -> events::scan_detailed_scan_t { return body.scan; }
         );
+        std::ranges::transform(
+          filter_high,
+          std::back_inserter(visiting_high),
+          [](body_t const & body) -> events::scan_detailed_scan_t { return body.scan; }
+        );
+
         std::unordered_map<body_id_t, body_t const *> name_ref;
         std::ranges::transform(
-          filtered,
+          filter_medium,
           std::inserter(name_ref, name_ref.end()),
           [](body_t const & body) -> std::pair<body_id_t, body_t const *> { return {body.scan.BodyID, &body}; }
         );
 
-        std::vector<location_t> order{order_calculation(state.scan_bary_centre, visiting_bodies)};
-          {
+        auto order_info = [&name_ref](std::span<location_t const> order, std::string_view label)
+        {
           std::string order_str;
           std::optional<location_t> prev;
           double total_ls{};
@@ -443,30 +452,17 @@ auto discovery_state_t::simple_discovery(std::string_view input) const -> void
             );
             prev = loc;
             }
-          info("visit order trivial [{:1.1f}Ls]: {}", total_ls, order_str);
-          }
-
-          {
+          info("visiting order {} [{:1.1f}Ls]: {}",label, total_ls, order_str);
+        };
+        auto calculate_order_for = [&state, &order_info](std::span<events::scan_detailed_scan_t const> visiting)
+        {
+          std::vector<location_t> order{order_calculation(state.scan_bary_centre, visiting)};
+          order_info(order, "naive"sv);
           std::vector<location_t> order2d{order_calculation_2_opt(order)};
-          std::string opt_str;
-          // distance_ls
-          std::optional<location_t> prev;
-          double total_ls{};
-          for(location_t const & loc: order2d)
-            {
-            auto const & ref{name_ref[loc.body_id]};
-            std::string dist_ls;
-            if(prev)
-              {
-              double dls{distance_ls(*prev, loc)};
-              total_ls += dls;
-              dist_ls = std::format(" [{:1.1f}Ls]", dls);
-              }
-            opt_str.append(std::format("{}{}{}{},", value_color(ref->value), ref->name, color_codes_t::reset, dist_ls));
-            prev = loc;
-            }
-          info("visit order 2-nd opt [{:1.1f}Ls]: {} ", total_ls, opt_str);
-          }
+          order_info(order2d, "2nd opt");
+        };
+        calculate_order_for(visiting_medium);
+        calculate_order_for(visiting_high);
         }
       break;
     case ScanBaryCentre:
@@ -529,7 +525,7 @@ auto discovery_state_t::simple_discovery(std::string_view input) const -> void
 
         planet_value_e value{};
         if("Terraformable"sv == obj.TerraformState or stralgo::starts_with(obj.PlanetClass, "Water"sv)
-           or stralgo::starts_with(obj.PlanetClass, "Earth"sv) or stralgo::starts_with(obj.PlanetClass, "Amonia"sv))
+           or stralgo::starts_with(obj.PlanetClass, "Earth"sv) or stralgo::starts_with(obj.PlanetClass, "Ammonia"sv))
           value = planet_value_e::high;
         else if(stralgo::starts_with(obj.PlanetClass, "High metal"sv))
           value = planet_value_e::medium;
