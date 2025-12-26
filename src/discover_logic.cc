@@ -315,6 +315,12 @@ static auto aprox_value(body_t const & body) noexcept -> sell_value_t
   if(it != exploration_values.end())
     {
     planet_value_info_t const & info{*it};
+    // 1. Obliczenie mnożnika masy: (MassEarth ^ 0.2)
+    // W Journalu masa jest podawana w wielokrotnościach masy Ziemi (MassEM)
+    // Jeśli masa wynosi 0 (np. słońce/czarna dziura - rzadkie w tym kontekście), używamy 1.0
+    double const mass = body.scan.MassEM > 0.0 ? body.scan.MassEM : 1.0;
+    double const mass_multiplier = std::pow(mass, 0.2);
+
     double disc_mult{1.0};
     double map_mult{1.0};
     if(not body.was_discovered)
@@ -328,8 +334,10 @@ static auto aprox_value(body_t const & body) noexcept -> sell_value_t
       map_mult *= info.terraform_multiplier;
       }
 
-    result.discovery = uint32_t(std::round(info.discovery_value * disc_mult));
-    result.mapping = uint32_t(std::round(info.mapping_value * map_mult));
+    // result.discovery = uint32_t(std::round(info.discovery_value * disc_mult));
+    // result.mapping = uint32_t(std::round(info.mapping_value * map_mult));
+    result.discovery = static_cast<uint32_t>(std::round(info.discovery_value * mass_multiplier * disc_mult));
+    result.mapping = static_cast<uint32_t>(std::round(info.mapping_value * mass_multiplier * map_mult));
     }
   return result;
   }
@@ -446,7 +454,7 @@ auto discovery_state_t::simple_discovery(std::string_view input) const -> void
           state.bodies,
           [](body_t const & l, body_t const & r) -> bool
           {
-            if(l.name.size() != r.name.size()) // 1 vs 11
+            if(l.name.size() != r.name.size())  // 1 vs 11
               return l.name.size() < r.name.size();
             return l.name < r.name;
           }
