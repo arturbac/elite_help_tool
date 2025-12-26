@@ -446,8 +446,8 @@ auto discovery_state_t::simple_discovery(std::string_view input) const -> void
           state.bodies,
           [](body_t const & l, body_t const & r) -> bool
           {
-            // if(l.value != r.value)
-            //   return l.value > r.value;
+            if(l.name.size() != r.name.size()) // 1 vs 11
+              return l.name.size() < r.name.size();
             return l.name < r.name;
           }
         );
