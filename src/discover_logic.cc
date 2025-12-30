@@ -619,7 +619,7 @@ auto discovery_state_t::simple_discovery(std::string_view input) const -> void
         {
           int parent{-1};
           if(not body.Parents.empty())
-            parent = body.Parents.front().id();
+            parent = body.Parents.back().id();
           sub_systems[parent].emplace_back(body);
         }
         for(auto const & subsystem : sub_systems)
