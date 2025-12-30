@@ -165,29 +165,66 @@ struct start_jump_t
  */
 using body_id_t = uint32_t;
 
+struct faction_state_trend_t
+  {
+  std::string State;
+  int32_t Trend;
+  };
+
+struct faction_info_t
+  {
+  std::string Name;
+  std::string FactionState;
+  std::string Government;
+  double Influence;
+  std::string Happiness;
+  int32_t MyReputation;
+  std::optional<std::vector<faction_state_trend_t>> PendingStates;
+  std::optional<std::vector<faction_state_trend_t>> RecoveringStates;
+  std::vector<std::string> ActiveStates;  // Zgodnie z dokumentacją: brak Trendu
+  std::optional<bool> SquadronFaction;
+  std::optional<bool> HappiestSystem;
+  std::optional<bool> HomeSystem;
+  };
+
+struct location_t
+  {
+  events::body_id_t body_id;
+  double x, y, z;
+  };
+
 ///\brief When written: when jumping from one star system to another
 ///\detail Note, when following a multi-jump route, this will typically appear for the next star, during a jump, ie
 /// after "StartJump" but before the "FSDJump"
 struct fsd_jump_t
   {
-  // utc_time_point_t timestamp;
-  bool Taxi;
-  bool Multicrew;
   std::string StarSystem;
   uint64_t SystemAddress;
-  std::array<double, 3> StarPos;
-  std::string SystemAllegiance;
-  std::string SystemEconomy_Localised;
-  std::string SystemSecondEconomy_Localised;
-  std::string SystemGovernment_Localised;
-  std::string SystemSecurity_Localised;
-  uint64_t Population;
+  std::array<double, 3> StarPos;  // [x, y, z]
   std::string Body;
-  body_id_t BodyID;
-  std::string BodyType;
   double JumpDist;
   double FuelUsed;
   double FuelLevel;
+  bool BoostUsed;
+
+  [[nodiscard]]
+  constexpr auto player_position() const noexcept -> location_t
+    {
+    return location_t{{}, StarPos[0], StarPos[1], StarPos[2]};
+    }
+
+  // System state information
+  std::string SystemFaction;
+  std::optional<std::string> FactionState;
+  std::string SystemAllegiance;
+  std::string SystemEconomy;
+  std::string SystemSecondEconomy;
+  std::string SystemGovernment;
+  std::string SystemSecurity;
+  int64_t Population;
+
+  std::optional<bool> Wanted;
+  std::vector<faction_info_t> Factions;
   };
 
 /*
@@ -586,6 +623,7 @@ struct state_t
   bool fss_complete;
   std::vector<events::scan_bary_centre_t> scan_bary_centre;
   std::vector<body_t> bodies;
+  events::fsd_jump_t jump_info;
   };
 
 struct discovery_state_t

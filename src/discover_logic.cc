@@ -70,12 +70,6 @@ auto system_approx_value(std::string_view star_class, std::string_view system_na
   }
   }  // namespace exploration
 
-struct location_t
-  {
-  events::body_id_t body_id;
-  double x, y, z;
-  };
-
 // Internal helper to unify scan data for position calculation
 struct orbital_node_t
   {
@@ -113,6 +107,8 @@ auto solve_kepler(double mean_anomaly_rad, double eccentricity) noexcept -> doub
     }
   return e_anomaly;
   }
+
+using events::location_t;
 
 [[nodiscard]]
 auto calculate_relative_pos(orbital_node_t const & node, double dt) -> location_t
@@ -218,7 +214,6 @@ auto order_calculation(
       current_id = registry.at(current_id).parents[0].id();
       }
     absolute_positions.push_back({s.BodyID, abs_x, abs_y, abs_z});
-
     }
 
   // --- TSP Nearest Neighbor (Start from index 0) ---
@@ -280,51 +275,68 @@ auto calculate_distance(location_t const & a, location_t const & b) noexcept -> 
   }
 
 [[nodiscard]]
-auto order_calculation_2_opt(std::vector<location_t> path) -> std::vector<location_t>
+auto order_calculation_2_opt(location_t const player_pos, std::span<location_t const> targets)
+  -> std::vector<location_t>
   {
-  if(path.size() < 4)
-    return path;  // 2-opt nie ma sensu dla mniej niż 4 punktów
+  if(targets.empty())
+    return {};
+
+  // 1. Inicjalizacja: Budujemy ścieżkę zaczynając od gracza (Nearest Neighbor)
+  std::vector<location_t> path;
+  path.reserve(targets.size() + 1);
+  path.push_back(player_pos);
+
+  std::vector<location_t> remaining(targets.begin(), targets.end());
+
+  while(!remaining.empty())
+    {
+    auto const current = path.back();
+    auto const closest_it = std::ranges::min_element(
+      remaining,
+      [&current](auto const & a, auto const & b)
+      { return calculate_distance(current, a) < calculate_distance(current, b); }
+    );
+
+    path.push_back(*closest_it);
+    remaining.erase(closest_it);
+    }
+
+  // 2. Optymalizacja 2-opt (Open TSP)
+  if(path.size() < 3)
+    return path;
 
   bool improved = true;
-  size_t const n = path.size();
+  auto const n = path.size();
 
   while(improved)
     {
     improved = false;
-    // Zaczynamy od i = 1, aby NIE zmieniać punktu startowego (index 0)
-    for(size_t i = 1; i < n - 2; ++i)
+    // i = 1: Blokujemy pozycję gracza na indeksie 0
+    for(size_t i = 1; i < n - 1; ++i)
       {
-      for(size_t j = i + 1; j < n - 1; ++j)
+      for(size_t j = i + 1; j < n; ++j)
         {
-        // Obecne krawędzie: (i-1 -> i) oraz (j -> j+1)
-        double const dist_current = calculate_distance(path[i - 1], path[i]) + calculate_distance(path[j], path[j + 1]);
+        // Koszt obecny: (i-1 -> i) + (j -> j+1 jeśli istnieje)
+        double const d_i_prev_i = calculate_distance(path[i - 1], path[i]);
+        double const d_j_j_next = (j < n - 1) ? calculate_distance(path[j], path[j + 1]) : 0.0;
 
-        // Potencjalne nowe krawędzie po odwróceniu segmentu: (i-1 -> j) oraz (i -> j+1)
-        double const dist_new = calculate_distance(path[i - 1], path[j]) + calculate_distance(path[i], path[j + 1]);
+        // Koszt nowy po odwróceniu: (i-1 -> j) + (i -> j+1 jeśli istnieje)
+        double const d_i_prev_j = calculate_distance(path[i - 1], path[j]);
+        double const d_i_j_next = (j < n - 1) ? calculate_distance(path[i], path[j + 1]) : 0.0;
 
-        if(dist_new < dist_current)
+        if((d_i_prev_j + d_i_j_next) < (d_i_prev_i + d_j_j_next) - 1e-6)
           {
-          // Odwracamy segment między i a j
           std::reverse(
             path.begin() + static_cast<std::ptrdiff_t>(i), path.begin() + static_cast<std::ptrdiff_t>(j) + 1
           );
           improved = true;
           }
         }
-
-      // Specjalny przypadek dla ostatniego punktu (ścieżka otwarta - Open TSP)
-      // Sprawdzamy, czy zamiana końcówki trasy (i-1 -> i) na (i-1 -> ostatni) jest lepsza
-      double const dist_end_current = calculate_distance(path[i - 1], path[i]);
-      double const dist_end_new = calculate_distance(path[i - 1], path.back());
-
-      if(dist_end_new < dist_end_current)
-        {
-        // W specyficznych warunkach Open TSP można tu zastosować dodatkową logikę,
-        // ale standardowy 2-opt na segmentach wewnętrznych zazwyczaj wystarcza.
-        }
       }
     }
 
+  // Opcjonalnie: usuwamy pozycję gracza z przodu, jeśli wynik ma zawierać tylko cele
+  path.erase(path.begin());
   return path;
   }
 
@@ -496,6 +508,18 @@ auto discovery_state_t::simple_discovery(std::string_view input) const -> void
   using enum events::event_e;
   switch(gevt.event)
     {
+    case FSDJump:
+        {
+        events::fsd_jump_t fsd_jump;
+        parse_res = glz::read<glz::opts{.error_on_unknown_keys = false}>(fsd_jump, buffer);
+        if(parse_res) [[unlikely]]
+          {
+          warn("failed to parse {}", input);
+          return;
+          }
+        state.jump_info = std::move(fsd_jump);
+        }
+      break;
     case FSDTarget:
         {
         events::fsd_target_t fsd_target;
@@ -610,17 +634,21 @@ auto discovery_state_t::simple_discovery(std::string_view input) const -> void
           double total_ls{};
           for(location_t const & loc: order)
             {
-            auto const & ref{name_ref[loc.body_id]};
             std::string dist_ls;
+            planet_value_e vc{};
+            std::string_view name{"unknown"};
+            if(auto it{name_ref.find(loc.body_id)}; it != name_ref.end() and it->second != nullptr)
+              {
+              vc = it->second->value_class();
+              name = it->second->name;
+              }
             if(prev)
               {
               double dls{distance_ls(*prev, loc)};
               total_ls += dls;
               dist_ls = std::format(" [{:1.1f}Ls]", dls);
               }
-            order_str.append(
-              std::format("{}{}{}{},", value_color(ref->value_class()), ref->name, color_codes_t::reset, dist_ls)
-            );
+            order_str.append(std::format("{}{}{}{},", value_color(vc), name, color_codes_t::reset, dist_ls));
             prev = loc;
             }
           info("visiting order {} [{:1.1f}Ls]: {}", label, total_ls, order_str);
@@ -629,7 +657,7 @@ auto discovery_state_t::simple_discovery(std::string_view input) const -> void
         {
           std::vector<location_t> order{order_calculation(state.scan_bary_centre, visiting)};
           // order_info(order, "naive"sv);
-          std::vector<location_t> order2d{order_calculation_2_opt(order)};
+          std::vector<location_t> order2d{order_calculation_2_opt(state.jump_info.player_position(), order)};
           order_info(order2d, "2nd opt");
         };
         std::unordered_map<int, std::vector<events::scan_detailed_scan_t>> sub_systems;
@@ -738,210 +766,3 @@ auto discovery_state_t::simple_discovery(std::string_view input) const -> void
     }
   }
 
-/*
-{ "timestamp":"2025-12-24T10:06:29Z", "event":"StartJump", "JumpType":"Hyperspace", "Taxi":false, "StarSystem":"Pru
-Theia IV-I c24-0", "SystemAddress":95194386898, "StarClass":"K" }
-
-{
-  "timestamp": "2025-12-24T10:13:51Z",
-  "event": "Scan",
-  "ScanType": "AutoScan",
-  "BodyName": "Pru Theia LV-I c24-0",
-  "BodyID": 0,
-  "StarSystem": "Pru Theia LV-I c24-0",
-  "SystemAddress": 95395713490,
-  "DistanceFromArrivalLS": 0.000000,
-  "StarType": "M",
-  "Subclass": 0,
-  "StellarMass": 0.460938,
-  "Radius": 437807552.000000,
-  "AbsoluteMagnitude": 7.889389,
-  "Age_MY": 6622,
-  "SurfaceTemperature": 3601.000000,
-  "Luminosity": "Va",
-  "RotationPeriod": 186821.514346,
-  "AxialTilt": 0.000000,
-  "WasDiscovered": false,
-  "WasMapped": false,
-  "WasFootfalled": false
-}
-{
-  "timestamp": "2025-12-24T10:13:57Z",
-  "event": "FSSDiscoveryScan",
-  "Progress": 0.157770,
-  "BodyCount": 12,
-  "NonBodyCount": 0,
-  "SystemName": "Pru Theia LV-I c24-0",
-  "SystemAddress": 95395713490
-}
-{
-  "timestamp": "2025-12-24T10:14:03Z",
-  "event": "Scan",
-  "ScanType": "Detailed",
-  "BodyName": "Pru Theia LV-I c24-0 1",
-  "BodyID": 1,
-  "Parents": [
-    {
-      "Star": 0
-    }
-  ],
-  "StarSystem": "Pru Theia LV-I c24-0",
-  "SystemAddress": 95395713490,
-  "DistanceFromArrivalLS": 328.278813,
-  "TidalLock": false,
-  "TerraformState": "",
-  "PlanetClass": "High metal content body",
-  "Atmosphere": "thick argon rich atmosphere",
-  "AtmosphereType": "ArgonRich",
-  "AtmosphereComposition": [
-    {
-      "Name": "Nitrogen",
-      "Percent": 94.815651
-    },
-    {
-      "Name": "Argon",
-      "Percent": 4.808140
-    },
-    {
-      "Name": "Oxygen",
-      "Percent": 0.374139
-    }
-  ],
-  "Volcanism": "",
-  "MassEM": 1.685417,
-  "Radius": 7219699.000000,
-  "SurfaceGravity": 12.887799,
-  "SurfaceTemperature": 192.469955,
-  "SurfacePressure": 9029279.000000,
-  "Landable": false,
-  "Composition": {
-    "Ice": 0.042851,
-    "Rock": 0.640895,
-    "Metal": 0.316254
-  },
-  "SemiMajorAxis": 98387160301.208496,
-  "Eccentricity": 0.000465,
-  "OrbitalInclination": -0.082995,
-  "Periapsis": 178.557664,
-  "OrbitalPeriod": 24787623.286247,
-  "AscendingNode": 144.852914,
-  "MeanAnomaly": 128.309162,
-  "RotationPeriod": 315763.205856,
-  "AxialTilt": -0.376656,
-  "WasDiscovered": false,
-  "WasMapped": false,
-  "WasFootfalled": false
-}
-{
-  "timestamp": "2025-12-24T10:14:57Z",
-  "event": "ScanBaryCentre",
-  "StarSystem": "Pru Theia LV-I c24-0",
-  "SystemAddress": 95395713490,
-  "BodyID": 2,
-  "SemiMajorAxis": 239472025632.858276,
-  "Eccentricity": 0.000229,
-  "OrbitalInclination": -0.050906,
-  "Periapsis": 151.681238,
-  "OrbitalPeriod": 94125960.469246,
-  "AscendingNode": -125.950369,
-  "MeanAnomaly": 322.039855
-}
-{
-  "timestamp": "2025-12-24T10:15:10Z",
-  "event": "FSSBodySignals",
-  "BodyName": "Pru Theia LV-I c24-0 4 a",
-  "BodyID": 6,
-  "SystemAddress": 95395713490,
-  "Signals": [
-    {
-      "Type": "$SAA_SignalType_Biological;",
-      "Type_Localised": "Biological",
-      "Count": 2
-    }
-  ]
-}
-{
-  "timestamp": "2025-12-24T10:15:10Z",
-  "event": "FSSAllBodiesFound",
-  "SystemName": "Pru Theia LV-I c24-0",
-  "SystemAddress": 95395713490,
-  "Count": 12
-}
-{
-  "timestamp": "2025-12-24T10:17:07Z",
-  "event": "SAAScanComplete",
-  "BodyName": "Pru Theia LV-I c24-0 1",
-  "SystemAddress": 95395713490,
-  "BodyID": 1,
-  "ProbesUsed": 5,
-  "EfficiencyTarget": 7
-}
-{
-  "timestamp": "2025-12-24T10:17:07Z",
-  "event": "SAAScanComplete",
-  "BodyName": "Pru Theia LV-I c24-0 1",
-  "SystemAddress": 95395713490,
-  "BodyID": 1,
-  "ProbesUsed": 5,
-  "EfficiencyTarget": 7
-}
-{
-  "timestamp": "2025-12-24T10:17:07Z",
-  "event": "Scan",
-  "ScanType": "Detailed",
-  "BodyName": "Pru Theia LV-I c24-0 1",
-  "BodyID": 1,
-  "Parents": [
-    {
-      "Star": 0
-    }
-  ],
-  "StarSystem": "Pru Theia LV-I c24-0",
-  "SystemAddress": 95395713490,
-  "DistanceFromArrivalLS": 328.278818,
-  "TidalLock": false,
-  "TerraformState": "",
-  "PlanetClass": "High metal content body",
-  "Atmosphere": "thick argon rich atmosphere",
-  "AtmosphereType": "ArgonRich",
-  "AtmosphereComposition": [
-    {
-      "Name": "Nitrogen",
-      "Percent": 94.815651
-    },
-    {
-      "Name": "Argon",
-      "Percent": 4.808140
-    },
-    {
-      "Name": "Oxygen",
-      "Percent": 0.374139
-    }
-  ],
-  "Volcanism": "",
-  "MassEM": 1.685417,
-  "Radius": 7219699.000000,
-  "SurfaceGravity": 12.887799,
-  "SurfaceTemperature": 192.469955,
-  "SurfacePressure": 9029279.000000,
-  "Landable": false,
-  "Composition": {
-    "Ice": 0.042851,
-    "Rock": 0.640895,
-    "Metal": 0.316254
-  },
-  "SemiMajorAxis": 98387160301.208496,
-  "Eccentricity": 0.000465,
-  "OrbitalInclination": -0.082995,
-  "Periapsis": 178.557664,
-  "OrbitalPeriod": 24787623.286247,
-  "AscendingNode": 144.852914,
-  "MeanAnomaly": 128.311835,
-  "RotationPeriod": 315763.205856,
-  "AxialTilt": -0.376656,
-  "WasDiscovered": false,
-  "WasMapped": false,
-  "WasFootfalled": false
-}
-
- */
