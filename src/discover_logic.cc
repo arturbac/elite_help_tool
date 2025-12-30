@@ -162,6 +162,7 @@ auto order_calculation(
     };
 
   for(auto const & s: scans)
+    {
     registry[s.BodyID] = {
       s.BodyID,
       s.SemiMajorAxis,
@@ -174,32 +175,50 @@ auto order_calculation(
       s.Parents
     };
 
+    // Uzupełnianie hierarchii dla barycentrów na podstawie ścieżki rodziców skanu
+    for(size_t i = 0; i + 1 < s.Parents.size(); ++i)
+      {
+      auto parent_id = s.Parents[i].id();
+      if(registry.contains(parent_id) and registry[parent_id].parents.empty())
+        {
+        // Skoro s.Parents[i] to nasze barycentrum, to s.Parents[i+1] jest jego rodzicem
+        registry[parent_id].parents.push_back(s.Parents[i + 1]);
+        }
+      }
+    }
+
   // Explicit logic error check: If a barycentre has parents in the log, they should be mapped!
   // Note: Barycentre logs in ED sometimes don't list parents, but they are referenced by bodies.
 
-  std::map<body_id_t, location_t> rel_coords;
+  std::unordered_map<body_id_t, location_t> rel_coords;
   for(auto const & [id, node]: registry)
     rel_coords[id] = calculate_relative_pos(node, 0.0);
 
   std::vector<location_t> absolute_positions;
+  absolute_positions.reserve(scans.size());
+
   for(auto const & s: scans)
     {
     double abs_x = 0.0, abs_y = 0.0, abs_z = 0.0;
     body_id_t current_id = s.BodyID;
 
-    // Resolve the hierarchy up to the system root
-    while(registry.contains(current_id))
+    // Iterujemy w górę drzewa, aż do gwiazdy głównej (brak rodziców)
+    while(true)
       {
-      auto const & rel = rel_coords[current_id];
-      abs_x += rel.x;
-      abs_y += rel.y;
-      abs_z += rel.z;
+      if(rel_coords.contains(current_id))
+        {
+        auto const & rel = rel_coords.at(current_id);
+        abs_x += rel.x;
+        abs_y += rel.y;
+        abs_z += rel.z;
+        }
 
-      if(registry[current_id].parents.empty())
+      if(!registry.contains(current_id) || registry.at(current_id).parents.empty())
         break;
-      current_id = registry[current_id].parents[0].id();  // Primary orbital parent
+      current_id = registry.at(current_id).parents[0].id();
       }
     absolute_positions.push_back({s.BodyID, abs_x, abs_y, abs_z});
+
     }
 
   // --- TSP Nearest Neighbor (Start from index 0) ---
@@ -392,9 +411,9 @@ static auto aprox_value(body_t const & body) noexcept -> sell_value_t
 
 auto value_class(sell_value_t const sv) noexcept -> planet_value_e
   {
-  if(sv.mapping > 300000)
+  if(sv.mapping > 400000)
     return planet_value_e::high;
-  if(sv.mapping > 150000)
+  if(sv.mapping > 200000)
     return planet_value_e::medium;
   return planet_value_e::low;
   }
@@ -486,7 +505,7 @@ auto discovery_state_t::simple_discovery(std::string_view input) const -> void
           warn("failed to parse {}", input);
           return;
           }
-        planet_value_e const vl{ exploration::system_approx_value(fsd_target.StarClass, fsd_target.Name)};
+        planet_value_e const vl{exploration::system_approx_value(fsd_target.StarClass, fsd_target.Name)};
         debug("next target {}[{}] {}\033[m", value_color(vl), fsd_target.StarClass, fsd_target.Name);
         }
       break;
@@ -499,7 +518,7 @@ auto discovery_state_t::simple_discovery(std::string_view input) const -> void
           warn("failed to parse {}", input);
           return;
           }
-        planet_value_e const vl{ exploration::system_approx_value(start_jump.StarClass, start_jump.StarSystem)};
+        planet_value_e const vl{exploration::system_approx_value(start_jump.StarClass, start_jump.StarSystem)};
         info("jump to {}[{}] {}\033[m\n", value_color(vl), start_jump.StarClass, start_jump.StarSystem);
         state.bodies.clear();
         state.scan_bary_centre.clear();
@@ -608,21 +627,20 @@ auto discovery_state_t::simple_discovery(std::string_view input) const -> void
         };
         auto calculate_order_for = [&state, &order_info](std::span<events::scan_detailed_scan_t const> visiting)
         {
-          
           std::vector<location_t> order{order_calculation(state.scan_bary_centre, visiting)};
           // order_info(order, "naive"sv);
           std::vector<location_t> order2d{order_calculation_2_opt(order)};
           order_info(order2d, "2nd opt");
         };
         std::unordered_map<int, std::vector<events::scan_detailed_scan_t>> sub_systems;
-        for( events::scan_detailed_scan_t const & body : visiting_medium)
-        {
+        for(events::scan_detailed_scan_t const & body: visiting_medium)
+          {
           int parent{-1};
           if(not body.Parents.empty())
             parent = body.Parents.back().id();
           sub_systems[parent].emplace_back(body);
-        }
-        for(auto const & subsystem : sub_systems)
+          }
+        for(auto const & subsystem: sub_systems)
           calculate_order_for(subsystem.second);
         }
       break;
