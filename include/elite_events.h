@@ -237,28 +237,6 @@ struct nav_route_clear_t
   {
   };
 
-struct scan_auto_scan_t
-  {
-  std::string BodyName;
-  body_id_t BodyID;
-  std::string StarSystem;
-  uint64_t SystemAddress;
-  double DistanceFromArrivalLS;
-  std::string StarType;
-  uint8_t Subclass;
-  double StellarMass;
-  double Radius;
-  double AbsoluteMagnitude;
-  uint32_t Age_MY;
-  double SurfaceTemperature;
-  std::string Luminosity;
-  double RotationPeriod;
-  double AxialTilt;
-  bool WasDiscovered;
-  bool WasMapped;
-  bool WasFootfalled;
-  };
-
 /*
 {
   "timestamp": "2025-12-24T10:13:57Z",
@@ -389,7 +367,9 @@ struct parent_t
     {
     if(Star)
       return *Star;
-    return *Null;
+    if(Null)
+      return *Null;
+    return 0;
     }
   };
 

@@ -473,7 +473,7 @@ auto discovery_state_t::simple_discovery(std::string_view input) const -> void
           sell_value_t value{aprox_value(obj)};
 
           spdlog::info(
-            " [{}]{}{:5}- {} [discovery: {}cr mapping: {}cr] {}",
+            " [{}]{}{:5}- {} [fss: {}cr dss: {}cr] {}",
             obj.scan.BodyID,
             value_color(obj.value),
             obj.name,
@@ -569,27 +569,6 @@ auto discovery_state_t::simple_discovery(std::string_view input) const -> void
         }
       break;
     case Scan:
-      // scan_auto_scan_t
-      if(gevt.ScanType == events::scan_type_e::AutoScan)
-        {
-        events::scan_auto_scan_t obj;
-        parse_res = glz::read<glz::opts{.error_on_unknown_keys = false}>(obj, buffer);
-        if(parse_res) [[unlikely]]
-          {
-          warn("failed to parse {}", input);
-          return;
-          }
-        spdlog::info(
-          "{} {} {} {} {}{}",
-          obj.StarSystem,
-          body_short_name(obj.StarSystem, obj.BodyName),
-          obj.StarType,
-          obj.Subclass,
-          obj.WasDiscovered ? " \033[33mdiscovered\033[m" : "",
-          obj.WasMapped ? " \033[31mmapped\033[m" : ""
-        );
-        }
-      else if(gevt.ScanType == events::scan_type_e::Detailed)
         {
         events::scan_detailed_scan_t obj;
         parse_res = glz::read<glz::opts{.error_on_unknown_keys = false}>(obj, buffer);
@@ -602,15 +581,7 @@ auto discovery_state_t::simple_discovery(std::string_view input) const -> void
           return;
 
         planet_value_e const value{value_class(obj)};
-        spdlog::info(
-          "{} {} {} {} {}{}",
-          body_short_name(obj.StarSystem, obj.BodyName),
-          obj.TerraformState,
-          obj.PlanetClass,
-          obj.Atmosphere,
-          obj.WasDiscovered ? " \033[33mdiscovered\033[m" : "",
-          obj.WasMapped ? " \033[31mmapped\033[m" : ""
-        );
+
         state.bodies.emplace_back(
           body_t{
             .value = value,
@@ -620,6 +591,20 @@ auto discovery_state_t::simple_discovery(std::string_view input) const -> void
             .was_mapped = obj.WasMapped,
             .scan = std::move(obj)
           }
+        );
+        body_t const & body{state.bodies.back()};
+        sell_value_t value_cr{aprox_value(body)};
+
+        spdlog::info(
+          "{} {} {} {} [fss: {}cr dss: {}cr]{}{} ",
+          body.name,
+          body.scan.TerraformState,
+          body.scan.PlanetClass,
+          body.scan.Atmosphere,
+          format_credits_value(value_cr.discovery),
+          format_credits_value(value_cr.mapping),
+          body.was_discovered ? " \033[33mdiscovered\033[m" : "",
+          body.was_mapped ? " \033[31mmapped\033[m" : ""
         );
         }
       break;
