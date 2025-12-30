@@ -390,19 +390,6 @@ static auto aprox_value(body_t const & body) noexcept -> sell_value_t
   return result;
   }
 
-// auto value_class(events::scan_detailed_scan_t const & obj) noexcept -> planet_value_e
-//   {
-//   planet_value_e value{};
-//   if(not obj.TerraformState.empty() or stralgo::starts_with(obj.PlanetClass, "Water"sv)
-//      or stralgo::starts_with(obj.PlanetClass, "Earth"sv) or stralgo::starts_with(obj.PlanetClass, "Ammonia"sv)
-//      or stralgo::starts_with(obj.PlanetClass, "Metal rich"sv))
-//     value = planet_value_e::high;
-//   else if(stralgo::starts_with(obj.PlanetClass, "High metal"sv)
-//           or stralgo::starts_with(obj.PlanetClass, "Sudarsky class II "sv))
-//     value = planet_value_e::medium;
-//   return value;
-//   }
-
 auto value_class(sell_value_t const sv) noexcept -> planet_value_e
   {
   if(sv.mapping > 300000)
@@ -579,22 +566,14 @@ auto discovery_state_t::simple_discovery(std::string_view input) const -> void
           );
           }
 
-        std::vector<events::scan_detailed_scan_t> visiting_medium, visiting_high;
+        std::vector<events::scan_detailed_scan_t> visiting_medium;
         auto filter_medium = std::ranges::views::filter(
           state.bodies, [](body_t const & body) -> bool { return body.value_class() > planet_value_e::low; }
-        );
-        auto filter_high = std::ranges::views::filter(
-          state.bodies, [](body_t const & body) -> bool { return body.value_class() > planet_value_e::medium; }
         );
 
         std::ranges::transform(
           filter_medium,
           std::back_inserter(visiting_medium),
-          [](body_t const & body) -> events::scan_detailed_scan_t { return body.scan; }
-        );
-        std::ranges::transform(
-          filter_high,
-          std::back_inserter(visiting_high),
           [](body_t const & body) -> events::scan_detailed_scan_t { return body.scan; }
         );
 
@@ -629,13 +608,22 @@ auto discovery_state_t::simple_discovery(std::string_view input) const -> void
         };
         auto calculate_order_for = [&state, &order_info](std::span<events::scan_detailed_scan_t const> visiting)
         {
+          
           std::vector<location_t> order{order_calculation(state.scan_bary_centre, visiting)};
-          order_info(order, "naive"sv);
+          // order_info(order, "naive"sv);
           std::vector<location_t> order2d{order_calculation_2_opt(order)};
           order_info(order2d, "2nd opt");
         };
-        calculate_order_for(visiting_medium);
-        calculate_order_for(visiting_high);
+        std::unordered_map<int, std::vector<events::scan_detailed_scan_t>> sub_systems;
+        for( events::scan_detailed_scan_t const & body : visiting_medium)
+        {
+          int parent{-1};
+          if(not body.Parents.empty())
+            parent = body.Parents.front().id();
+          sub_systems[parent].emplace_back(body);
+        }
+        for(auto const & subsystem : sub_systems)
+          calculate_order_for(subsystem.second);
         }
       break;
     case ScanBaryCentre:
