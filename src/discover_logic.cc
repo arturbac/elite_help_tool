@@ -22,6 +22,54 @@ using utc_time_point_t = std::chrono::sys_time<std::chrono::milliseconds>;
 
 using events::body_id_t;
 
+namespace exploration
+  {
+auto is_high_value_star(std::string_view star_class) noexcept -> bool
+  {
+  using namespace std::literals;
+  // Gwiazdy typu A, F, G, K mają najlepszą "Goldilocks Zone"
+  return star_class == "A"sv || star_class == "F"sv || star_class == "G"sv || star_class == "K"sv;
+  }
+
+auto extract_mass_code(std::string_view name) noexcept -> char
+  {
+  // Proceduralne nazwy kończą się schematem: [Litery]-[Litera] [MassCode][Liczba]-[Liczba]
+  // Szukamy ostatniej spacji, Mass Code to pierwszy znak po niej (jeśli to litera)
+  auto const last_space = name.find_last_of(' ');
+  if(last_space == std::string_view::npos || last_space + 1 >= name.size())
+    return 'a';  // Fallback
+
+  char const code = static_cast<char>(std::tolower(name[last_space + 1]));
+  return (code >= 'a' && code <= 'h') ? code : 'a';
+  }
+
+auto system_approx_value(std::string_view star_class, std::string_view system_name) noexcept -> planet_value_e
+  {
+  auto const mass_code = extract_mass_code(system_name);
+
+  // Logika aproksymacji:
+  // Kod 'd' przy gwiazdach F/G/A to najczęściej "high" (Terraformables)
+  // Kody 'e' i wyżej to zazwyczaj bardzo cenne układy (Neutron/BlackHoles)
+  // Kody 'a' i 'b' to zazwyczaj tanie lodowe planety
+
+  if(mass_code >= 'e')
+    return planet_value_e::high;
+
+  if(mass_code == 'd')
+    {
+    // Gwiazdy typu A, F, G w kodzie 'd' mają najwyższą szansę na drogie planety
+    if(is_high_value_star(star_class))
+      return planet_value_e::high;
+    return planet_value_e::medium;
+    }
+
+  if(mass_code == 'c')
+    return planet_value_e::medium;
+
+  return planet_value_e::low;
+  }
+  }  // namespace exploration
+
 struct location_t
   {
   events::body_id_t body_id;
@@ -365,6 +413,41 @@ auto value_class(sell_value_t const sv) noexcept -> planet_value_e
   }
 
 [[nodiscard]]
+constexpr static auto star_value_calculate(events::scan_detailed_scan_t const & scan) -> double
+  {
+  constexpr static auto get_base_value = [](std::string_view type) -> double
+  {
+    using namespace std::literals;
+
+    // Białe karły
+    if(type.starts_with("D"sv))
+      return 14057.0;
+
+    // Gwiazdy neutronowe i Czarne dziury
+    if(type == "Neutron"sv)
+      return 22628.0;
+    if(type == "BlackHole"sv)
+      return 22628.0;
+
+    // Supergiganty
+    if(type.find("SuperGiant"sv) != std::string_view::npos)
+      return 33.0;
+
+    // Standardowe gwiazdy ciągu głównego i inne (K, G, B, F, O, A, M)
+    // Większość ma tę samą bazę, różnią się masą
+    return 1200.0;
+  };
+  if(!scan.StarType || !scan.StellarMass) [[unlikely]]
+    return 0.0;
+
+  auto const k = get_base_value(*scan.StarType);
+  auto const mass = *scan.StellarMass;
+
+  // Standardowy wzór FDEV dla gwiazd
+  return k + (mass * k / 66.25);
+  }
+
+[[nodiscard]]
 static auto format_credits_value(uint32_t value) -> std::string
   {
   auto s_t = std::to_string(value);
@@ -416,7 +499,8 @@ auto discovery_state_t::simple_discovery(std::string_view input) const -> void
           warn("failed to parse {}", input);
           return;
           }
-        debug("next target [{}] {}", fsd_target.StarClass, fsd_target.Name);
+        planet_value_e const vl{ exploration::system_approx_value(fsd_target.StarClass, fsd_target.Name)};
+        debug("next target {}[{}] {}\033[m", value_color(vl), fsd_target.StarClass, fsd_target.Name);
         }
       break;
     case StartJump:
@@ -428,7 +512,8 @@ auto discovery_state_t::simple_discovery(std::string_view input) const -> void
           warn("failed to parse {}", input);
           return;
           }
-        info("jump to [{}] {}\n", start_jump.StarClass, start_jump.StarSystem);
+        planet_value_e const vl{ exploration::system_approx_value(start_jump.StarClass, start_jump.StarSystem)};
+        info("jump to {}[{}] {}\033[m\n", value_color(vl), start_jump.StarClass, start_jump.StarSystem);
         state.bodies.clear();
         state.scan_bary_centre.clear();
         state.system_name = start_jump.StarSystem;
@@ -466,7 +551,7 @@ auto discovery_state_t::simple_discovery(std::string_view input) const -> void
       break;
     case FSSAllBodiesFound:
         {
-        info("fss scan complete");
+        debug("fss scan complete");
         state.fss_complete = true;
         std::ranges::sort(
           state.bodies,
@@ -562,7 +647,7 @@ auto discovery_state_t::simple_discovery(std::string_view input) const -> void
           warn("failed to parse {}", input);
           return;
           }
-        info(
+        debug(
           "bary_centre:{} {} [SemiMajorAxis:{:2.4f} Eccentricity:{:2.4f} OrbitalInclination:{:2.4f} Periapsis:{:2.4f}"
           " OrbitalPeriod:{:2.4f} AscendingNode:{:2.4f} MeanAnomaly:{:2.4f}]",
           obj.StarSystem,
@@ -601,8 +686,16 @@ auto discovery_state_t::simple_discovery(std::string_view input) const -> void
           }
         );
         body_t & body{state.bodies.back()};
-        sell_value_t value_cr{aprox_value(body)};
-        body.value = value_cr;
+        // star_value_calculate
+        if(obj.StarType)
+          {
+          body.value.discovery = star_value_calculate(obj);
+          }
+        else
+          {
+          sell_value_t value_cr{aprox_value(body)};
+          body.value = value_cr;
+          }
         spdlog::info(
           "{}{} {} {} {}\033[m [fss: {}cr dss: {}cr]{}{} ",
           value_color(body.value_class()),
@@ -610,8 +703,8 @@ auto discovery_state_t::simple_discovery(std::string_view input) const -> void
           body.scan.TerraformState,
           body.scan.PlanetClass,
           body.scan.Atmosphere,
-          format_credits_value(value_cr.discovery),
-          format_credits_value(value_cr.mapping),
+          format_credits_value(body.value.discovery),
+          format_credits_value(body.value.mapping),
           body.was_discovered ? " \033[33mdiscovered\033[m" : "",
           body.was_mapped ? " \033[31mmapped\033[m" : ""
         );

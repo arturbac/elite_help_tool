@@ -394,8 +394,13 @@ struct scan_detailed_scan_t
   std::string AtmosphereType;  // "ArgonRich"
   std::vector<element_t> AtmosphereComposition;
   std::string Volcanism;
+  std::optional<std::string> StarType;  //: Stellar classification (for a star) – see §15.2
+  std::optional<uint8_t> Subclass;      //: Star's heat classification 0..9
+  std::optional<double> StellarMass;    //: mass as multiple of Sol's mass
+  std::optional<std::string> Luminosity;
   double MassEM;
   double Radius;
+  double AbsoluteMagnitude;
   double SurfaceGravity;
   double SurfaceTemperature;
   double SurfacePressure;
@@ -550,16 +555,20 @@ struct sell_value_t
   uint32_t discovery;
   uint32_t mapping;
   };
-  
+
 [[nodiscard]]
-auto value_class( sell_value_t const sv) noexcept -> planet_value_e;
+auto value_class(sell_value_t const sv) noexcept -> planet_value_e;
 
 struct body_t
   {
   sell_value_t value;
+
   [[nodiscard]]
-  auto value_class() const noexcept -> planet_value_e{ return ::value_class(value); }
-  
+  auto value_class() const noexcept -> planet_value_e
+    {
+    return ::value_class(value);
+    }
+
   std::string name;
   std::string planet_class;
   bool was_discovered;
@@ -639,6 +648,18 @@ static constexpr std::array<planet_value_info_t, 19> exploration_values{
    {"Helium gas giant", 500, 2'000, 1.5, 3.45}}
 };
 
+namespace exploration
+  {
+[[nodiscard]]
+auto is_high_value_star(std::string_view star_class) noexcept -> bool;
+
+[[nodiscard]]
+auto extract_mass_code(std::string_view name) noexcept -> char;
+
+[[nodiscard]]
+auto system_approx_value(std::string_view star_class, std::string_view system_name) noexcept -> planet_value_e;
+
+  }  // namespace exploration
 
 /*
  * Pru Theia LV-I c24-0
