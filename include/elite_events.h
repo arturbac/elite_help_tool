@@ -25,6 +25,7 @@ enum struct event_e
   FSSDiscoveryScan,
   FSSBodySignals,
   FSSAllBodiesFound,
+  DiscoveryScan,
   Scan,
   ScanBaryCentre,
   SAAScanComplete,
