@@ -604,7 +604,7 @@ auto discovery_state_t::simple_discovery(std::string_view input) const -> void
         sell_value_t value_cr{aprox_value(body)};
         body.value = value_cr;
         spdlog::info(
-          "{}\033[m{} {} {} {} [fss: {}cr dss: {}cr]{}{} ",
+          "{}{} {} {} {}\033[m [fss: {}cr dss: {}cr]{}{} ",
           value_color(body.value_class()),
           body.name,
           body.scan.TerraformState,
