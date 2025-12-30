@@ -342,18 +342,26 @@ static auto aprox_value(body_t const & body) noexcept -> sell_value_t
   return result;
   }
 
-[[nodiscard]]
-auto value_class(events::scan_detailed_scan_t const & obj) noexcept -> planet_value_e
+// auto value_class(events::scan_detailed_scan_t const & obj) noexcept -> planet_value_e
+//   {
+//   planet_value_e value{};
+//   if(not obj.TerraformState.empty() or stralgo::starts_with(obj.PlanetClass, "Water"sv)
+//      or stralgo::starts_with(obj.PlanetClass, "Earth"sv) or stralgo::starts_with(obj.PlanetClass, "Ammonia"sv)
+//      or stralgo::starts_with(obj.PlanetClass, "Metal rich"sv))
+//     value = planet_value_e::high;
+//   else if(stralgo::starts_with(obj.PlanetClass, "High metal"sv)
+//           or stralgo::starts_with(obj.PlanetClass, "Sudarsky class II "sv))
+//     value = planet_value_e::medium;
+//   return value;
+//   }
+
+auto value_class(sell_value_t const sv) noexcept -> planet_value_e
   {
-  planet_value_e value{};
-  if(not obj.TerraformState.empty() or stralgo::starts_with(obj.PlanetClass, "Water"sv)
-     or stralgo::starts_with(obj.PlanetClass, "Earth"sv) or stralgo::starts_with(obj.PlanetClass, "Ammonia"sv)
-     or stralgo::starts_with(obj.PlanetClass, "Metal rich"sv))
-    value = planet_value_e::high;
-  else if(stralgo::starts_with(obj.PlanetClass, "High metal"sv)
-          or stralgo::starts_with(obj.PlanetClass, "Sudarsky class II "sv))
-    value = planet_value_e::medium;
-  return value;
+  if(sv.mapping > 300000)
+    return planet_value_e::high;
+  if(sv.mapping > 150000)
+    return planet_value_e::medium;
+  return planet_value_e::low;
   }
 
 [[nodiscard]]
@@ -373,6 +381,16 @@ static auto format_credits_value(uint32_t value) -> std::string
 
   std::ranges::reverse(res_t);
   return res_t;
+  }
+
+static constexpr auto value_color(planet_value_e value)
+  {
+  std::string_view color{color_codes_t::reset};
+  if(value == planet_value_e::high)
+    color = color_codes_t::blue;
+  else if(value == planet_value_e::medium)
+    color = color_codes_t::yellow;
+  return color;
   }
 
 auto discovery_state_t::simple_discovery(std::string_view input) const -> void
@@ -459,15 +477,7 @@ auto discovery_state_t::simple_discovery(std::string_view input) const -> void
             return l.name < r.name;
           }
         );
-        static constexpr auto value_color = [](planet_value_e value)
-        {
-          std::string_view color{color_codes_t::reset};
-          if(value == planet_value_e::high)
-            color = color_codes_t::blue;
-          else if(value == planet_value_e::medium)
-            color = color_codes_t::yellow;
-          return color;
-        };
+
         for(body_t const & obj: state.bodies)
           {
           sell_value_t value{aprox_value(obj)};
@@ -475,7 +485,7 @@ auto discovery_state_t::simple_discovery(std::string_view input) const -> void
           spdlog::info(
             " [{}]{}{:5}- {} [fss: {}cr dss: {}cr] {}",
             obj.scan.BodyID,
-            value_color(obj.value),
+            value_color(obj.value_class()),
             obj.name,
             obj.planet_class,
             format_credits_value(value.discovery),
@@ -486,10 +496,10 @@ auto discovery_state_t::simple_discovery(std::string_view input) const -> void
 
         std::vector<events::scan_detailed_scan_t> visiting_medium, visiting_high;
         auto filter_medium = std::ranges::views::filter(
-          state.bodies, [](body_t const & body) -> bool { return body.value > planet_value_e::low; }
+          state.bodies, [](body_t const & body) -> bool { return body.value_class() > planet_value_e::low; }
         );
         auto filter_high = std::ranges::views::filter(
-          state.bodies, [](body_t const & body) -> bool { return body.value > planet_value_e::medium; }
+          state.bodies, [](body_t const & body) -> bool { return body.value_class() > planet_value_e::medium; }
         );
 
         std::ranges::transform(
@@ -526,7 +536,7 @@ auto discovery_state_t::simple_discovery(std::string_view input) const -> void
               dist_ls = std::format(" [{:1.1f}Ls]", dls);
               }
             order_str.append(
-              std::format("{}{}{}{},", value_color(ref->value), ref->name, color_codes_t::reset, dist_ls)
+              std::format("{}{}{}{},", value_color(ref->value_class()), ref->name, color_codes_t::reset, dist_ls)
             );
             prev = loc;
             }
@@ -580,11 +590,9 @@ auto discovery_state_t::simple_discovery(std::string_view input) const -> void
         if(state.fss_complete)
           return;
 
-        planet_value_e const value{value_class(obj)};
-
         state.bodies.emplace_back(
           body_t{
-            .value = value,
+            .value = {},
             .name = std::string{body_short_name(obj.StarSystem, obj.BodyName)},
             .planet_class = obj.PlanetClass,
             .was_discovered = obj.WasDiscovered,
@@ -592,11 +600,12 @@ auto discovery_state_t::simple_discovery(std::string_view input) const -> void
             .scan = std::move(obj)
           }
         );
-        body_t const & body{state.bodies.back()};
+        body_t & body{state.bodies.back()};
         sell_value_t value_cr{aprox_value(body)};
-
+        body.value = value_cr;
         spdlog::info(
-          "{} {} {} {} [fss: {}cr dss: {}cr]{}{} ",
+          "{}\033[m{} {} {} {} [fss: {}cr dss: {}cr]{}{} ",
+          value_color(body.value_class()),
           body.name,
           body.scan.TerraformState,
           body.scan.PlanetClass,

@@ -545,9 +545,21 @@ consteval auto adl_enum_bounds(planet_value_e)
   return simple_enum::adl_info{low, high};
   }
 
+struct sell_value_t
+  {
+  uint32_t discovery;
+  uint32_t mapping;
+  };
+  
+[[nodiscard]]
+auto value_class( sell_value_t const sv) noexcept -> planet_value_e;
+
 struct body_t
   {
-  planet_value_e value;
+  sell_value_t value;
+  [[nodiscard]]
+  auto value_class() const noexcept -> planet_value_e{ return ::value_class(value); }
+  
   std::string name;
   std::string planet_class;
   bool was_discovered;
@@ -627,11 +639,6 @@ static constexpr std::array<planet_value_info_t, 19> exploration_values{
    {"Helium gas giant", 500, 2'000, 1.5, 3.45}}
 };
 
-struct sell_value_t
-  {
-  uint32_t discovery;
-  uint32_t mapping;
-  };
 
 /*
  * Pru Theia LV-I c24-0
