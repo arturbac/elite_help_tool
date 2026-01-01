@@ -32,7 +32,7 @@ auto find_latest_journal(fs::path const & dir) -> std::optional<fs::path>
   return journals.back();
   }
 
-auto tail_file(fs::path const & path, process_callback const & cb) -> void
+auto tail_file(fs::path const & path, process_callback const & cb, std::stop_token stoken) -> void
   {
   // Tryb "współdzielony" w systemach POSIX to standardowy fstream.
   // Na Windows można użyć specyficznych flag API, ale std::ifstream zazwyczaj wystarcza do odczytu logów.
@@ -51,7 +51,7 @@ auto tail_file(fs::path const & path, process_callback const & cb) -> void
   file.clear();  // Czyścimy flagę EOF, aby móc czytać dalej
 
   // Pętla monitorująca zmiany
-  while(true)
+  while(not stoken.stop_requested())
     {
     if(std::getline(file, line))
       {

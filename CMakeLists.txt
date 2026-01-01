@@ -6,9 +6,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+
 include(cmake/get_cpm.cmake)
 find_package(Boost REQUIRED COMPONENTS program_options)
-
+find_package(Qt6 REQUIRED COMPONENTS Widgets Sql)
 # ----------------------------------------------------------------
 # simple_enum
 # ----------------------------------------------------------------
@@ -98,7 +99,7 @@ if(NOT glaze_FOUND)
     stephenberry/glaze
     GIT_TAG
     # v5.3.0
-    v5.7.2
+    v6.4.1
     # v6.0.0
     OPTIONS
     "glaze_DISABLE_SIMD_WHEN_SUPPORTED ON")
@@ -193,25 +194,36 @@ set(STRICT_CXX_FLAGS
   "-Werror=implicit-int-float-conversion"
   "-Werror=return-type"
 )
-
-add_executable(journal_tailer)
-target_sources(journal_tailer
-PRIVATE
-elite_main.cc
-src/file_io.cc
-src/discover_logic.cc
-)
-
-target_include_directories(journal_tailer PUBLIC include)
-
-
-target_link_libraries(journal_tailer PRIVATE
-  Boost::program_options
+add_library(eht)
+target_include_directories(eht PUBLIC include)
+target_link_libraries(eht PUBLIC
   simple_enum::simple_enum
   small_vectors::small_vectors
   stralgo::stralgo
   glaze::glaze
   )
+
+add_executable(journal_tailer)
+
+
+target_link_libraries(journal_tailer PRIVATE
+  Boost::program_options
+  eht
+  )
+
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTORCC ON)
+set(CMAKE_AUTOUIC ON)
+
+add_executable(elite_help_tool)
+target_link_libraries(elite_help_tool PRIVATE
+  eht
+  Qt6::Widgets 
+  Qt6::Sql
+  )
+  
+add_subdirectory(src)
+add_subdirectory(ui)
 
 #add_executable(journal_tests tests.cpp)
 #target_link_libraries(journal_tests PRIVATE ut)

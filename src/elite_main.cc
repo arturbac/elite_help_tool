@@ -24,9 +24,10 @@ struct config_t
 auto main(int argc, char ** argv) -> int
   {
   po::options_description desc("Opcje");
-  desc.add_options()("help,h", "Wyświetl pomoc")(
-    "dir,d", po::value<std::string>()->default_value("."), "Katalog do monitorowania"
-  );
+  desc
+    .add_options()("help,h", "Wyświetl pomoc")("dir,d", po::value<std::string>()->default_value("."), "journal folder")(
+      "file,f", po::value<std::string>()->default_value("."), "file for explicit load"
+    );
 
   po::variables_map vm;
   try
@@ -48,18 +49,20 @@ auto main(int argc, char ** argv) -> int
 
   spdlog::set_level(spdlog::level::debug);
   auto const path = fs::path{vm["dir"].as<std::string>()};
-  auto const latest = find_latest_journal(path);
+  std::optional<fs::path> latest;
 
+  if(vm.count("file"))
+    latest = fs::path{vm["file"].as<std::string>()};
+  else
+    latest = find_latest_journal(path);
+  std::stop_source stop_source;
   if(latest)
     {
-    std::println("Monitorowanie pliku: {}", latest->string());
-    // tail_file(*latest, [](std::string_view line)
-    // {
-    //   std::println("{}", line);
-    // });
+    std::println("Listning to file: {}", latest->string());
     state_t state{};
-    discovery_state_t monitor{&state};
-    tail_file(*latest, std::bind_front(&discovery_state_t::simple_discovery, &monitor));
+    discovery_state_t monitor;
+    monitor.state = &state;
+    tail_file(*latest, std::bind_front(&generic_state_t::discovery, &monitor), stop_source.get_token());
     }
   else
     {

@@ -138,7 +138,7 @@ auto calculate_relative_pos(orbital_node_t const & node, double dt) -> location_
 
 [[nodiscard]]
 auto order_calculation(
-  std::span<events::scan_bary_centre_t const> barycentres, std::span<events::scan_detailed_scan_t const> scans
+  std::span<events::scan_bary_centre_t const> barycentres, std::vector<body_t const *> const & scans
 ) -> std::vector<location_t>
   {
   std::unordered_map<body_id_t, orbital_node_t> registry;
@@ -159,28 +159,34 @@ auto order_calculation(
 
   for(auto const & s: scans)
     {
-    registry[s.BodyID] = {
-      s.BodyID,
-      s.SemiMajorAxis,
-      s.Eccentricity,
-      s.OrbitalInclination,
-      s.Periapsis,
-      s.OrbitalPeriod,
-      s.AscendingNode,
-      s.MeanAnomaly,
-      s.Parents
+    registry[s->body_id] = {
+      s->body_id,
+      s->semi_major_axis,
+      s->eccentricity,
+      s->orbital_inclination,
+      s->periapsis,
+      s->orbital_period,
+      s->ascending_node,
+      s->mean_anomaly,
+      {}
     };
 
+    if(s->parent_barycenter)
+      registry[*s->parent_barycenter ].parents.emplace_back(events::parent_t{.Null =s->parent_barycenter });
+    if(s->parent_star)
+      registry[*s->parent_star ].parents.emplace_back(events::parent_t{.Star =s->parent_star });
+    if(s->parent_planet)
+      registry[*s->parent_planet ].parents.emplace_back(events::parent_t{.Planet =s->parent_planet });
     // Uzupełnianie hierarchii dla barycentrów na podstawie ścieżki rodziców skanu
-    for(size_t i = 0; i + 1 < s.Parents.size(); ++i)
-      {
-      auto parent_id = s.Parents[i].id();
-      if(registry.contains(parent_id) and registry[parent_id].parents.empty())
-        {
-        // Skoro s.Parents[i] to nasze barycentrum, to s.Parents[i+1] jest jego rodzicem
-        registry[parent_id].parents.push_back(s.Parents[i + 1]);
-        }
-      }
+    // for(size_t i = 0; i + 1 < s->parents.size(); ++i)
+    //   {
+    //   auto parent_id = s->parents[i].id();
+    //   if(registry.contains(parent_id) and registry[parent_id].parents.empty())
+    //     {
+    //     // Skoro s.Parents[i] to nasze barycentrum, to s.Parents[i+1] jest jego rodzicem
+    //     registry[parent_id].parents.push_back(s->parents[i + 1]);
+    //     }
+    //   }
     }
 
   // Explicit logic error check: If a barycentre has parents in the log, they should be mapped!
@@ -196,7 +202,7 @@ auto order_calculation(
   for(auto const & s: scans)
     {
     double abs_x = 0.0, abs_y = 0.0, abs_z = 0.0;
-    body_id_t current_id = s.BodyID;
+    body_id_t current_id = s->body_id;
 
     // Iterujemy w górę drzewa, aż do gwiazdy głównej (brak rodziców)
     while(true)
@@ -213,7 +219,7 @@ auto order_calculation(
         break;
       current_id = registry.at(current_id).parents[0].id();
       }
-    absolute_positions.push_back({s.BodyID, abs_x, abs_y, abs_z});
+    absolute_positions.push_back({s->body_id, abs_x, abs_y, abs_z});
     }
 
   // --- TSP Nearest Neighbor (Start from index 0) ---
@@ -362,28 +368,12 @@ constexpr auto distance_ls(location_t const a, location_t const b) noexcept -> d
   return distance_m / light_speed_mps;
   }
 
-[[nodiscard]]
-auto parse_timestamp_t(std::string_view input) -> std::optional<utc_time_point_t>
-  {
-  std::istringstream stream{std::string(input)};
-  utc_time_point_t tp;
-
-  // %FT%TZ to skrót formatu ISO 8601 (Date T Time Z)
-  // %F = %Y-%m-%d
-  // %T = %H:%M:%S
-  if(stream >> std::chrono::parse("%FT%TZ", tp))
-    return tp;
-
-  return std::nullopt;
-  }
-
-static auto body_short_name(std::string_view system, std::string_view name) -> std::string_view
+auto body_short_name(std::string_view system, std::string_view name) -> std::string_view
   {
   return name.substr(system.size());
   }
 
-[[nodiscard]]
-static auto aprox_value(body_t const & body) noexcept -> sell_value_t
+auto aprox_value(body_t const & body) noexcept -> sell_value_t
   {
   sell_value_t result{};
   auto it{std::ranges::find(
@@ -397,7 +387,7 @@ static auto aprox_value(body_t const & body) noexcept -> sell_value_t
     // 1. Obliczenie mnożnika masy: (MassEarth ^ 0.2)
     // W Journalu masa jest podawana w wielokrotnościach masy Ziemi (MassEM)
     // Jeśli masa wynosi 0 (np. słońce/czarna dziura - rzadkie w tym kontekście), używamy 1.0
-    double const mass = body.scan.MassEM > 0.0 ? body.scan.MassEM : 1.0;
+    double const mass = body.mass_em > 0.0 ? body.mass_em : 1.0;
     double const mass_multiplier = std::pow(mass, 0.2);
 
     double disc_mult{1.0};
@@ -407,7 +397,7 @@ static auto aprox_value(body_t const & body) noexcept -> sell_value_t
     if(not body.was_mapped)
       map_mult = info.bonus_first_dss;
 
-    if(not body.scan.TerraformState.empty() and info.terraform_multiplier > 1.0)
+    if(not body.terraform_state.empty() and info.terraform_multiplier > 1.0)
       {
       disc_mult *= info.terraform_multiplier;
       map_mult *= info.terraform_multiplier;
@@ -494,9 +484,8 @@ static constexpr auto value_color(planet_value_e value)
   return color;
   }
 
-auto discovery_state_t::simple_discovery(std::string_view input) const -> void
+auto generic_state_t::discovery(std::string_view input) -> void
   {
-  state_t & state{*this->state};
   std::string buffer{input};
   events::generic_event_t gevt;
   auto parse_res{glz::read<glz::opts{.error_on_unknown_keys = false}>(gevt, buffer)};
@@ -506,85 +495,155 @@ auto discovery_state_t::simple_discovery(std::string_view input) const -> void
     return;
     }
   using enum events::event_e;
+  auto const parse_and_handle = [&]<typename event_t>() -> void
+  {
+    event_t obj{};
+    auto const parse_res = glz::read<glz::opts{.error_on_unknown_keys = false}>(obj, buffer);
+
+    if(parse_res) [[unlikely]]
+      {
+      warn("failed to parse {}", input);  // Assumes 'input' is available in scope
+      return;
+      }
+
+    handle(std::move(obj));  // Assumes 'handle' is available in scope
+  };
+
   switch(gevt.event)
     {
-    case FSDJump:
+    case FSDJump:   parse_and_handle.template operator()<events::fsd_jump_t>(); break;
+    case FSDTarget: parse_and_handle.template operator()<events::fsd_target_t>(); break;
+    case StartJump: parse_and_handle.template operator()<events::start_jump_t>(); break;
+
+    case FSSDiscoveryScan:  parse_and_handle.template operator()<events::fss_discovery_scan_t>(); break;
+    case FSSBodySignals:    parse_and_handle.template operator()<events::fss_body_signals_t>(); break;
+    case FSSAllBodiesFound: parse_and_handle.template operator()<events::fss_all_bodies_found_t>(); break;
+    case ScanBaryCentre:    parse_and_handle.template operator()<events::scan_bary_centre_t>(); break;
+    case Scan:              parse_and_handle.template operator()<events::scan_detailed_scan_t>(); break;
+    case SAAScanComplete:   parse_and_handle.template operator()<events::saa_scan_complete_t>(); break;
+    case SAASignalsFound:   break;
+    case Music:             break;
+    case NavRoute:          break;
+    case NavRouteClear:     break;
+    case FuelScoop:         break;
+    case Shutdown:          break;
+    default:                break;
+    }
+  }
+
+auto to_body(events::scan_detailed_scan_t && event) -> body_t
+  {
+  body_t b{
+    .value = {},
+    .system_address = event.SystemAddress,
+    .body_id = event.BodyID,
+    .name = std::string{body_short_name(event.StarSystem, event.BodyName)},
+    .planet_class = event.PlanetClass,
+    .terraform_state = event.TerraformState,
+    .atmosphere = event.Atmosphere,
+    .atmosphere_type = event.AtmosphereType,
+    .atmosphere_composition = event.AtmosphereComposition,
+    .parent_planet = {},
+    .parent_star = {},
+    .parent_barycenter = {},
+    .volcanism = event.Volcanism,
+    .mass_em = event.MassEM,
+    .radius = event.Radius,
+    .absolute_magnitude = event.AbsoluteMagnitude,
+    .surface_gravity = event.SurfaceGravity,
+    .surface_temperature = event.SurfaceTemperature,
+    .surface_pressure = event.SurfacePressure,
+    .semi_major_axis = event.SemiMajorAxis,
+    .eccentricity = event.Eccentricity,
+    .orbital_inclination = event.OrbitalInclination,
+    .periapsis = event.Periapsis,
+    .orbital_period = event.OrbitalPeriod,
+    .ascending_node = event.AscendingNode,
+    .mean_anomaly = event.MeanAnomaly,
+    .rotation_period = event.RotationPeriod,
+    .axial_tilt = event.AxialTilt,
+    .landable = event.Landable,
+    .tidal_lock = event.TidalLock,
+    .was_discovered = event.WasDiscovered,
+    .was_mapped = event.WasMapped,
+    .mapped = {}
+  };
+  b.value = aprox_value(b);
+  if(auto it{
+       std::ranges::find_if(event.Parents, [](events::parent_t const & p) -> bool { return p.Planet.has_value(); })
+     };
+     it != event.Parents.end())
+    b.parent_planet = *it->Planet;
+  if(auto it{
+       std::ranges::find_if(event.Parents, [](events::parent_t const & p) -> bool { return p.Star.has_value(); })
+     };
+     it != event.Parents.end())
+    b.parent_star = *it->Star;
+  if(auto it{
+       std::ranges::find_if(event.Parents, [](events::parent_t const & p) -> bool { return p.Null.has_value(); })
+     };
+     it != event.Parents.end())
+    b.parent_barycenter = *it->Null;
+  return b;
+  }
+
+auto discovery_state_t::handle(events::event_holder_t && e) -> void
+  {
+  state_t & state{*this->state};
+  std::visit(
+    [&state]<typename T>(T & event)
+    {
+      if constexpr(std::same_as<T, events::fsd_jump_t>)
         {
-        events::fsd_jump_t fsd_jump;
-        parse_res = glz::read<glz::opts{.error_on_unknown_keys = false}>(fsd_jump, buffer);
-        if(parse_res) [[unlikely]]
-          {
-          warn("failed to parse {}", input);
-          return;
-          }
-        state.jump_info = std::move(fsd_jump);
+        state.jump_info = std::move(event);
         }
-      break;
-    case FSDTarget:
+
+      else if constexpr(std::same_as<T, events::fsd_target_t>)
         {
-        events::fsd_target_t fsd_target;
-        parse_res = glz::read<glz::opts{.error_on_unknown_keys = false}>(fsd_target, buffer);
-        if(parse_res) [[unlikely]]
-          {
-          warn("failed to parse {}", input);
-          return;
-          }
-        planet_value_e const vl{exploration::system_approx_value(fsd_target.StarClass, fsd_target.Name)};
-        debug("next target {}[{}] {}\033[m", value_color(vl), fsd_target.StarClass, fsd_target.Name);
+        planet_value_e const vl{exploration::system_approx_value(event.StarClass, event.Name)};
+        debug("next target {}[{}] {}\033[m", value_color(vl), event.StarClass, event.Name);
         }
-      break;
-    case StartJump:
+
+      else if constexpr(std::same_as<T, events::start_jump_t>)
         {
-        events::start_jump_t start_jump;
-        parse_res = glz::read<glz::opts{.error_on_unknown_keys = false}>(start_jump, buffer);
-        if(parse_res) [[unlikely]]
-          {
-          warn("failed to parse {}", input);
-          return;
-          }
-        planet_value_e const vl{exploration::system_approx_value(start_jump.StarClass, start_jump.StarSystem)};
-        info("jump to {}[{}] {}\033[m\n", value_color(vl), start_jump.StarClass, start_jump.StarSystem);
-        state.bodies.clear();
-        state.scan_bary_centre.clear();
-        state.system_name = start_jump.StarSystem;
-        state.star_class = start_jump.StarClass;
+        planet_value_e const vl{exploration::system_approx_value(event.StarClass, event.StarSystem)};
+        info("[{}] jump to {}[{}] {}\033[m\n", event.timestamp, value_color(vl), event.StarClass, event.StarSystem);
+        state.system = star_system_t{
+          .system_address = event.SystemAddress,
+          .name = event.StarSystem,
+          .star_type = event.StarClass,
+          .luminosity = {},
+          .scan_bary_centre = {},
+          .bodies = {},
+          .stellar_mass = {},
+          .sub_class = {}
+        };
         state.fss_complete = false;
         }
-      break;
 
-    case FSSDiscoveryScan:
+      else if constexpr(std::same_as<T, events::fss_discovery_scan_t>)
         {
-        events::fss_discovery_scan_t obj;
-        parse_res = glz::read<glz::opts{.error_on_unknown_keys = false}>(obj, buffer);
-        if(parse_res) [[unlikely]]
-          {
-          warn("failed to parse {}", input);
-          return;
-          }
-        info("discovery system {} body:{} nonbody:{}", obj.SystemName, obj.BodyCount, obj.NonBodyCount);
-        state.bodies.reserve(obj.BodyCount);
+        info("discovery system {} body:{} nonbody:{}", event.SystemName, event.BodyCount, event.NonBodyCount);
+        state.system.bodies.reserve(event.BodyCount);
         }
-      break;
-    case FSSBodySignals:
+
+      else if constexpr(std::same_as<T, events::fss_body_signals_t>)
         {
-        events::fss_body_signals_t obj;
-        parse_res = glz::read<glz::opts{.error_on_unknown_keys = false}>(obj, buffer);
-        if(parse_res) [[unlikely]]
-          {
-          warn("failed to parse {}", input);
-          return;
-          }
-        info(" {}", obj.BodyName);
-        for(events::signal_t sig: obj.Signals)
-          info("   {}: {}", sig.Type_Localised, sig.Count);
+        info(" {}", event.BodyName);
+        for(events::signal_t const & signal: event.Signals)
+          info("   {}: {}", signal.Type_Localised, signal.Count);
+
+        auto it{state.system.body_by_id(event.BodyID)};
+        if(it != state.system.bodies.end())
+          it->signals_ = event.Signals;
         }
-      break;
-    case FSSAllBodiesFound:
+
+      else if constexpr(std::same_as<T, events::fss_all_bodies_found_t>)
         {
         debug("fss scan complete");
         state.fss_complete = true;
         std::ranges::sort(
-          state.bodies,
+          state.system.bodies,
           [](body_t const & l, body_t const & r) -> bool
           {
             if(l.name.size() != r.name.size())  // 1 vs 11
@@ -593,13 +652,13 @@ auto discovery_state_t::simple_discovery(std::string_view input) const -> void
           }
         );
 
-        for(body_t const & obj: state.bodies)
+        for(body_t const & obj: state.system.bodies)
           {
           sell_value_t value{aprox_value(obj)};
 
           spdlog::info(
             " [{}]{}{:5}- {} [fss: {}cr dss: {}cr] {}",
-            obj.scan.BodyID,
+            obj.body_id,
             value_color(obj.value_class()),
             obj.name,
             obj.planet_class,
@@ -609,22 +668,22 @@ auto discovery_state_t::simple_discovery(std::string_view input) const -> void
           );
           }
 
-        std::vector<events::scan_detailed_scan_t> visiting_medium;
+        // std::vector<events::scan_detailed_scan_t> visiting_medium;
         auto filter_medium = std::ranges::views::filter(
-          state.bodies, [](body_t const & body) -> bool { return body.value_class() > planet_value_e::low; }
+          state.system.bodies, [](body_t const & body) -> bool { return body.value_class() > planet_value_e::low; }
         );
 
-        std::ranges::transform(
-          filter_medium,
-          std::back_inserter(visiting_medium),
-          [](body_t const & body) -> events::scan_detailed_scan_t { return body.scan; }
-        );
+        // std::ranges::transform(
+        //   filter_medium,
+        //   std::back_inserter(visiting_medium),
+        //   [](body_t const & body) -> events::scan_detailed_scan_t { return body.scan; }
+        // );
 
         std::unordered_map<body_id_t, body_t const *> name_ref;
         std::ranges::transform(
           filter_medium,
           std::inserter(name_ref, name_ref.end()),
-          [](body_t const & body) -> std::pair<body_id_t, body_t const *> { return {body.scan.BodyID, &body}; }
+          [](body_t const & body) -> std::pair<body_id_t, body_t const *> { return {body.body_id, &body}; }
         );
 
         auto order_info = [&name_ref](std::span<location_t const> order, std::string_view label)
@@ -653,79 +712,43 @@ auto discovery_state_t::simple_discovery(std::string_view input) const -> void
             }
           info("visiting order {} [{:1.1f}Ls]: {}", label, total_ls, order_str);
         };
-        auto calculate_order_for = [&state, &order_info](std::span<events::scan_detailed_scan_t const> visiting)
+        auto calculate_order_for = [&state, &order_info](std::vector<body_t const *> const & visiting)
         {
-          std::vector<location_t> order{order_calculation(state.scan_bary_centre, visiting)};
+          std::vector<location_t> order{order_calculation(state.system.scan_bary_centre, visiting)};
           // order_info(order, "naive"sv);
           std::vector<location_t> order2d{order_calculation_2_opt(state.jump_info.player_position(), order)};
           order_info(order2d, "2nd opt");
         };
-        std::unordered_map<int, std::vector<events::scan_detailed_scan_t>> sub_systems;
-        for(events::scan_detailed_scan_t const & body: visiting_medium)
+        std::unordered_map<int, std::vector<body_t const *>> sub_systems;
+        for(body_t const & body: filter_medium)
           {
           int parent{-1};
-          if(not body.Parents.empty())
-            parent = body.Parents.back().id();
-          sub_systems[parent].emplace_back(body);
+          if(not body.parent_planet)
+            parent = *body.parent_planet;
+          sub_systems[parent].emplace_back(&body);
           }
         for(auto const & subsystem: sub_systems)
           calculate_order_for(subsystem.second);
         }
-      break;
-    case ScanBaryCentre:
+
+      else if constexpr(std::same_as<T, events::scan_bary_centre_t>)
         {
-        events::scan_bary_centre_t obj;
-        parse_res = glz::read<glz::opts{.error_on_unknown_keys = false}>(obj, buffer);
-        if(parse_res) [[unlikely]]
-          {
-          warn("failed to parse {}", input);
-          return;
-          }
-        debug(
-          "bary_centre:{} {} [SemiMajorAxis:{:2.4f} Eccentricity:{:2.4f} OrbitalInclination:{:2.4f} Periapsis:{:2.4f}"
-          " OrbitalPeriod:{:2.4f} AscendingNode:{:2.4f} MeanAnomaly:{:2.4f}]",
-          obj.StarSystem,
-          obj.BodyID,
-          obj.SemiMajorAxis,
-          obj.Eccentricity,
-          obj.OrbitalInclination,
-          obj.Periapsis,
-          obj.OrbitalPeriod,
-          obj.AscendingNode,
-          obj.MeanAnomaly
-        );
-        state.scan_bary_centre.emplace_back(obj);
+        state.system.scan_bary_centre.emplace_back(std::move(event));
         }
-      break;
-    case Scan:
+
+      else if constexpr(std::same_as<T, events::scan_detailed_scan_t>)
         {
-        events::scan_detailed_scan_t obj;
-        parse_res = glz::read<glz::opts{.error_on_unknown_keys = false}>(obj, buffer);
-        if(parse_res) [[unlikely]]
-          {
-          warn("failed to parse {}", input);
-          return;
-          }
         if(state.fss_complete)
           return;
 
-        state.bodies.emplace_back(
-          body_t{
-            .value = {},
-            .name = std::string{body_short_name(obj.StarSystem, obj.BodyName)},
-            .planet_class = obj.PlanetClass,
-            .was_discovered = obj.WasDiscovered,
-            .was_mapped = obj.WasMapped,
-            .scan = std::move(obj)
-          }
-        );
-        body_t & body{state.bodies.back()};
-        // star_value_calculate
-        if(obj.StarType)
-          {
-          body.value.discovery = star_value_calculate(obj);
-          }
-        else
+        state.system.bodies.emplace_back(to_body(std::move(event)));
+        body_t & body{state.system.bodies.back()};
+          // star_value_calculate
+          // if(event.StarType)
+          //   {
+          //   body.value.discovery = star_value_calculate(event);
+          //   }
+          // else
           {
           sell_value_t value_cr{aprox_value(body)};
           body.value = value_cr;
@@ -734,35 +757,25 @@ auto discovery_state_t::simple_discovery(std::string_view input) const -> void
           "{}{} {} {} {}\033[m [fss: {}cr dss: {}cr]{}{} ",
           value_color(body.value_class()),
           body.name,
-          body.scan.TerraformState,
-          body.scan.PlanetClass,
-          body.scan.Atmosphere,
+          body.terraform_state,
+          body.planet_class,
+          body.atmosphere,
           format_credits_value(body.value.discovery),
           format_credits_value(body.value.mapping),
           body.was_discovered ? " \033[33mdiscovered\033[m" : "",
           body.was_mapped ? " \033[31mmapped\033[m" : ""
         );
         }
-      break;
-    case SAAScanComplete:
+      else if constexpr(std::same_as<T, events::saa_scan_complete_t>)
         {
-        events::saa_scan_complete_t obj;
-        parse_res = glz::read<glz::opts{.error_on_unknown_keys = false}>(obj, buffer);
-        if(parse_res) [[unlikely]]
-          {
-          warn("failed to parse {}", input);
-          return;
-          }
-        info("saa scan complete for {}", obj.BodyName);
+        info("saa scan complete for {}", event.BodyName);
+        auto it{state.system.body_by_id(event.BodyID)};
+        if(it != state.system.bodies.end())
+          it->mapped = true;
         }
-
-      break;
-    case SAASignalsFound: break;
-    case Music:           break;
-    case NavRoute:        break;
-    case NavRouteClear:   break;
-    case FuelScoop:       break;
-    case Shutdown:        break;
-    }
+    },
+    e
+  );
   }
 
+generic_state_t::~generic_state_t() {}

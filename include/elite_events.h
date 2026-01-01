@@ -25,11 +25,14 @@ enum struct event_e
   FSSDiscoveryScan,
   FSSBodySignals,
   FSSAllBodiesFound,
+  FSSSignalDiscovered,
   DiscoveryScan,
   Scan,
   ScanBaryCentre,
   SAAScanComplete,
   SAASignalsFound,
+  SupercruiseDestinationDrop,
+  SupercruiseExit,
   Cargo,
   Loadout,
   Missions,
@@ -48,6 +51,21 @@ enum struct event_e
   Shutdown,
   ReservoirReplenished,
   ShipLocker,
+  NpcCrewPaidWage,
+  RedeemVoucher,
+  RefuelAll,
+  ModuleInfo,
+  Outfitting,
+  StoredModules,
+  ModuleBuy,
+  Repair,
+  ModuleStore,
+  MultiSellExplorationData,
+  SellExplorationData,
+  DockingRequested,
+  DockingGranted,
+  Docked,
+  Promotion,
   NavRoute,
   NavRouteClear
   };
@@ -71,7 +89,7 @@ consteval auto adl_enum_bounds(scan_type_e)
 
 struct generic_event_t
   {
-  // std::string timestamp;
+  std::chrono::sys_seconds timestamp;
   event_e event;
   std::optional<scan_type_e> ScanType;
   };
@@ -93,9 +111,10 @@ auto parse_timestamp_t(std::string_view input) -> std::optional<utc_time_point_t
  */
 struct fsd_target_t
   {
+  std::chrono::sys_seconds timestamp;
   std::string Name;
-  uint64_t SystemAddress;
   std::string StarClass;
+  uint64_t SystemAddress;
   uint32_t RemainingJumpsInRoute;
   };
 
@@ -124,6 +143,7 @@ consteval auto adl_enum_bounds(jump_type_e)
 ///\brief When written: at the start of a Hyperspace or Supercruise jump (start of countdown)
 struct start_jump_t
   {
+  std::chrono::sys_seconds timestamp;
   jump_type_e JumpType;
   std::string StarSystem;
   uint64_t SystemAddress;
@@ -176,15 +196,15 @@ struct faction_info_t
   std::string Name;
   std::string FactionState;
   std::string Government;
+  std::string Allegiance;
+  std::string Happiness_Localised;
   double Influence;
-  std::string Happiness;
-  int32_t MyReputation;
-  std::optional<std::vector<faction_state_trend_t>> PendingStates;
-  std::optional<std::vector<faction_state_trend_t>> RecoveringStates;
-  std::vector<std::string> ActiveStates;  // Zgodnie z dokumentacją: brak Trendu
-  std::optional<bool> SquadronFaction;
-  std::optional<bool> HappiestSystem;
-  std::optional<bool> HomeSystem;
+  double MyReputation;
+  };
+
+struct system_faction_t
+  {
+  std::string Name;
   };
 
 struct location_t
@@ -193,11 +213,127 @@ struct location_t
   double x, y, z;
   };
 
+/*
+{
+  "timestamp": "2025-12-31T05:20:55Z",
+  "event": "FSDJump",
+  "Taxi": false,
+  "Multicrew": false,
+  "StarSystem": "Latones",
+  "SystemAddress": 5748570458491,
+  "StarPos": [
+    22.03125,
+    -24.21875,
+    152.03125
+  ],
+  "SystemAllegiance": "Independent",
+  "SystemEconomy": "$economy_Industrial;",
+  "SystemEconomy_Localised": "Industrial",
+  "SystemSecondEconomy": "$economy_Extraction;",
+  "SystemSecondEconomy_Localised": "Extraction",
+  "SystemGovernment": "$government_Dictatorship;",
+  "SystemGovernment_Localised": "Dictatorship",
+  "SystemSecurity": "$SYSTEM_SECURITY_high;",
+  "SystemSecurity_Localised": "High Security",
+  "Population": 10903468,
+  "Body": "Latones",
+  "BodyID": 0,
+  "BodyType": "Star",
+  "ControllingPower": "Yuri Grom",
+  "Powers": [
+    "Yuri Grom",
+    "Zemina Torval"
+  ],
+  "PowerplayState": "Fortified",
+  "PowerplayStateControlProgress": 0.272580,
+  "PowerplayStateReinforcement": 0,
+  "PowerplayStateUndermining": 3023,
+  "JumpDist": 36.139,
+  "FuelUsed": 0.819116,
+  "FuelLevel": 15.085778,
+  "Factions": [
+    {
+      "Name": "Latones Liberals",
+      "FactionState": "None",
+      "Government": "Democracy",
+      "Influence": 0.050495,
+      "Allegiance": "Federation",
+      "Happiness": "$Faction_HappinessBand2;",
+      "Happiness_Localised": "Happy",
+      "MyReputation": 0.000000
+    },
+    {
+      "Name": "People's Veroo Independents",
+      "FactionState": "None",
+      "Government": "Democracy",
+      "Influence": 0.128713,
+      "Allegiance": "Federation",
+      "Happiness": "$Faction_HappinessBand2;",
+      "Happiness_Localised": "Happy",
+      "MyReputation": 0.000000
+    },
+    {
+      "Name": "Union of Laguvii",
+      "FactionState": "None",
+      "Government": "Communism",
+      "Influence": 0.157426,
+      "Allegiance": "Independent",
+      "Happiness": "$Faction_HappinessBand2;",
+      "Happiness_Localised": "Happy",
+      "MyReputation": 3.381750
+    },
+    {
+      "Name": "Bureau of Latones Movement",
+      "FactionState": "None",
+      "Government": "Dictatorship",
+      "Influence": 0.587129,
+      "Allegiance": "Independent",
+      "Happiness": "$Faction_HappinessBand2;",
+      "Happiness_Localised": "Happy",
+      "MyReputation": 71.554802
+    },
+    {
+      "Name": "Latones Solutions",
+      "FactionState": "None",
+      "Government": "Corporate",
+      "Influence": 0.027723,
+      "Allegiance": "Independent",
+      "Happiness": "$Faction_HappinessBand2;",
+      "Happiness_Localised": "Happy",
+      "MyReputation": 0.000000
+    },
+    {
+      "Name": "Latones Hand Gang",
+      "FactionState": "None",
+      "Government": "Anarchy",
+      "Influence": 0.025743,
+      "Allegiance": "Independent",
+      "Happiness": "$Faction_HappinessBand2;",
+      "Happiness_Localised": "Happy",
+      "MyReputation": 0.000000
+    },
+    {
+      "Name": "Latones Defence Force",
+      "FactionState": "None",
+      "Government": "Dictatorship",
+      "Influence": 0.022772,
+      "Allegiance": "Independent",
+      "Happiness": "$Faction_HappinessBand2;",
+      "Happiness_Localised": "Happy",
+      "MyReputation": 0.000000
+    }
+  ],
+  "SystemFaction": {
+    "Name": "Bureau of Latones Movement"
+  }
+}
+*/
 ///\brief When written: when jumping from one star system to another
 ///\detail Note, when following a multi-jump route, this will typically appear for the next star, during a jump, ie
 /// after "StartJump" but before the "FSDJump"
 struct fsd_jump_t
   {
+  std::chrono::sys_seconds timestamp;
   std::string StarSystem;
   uint64_t SystemAddress;
   std::array<double, 3> StarPos;  // [x, y, z]
@@ -206,6 +342,8 @@ struct fsd_jump_t
   double FuelUsed;
   double FuelLevel;
   bool BoostUsed;
+  bool Taxi;
+  bool Multicrew;
 
   [[nodiscard]]
   constexpr auto player_position() const noexcept -> location_t
@@ -213,17 +351,21 @@ struct fsd_jump_t
     return location_t{{}, StarPos[0], StarPos[1], StarPos[2]};
     }
 
-  // System state information
-  std::string SystemFaction;
-  std::optional<std::string> FactionState;
+  system_faction_t SystemFaction;
   std::string SystemAllegiance;
-  std::string SystemEconomy;
-  std::string SystemSecondEconomy;
-  std::string SystemGovernment;
-  std::string SystemSecurity;
+  std::string SystemEconomy_Localised;
+  std::string SystemSecondEconomy_Localised;
+  std::string SystemGovernment_Localised;
+  std::string SystemSecurity_Localised;
+  std::string ControllingPower;
+  std::string PowerplayState;
+  double PowerplayStateControlProgress;
+  uint32_t PowerplayStateReinforcement;
+  uint32_t PowerplayStateUndermining;
+  std::vector<std::string> Powers;
   int64_t Population;
 
-  std::optional<bool> Wanted;
+  bool Wanted;
   std::vector<faction_info_t> Factions;
   };
 
@@ -398,11 +540,14 @@ struct fss_discovery_scan_t
  */
 struct parent_t
   {
+  std::optional<uint32_t> Planet;
   std::optional<uint32_t> Star;
   std::optional<uint32_t> Null;
 
   auto id() const noexcept -> uint32_t
     {
+    if(Planet)
+      return *Planet;
     if(Star)
       return *Star;
     if(Null)
@@ -460,16 +605,6 @@ struct scan_detailed_scan_t
   // we use current time minus game epoch or reference timestamp.
   };
 
-// {
-//   "timestamp": "2025-12-24T09:09:22Z",
-//   "event": "SAAScanComplete",
-//   "BodyName": "Pru Theia IB-H c25-0 1",
-//   "SystemAddress": 94925951450,
-//   "BodyID": 1,
-//   "ProbesUsed": 2,
-//   "EfficiencyTarget": 4
-// }
-
 struct saa_scan_complete_t
   {
   std::string BodyName;
@@ -479,20 +614,6 @@ struct saa_scan_complete_t
   uint16_t EfficiencyTarget;
   };
 
-// {
-//   "timestamp": "2025-12-24T10:14:57Z",
-//   "event": "ScanBaryCentre",
-//   "StarSystem": "Pru Theia LV-I c24-0",
-//   "SystemAddress": 95395713490,
-//   "BodyID": 2,
-//   "SemiMajorAxis": 239472025632.858276,
-//   "Eccentricity": 0.000229,
-//   "OrbitalInclination": -0.050906,
-//   "Periapsis": 151.681238,
-//   "OrbitalPeriod": 94125960.469246,
-//   "AscendingNode": -125.950369,
-//   "MeanAnomaly": 322.039855
-// }
 struct scan_bary_centre_t
   {
   std::string StarSystem;
@@ -506,30 +627,6 @@ struct scan_bary_centre_t
   double AscendingNode;
   double MeanAnomaly;
   };
-// {
-//   "timestamp": "2025-12-24T10:15:10Z",
-//   "event": "FSSBodySignals",
-//   "BodyName": "Pru Theia LV-I c24-0 4 a",
-//   "BodyID": 6,
-//   "SystemAddress": 95395713490,
-//   "Signals": [
-//     {
-//       "Type": "$SAA_SignalType_Biological;",
-//       "Type_Localised": "Biological",
-//       "Count": 2
-//     }
-//   ],
-// "Genuses": [
-//   {
-//     "Genus": "$Codex_Ent_Bacterial_Genus_Name;",
-//     "Genus_Localised": "Bacterium"
-//   },
-//   {
-//     "Genus": "$Codex_Ent_Stratum_Genus_Name;",
-//     "Genus_Localised": "Stratum"
-//   }
-// ]
-// }
 
 enum struct signal_type_e
   {
@@ -573,6 +670,17 @@ struct fss_all_bodies_found_t
   uint32_t Count;
   };
 
+using event_holder_t = std::variant<
+  fsd_jump_t,
+  fsd_target_t,
+  start_jump_t,
+  fss_discovery_scan_t,
+  fss_body_signals_t,
+  fss_all_bodies_found_t,
+  scan_bary_centre_t,
+  scan_detailed_scan_t,
+  saa_scan_complete_t>;
+
   }  // namespace events
 
 enum struct planet_value_e
@@ -600,36 +708,90 @@ auto value_class(sell_value_t const sv) noexcept -> planet_value_e;
 struct body_t
   {
   sell_value_t value;
+  uint64_t system_address;
+  events::body_id_t body_id;
+  std::string name;
+  std::string planet_class;
+  std::string terraform_state;
+  std::string atmosphere;       // "thick argon rich atmosphere"
+  std::string atmosphere_type;  // "ArgonRich"
+  std::vector<events::element_t> atmosphere_composition;
+
+  std::optional<events::body_id_t> parent_planet;
+  std::optional<events::body_id_t> parent_star;
+  std::optional<events::body_id_t> parent_barycenter;
+  std::vector<events::signal_t> signals_;
+  
+  std::string volcanism;
+  double mass_em;
+  double radius;
+  double absolute_magnitude;
+  double surface_gravity;
+  double surface_temperature;
+  double surface_pressure;
+  // std::vector<element_t> composition;
+  double semi_major_axis;
+  double eccentricity;
+  double orbital_inclination;
+  double periapsis;
+  double orbital_period;
+  double ascending_node;
+  double mean_anomaly;
+  double rotation_period;
+  double axial_tilt;
+  bool landable;
+  bool tidal_lock;
+  bool was_discovered;
+  bool was_mapped;
+  bool mapped;
 
   [[nodiscard]]
   auto value_class() const noexcept -> planet_value_e
     {
     return ::value_class(value);
     }
+  };
+[[nodiscard]]
+auto to_body(events::scan_detailed_scan_t && scan) -> body_t;
 
+inline constexpr auto body_body_id_proj = [](body_t const & b) noexcept -> events::body_id_t { return b.body_id; };
+
+struct star_system_t
+  {
+  uint64_t system_address;
   std::string name;
-  std::string planet_class;
-  bool was_discovered;
-  bool was_mapped;
-  bool mapped;
-  events::scan_detailed_scan_t scan;
+  std::string star_type;
+  std::string luminosity;
+  std::vector<events::scan_bary_centre_t> scan_bary_centre;
+  std::vector<body_t> bodies;
+  double stellar_mass;
+  uint8_t sub_class;
+
+  [[nodiscard]]
+  auto body_by_id(this auto && self, events::body_id_t const body_id) noexcept
+    {
+    return std::ranges::find(self.bodies, body_id, body_body_id_proj);
+    }
   };
 
 struct state_t
   {
-  std::string system_name;
-  std::string star_class;
-  uint64_t system_address;
+  star_system_t system;
   bool fss_complete;
-  std::vector<events::scan_bary_centre_t> scan_bary_centre;
-  std::vector<body_t> bodies;
   events::fsd_jump_t jump_info;
   };
 
-struct discovery_state_t
+struct generic_state_t
+  {
+  virtual ~generic_state_t();
+  auto discovery(std::string_view input) -> void;
+  virtual auto handle(events::event_holder_t && event) -> void = 0;
+  };
+
+struct discovery_state_t : public generic_state_t
   {
   state_t * state;
-  auto simple_discovery(std::string_view input) const -> void;
+  void handle(events::event_holder_t && event) override;
   };
 
 struct planet_value_info_t
@@ -642,29 +804,8 @@ struct planet_value_info_t
   double terraform_multiplier{1.0};  // Nowe pole
   };
 
-// avg
-// static constexpr std::array<planet_value_info_t, 19> exploration_values{
-//   {{"Metal rich body", 65'000, 250'000, 1.5, 3.45},
-//    {"High metal content body", 30'000, 110'000, 1.5, 3.45, 5.4 },
-//    {"Rocky body", 500, 1'500, 1.5, 3.45, 260.0},
-//    {"Icy body", 500, 1'500, 1.5, 3.45},
-//    {"Rocky ice body", 500, 1'800, 1.5, 3.45},
-//    {"Earthlike body", 270'000, 1'100'000, 1.5, 3.45},
-//    {"Water world", 140'000, 550'000, 1.5, 3.45, 2.1},
-//    {"Ammonia world", 140'000, 580'000, 1.5, 3.45},
-//    {"Water giant", 1'000, 4'000, 1.5, 3.45},
-//    {"Water giant with life", 1'500, 6'000, 1.5, 3.45},
-//    {"Gas giant with water based life", 3'000, 12'000, 1.5, 3.45},
-//    {"Gas giant with ammonia based life", 1'500, 6'000, 1.5, 3.45},
-//    {"Sudarsky class I gas giant", 2'500, 10'000, 1.5, 3.45},
-//    {"Sudarsky class II gas giant", 28'000, 110'000, 1.5, 3.45},
-//    {"Sudarsky class III gas giant", 1'000, 4'000, 1.5, 3.45},
-//    {"Sudarsky class IV gas giant", 3'000, 12'000, 1.5, 3.45},
-//    {"Sudarsky class V gas giant", 3'500, 14'000, 1.5, 3.45},
-//    {"Helium rich gas giant", 3'000, 12'000, 1.5, 3.45},
-//    {"Helium gas giant", 500, 2'000, 1.5, 3.45}}
-// };
-// for use with earth mass mult
+auto body_short_name(std::string_view system, std::string_view name) -> std::string_view;
+
 static constexpr std::array<planet_value_info_t, 19> exploration_values{
   {{"Metal rich body", 21'790, 129'900, 1.5, 3.45},
    {"High metal content body", 9'693, 57'700, 1.5, 3.45, 5.4},
@@ -697,6 +838,8 @@ auto extract_mass_code(std::string_view name) noexcept -> char;
 
 [[nodiscard]]
 auto system_approx_value(std::string_view star_class, std::string_view system_name) noexcept -> planet_value_e;
+[[nodiscard]]
+auto aprox_value(body_t const & body) noexcept -> sell_value_t;
 
   }  // namespace exploration
 
