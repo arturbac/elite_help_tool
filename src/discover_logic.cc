@@ -157,26 +157,38 @@ auto order_calculation(
       {}
     };
 
-  for(auto const & s: scans)
+  for(body_t const * s: scans)
     {
-    registry[s->body_id] = {
+    auto & reg{registry[s->body_id]};
+    reg = {
       s->body_id,
       s->semi_major_axis,
       s->eccentricity,
       s->orbital_inclination,
       s->periapsis,
       s->orbital_period,
-      s->ascending_node,
-      s->mean_anomaly,
+      {},  // s->ascending_node,
+      {},  // s->mean_anomaly,
       {}
     };
+    std::visit(
+      [&registry, &reg]<typename T>(T const & det)
+      {
+        if constexpr(std::same_as<T, planet_details_t>)
+          {
+          reg.ascending_node = det.ascending_node;
+          reg.mean_anomaly = det.mean_anomaly;
+          if(det.parent_barycenter)
+            registry[*det.parent_barycenter].parents.emplace_back(events::parent_t{.Null = det.parent_barycenter});
+          if(det.parent_star)
+            registry[*det.parent_star].parents.emplace_back(events::parent_t{.Star = det.parent_star});
+          if(det.parent_planet)
+            registry[*det.parent_planet].parents.emplace_back(events::parent_t{.Planet = det.parent_planet});
+          }
+      },
+      s->details
+    );
 
-    if(s->parent_barycenter)
-      registry[*s->parent_barycenter ].parents.emplace_back(events::parent_t{.Null =s->parent_barycenter });
-    if(s->parent_star)
-      registry[*s->parent_star ].parents.emplace_back(events::parent_t{.Star =s->parent_star });
-    if(s->parent_planet)
-      registry[*s->parent_planet ].parents.emplace_back(events::parent_t{.Planet =s->parent_planet });
     // Uzupełnianie hierarchii dla barycentrów na podstawie ścieżki rodziców skanu
     // for(size_t i = 0; i + 1 < s->parents.size(); ++i)
     //   {
@@ -376,37 +388,75 @@ auto body_short_name(std::string_view system, std::string_view name) -> std::str
 auto aprox_value(body_t const & body) noexcept -> sell_value_t
   {
   sell_value_t result{};
-  auto it{std::ranges::find(
-    exploration_values,
-    body.planet_class,
-    [](planet_value_info_t const & body) noexcept -> std::string_view { return body.planet_class; }
-  )};
-  if(it != exploration_values.end())
+  if(body.body_type() == body_type_e::star)
     {
-    planet_value_info_t const & info{*it};
-    // 1. Obliczenie mnożnika masy: (MassEarth ^ 0.2)
-    // W Journalu masa jest podawana w wielokrotnościach masy Ziemi (MassEM)
-    // Jeśli masa wynosi 0 (np. słońce/czarna dziura - rzadkie w tym kontekście), używamy 1.0
-    double const mass = body.mass_em > 0.0 ? body.mass_em : 1.0;
-    double const mass_multiplier = std::pow(mass, 0.2);
+    star_details_t const & details{std::get<star_details_t>(body.details)};
 
-    double disc_mult{1.0};
-    double map_mult{1.0};
-    if(not body.was_discovered)
-      disc_mult = info.bonus_first_fss;
-    if(not body.was_mapped)
-      map_mult = info.bonus_first_dss;
+    constexpr static auto get_base_value = [](std::string_view type) -> double
+    {
+      using namespace std::literals;
 
-    if(not body.terraform_state.empty() and info.terraform_multiplier > 1.0)
+      // Białe karły
+      if(type.starts_with("D"sv))
+        return 14057.0;
+
+      // Gwiazdy neutronowe i Czarne dziury
+      if(type == "Neutron"sv)
+        return 22628.0;
+      if(type == "BlackHole"sv)
+        return 22628.0;
+
+      // Supergiganty
+      if(type.find("SuperGiant"sv) != std::string_view::npos)
+        return 33.0;
+
+      // Standardowe gwiazdy ciągu głównego i inne (K, G, B, F, O, A, M)
+      // Większość ma tę samą bazę, różnią się masą
+      return 1200.0;
+    };
+
+    auto const k = get_base_value(details.star_type);
+    auto const mass = details.stellar_mass;
+
+    // Standardowy wzór FDEV dla gwiazd
+    result.discovery = k + (mass * k / 66.25);
+    }
+  else
+    {
+    planet_details_t const & details{std::get<planet_details_t>(body.details)};
+
+    auto it{std::ranges::find(
+      exploration_values,
+      details.planet_class,
+      [](planet_value_info_t const & body) noexcept -> std::string_view { return body.planet_class; }
+    )};
+    if(it != exploration_values.end())
       {
-      disc_mult *= info.terraform_multiplier;
-      map_mult *= info.terraform_multiplier;
-      }
+      planet_value_info_t const & info{*it};
+      // 1. Obliczenie mnożnika masy: (MassEarth ^ 0.2)
+      // W Journalu masa jest podawana w wielokrotnościach masy Ziemi (MassEM)
+      // Jeśli masa wynosi 0 (np. słońce/czarna dziura - rzadkie w tym kontekście), używamy 1.0
+      double const mass = details.mass_em > 0.0 ? details.mass_em : 1.0;
+      double const mass_multiplier = std::pow(mass, 0.2);
 
-    // result.discovery = uint32_t(std::round(info.discovery_value * disc_mult));
-    // result.mapping = uint32_t(std::round(info.mapping_value * map_mult));
-    result.discovery = static_cast<uint32_t>(std::round(info.discovery_value * mass_multiplier * disc_mult));
-    result.mapping = static_cast<uint32_t>(std::round(info.mapping_value * mass_multiplier * map_mult));
+      double disc_mult{1.0};
+      double map_mult{1.0};
+      if(not body.was_discovered)
+        disc_mult = info.bonus_first_fss;
+      if(not details.was_mapped)
+        map_mult = info.bonus_first_dss;
+
+      if(details.terraform_state != events::terraform_state_e::none and info.terraform_multiplier > 1.0)
+        {
+        disc_mult *= info.terraform_multiplier;
+        map_mult *= info.terraform_multiplier;
+        }
+
+      // result.discovery = uint32_t(std::round(info.discovery_value * disc_mult));
+      // result.mapping = uint32_t(std::round(info.mapping_value * map_mult));
+      result.discovery = static_cast<uint32_t>(std::round(info.discovery_value * mass_multiplier * disc_mult));
+      result.mapping = static_cast<uint32_t>(std::round(info.mapping_value * mass_multiplier * map_mult));
+      }
     }
   return result;
   }
@@ -418,41 +468,6 @@ auto value_class(sell_value_t const sv) noexcept -> planet_value_e
   if(sv.mapping > 200000)
     return planet_value_e::medium;
   return planet_value_e::low;
-  }
-
-[[nodiscard]]
-constexpr static auto star_value_calculate(events::scan_detailed_scan_t const & scan) -> double
-  {
-  constexpr static auto get_base_value = [](std::string_view type) -> double
-  {
-    using namespace std::literals;
-
-    // Białe karły
-    if(type.starts_with("D"sv))
-      return 14057.0;
-
-    // Gwiazdy neutronowe i Czarne dziury
-    if(type == "Neutron"sv)
-      return 22628.0;
-    if(type == "BlackHole"sv)
-      return 22628.0;
-
-    // Supergiganty
-    if(type.find("SuperGiant"sv) != std::string_view::npos)
-      return 33.0;
-
-    // Standardowe gwiazdy ciągu głównego i inne (K, G, B, F, O, A, M)
-    // Większość ma tę samą bazę, różnią się masą
-    return 1200.0;
-  };
-  if(!scan.StarType || !scan.StellarMass) [[unlikely]]
-    return 0.0;
-
-  auto const k = get_base_value(*scan.StarType);
-  auto const mass = *scan.StellarMass;
-
-  // Standardowy wzór FDEV dla gwiazd
-  return k + (mass * k / 66.25);
   }
 
 [[nodiscard]]
@@ -502,7 +517,9 @@ auto generic_state_t::discovery(std::string_view input) -> void
 
     if(parse_res) [[unlikely]]
       {
-      warn("failed to parse {}", input);  // Assumes 'input' is available in scope
+      auto pre{stralgo::substr(input, parse_res.location - 40, 40)};
+    auto post{stralgo::substr(input, parse_res.location, 40)};
+      warn("failed to parse [{}]..[{}] {}", pre, post, input);  // Assumes 'input' is available in scope
       return;
       }
 
@@ -535,55 +552,84 @@ auto to_body(events::scan_detailed_scan_t && event) -> body_t
   {
   body_t b{
     .value = {},
-    .system_address = event.SystemAddress,
     .body_id = event.BodyID,
     .name = std::string{body_short_name(event.StarSystem, event.BodyName)},
-    .planet_class = event.PlanetClass,
-    .terraform_state = event.TerraformState,
-    .atmosphere = event.Atmosphere,
-    .atmosphere_type = event.AtmosphereType,
-    .atmosphere_composition = event.AtmosphereComposition,
-    .parent_planet = {},
-    .parent_star = {},
-    .parent_barycenter = {},
-    .volcanism = event.Volcanism,
-    .mass_em = event.MassEM,
-    .radius = event.Radius,
-    .absolute_magnitude = event.AbsoluteMagnitude,
-    .surface_gravity = event.SurfaceGravity,
-    .surface_temperature = event.SurfaceTemperature,
-    .surface_pressure = event.SurfacePressure,
+    .details = {},
+    .orbital_period = event.OrbitalPeriod,
+    .orbital_inclination = event.OrbitalInclination,
+    .distance_from_arrival_ls = event.DistanceFromArrivalLS,
     .semi_major_axis = event.SemiMajorAxis,
     .eccentricity = event.Eccentricity,
-    .orbital_inclination = event.OrbitalInclination,
     .periapsis = event.Periapsis,
-    .orbital_period = event.OrbitalPeriod,
-    .ascending_node = event.AscendingNode,
-    .mean_anomaly = event.MeanAnomaly,
-    .rotation_period = event.RotationPeriod,
-    .axial_tilt = event.AxialTilt,
-    .landable = event.Landable,
-    .tidal_lock = event.TidalLock,
+    .radius = event.Radius,
     .was_discovered = event.WasDiscovered,
-    .was_mapped = event.WasMapped,
-    .mapped = {}
   };
-  b.value = aprox_value(b);
-  if(auto it{
-       std::ranges::find_if(event.Parents, [](events::parent_t const & p) -> bool { return p.Planet.has_value(); })
-     };
-     it != event.Parents.end())
-    b.parent_planet = *it->Planet;
-  if(auto it{
-       std::ranges::find_if(event.Parents, [](events::parent_t const & p) -> bool { return p.Star.has_value(); })
-     };
-     it != event.Parents.end())
-    b.parent_star = *it->Star;
-  if(auto it{
-       std::ranges::find_if(event.Parents, [](events::parent_t const & p) -> bool { return p.Null.has_value(); })
-     };
-     it != event.Parents.end())
-    b.parent_barycenter = *it->Null;
+  if(not event.Luminosity.empty())
+    {
+    b.details = star_details_t{
+      .system_address = event.SystemAddress,
+      .star_type = event.StarType,
+      .luminosity = event.Luminosity,
+      .stellar_mass = event.StellarMass,
+      .absolute_magnitude = event.AbsoluteMagnitude,
+      .surface_temperature = event.SurfaceTemperature,
+      .rotation_period = event.RotationPeriod,
+      .age_my = event.Age_MY,
+      .sub_class = event.Subclass
+    };
+    }
+  else
+    {
+    b.details = planet_details_t{
+      .parent_planet = {},
+      .parent_star = {},
+      .parent_barycenter = {},
+      .terraform_state =events::terraform_state_e::none,
+      .planet_class = event.PlanetClass,
+      .atmosphere = event.Atmosphere,
+      .atmosphere_type = event.AtmosphereType,
+      .atmosphere_composition = event.AtmosphereComposition,
+      .composition = event.Composition,
+      .signals_ = {},
+      .volcanism = event.Volcanism,
+      .mass_em = event.MassEM,
+      .surface_gravity = event.SurfaceGravity,
+      .surface_pressure = event.SurfacePressure,
+      .ascending_node = event.AscendingNode,
+      .mean_anomaly = event.MeanAnomaly,
+      .rotation_period = event.RotationPeriod,
+      .axial_tilt = event.AxialTilt,
+      .landable = event.Landable,
+      .tidal_lock = event.TidalLock,
+      .was_mapped = event.WasMapped,
+      .mapped = {}
+    };
+
+    b.value = aprox_value(b);
+    planet_details_t & details{std::get<planet_details_t>(b.details)};
+    if(not event.TerraformState.empty())
+      {
+      auto res{simple_enum::enum_cast<events::terraform_state_e>(event.TerraformState)};
+      if(res)
+        details.terraform_state = *res;
+      }
+    if(auto it{
+         std::ranges::find_if(event.Parents, [](events::parent_t const & p) -> bool { return p.Planet.has_value(); })
+       };
+       it != event.Parents.end())
+      details.parent_planet = *it->Planet;
+    if(auto it{
+         std::ranges::find_if(event.Parents, [](events::parent_t const & p) -> bool { return p.Star.has_value(); })
+       };
+       it != event.Parents.end())
+      details.parent_star = *it->Star;
+    if(auto it{
+         std::ranges::find_if(event.Parents, [](events::parent_t const & p) -> bool { return p.Null.has_value(); })
+       };
+       it != event.Parents.end())
+      details.parent_barycenter = *it->Null;
+    }
+
   return b;
   }
 
@@ -635,7 +681,10 @@ auto discovery_state_t::handle(events::event_holder_t && e) -> void
 
         auto it{state.system.body_by_id(event.BodyID)};
         if(it != state.system.bodies.end())
-          it->signals_ = event.Signals;
+          {
+          planet_details_t & details{std::get<planet_details_t>(it->details)};
+          details.signals_ = std::move(event.Signals);
+          }
         }
 
       else if constexpr(std::same_as<T, events::fss_all_bodies_found_t>)
@@ -655,16 +704,31 @@ auto discovery_state_t::handle(events::event_holder_t && e) -> void
         for(body_t const & obj: state.system.bodies)
           {
           sell_value_t value{aprox_value(obj)};
-
-          spdlog::info(
-            " [{}]{}{:5}- {} [fss: {}cr dss: {}cr] {}",
-            obj.body_id,
-            value_color(obj.value_class()),
-            obj.name,
-            obj.planet_class,
-            format_credits_value(value.discovery),
-            format_credits_value(value.mapping),
-            color_codes_t::reset
+          std::visit(
+            [&obj, value]<typename U>(U const & details)
+            {
+              if constexpr(std::same_as<U, planet_details_t>)
+                spdlog::info(
+                  " [{}]{}{:5}- {} [fss: {}cr dss: {}cr] {}",
+                  obj.body_id,
+                  value_color(obj.value_class()),
+                  obj.name,
+                  details.planet_class,
+                  format_credits_value(value.discovery),
+                  format_credits_value(value.mapping),
+                  color_codes_t::reset
+                );
+              else
+                spdlog::info(
+                  " [{}]{}{:5} [fss: {}cr] {}",
+                  obj.body_id,
+                  value_color(obj.value_class()),
+                  obj.name,
+                  format_credits_value(value.discovery),
+                  color_codes_t::reset
+                );
+            },
+            obj.details
           );
           }
 
@@ -723,9 +787,14 @@ auto discovery_state_t::handle(events::event_holder_t && e) -> void
         for(body_t const & body: filter_medium)
           {
           int parent{-1};
-          if(not body.parent_planet)
-            parent = *body.parent_planet;
-          sub_systems[parent].emplace_back(&body);
+          if(body.body_type() == body_type_e::planet)
+            {
+            planet_details_t const & details{std::get<planet_details_t>(body.details)};
+
+            if(details.parent_planet)
+              parent = *details.parent_planet;
+            sub_systems[parent].emplace_back(&body);
+            }
           }
         for(auto const & subsystem: sub_systems)
           calculate_order_for(subsystem.second);
@@ -743,27 +812,34 @@ auto discovery_state_t::handle(events::event_holder_t && e) -> void
 
         state.system.bodies.emplace_back(to_body(std::move(event)));
         body_t & body{state.system.bodies.back()};
-          // star_value_calculate
-          // if(event.StarType)
-          //   {
-          //   body.value.discovery = star_value_calculate(event);
-          //   }
-          // else
+        body.value = aprox_value(body);
+
+        std::visit(
+          [&body]<typename U>(U const & details)
           {
-          sell_value_t value_cr{aprox_value(body)};
-          body.value = value_cr;
-          }
-        spdlog::info(
-          "{}{} {} {} {}\033[m [fss: {}cr dss: {}cr]{}{} ",
-          value_color(body.value_class()),
-          body.name,
-          body.terraform_state,
-          body.planet_class,
-          body.atmosphere,
-          format_credits_value(body.value.discovery),
-          format_credits_value(body.value.mapping),
-          body.was_discovered ? " \033[33mdiscovered\033[m" : "",
-          body.was_mapped ? " \033[31mmapped\033[m" : ""
+            if constexpr(std::same_as<U, planet_details_t>)
+              spdlog::info(
+                "{}{} {} {} {}\033[m [fss: {}cr dss: {}cr]{}{} ",
+                value_color(body.value_class()),
+                body.name,
+                details.terraform_state,
+                details.planet_class,
+                details.atmosphere,
+                format_credits_value(body.value.discovery),
+                format_credits_value(body.value.mapping),
+                body.was_discovered ? " \033[33mdiscovered\033[m" : "",
+                details.was_mapped ? " \033[31mmapped\033[m" : ""
+              );
+            else
+              spdlog::info(
+                "{}{}\033[m [fss: {}]{}",
+                value_color(body.value_class()),
+                body.name,
+                format_credits_value(body.value.discovery),
+                body.was_discovered ? " \033[33mdiscovered\033[m" : ""
+              );
+          },
+          body.details
         );
         }
       else if constexpr(std::same_as<T, events::saa_scan_complete_t>)
@@ -771,7 +847,10 @@ auto discovery_state_t::handle(events::event_holder_t && e) -> void
         info("saa scan complete for {}", event.BodyName);
         auto it{state.system.body_by_id(event.BodyID)};
         if(it != state.system.bodies.end())
-          it->mapped = true;
+          {
+          planet_details_t & details{std::get<planet_details_t>(it->details)};
+          details.mapped = true;
+          }
         }
     },
     e

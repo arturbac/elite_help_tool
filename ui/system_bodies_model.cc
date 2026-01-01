@@ -117,14 +117,37 @@ auto system_bodies_model_t::data(QModelIndex const & index, int role) const -> Q
       }
 
   if(role == Qt::DisplayRole)
-    switch(index.column())
+    {
+    return std::visit(
+      [&b, &index]<typename T>(T const & details) -> QVariant
       {
-      case 0:  return QString::fromStdString(b.name);
-      case 1:  return QString::fromStdString(b.planet_class);
-      case 2:  return QString("%1 g").arg(b.surface_gravity, 0, 'f', 2);
-      case 3:  return QString("%1 Cr").arg(b.value.discovery + b.value.mapping);
-      default: return {};
-      }
+        if constexpr(std::same_as<T, planet_details_t>)
+          {
+          switch(index.column())
+            {
+            case 0:  return QString::fromStdString(b.name);
+            case 1:  return QString::fromStdString(details.planet_class);
+            case 2:  return QString("%1 g").arg(details.surface_gravity, 0, 'f', 2);
+            case 3:  return QString("%1 Cr").arg(b.value.discovery + b.value.mapping);
+            default: return {};
+            }
+          }
+        else
+          {
+          switch(index.column())
+            {
+            case 0:  return QString::fromStdString(b.name);
+            case 1:  return QString::fromStdString(details.star_type);
+            case 2:  return {};
+            case 3:  return QString("%1 Cr").arg(b.value.discovery + b.value.mapping);
+            default: return {};
+            }
+          }
+      },
+      b.details
+    );
+    }
+
   return {};
   }
 
@@ -151,7 +174,8 @@ auto system_bodies_model_t::rebuild_index() -> void
   for(auto const & b: *bodies_)
     {
     auto * current_node = nodes_[b.body_id].get();
-    if(not b.parent_planet and not b.parent_star)
+    if(b.body_type() == body_type_e::star or not std::get<planet_details_t>(b.details).parent_planet
+       or not std::get<planet_details_t>(b.details).parent_star)
       {
       current_node->row_in_parent = static_cast<int>(root_nodes_.size());
       root_nodes_.push_back(current_node);
@@ -159,10 +183,11 @@ auto system_bodies_model_t::rebuild_index() -> void
     else
       {
       events::body_id_t parent_id;
-      if(b.parent_planet)
-        parent_id = *b.parent_planet;
+      planet_details_t const & details{std::get<planet_details_t>(b.details)};
+      if(details.parent_planet)
+        parent_id = *details.parent_planet;
       else
-        parent_id = *b.parent_star;
+        parent_id = *details.parent_star;
       if(auto it = nodes_.find(parent_id); it != nodes_.end())
         {
         auto * parent_node = it->second.get();
@@ -234,12 +259,8 @@ auto system_window_t::refresh_ui() -> void
   // if(model_) [[likely]]
   //   model_->layoutChanged();  // Informuje TreeView o nowych danych w vectorze
   model_->bodies_ = &state_.system.bodies;
-  if(not model_->bodies_->empty())
-    {
-    model_->rebuild_index();
-    // tree_view->expandAll();
-    QMetaObject::invokeMethod(tree_view, "expandAll", Qt::QueuedConnection);
-    }
+  model_->rebuild_index();
+  QMetaObject::invokeMethod(tree_view, "expandAll", Qt::QueuedConnection);
   QMetaObject::invokeMethod(
     this,
     [this]
@@ -275,10 +296,10 @@ auto system_window_t::setup_ui() -> void
   model_ = new system_bodies_model_t(&state_.system.bodies, this);
   proxy_model_ = new system_bodies_filter_proxy_t(this);
   proxy_model_->setSourceModel(model_);
-  
+
   // tree_view->setModel(model_);
   tree_view->setModel(proxy_model_);
-  
+
   tree_view->setAlternatingRowColors(true);
   auto * header = tree_view->header();
   header->setSectionResizeMode(QHeaderView::Interactive);

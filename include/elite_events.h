@@ -130,16 +130,6 @@ consteval auto adl_enum_bounds(jump_type_e)
   return simple_enum::adl_info{Hyperspace, Hyperspace};
   }
 
-// {
-//   "timestamp": "2025-12-24T10:06:29Z",
-//   "event": "StartJump",
-//   "JumpType": "Hyperspace",
-//   "Taxi": false,
-//   "StarSystem": "Pru Theia IV-I c24-0",
-//   "SystemAddress": 95194386898,
-//   "StarClass": "K"
-// }
-
 ///\brief When written: at the start of a Hyperspace or Supercruise jump (start of countdown)
 struct start_jump_t
   {
@@ -150,39 +140,6 @@ struct start_jump_t
   std::string StarClass;
   };
 
-/*
-
-{
-  "timestamp": "2025-12-24T10:13:46Z",
-  "event": "FSDJump",
-  "Taxi": false,
-  "Multicrew": false,
-  "StarSystem": "Pru Theia LV-I c24-0",
-  "SystemAddress": 95395713490,
-  "StarPos": [
-    6858.90625,
-    537.96875,
-    -1302.59375
-  ],
-  "SystemAllegiance": "",
-  "SystemEconomy": "$economy_None;",
-  "SystemEconomy_Localised": "None",
-  "SystemSecondEconomy": "$economy_None;",
-  "SystemSecondEconomy_Localised": "None",
-  "SystemGovernment": "$government_None;",
-  "SystemGovernment_Localised": "None",
-  "SystemSecurity": "$GAlAXY_MAP_INFO_state_anarchy;",
-  "SystemSecurity_Localised": "Anarchy",
-  "Population": 0,
-  "Body": "Pru Theia LV-I c24-0",
-  "BodyID": 0,
-  "BodyType": "Star",
-  "JumpDist": 74.633,
-  "FuelUsed": 4.967102,
-  "FuelLevel": 11.401766
-}
-
- */
 using body_id_t = uint32_t;
 
 struct faction_state_trend_t
@@ -213,121 +170,6 @@ struct location_t
   double x, y, z;
   };
 
-/*
-{
-  "timestamp": "2025-12-31T05:20:55Z",
-  "event": "FSDJump",
-  "Taxi": false,
-  "Multicrew": false,
-  "StarSystem": "Latones",
-  "SystemAddress": 5748570458491,
-  "StarPos": [
-    22.03125,
-    -24.21875,
-    152.03125
-  ],
-  "SystemAllegiance": "Independent",
-  "SystemEconomy": "$economy_Industrial;",
-  "SystemEconomy_Localised": "Industrial",
-  "SystemSecondEconomy": "$economy_Extraction;",
-  "SystemSecondEconomy_Localised": "Extraction",
-  "SystemGovernment": "$government_Dictatorship;",
-  "SystemGovernment_Localised": "Dictatorship",
-  "SystemSecurity": "$SYSTEM_SECURITY_high;",
-  "SystemSecurity_Localised": "High Security",
-  "Population": 10903468,
-  "Body": "Latones",
-  "BodyID": 0,
-  "BodyType": "Star",
-  "ControllingPower": "Yuri Grom",
-  "Powers": [
-    "Yuri Grom",
-    "Zemina Torval"
-  ],
-  "PowerplayState": "Fortified",
-  "PowerplayStateControlProgress": 0.272580,
-  "PowerplayStateReinforcement": 0,
-  "PowerplayStateUndermining": 3023,
-  "JumpDist": 36.139,
-  "FuelUsed": 0.819116,
-  "FuelLevel": 15.085778,
-  "Factions": [
-    {
-      "Name": "Latones Liberals",
-      "FactionState": "None",
-      "Government": "Democracy",
-      "Influence": 0.050495,
-      "Allegiance": "Federation",
-      "Happiness": "$Faction_HappinessBand2;",
-      "Happiness_Localised": "Happy",
-      "MyReputation": 0.000000
-    },
-    {
-      "Name": "People's Veroo Independents",
-      "FactionState": "None",
-      "Government": "Democracy",
-      "Influence": 0.128713,
-      "Allegiance": "Federation",
-      "Happiness": "$Faction_HappinessBand2;",
-      "Happiness_Localised": "Happy",
-      "MyReputation": 0.000000
-    },
-    {
-      "Name": "Union of Laguvii",
-      "FactionState": "None",
-      "Government": "Communism",
-      "Influence": 0.157426,
-      "Allegiance": "Independent",
-      "Happiness": "$Faction_HappinessBand2;",
-      "Happiness_Localised": "Happy",
-      "MyReputation": 3.381750
-    },
-    {
-      "Name": "Bureau of Latones Movement",
-      "FactionState": "None",
-      "Government": "Dictatorship",
-      "Influence": 0.587129,
-      "Allegiance": "Independent",
-      "Happiness": "$Faction_HappinessBand2;",
-      "Happiness_Localised": "Happy",
-      "MyReputation": 71.554802
-    },
-    {
-      "Name": "Latones Solutions",
-      "FactionState": "None",
-      "Government": "Corporate",
-      "Influence": 0.027723,
-      "Allegiance": "Independent",
-      "Happiness": "$Faction_HappinessBand2;",
-      "Happiness_Localised": "Happy",
-      "MyReputation": 0.000000
-    },
-    {
-      "Name": "Latones Hand Gang",
-      "FactionState": "None",
-      "Government": "Anarchy",
-      "Influence": 0.025743,
-      "Allegiance": "Independent",
-      "Happiness": "$Faction_HappinessBand2;",
-      "Happiness_Localised": "Happy",
-      "MyReputation": 0.000000
-    },
-    {
-      "Name": "Latones Defence Force",
-      "FactionState": "None",
-      "Government": "Dictatorship",
-      "Influence": 0.022772,
-      "Allegiance": "Independent",
-      "Happiness": "$Faction_HappinessBand2;",
-      "Happiness_Localised": "Happy",
-      "MyReputation": 0.000000
-    }
-  ],
-  "SystemFaction": {
-    "Name": "Bureau of Latones Movement"
-  }
-}
-*/
 ///\brief When written: when jumping from one star system to another
 ///\detail Note, when following a multi-jump route, this will typically appear for the next star, during a jump, ie
 /// after "StartJump" but before the "FSDJump"
@@ -369,44 +211,6 @@ struct fsd_jump_t
   std::vector<faction_info_t> Factions;
   };
 
-/*
-{
-  "timestamp": "2025-12-24T10:13:51Z",
-  "event": "Scan",
-  "ScanType": "AutoScan",
-  "BodyName": "Pru Theia LV-I c24-0",
-  "BodyID": 0,
-  "StarSystem": "Pru Theia LV-I c24-0",
-  "SystemAddress": 95395713490,
-  "DistanceFromArrivalLS": 0.000000,
-  "StarType": "M",
-  "Subclass": 0,
-  "StellarMass": 0.460938,
-  "Radius": 437807552.000000,
-  "AbsoluteMagnitude": 7.889389,
-  "Age_MY": 6622,
-  "SurfaceTemperature": 3601.000000,
-  "Luminosity": "Va",
-  "RotationPeriod": 186821.514346,
-  "AxialTilt": 0.000000,
-  "WasDiscovered": false,
-  "WasMapped": false,
-  "WasFootfalled": false
-}
-*/
-// { "timestamp":"2025-12-24T09:19:22Z", "event":"NavRoute" }
-// {
-//   "timestamp": "2020-04-27T08:02:52Z",
-//   "event": "Route",
-//   "Route": [
-//     { "StarSystem": "i Bootis", "SystemAddress": 1281787693419, "StarPos": [-22.37500,34.84375,4.00000], "StarClass":
-//     "G" }, { "StarSystem": "Acihaut", "SystemAddress": 11665802405289, "StarPos": [-18.50000,25.28125,-4.00000],
-//     "StarClass": "M" }, { "StarSystem": "LHS 455", "SystemAddress": 3686969379179, "StarPos":
-//     [-16.90625,10.21875,-3.43750], "StarClass": "DQ" }, { "StarSystem": "SPF-LF 1", "SystemAddress": 22661187052961,
-//     "StarPos": [2.90625,6.31250,-9.56250], "StarClass": "M" }, { "StarSystem": "Luyten's Star", "SystemAddress":7
-//     268024264097, "StarPos": [6.56250,2.34375,-10.25000], "StarClass": "M" }] }
-//   ]
-// }
 ///\brief When plotting a multi-star route, the file "NavRoute.json" is written in the same directory as the journal,
 /// with a list of stars along that route
 struct nav_route_t
@@ -417,17 +221,6 @@ struct nav_route_clear_t
   {
   };
 
-/*
-{
-  "timestamp": "2025-12-24T10:13:57Z",
-  "event": "FSSDiscoveryScan",
-  "Progress": 0.157770,
-  "BodyCount": 12,
-  "NonBodyCount": 0,
-  "SystemName": "Pru Theia LV-I c24-0",
-  "SystemAddress": 95395713490
-}
- */
 struct fss_discovery_scan_t
   {
   double Progress;
@@ -437,107 +230,6 @@ struct fss_discovery_scan_t
   uint64_t SystemAddress;
   };
 
-/*
-{
-  "timestamp": "2025-12-24T20:44:10Z",
-  "event": "Scan",
-  "ScanType": "Detailed",
-  "BodyName": "Pru Theia KH-L d8-3 A 2",
-  "BodyID": 7,
-  "Parents": [
-    {
-      "Star": 1
-    },
-    {
-      "Null": 0
-    }
-  ],
-  "StarSystem": "Pru Theia KH-L d8-3",
-  "SystemAddress": 115100190923,
-  "DistanceFromArrivalLS": 1076.367354,
-  "TidalLock": false,
-  "TerraformState": "Terraformable",
-  "PlanetClass": "High metal content body",
-  "Atmosphere": "thin sulfur dioxide atmosphere",
-  "AtmosphereType": "SulphurDioxide",
-  "AtmosphereComposition": [
-    {
-      "Name": "SulphurDioxide",
-      "Percent": 100.000000
-    }
-  ],
-  "Volcanism": "",
-  "MassEM": 0.125184,
-  "Radius": 3196670.250000,
-  "SurfaceGravity": 4.882730,
-  "SurfaceTemperature": 274.352539,
-  "SurfacePressure": 340.478302,
-  "Landable": true,
-  "Materials": [
-    {
-      "Name": "iron",
-      "Percent": 21.236635
-    },
-    {
-      "Name": "nickel",
-      "Percent": 16.062502
-    },
-    {
-      "Name": "sulphur",
-      "Percent": 15.123203
-    },
-    {
-      "Name": "carbon",
-      "Percent": 12.717049
-    },
-    {
-      "Name": "chromium",
-      "Percent": 9.550821
-    },
-    {
-      "Name": "manganese",
-      "Percent": 8.770514
-    },
-    {
-      "Name": "phosphorus",
-      "Percent": 8.141672
-    },
-    {
-      "Name": "germanium",
-      "Percent": 4.423352
-    },
-    {
-      "Name": "niobium",
-      "Percent": 1.451411
-    },
-    {
-      "Name": "tin",
-      "Percent": 1.377183
-    },
-    {
-      "Name": "tellurium",
-      "Percent": 1.145657
-    }
-  ],
-  "Composition": {
-    "Ice": 0.000000,
-    "Rock": 0.668990,
-    "Metal": 0.331010
-  },
-  "SemiMajorAxis": 321729689836.502075,
-  "Eccentricity": 0.003082,
-  "OrbitalInclination": 0.085047,
-  "Periapsis": 290.671999,
-  "OrbitalPeriod": 82118505.239487,
-  "AscendingNode": -169.761241,
-  "MeanAnomaly": 164.778660,
-  "RotationPeriod": 134641.899559,
-  "AxialTilt": -2.560178,
-  "WasDiscovered": true,
-  "WasMapped": false,
-  "WasFootfalled": false
-}
- */
 struct parent_t
   {
   std::optional<uint32_t> Planet;
@@ -555,54 +247,169 @@ struct parent_t
     return 0;
     }
   };
+// Gases in AtmosphereComposition
+enum struct atmosphere_gas_type_e : uint8_t
+  {
+  Water,
+  Oxygen,
+  CarbonDioxide,
+  SulphurDioxide,
+  Ammonia,
+  Methane,
+  Nitrogen,
+  Hydrogen,
+  Helium,
+  Neon,
+  Argon,
+  Silicates,
+  Iron
+  };
 
-struct element_t
+consteval auto adl_enum_bounds(atmosphere_gas_type_e)
+  {
+  using enum atmosphere_gas_type_e;
+  return simple_enum::adl_info{Water, Iron};
+  }
+
+struct atmosphere_element_t
+  {
+  atmosphere_gas_type_e Name;
+  float Percent;
+  };
+
+struct ring_t
   {
   std::string Name;
-  double Percent;
+  std::string RingClass;
+  double MassMT;
+  double InnerRad;
+  double OuterRad;
+  };
+
+enum struct meterial_type_e : uint8_t
+  {
+  Bromellite,
+  LithiumHydroxide,
+  MethaneClathrate,
+  MethanolMonohydrateCrystals,
+  Samarium,
+  antimony,
+  arsenic,
+  bauxite,
+  cadmium,
+  carbon,
+  chromium,
+  cobalt,
+  coltan,
+  gallite,
+  germanium,
+  haematite,
+  indite,
+  iron,
+  lepidolite,
+  liquidoxygen,
+  manganese,
+  mercury,
+  molybdenum,
+  nickel,
+  niobium,
+  phosphorus,
+  polonium,
+  ruthenium,
+  rutile,
+  selenium,
+  sulphur,
+  technetium,
+  tellurium,
+  tin,
+  tritium,
+  tungsten,
+  uraninite,
+  vanadium,
+  water,
+  yttrium,
+  zinc,
+  zirconium
+  };
+
+consteval auto adl_enum_bounds(meterial_type_e)
+  {
+  using enum meterial_type_e;
+  return simple_enum::adl_info{Bromellite, zirconium};
+  }
+enum struct terraform_state_e : uint8_t
+  {
+  none,
+  Terraformable,
+  Terraforming,
+  Terraformed
+  };
+
+consteval auto adl_enum_bounds(terraform_state_e)
+  {
+  using enum terraform_state_e;
+  return simple_enum::adl_info{none, Terraformed};
+  }
+
+struct maetrial_t
+  {
+  meterial_type_e Name;
+  float Percent;
+  };
+
+struct composition_t
+  {
+  float Ice;
+  float Rock;
+  float Metal;
   };
 
 struct scan_detailed_scan_t
   {
   std::string BodyName;
-  body_id_t BodyID;
-  std::vector<parent_t> Parents;
-  std::string StarSystem;
-  uint64_t SystemAddress;
+  std::vector<ring_t> Rings;
+  std::optional<double> RotationPeriod;
+  std::optional<double> AxialTilt;
   double DistanceFromArrivalLS;
-  bool TidalLock;
-  std::string TerraformState;
-  std::string PlanetClass;     // "High metal content body"
-  std::string Atmosphere;      // "thick argon rich atmosphere"
-  std::string AtmosphereType;  // "ArgonRich"
-  std::vector<element_t> AtmosphereComposition;
-  std::string Volcanism;
-  std::optional<std::string> StarType;  //: Stellar classification (for a star) – see §15.2
-  std::optional<uint8_t> Subclass;      //: Star's heat classification 0..9
-  std::optional<double> StellarMass;    //: mass as multiple of Sol's mass
-  std::optional<std::string> Luminosity;
-  double MassEM;
-  double Radius;
-  double AbsoluteMagnitude;
-  double SurfaceGravity;
-  double SurfaceTemperature;
-  double SurfacePressure;
-  bool Landable;
-  // std::vector<element_t> Composition;
   double SemiMajorAxis;
   double Eccentricity;
   double OrbitalInclination;
   double Periapsis;
   double OrbitalPeriod;
-  double AscendingNode;
-  double MeanAnomaly;
-  double RotationPeriod;
-  double AxialTilt;
+  body_id_t BodyID;
   bool WasDiscovered;
   bool WasMapped;
+
+  // star
+  std::string StarSystem;
+  std::string StarType;
+  std::string Luminosity;
+  uint64_t SystemAddress;
+  double StellarMass;
+  double Radius;
+  double AbsoluteMagnitude;
+  double SurfaceTemperature;
+  uint32_t Age_MY;
+  uint8_t Subclass;
+
+  // planets
+  std::vector<parent_t> Parents;
+  std::string TerraformState;
+  std::string PlanetClass;
+  std::string Atmosphere;
+  std::string AtmosphereType;
+  std::vector<atmosphere_element_t> AtmosphereComposition;
+  std::string Volcanism;
+  composition_t Composition;
+  double MassEM;
+  double SurfaceGravity;
+  double SurfacePressure;
+  double AscendingNode;
+  double MeanAnomaly;
+
+  bool Landable;
+  bool TidalLock;
   bool WasFootfalled;
-  // Assume timestamp of the scan is relevant, but for relative position
-  // we use current time minus game epoch or reference timestamp.
   };
 
 struct saa_scan_complete_t
@@ -704,46 +511,99 @@ struct sell_value_t
 
 [[nodiscard]]
 auto value_class(sell_value_t const sv) noexcept -> planet_value_e;
+enum struct body_type_e : uint8_t
+  {
+  star,
+  planet
+  };
+
+consteval auto adl_enum_bounds(body_type_e)
+  {
+  using enum body_type_e;
+  return simple_enum::adl_info{star, planet};
+  }
+
+// - Ammonia world
+// - Earthlike body
+// - Gas giant with ammonia based life
+// - Gas giant with water based life
+// - Helium rich gas giant
+// - High metal content body
+// - Icy body
+// - Metal rich body
+// - Rocky body
+// - Rocky ice body
+// - Sudarsky class I gas giant
+// - Sudarsky class II gas giant
+// - Sudarsky class III gas giant
+// - Sudarsky class IV gas giant
+// - Sudarsky class V gas giant
+// - Water giant
+// - Water world
+struct star_details_t
+  {
+  uint64_t system_address;
+  std::string star_type;
+  std::string luminosity;
+  double stellar_mass;
+  double absolute_magnitude;
+  double surface_temperature;
+  std::optional<double> rotation_period;
+  uint32_t age_my;
+  uint8_t sub_class;
+  };
+
+struct planet_details_t
+  {
+  std::optional<events::body_id_t> parent_planet;
+  std::optional<events::body_id_t> parent_star;
+  std::optional<events::body_id_t> parent_barycenter;
+  events::terraform_state_e terraform_state;
+  std::string planet_class;
+  std::string atmosphere;       // "thick argon rich atmosphere"
+  std::string atmosphere_type;  // "ArgonRich"
+  std::vector<events::atmosphere_element_t> atmosphere_composition;
+  events::composition_t composition;
+
+  std::vector<events::signal_t> signals_;
+  std::string volcanism;
+  
+  double mass_em;
+  double surface_gravity;
+  double surface_pressure;
+  double ascending_node;
+  double mean_anomaly;
+  std::optional<double> rotation_period;
+  std::optional<double> axial_tilt;
+  bool landable;
+  bool tidal_lock;
+  bool was_mapped;
+  bool mapped;
+  };
+
+using body_variant_t = std::variant<star_details_t, planet_details_t>;
 
 struct body_t
   {
   sell_value_t value;
-  uint64_t system_address;
   events::body_id_t body_id;
   std::string name;
-  std::string planet_class;
-  std::string terraform_state;
-  std::string atmosphere;       // "thick argon rich atmosphere"
-  std::string atmosphere_type;  // "ArgonRich"
-  std::vector<events::element_t> atmosphere_composition;
-
-  std::optional<events::body_id_t> parent_planet;
-  std::optional<events::body_id_t> parent_star;
-  std::optional<events::body_id_t> parent_barycenter;
-  std::vector<events::signal_t> signals_;
-  
-  std::string volcanism;
-  double mass_em;
-  double radius;
-  double absolute_magnitude;
-  double surface_gravity;
-  double surface_temperature;
-  double surface_pressure;
-  // std::vector<element_t> composition;
+  body_variant_t details;
+  double orbital_period;
+  double orbital_inclination;
+  double distance_from_arrival_ls;
   double semi_major_axis;
   double eccentricity;
-  double orbital_inclination;
   double periapsis;
-  double orbital_period;
-  double ascending_node;
-  double mean_anomaly;
-  double rotation_period;
-  double axial_tilt;
-  bool landable;
-  bool tidal_lock;
+  double radius;
   bool was_discovered;
-  bool was_mapped;
-  bool mapped;
+  
+
+  [[nodiscard]]
+  auto body_type() const noexcept
+    {
+    return std::holds_alternative<planet_details_t>(details) ? body_type_e::planet : body_type_e::star;
+    }
 
   [[nodiscard]]
   auto value_class() const noexcept -> planet_value_e
@@ -751,6 +611,7 @@ struct body_t
     return ::value_class(value);
     }
   };
+
 [[nodiscard]]
 auto to_body(events::scan_detailed_scan_t && scan) -> body_t;
 
@@ -820,7 +681,7 @@ static constexpr std::array<planet_value_info_t, 19> exploration_values{
    {"Gas giant with water based life", 3'000, 12'000, 1.5, 3.45},
    {"Gas giant with ammonia based life", 1'500, 6'000, 1.5, 3.45},
    {"Sudarsky class I gas giant", 1'650, 9'800, 1.5, 3.45},
-   {"Sudarsky class II gas giant", 9'650, 57'500, 1.5, 3.45},
+   {"Sudarsky class II gas giant", int(9'650* 0.53), int(57'500 * 0.53), 1.5, 3.45},
    {"Sudarsky class III gas giant", 500, 3'000, 1.5, 3.45},
    {"Sudarsky class IV gas giant", 2'800, 16'000, 1.5, 3.45},
    {"Sudarsky class V gas giant", 3'100, 18'000, 1.5, 3.45},
@@ -842,50 +703,3 @@ auto system_approx_value(std::string_view star_class, std::string_view system_na
 auto aprox_value(body_t const & body) noexcept -> sell_value_t;
 
   }  // namespace exploration
-
-/*
- * Pru Theia LV-I c24-0
- * Praea Theia DM-M d7-4
- *
- Star classification
-
- O, B, A, F, G, K, M, L, T, Y, Proto, Carbon, Wolf-Rayet, White Dwarf, and non sequence
-
- VII means that the star is a white dwarf.
-
-VI means that the star is a subdwarf. These are kinda similar to IV stars because I see no difference between VI stars
-and regular V stars which I’m about to get to.
-
-V is the most common roman numeral that you will see because it just says that the star is a regular main-sequence star.
-These make up pretty much all of the stars in the galaxy and you are most likely to find valuable data in these stars.
-You will want to spend most of your time in these star systems but if you want to be adventurous and make noteworthy
-discoveries, go ahead and spend some time visiting I, II, III, and VII stars.
-
-IV means that the star is a sub giant, most sub giants are A and B type stars from what i have seen. After comparing the
-mass and size of a B type sub giant to regular B type stars I didn't see much of a difference but go ahead and google
-them if you wanna find out more about them.
-
-III means that it's a giant. From what I have seen these are mostly M types (probably just because that is the most
-common star type), but they can be B, A, F ,G, K, and of course M stars. There is an abundance of these in the core so I
-suggest looking by and in the core for them. In my experience, if you go to the edge of the core and maybe 1000 light
-years down, you can find huge clusters of giants, S type giants, white dwarfs, and black holes. You can spend days in
-these clusters and not run out of cool stars to explore. I will say somewhere near colonia maybe 1000 light years down
-in one of these clusters lies an S type giant with an ELW that I found but never cashed in because I deleted that save.
-
-II stars are bright giants......
-
-I stars are supergiant stars (a nice and close one is Antares), these can be split up into 3 groups.
-
-The first one are Ib (example: A2 Ib) stars, these are less luminous super giants.
-
-Iab stars are intermediate supergiants.
-
-Ia means it's a luminous supergiant.
-
-And then there are actually 0 stars or “la+” stars which are hypergiants. “0”/ “la+” are what they are called in real
-life, but elite dangerous calls them “La0” stars. I’m going off what one CMDR told me about these stars because I have
-never seen one in Elite Dangerous. This maybe because all this time I was looking for “la+” and not “la0” lol. These
-tend to be A, B, and O type stars. Ridiculously large but unfortunately they tend to not have any planets.
-
-
- */

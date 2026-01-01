@@ -49,7 +49,8 @@ public:
   journal_state_t state_;
   std::jthread worker_thread_;
   QPointer<system_window_t> system_view_;
-
+  fs::path file_to_monitor{};
+  
   [[nodiscard]]
   explicit main_window_t(QWidget * parent = nullptr);
 
@@ -122,7 +123,10 @@ void journal_state_t::handle(events::event_holder_t && payload)
           // info(" {}", event.BodyName);
           auto it{system.body_by_id(event.BodyID)};
           if(it != system.bodies.end())
-            it->signals_ = event.Signals;
+            {
+            planet_details_t & details{std::get<planet_details_t>(it->details)};
+            details.signals_ = std::move(event.Signals);
+            }
           update_system = true;
           }
         else if constexpr(std::same_as<T, events::fss_all_bodies_found_t>) 
@@ -148,7 +152,10 @@ void journal_state_t::handle(events::event_holder_t && payload)
           // info("saa scan complete for {}", event.BodyName);
           auto it{system.body_by_id(event.BodyID)};
           if(it != system.bodies.end())
-            it->mapped = true;
+            {
+            planet_details_t & details{std::get<planet_details_t>(it->details)};
+            details.mapped = true;
+            }
           update_system = true;
           }
       },
@@ -196,12 +203,6 @@ main_window_t::main_window_t(QWidget * parent) : QMainWindow(parent), state_{thi
   worker_thread_ = std::jthread([this](std::stop_token stoken) { background_worker(stoken); });
   }
 
-auto main_window_t::background_worker(std::stop_token stoken) -> void
-  {
-  tail_file(
-    "journal-dir/Journal.2025-12-25T122142.01.log", std::bind_front(&generic_state_t::discovery, &state_), stoken
-  );
-  }
 
 auto main_window_t::setup_ui() -> void
   {
@@ -360,10 +361,21 @@ auto main_window_t::load_settings() -> void
     }
   settings.endArray();
   }
+auto main_window_t::background_worker(std::stop_token stoken) -> void
+  {
+    file_to_monitor = *find_latest_journal("journal-dir");
+  tail_file(
+     // "journal-dir/Journal.2025-12-25T122142.01.log"
+    file_to_monitor
+    , std::bind_front(&generic_state_t::discovery, &state_), stoken
+  );
+  }
 
 auto main(int argc, char * argv[]) -> int
   {
   QApplication app(argc, argv);
+  
+  
   main_window_t window;
   window.show();
   return app.exec();
