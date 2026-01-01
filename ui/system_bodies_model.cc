@@ -131,15 +131,21 @@ auto system_bodies_model_t::data(QModelIndex const & index, int role) const -> Q
     }
 
   if(role == Qt::ForegroundRole)
+    {
+    if(index.column() >= 8)
+      return QColor(0xff, 0x33, 0x22);
+    if(index.column() >= 5)
+      return QColor(0x22, 0xAA, 0x22);
+      
     switch(value_class(b.value))
       {
       using enum planet_value_e;
-      case high:   return QColor(0x11, 0x44, 0xAA);
+      case high:   return QColor(0x11, 0x66, 0xff);
       case medium: return QColor(0xff, 0xd7, 00);
       // case low:    return QColor(160, 160, 160);  // Szary
       default: return {};
       }
-
+    }
   if(role == Qt::DisplayRole)
     {
     if(index.column() > 4)
