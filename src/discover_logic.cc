@@ -385,6 +385,56 @@ auto body_short_name(std::string_view system, std::string_view name) -> std::str
   return name.substr(system.size());
   }
 
+[[nodiscard]]
+constexpr auto calculate_value(
+  planet_value_info_t const & info,
+  double mass_em,
+  bool is_terraformable,
+  bool is_first_discoverer,
+  bool is_first_mapper,
+  bool efficiency_bonus
+) -> uint32_t
+  {
+  // Współczynnik masy (min 0.3)
+  double const q = std::max(0.3, std::pow(mass_em, 0.2));
+
+  // Wartość podstawowa (FSS)
+  double base_val = info.base_value + (is_terraformable ? info.terraform_bonus : 0.0);
+  base_val *= q;
+
+  // Bonusy za mapowanie (DSS)
+  double const map_multiplier = efficiency_bonus ? 1.25 : 1.0;
+
+  // Algorytm sumujący:
+  // Wartość = FSS_Value + (DSS_Value * Bonusy)
+  // UWAGA: Logika gry dla "First Mapped + First Discovered" jest multiplikatywna
+
+  double total = base_val;  // Startujemy od FSS
+
+  // Dodajemy wartość mapowania
+  double mapping_val = base_val * 3.333333 * map_multiplier;
+
+  if(is_first_discoverer && is_first_mapper)
+    {
+    // Specjalny mnożnik dla "First" obu kategorii (ok 3.69x całości)
+    total = (base_val + mapping_val) * 3.695;
+    }
+  else if(is_first_discoverer)
+    {
+    total = base_val * 2.6;  // Tylko FSS bonus
+    }
+  else if(is_first_mapper)
+    {
+    total = base_val + (mapping_val * 3.7);  // Tylko DSS bonus
+    }
+  else
+    {
+    total = base_val + mapping_val;
+    }
+
+  return static_cast<uint32_t>(std::round(total));
+  }
+
 auto aprox_value(body_t const & body) noexcept -> sell_value_t
   {
   sell_value_t result{};
@@ -419,7 +469,7 @@ auto aprox_value(body_t const & body) noexcept -> sell_value_t
     auto const mass = details.stellar_mass;
 
     // Standardowy wzór FDEV dla gwiazd
-    result.discovery = k + (mass * k / 66.25);
+    result.value = k + (mass * k / 66.25);
     }
   else
     {
@@ -433,29 +483,14 @@ auto aprox_value(body_t const & body) noexcept -> sell_value_t
     if(it != exploration_values.end())
       {
       planet_value_info_t const & info{*it};
-      // 1. Obliczenie mnożnika masy: (MassEarth ^ 0.2)
-      // W Journalu masa jest podawana w wielokrotnościach masy Ziemi (MassEM)
-      // Jeśli masa wynosi 0 (np. słońce/czarna dziura - rzadkie w tym kontekście), używamy 1.0
-      double const mass = details.mass_em > 0.0 ? details.mass_em : 1.0;
-      double const mass_multiplier = std::pow(mass, 0.2);
-
-      double disc_mult{1.0};
-      double map_mult{1.0};
-      if(not body.was_discovered)
-        disc_mult = info.bonus_first_fss;
-      if(not details.was_mapped)
-        map_mult = info.bonus_first_dss;
-
-      if(details.terraform_state != events::terraform_state_e::none and info.terraform_multiplier > 1.0)
-        {
-        disc_mult *= info.terraform_multiplier;
-        map_mult *= info.terraform_multiplier;
-        }
-
-      // result.discovery = uint32_t(std::round(info.discovery_value * disc_mult));
-      // result.mapping = uint32_t(std::round(info.mapping_value * map_mult));
-      result.discovery = static_cast<uint32_t>(std::round(info.discovery_value * mass_multiplier * disc_mult));
-      result.mapping = static_cast<uint32_t>(std::round(info.mapping_value * mass_multiplier * map_mult));
+      result.value = calculate_value(
+        info,
+        details.mass_em,
+        details.terraform_state != events::terraform_state_e::none,
+        not body.was_discovered,
+        not details.was_mapped,
+        true
+      );
       }
     }
   return result;
@@ -463,9 +498,9 @@ auto aprox_value(body_t const & body) noexcept -> sell_value_t
 
 auto value_class(sell_value_t const sv) noexcept -> planet_value_e
   {
-  if(sv.mapping > 400000)
+  if(sv.value > 400000)
     return planet_value_e::high;
-  if(sv.mapping > 200000)
+  if(sv.value > 200000)
     return planet_value_e::medium;
   return planet_value_e::low;
   }
@@ -518,7 +553,7 @@ auto generic_state_t::discovery(std::string_view input) -> void
     if(parse_res) [[unlikely]]
       {
       auto pre{stralgo::substr(input, parse_res.location - 40, 40)};
-    auto post{stralgo::substr(input, parse_res.location, 40)};
+      auto post{stralgo::substr(input, parse_res.location, 40)};
       warn("failed to parse [{}]..[{}] {}", pre, post, input);  // Assumes 'input' is available in scope
       return;
       }
@@ -584,7 +619,7 @@ auto to_body(events::scan_detailed_scan_t && event) -> body_t
       .parent_planet = {},
       .parent_star = {},
       .parent_barycenter = {},
-      .terraform_state =events::terraform_state_e::none,
+      .terraform_state = events::terraform_state_e::none,
       .planet_class = event.PlanetClass,
       .atmosphere = event.Atmosphere,
       .atmosphere_type = event.AtmosphereType,
@@ -709,22 +744,21 @@ auto discovery_state_t::handle(events::event_holder_t && e) -> void
             {
               if constexpr(std::same_as<U, planet_details_t>)
                 spdlog::info(
-                  " [{}]{}{:5}- {} [fss: {}cr dss: {}cr] {}",
+                  " [{}]{}{:5}- {} [{}cr] {}",
                   obj.body_id,
                   value_color(obj.value_class()),
                   obj.name,
                   details.planet_class,
-                  format_credits_value(value.discovery),
-                  format_credits_value(value.mapping),
+                  format_credits_value(value.value),
                   color_codes_t::reset
                 );
               else
                 spdlog::info(
-                  " [{}]{}{:5} [fss: {}cr] {}",
+                  " [{}]{}{:5} [{}cr] {}",
                   obj.body_id,
                   value_color(obj.value_class()),
                   obj.name,
-                  format_credits_value(value.discovery),
+                  format_credits_value(value.value),
                   color_codes_t::reset
                 );
             },
@@ -819,14 +853,13 @@ auto discovery_state_t::handle(events::event_holder_t && e) -> void
           {
             if constexpr(std::same_as<U, planet_details_t>)
               spdlog::info(
-                "{}{} {} {} {}\033[m [fss: {}cr dss: {}cr]{}{} ",
+                "{}{} {} {} {}\033[m [{}cr]{}{} ",
                 value_color(body.value_class()),
                 body.name,
                 details.terraform_state,
                 details.planet_class,
                 details.atmosphere,
-                format_credits_value(body.value.discovery),
-                format_credits_value(body.value.mapping),
+                format_credits_value(body.value.value),
                 body.was_discovered ? " \033[33mdiscovered\033[m" : "",
                 details.was_mapped ? " \033[31mmapped\033[m" : ""
               );
@@ -835,7 +868,7 @@ auto discovery_state_t::handle(events::event_holder_t && e) -> void
                 "{}{}\033[m [fss: {}]{}",
                 value_color(body.value_class()),
                 body.name,
-                format_credits_value(body.value.discovery),
+                format_credits_value(body.value.value),
                 body.was_discovered ? " \033[33mdiscovered\033[m" : ""
               );
           },
