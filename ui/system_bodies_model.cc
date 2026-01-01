@@ -93,10 +93,7 @@ auto system_bodies_model_t::rowCount(QModelIndex const & parent) const -> int
   return node ? static_cast<int>(node->children.size()) : 0;
   }
 
-auto system_bodies_model_t::columnCount(QModelIndex const &) const -> int
-  {
-  return 4;  // Name, Class, Gravity, Value
-  }
+auto system_bodies_model_t::columnCount(QModelIndex const &) const -> int { return 7; }
 
 auto system_bodies_model_t::data(QModelIndex const & index, int role) const -> QVariant
   {
@@ -105,7 +102,27 @@ auto system_bodies_model_t::data(QModelIndex const & index, int role) const -> Q
 
   auto const * node = static_cast<body_info_t *>(index.internalPointer());
   auto const & b = *node->data;
-  // 1. Kolorowanie tekstu na podstawie wartości
+
+  if(role == Qt::CheckStateRole)
+    {
+    if(index.column() == 6)  // Mapped
+      if(b.body_type() == body_type_e::star)
+        return {};
+      else
+        return std::get<planet_details_t>(b.details).mapped ? Qt::Checked : Qt::Unchecked;
+    else if(index.column() == 5)  // Discovered
+      return b.was_discovered ? Qt::Checked : Qt::Unchecked;
+    if(index.column() == 4)
+      {
+      if(b.body_type() == body_type_e::star)
+        return {};
+      else
+        return std::get<planet_details_t>(b.details).terraform_state != events::terraform_state_e::none ? Qt::Checked
+                                                                                                        : Qt::Unchecked;
+      }
+    return {};
+    }
+
   if(role == Qt::ForegroundRole)
     switch(value_class(b.value))
       {
@@ -118,6 +135,9 @@ auto system_bodies_model_t::data(QModelIndex const & index, int role) const -> Q
 
   if(role == Qt::DisplayRole)
     {
+    if(index.column() >= 4)
+      return {};
+
     return std::visit(
       [&b, &index]<typename T>(T const & details) -> QVariant
       {
@@ -128,7 +148,7 @@ auto system_bodies_model_t::data(QModelIndex const & index, int role) const -> Q
             case 0:  return QString::fromStdString(b.name);
             case 1:  return QString::fromStdString(details.planet_class);
             case 2:  return QString("%1 g").arg(details.surface_gravity, 0, 'f', 2);
-            case 3:  return QString("%1 Cr").arg(b.value.discovery + b.value.mapping);
+            case 3:  return QString("%1 Cr").arg(b.value.value);
             default: return {};
             }
           }
@@ -139,7 +159,7 @@ auto system_bodies_model_t::data(QModelIndex const & index, int role) const -> Q
             case 0:  return QString::fromStdString(b.name);
             case 1:  return QString::fromStdString(details.star_type);
             case 2:  return {};
-            case 3:  return QString("%1 Cr").arg(b.value.discovery + b.value.mapping);
+            case 3:  return QString("%1 Cr").arg(b.value.value);
             default: return {};
             }
           }
@@ -155,10 +175,22 @@ auto system_bodies_model_t::headerData(int section, Qt::Orientation orientation,
   {
   if(orientation == Qt::Horizontal && role == Qt::DisplayRole)
     {
-    static constexpr std::array const headers = {"Body Name", "Class", "Gravity", "Value"};
+    static constexpr std::array const headers = {"Body Name", "Class", "Gravity", "Value", "Terraformable", "Discovered", "Mapped"};
     return headers.at(static_cast<size_t>(section));
     }
   return {};
+  }
+
+auto system_bodies_model_t::flags(QModelIndex const & index) const -> Qt::ItemFlags
+  {
+  auto const default_flags = QAbstractItemModel::flags(index);
+  if(!index.isValid()) [[unlikely]]
+    return default_flags;
+
+  if(index.column() == 4 || index.column() == 5)
+    return default_flags | Qt::ItemIsUserCheckable;
+
+  return default_flags;
   }
 
 auto system_bodies_model_t::rebuild_index() -> void
@@ -210,12 +242,6 @@ auto system_bodies_model_t::rebuild_index() -> void
   endResetModel();
   }
 
-// Funkcja wywoływana przed modyfikacją vectora w state_
-// auto system_bodies_model_t::notify_update() -> void
-//   {
-//   beginResetModel();
-//   endResetModel();
-//   }
 static auto set_label_color(QLabel * label, planet_value_e val) -> void
   {
   if(!label or planet_value_e::low == val) [[unlikely]]

@@ -53,6 +53,8 @@ public:
   auto columnCount(QModelIndex const & = QModelIndex()) const -> int override;
 
   [[nodiscard]]
+  auto flags(QModelIndex const& index) const -> Qt::ItemFlags override;
+  [[nodiscard]]
   auto data(QModelIndex const & index, int role = Qt::DisplayRole) const -> QVariant override;
 
   [[nodiscard]]
