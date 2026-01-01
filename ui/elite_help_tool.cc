@@ -141,7 +141,7 @@ void journal_state_t::handle(events::event_holder_t && payload)
           {
           auto it{system.body_by_id(event.BodyID)};
           if(it != system.bodies.end())
-            *it = to_body(std::move(event));
+          {}// *it = to_body(std::move(event));
           else
             system.bodies.emplace_back(to_body(std::move(event)));
 
@@ -366,6 +366,7 @@ auto main_window_t::background_worker(std::stop_token stoken) -> void
     file_to_monitor = *find_latest_journal("journal-dir");
   tail_file(
      // "journal-dir/Journal.2025-12-25T122142.01.log"
+    // "journal-dir/debug_highmetal.json"
     file_to_monitor
     , std::bind_front(&generic_state_t::discovery, &state_), stoken
   );

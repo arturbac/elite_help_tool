@@ -384,9 +384,10 @@ auto body_short_name(std::string_view system, std::string_view name) -> std::str
   {
   return name.substr(system.size());
   }
-
+namespace exploration
+{
 [[nodiscard]]
-constexpr auto calculate_value(
+auto calculate_value(
   planet_value_info_t const & info,
   double mass_em,
   bool is_terraformable,
@@ -395,44 +396,43 @@ constexpr auto calculate_value(
   bool efficiency_bonus
 ) -> uint32_t
   {
-  // Współczynnik masy (min 0.3)
+  // 1. Współczynnik masy (min 0.3)
   double const q = std::max(0.3, std::pow(mass_em, 0.2));
 
-  // Wartość podstawowa (FSS)
-  double base_val = info.base_value + (is_terraformable ? info.terraform_bonus : 0.0);
-  base_val *= q;
+  // 2. Wartość podstawowa (K)
+  double const base_value = info.base_value + (is_terraformable ? info.terraform_bonus : 0.0);
+  double const fss_value = base_value * q;
 
-  // Bonusy za mapowanie (DSS)
-  double const map_multiplier = efficiency_bonus ? 1.25 : 1.0;
+  // 3. Obliczenie mapowania (DSS)
+  // Mapowanie to baza * 3.333333, a bonus za wydajność to +25%
+  double const mapping_multiplier = efficiency_bonus ? 1.25 : 1.0;
+  double const dss_value = (fss_value * 3.333333) * mapping_multiplier;
 
-  // Algorytm sumujący:
-  // Wartość = FSS_Value + (DSS_Value * Bonusy)
-  // UWAGA: Logika gry dla "First Mapped + First Discovered" jest multiplikatywna
+  double final_value = 0.0;
 
-  double total = base_val;  // Startujemy od FSS
-
-  // Dodajemy wartość mapowania
-  double mapping_val = base_val * 3.333333 * map_multiplier;
-
+  // 4. Logika bonusów "First"
   if(is_first_discoverer && is_first_mapper)
     {
-    // Specjalny mnożnik dla "First" obu kategorii (ok 3.69x całości)
-    total = (base_val + mapping_val) * 3.695;
+    // Jeśli jesteś pierwszy w obu kategoriach, dostajesz mnożnik ~3.695x na CAŁOŚĆ
+    final_value = (fss_value + dss_value) * 3.695244;
     }
   else if(is_first_discoverer)
     {
-    total = base_val * 2.6;  // Tylko FSS bonus
+    // Tylko pierwszy odkrywca (FSS)
+    final_value = (fss_value * 2.6) + dss_value;
     }
   else if(is_first_mapper)
     {
-    total = base_val + (mapping_val * 3.7);  // Tylko DSS bonus
+    // Tylko pierwszy mapujący (DSS)
+    final_value = fss_value + (dss_value * 3.695244);
     }
   else
     {
-    total = base_val + mapping_val;
+    // Brak bonusów "First"
+    final_value = fss_value + dss_value;
     }
 
-  return static_cast<uint32_t>(std::round(total));
+  return static_cast<uint32_t>(std::max(500.0, std::round(final_value)));
   }
 
 auto aprox_value(body_t const & body) noexcept -> sell_value_t
@@ -495,7 +495,7 @@ auto aprox_value(body_t const & body) noexcept -> sell_value_t
     }
   return result;
   }
-
+}
 auto value_class(sell_value_t const sv) noexcept -> planet_value_e
   {
   if(sv.value > 400000)
@@ -640,7 +640,6 @@ auto to_body(events::scan_detailed_scan_t && event) -> body_t
       .mapped = {}
     };
 
-    b.value = aprox_value(b);
     planet_details_t & details{std::get<planet_details_t>(b.details)};
     if(not event.TerraformState.empty())
       {
@@ -663,6 +662,8 @@ auto to_body(events::scan_detailed_scan_t && event) -> body_t
        };
        it != event.Parents.end())
       details.parent_barycenter = *it->Null;
+      
+    b.value = exploration::aprox_value(b);
     }
 
   return b;
@@ -738,7 +739,7 @@ auto discovery_state_t::handle(events::event_holder_t && e) -> void
 
         for(body_t const & obj: state.system.bodies)
           {
-          sell_value_t value{aprox_value(obj)};
+          sell_value_t value{exploration::aprox_value(obj)};
           std::visit(
             [&obj, value]<typename U>(U const & details)
             {
@@ -846,7 +847,7 @@ auto discovery_state_t::handle(events::event_holder_t && e) -> void
 
         state.system.bodies.emplace_back(to_body(std::move(event)));
         body_t & body{state.system.bodies.back()};
-        body.value = aprox_value(body);
+        body.value = exploration::aprox_value(body);
 
         std::visit(
           [&body]<typename U>(U const & details)

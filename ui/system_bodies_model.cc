@@ -93,7 +93,7 @@ auto system_bodies_model_t::rowCount(QModelIndex const & parent) const -> int
   return node ? static_cast<int>(node->children.size()) : 0;
   }
 
-auto system_bodies_model_t::columnCount(QModelIndex const &) const -> int { return 7; }
+auto system_bodies_model_t::columnCount(QModelIndex const &) const -> int { return 9; }
 
 auto system_bodies_model_t::data(QModelIndex const & index, int role) const -> QVariant
   {
@@ -105,20 +105,27 @@ auto system_bodies_model_t::data(QModelIndex const & index, int role) const -> Q
 
   if(role == Qt::CheckStateRole)
     {
-    if(index.column() == 6)  // Mapped
+    if(index.column() == 8)  // Mapped
       if(b.body_type() == body_type_e::star)
         return {};
       else
-        return std::get<planet_details_t>(b.details).mapped ? Qt::Checked : Qt::Unchecked;
-    else if(index.column() == 5)  // Discovered
+        return std::get<planet_details_t>(b.details).was_mapped ? Qt::Checked : Qt::Unchecked;
+    else if(index.column() == 7)  // Discovered
       return b.was_discovered ? Qt::Checked : Qt::Unchecked;
-    if(index.column() == 4)
+    else if(index.column() == 5)
       {
       if(b.body_type() == body_type_e::star)
         return {};
       else
         return std::get<planet_details_t>(b.details).terraform_state != events::terraform_state_e::none ? Qt::Checked
                                                                                                         : Qt::Unchecked;
+      }
+    else if(index.column() == 6)
+      {
+      if(b.body_type() == body_type_e::star)
+        return {};
+      else
+        return std::get<planet_details_t>(b.details).mapped ? Qt::Checked : Qt::Unchecked;
       }
     return {};
     }
@@ -135,7 +142,7 @@ auto system_bodies_model_t::data(QModelIndex const & index, int role) const -> Q
 
   if(role == Qt::DisplayRole)
     {
-    if(index.column() >= 4)
+    if(index.column() > 4)
       return {};
 
     return std::visit(
@@ -148,7 +155,8 @@ auto system_bodies_model_t::data(QModelIndex const & index, int role) const -> Q
             case 0:  return QString::fromStdString(b.name);
             case 1:  return QString::fromStdString(details.planet_class);
             case 2:  return QString("%1 g").arg(details.surface_gravity, 0, 'f', 2);
-            case 3:  return QString("%1 Cr").arg(b.value.value);
+            case 4:  return QString("%1 Cr").arg(b.value.value);
+            case 3:  return QString("%1").arg(details.mass_em);
             default: return {};
             }
           }
@@ -175,7 +183,8 @@ auto system_bodies_model_t::headerData(int section, Qt::Orientation orientation,
   {
   if(orientation == Qt::Horizontal && role == Qt::DisplayRole)
     {
-    static constexpr std::array const headers = {"Body Name", "Class", "Gravity", "Value", "Terraformable", "Discovered", "Mapped"};
+    static constexpr std::array const headers
+      = {"Body Name", "Class", "Gravity", "MassEM", "Value", "Terraformable", "Mapped", "Was Discovered", "Was Mapped"};
     return headers.at(static_cast<size_t>(section));
     }
   return {};
@@ -187,7 +196,7 @@ auto system_bodies_model_t::flags(QModelIndex const & index) const -> Qt::ItemFl
   if(!index.isValid()) [[unlikely]]
     return default_flags;
 
-  if(index.column() == 4 || index.column() == 5)
+  if(index.column() >= 5)
     return default_flags | Qt::ItemIsUserCheckable;
 
   return default_flags;
@@ -275,6 +284,12 @@ auto system_window_t::update_labels() -> void
 system_window_t::system_window_t(journal_state_t const & state, QWidget * parent) : QMdiSubWindow(parent), state_(state)
   {
   setup_ui();
+  connect(model_, &QAbstractItemModel::modelReset, tree_view, [ tv = tree_view]{
+    tv->expandAll();
+});
+  connect(proxy_model_, &QAbstractItemModel::modelReset, tree_view, [ tv = tree_view]{
+    tv->expandAll();
+});
   }
 
 // Funkcja do wywołania z main_window_t, gdy state_ zostanie zaktualizowany

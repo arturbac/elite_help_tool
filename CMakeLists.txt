@@ -224,7 +224,7 @@ target_link_libraries(elite_help_tool PRIVATE
   
 add_subdirectory(src)
 add_subdirectory(ui)
-
+add_subdirectory(unit_tests)
 #add_executable(journal_tests tests.cpp)
 #target_link_libraries(journal_tests PRIVATE ut)
 

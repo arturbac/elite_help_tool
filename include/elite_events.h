@@ -695,5 +695,14 @@ auto extract_mass_code(std::string_view name) noexcept -> char;
 auto system_approx_value(std::string_view star_class, std::string_view system_name) noexcept -> planet_value_e;
 [[nodiscard]]
 auto aprox_value(body_t const & body) noexcept -> sell_value_t;
+[[nodiscard]]
+auto calculate_value(
+  planet_value_info_t const & info,
+  double mass_em,
+  bool is_terraformable,
+  bool is_first_discoverer,
+  bool is_first_mapper,
+  bool efficiency_bonus
+) -> uint32_t;
 
   }  // namespace exploration
