@@ -1,4 +1,6 @@
 #pragma once
+#include <elite_events.h>
+
 #include <QWidget>
 #include <QLabel>
 #include <QHBoxLayout>
@@ -6,7 +8,8 @@
 #include <QListWidget>
 #include <QListWidgetItem>
 #include <memory>
-#include <elite_events.h>
+
+#include <qmdisubwindow.h>
 
 
 // Bazowa klasa dla spójności (opcjonalnie)
@@ -25,17 +28,18 @@ public:
 
 using log_payload_t = events::event_holder_t;
 
-class journal_log_window_t : public QWidget
+class journal_log_window_t : public QMdiSubWindow
   {
   Q_OBJECT
 public:
+  QListWidget * m_list_widget;
+  
   [[nodiscard]]
   explicit journal_log_window_t(QWidget * parent = nullptr);
 
-  // Metoda dodająca log wykorzystująca C++23 std::variant jako payload
+  auto setup_ui() -> void;
+  
   auto add_log(log_payload_t const & payload) -> void;
   auto add_logs_batch(std::vector<events::event_holder_t>&& batch) -> void;
   
-private:
-  QListWidget * m_list_widget;
   };

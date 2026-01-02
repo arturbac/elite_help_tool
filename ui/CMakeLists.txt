@@ -20,5 +20,6 @@ target_sources(elite_help_tool
             include/qformat.h
             include/system_bodies_model.h
             include/ship_loadout.h
+            include/main_window.h
 )
 add_subdirectory(src)

@@ -384,8 +384,9 @@ auto body_short_name(std::string_view system, std::string_view name) -> std::str
   {
   return name.substr(system.size());
   }
+
 namespace exploration
-{
+  {
 [[nodiscard]]
 auto calculate_value(
   planet_value_info_t const & info,
@@ -495,7 +496,8 @@ auto aprox_value(body_t const & body) noexcept -> sell_value_t
     }
   return result;
   }
-}
+  }  // namespace exploration
+
 auto value_class(sell_value_t const sv) noexcept -> planet_value_e
   {
   if(sv.value > 400000)
@@ -505,7 +507,6 @@ auto value_class(sell_value_t const sv) noexcept -> planet_value_e
   return planet_value_e::low;
   }
 
-  
 [[nodiscard]]
 auto format_credits_value(uint32_t value) -> std::string
   {
@@ -664,7 +665,7 @@ auto to_body(events::scan_detailed_scan_t && event) -> body_t
        };
        it != event.Parents.end())
       details.parent_barycenter = *it->Null;
-      
+
     b.value = exploration::aprox_value(b);
     }
 
@@ -690,19 +691,22 @@ auto discovery_state_t::handle(events::event_holder_t && e) -> void
 
       else if constexpr(std::same_as<T, events::start_jump_t>)
         {
-        planet_value_e const vl{exploration::system_approx_value(event.StarClass, event.StarSystem)};
-        info("[{}] jump to {}[{}] {}\033[m\n", event.timestamp, value_color(vl), event.StarClass, event.StarSystem);
-        state.system = star_system_t{
-          .system_address = event.SystemAddress,
-          .name = event.StarSystem,
-          .star_type = event.StarClass,
-          .luminosity = {},
-          .scan_bary_centre = {},
-          .bodies = {},
-          .stellar_mass = {},
-          .sub_class = {}
-        };
-        state.fss_complete = false;
+        if(event.JumpType == events::jump_type_e::Hyperspace)
+          {
+          planet_value_e const vl{exploration::system_approx_value(*event.StarClass, *event.StarSystem)};
+          info("[{}] jump to {}[{}] {}\033[m\n", event.timestamp, value_color(vl), *event.StarClass, *event.StarSystem);
+          state.system = star_system_t{
+            .system_address = *event.SystemAddress,
+            .name = *event.StarSystem,
+            .star_type = *event.StarClass,
+            .luminosity = {},
+            .scan_bary_centre = {},
+            .bodies = {},
+            .stellar_mass = {},
+            .sub_class = {}
+          };
+          state.fss_complete = false;
+          }
         }
 
       else if constexpr(std::same_as<T, events::fss_discovery_scan_t>)

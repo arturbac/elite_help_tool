@@ -66,8 +66,10 @@ enum struct event_e
   DockingGranted,
   Docked,
   Promotion,
+  SupercruiseEntry,
   NavRoute,
   NavRouteClear
+  
   };
 
 consteval auto adl_enum_bounds(event_e)
@@ -163,9 +165,9 @@ struct start_jump_t
   {
   std::chrono::sys_seconds timestamp;
   jump_type_e JumpType;
-  std::string StarSystem;
-  uint64_t SystemAddress;
-  std::string StarClass;
+  std::optional<std::string> StarSystem;
+  std::optional<uint64_t> SystemAddress;
+  std::optional<std::string> StarClass;
   };
 
 using body_id_t = uint32_t;

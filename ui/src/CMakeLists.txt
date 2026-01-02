@@ -5,4 +5,5 @@ target_sources(elite_help_tool
   journal_log.cc
   system_bodies_model.cc
   ship_loadout.cc
+  current_state.cc
   )
