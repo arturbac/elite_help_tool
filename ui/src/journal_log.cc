@@ -2,7 +2,6 @@
 #include <simple_enum/std_format.hpp>
 #include "qformat.h"
 
-
 // ⁕🌐🌕🌍🔵🔴🏷🏱📡📢
 static constexpr auto value_color(planet_value_e value)
   {
@@ -37,13 +36,20 @@ elite_event_widget_t<T>::elite_event_widget_t(T const & event, QWidget * parent)
     }
   else if constexpr(std::same_as<T, events::start_jump_t>)
     {
-    planet_value_e const vl{exploration::system_approx_value(event.StarClass, event.StarSystem)};
+    if(event.JumpType == events::jump_type_e::Hyperspace)
+      {
+      planet_value_e const vl{exploration::system_approx_value(*event.StarClass, *event.StarSystem)};
 
-    layout->addWidget(new QLabel("→🌞"));
-    auto * val = new QLabel(qformat("[{}] {}", event.StarClass, event.StarSystem));
-    if(planet_value_e::low < vl)
-      val->setStyleSheet(value_color(vl).data());
-    layout->addWidget(val);
+      layout->addWidget(new QLabel("→🌞"));
+      auto * val = new QLabel(qformat("[{}] {}", *event.StarClass, *event.StarSystem));
+      if(planet_value_e::low < vl)
+        val->setStyleSheet(value_color(vl).data());
+      layout->addWidget(val);
+      }
+    else
+      {
+      layout->addWidget(new QLabel("→ supercruise"));
+      }
     layout->addStretch();
     }
   else if constexpr(std::same_as<T, events::fss_discovery_scan_t>)
@@ -96,13 +102,10 @@ elite_event_widget_t<T>::elite_event_widget_t(T const & event, QWidget * parent)
   //   }
   }
 
-journal_log_window_t::journal_log_window_t(QWidget * parent) : QMdiSubWindow(parent)
-  {
-setup_ui();
-  }
-  
+journal_log_window_t::journal_log_window_t(QWidget * parent) : QMdiSubWindow(parent) { setup_ui(); }
+
 auto journal_log_window_t::setup_ui() -> void
-{
+  {
   auto * central_widget = new QWidget();
   auto * layout = new QVBoxLayout(central_widget);
   m_list_widget = new QListWidget(central_widget);
@@ -114,7 +117,7 @@ auto journal_log_window_t::setup_ui() -> void
   layout->addWidget(m_list_widget);
   setWidget(central_widget);
   setAttribute(Qt::WA_DeleteOnClose);
-}
+  }
 
 // Metoda dodająca log wykorzystująca C++23 std::variant jako payload
 auto journal_log_window_t::add_log(log_payload_t const & payload) -> void
