@@ -99,16 +99,44 @@ using utc_time_point_t = std::chrono::sys_time<std::chrono::milliseconds>;
 [[nodiscard]]
 auto parse_timestamp_t(std::string_view input) -> std::optional<utc_time_point_t>;
 
-/*
-{
-  "timestamp": "2025-12-24T10:13:34Z",
-  "event": "FSDTarget",
-  "Name": "Pru Theia PE-G d11-4",
-  "SystemAddress": 149376059619,
-  "StarClass": "F",
-  "RemainingJumpsInRoute": 17
-}
- */
+struct fuel_scoop_t
+  {
+  float Scooped;
+  float Total;
+  };
+
+struct fuel_capacity_t
+  {
+  float Main;
+  float Reserve;
+  };
+
+struct module_t
+  {
+  std::string Slot;
+  std::string Item;  //": "mandalay_armour_grade1",
+  bool On;
+  uint8_t Priority;
+  float Health;
+  };
+
+struct loadout_t
+  {
+  std::string Ship;
+  uint32_t ShipID;
+  std::string ShipName;
+  std::string ShipIdent;
+  uint32_t HullValue;
+  uint32_t ModulesValue;
+  float HullHealth;
+  float UnladenMass;
+  uint16_t CargoCapacity;
+  float MaxJumpRange;
+  uint32_t Rebuy;
+  fuel_capacity_t FuelCapacity;
+  std::vector<module_t> Modules;
+  };
+
 struct fsd_target_t
   {
   std::chrono::sys_seconds timestamp;
@@ -486,7 +514,9 @@ using event_holder_t = std::variant<
   fss_all_bodies_found_t,
   scan_bary_centre_t,
   scan_detailed_scan_t,
-  saa_scan_complete_t>;
+  saa_scan_complete_t,
+  fuel_scoop_t,
+  loadout_t>;
 
   }  // namespace events
 
@@ -684,6 +714,20 @@ static constexpr std::array<planet_value_info_t, 19> exploration_values{
    {"Helium gas giant", 500.0}}
 };
 
+struct ship_loadout_t
+  {
+  std::string Ship;
+  uint32_t ShipID;
+  std::string ShipName;
+  std::string ShipIdent;
+  float HullHealth;
+  uint16_t CargoCapacity;
+  uint16_t CargoUsed;
+  events::fuel_capacity_t FuelCapacity;
+  float FuelLevel;
+  std::vector<events::module_t> Modules;
+  };
+  
 namespace exploration
   {
 [[nodiscard]]
@@ -718,15 +762,13 @@ constexpr auto get_star_icon(std::string_view star_type) -> std::string_view
   if(star_type == "BlackHole"sv)
     return "🕳"sv;  // Black Holes
 
-  // Giganty i Supergiganty
   if(star_type.find("Giant"sv) != std::string_view::npos)
     return "✺"sv;
 
-  // Brązowe karły
   if(star_type.starts_with("L"sv) or star_type.starts_with("T"sv) or star_type.starts_with("Y"sv))
     return "🌑"sv;
 
-  // Klasy główne (KGBFOAM)
+  // (KGBFOAM)
   return "☀"sv;
   }
 
@@ -735,34 +777,30 @@ constexpr auto get_planet_icon(std::string_view planet_class) -> std::string_vie
   {
   using namespace std::literals;
 
-  // Najwyższa wartość
   if(planet_class == "Earthlike body"sv)
     return "🌎"sv;
   if(planet_class.contains("Water world"sv))
-    return "💧"sv;  // Kropla zamiast fal dla przejrzystości
+    return "💧"sv;
   if(planet_class == "Ammonia world"sv)
     return "☣"sv;
 
-  // Metale (HMC i Metal Rich) - używamy symboli sugerujących gęstość
   if(planet_class == "Metal rich body"sv)
-    return "◈"sv;  // Diamentowy, rzadki kształt
+    return "◈"sv;
   if(planet_class == "High metal content body"sv)
-    return "🔘"sv;  // "Ciężki" metalowy przycisk/rdzeń
+    return "🔘"sv;
 
-  // Gazowe Giganty
   if(planet_class.contains("gas giant"sv))
     return "◎"sv;
 
-  // Icy Body - wyraźne odróżnienie od metalu
   if(planet_class.contains("Icy"sv))
-    return "❄"sv;  // Płatek śniegu - natychmiastowa identyfikacja
+    return "❄"sv;
 
-  // Rocky Body - zwykła kropka
   if(planet_class == "Rocky body"sv)
     return "●"sv;
 
   return "○"sv;
   }
   }  // namespace exploration
-  [[nodiscard]]
-  auto format_credits_value(uint32_t value) -> std::string;
+
+[[nodiscard]]
+auto format_credits_value(uint32_t value) -> std::string;

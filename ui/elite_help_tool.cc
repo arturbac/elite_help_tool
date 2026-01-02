@@ -18,6 +18,9 @@
 #include <file_io.h>
 #include "system_bodies_model.h"
 #include <qpointer.h>
+#include <qprogressbar.h>
+#include <qscrollarea.h>
+#include <qgroupbox.h>
 
 // Struktura reprezentująca definicję przycisku narzędziowego
 struct tool_definition_t
@@ -30,15 +33,36 @@ enum struct window_type_e
   none,
   system,
   journal_log,
-
+  ship
   };
 
 consteval auto adl_enum_bounds(window_type_e)
   {
   using enum window_type_e;
-  return simple_enum::adl_info{none, journal_log};
+  return simple_enum::adl_info{none, ship};
   }
 Q_DECLARE_METATYPE(window_type_e)
+
+struct ship_ui_t
+  {
+  QMdiSubWindow * window{nullptr};
+  QLabel * ship_info_label{nullptr};
+  QProgressBar * hull_bar{nullptr};
+  QProgressBar * fuel_bar{nullptr};
+  QProgressBar * cargo_bar{nullptr};
+
+  // Kontener na wiersze modułów, by móc je dynamicznie czyścić/edytować
+  QVBoxLayout * modules_layout{nullptr};
+
+  struct module_row_t
+    {
+    QProgressBar * health;
+    QLabel * prio;
+    QLabel * status;
+    };
+
+  std::vector<module_row_t> module_rows;
+  };
 
 class main_window_t : public QMainWindow
   {
@@ -49,8 +73,11 @@ public:
   journal_state_t state_;
   std::jthread worker_thread_;
   QPointer<system_window_t> system_view_;
+  QPointer<QMdiSubWindow> ship_view_;
   fs::path file_to_monitor{};
-  
+  ship_ui_t ship_ui_;
+  QMdiArea * mdi_area_{nullptr};
+
   [[nodiscard]]
   explicit main_window_t(QWidget * parent = nullptr);
 
@@ -61,6 +88,7 @@ public:
     }
 
   auto on_journal_event_received() -> void;
+  auto update_ship_ui() -> void;
 
 private:
   auto background_worker(std::stop_token stoken) -> void;
@@ -69,11 +97,14 @@ private:
 
   auto setup_toolbox() -> void;
 
+  [[nodiscard]]
+  auto create_ship_tool_window() -> QMdiSubWindow *;
+
+  [[nodiscard]]
   auto create_journal_tool_window(QString const & title) -> QMdiSubWindow *;
 
+  [[nodiscard]]
   auto create_tool_window(QString const & title) -> QMdiSubWindow *;
-
-  QMdiArea * mdi_area_{nullptr};
 
   auto save_settings() -> void;
 
@@ -85,6 +116,7 @@ void journal_state_t::handle(events::event_holder_t && payload)
   if(nullptr != parent->jlw_)
     {
     bool update_system{};
+    bool update_ship{};
     std::visit(
       [&](auto && event)
       {
@@ -92,19 +124,17 @@ void journal_state_t::handle(events::event_holder_t && payload)
         if constexpr(std::same_as<T, events::fsd_jump_t>)
           {
           jump_info = event;
+          ship_loadout.FuelLevel = event.FuelLevel;
           update_system = true;
+          update_ship = true;
           }
         else if constexpr(std::same_as<T, events::fsd_target_t>)
           {
-          // planet_value_e const vl{exploration::system_approx_value(event.StarClass, event.Name)};
-          // debug("next target {}[{}] {}\033[m", value_color(vl), event.StarClass, event.Name);
           next_target = event;
           update_system = true;
           }
         else if constexpr(std::same_as<T, events::start_jump_t>)
           {
-          // planet_value_e const vl{exploration::system_approx_value(event.StarClass, event.StarSystem)};
-          // info("[{}] jump to {}[{}] {}\033[m\n", arg.timestamp, value_color(vl), arg.StarClass, arg.StarSystem);
           system = star_system_t{
             .system_address = event.SystemAddress,
             .name = event.StarSystem,
@@ -129,10 +159,10 @@ void journal_state_t::handle(events::event_holder_t && payload)
             }
           update_system = true;
           }
-        else if constexpr(std::same_as<T, events::fss_all_bodies_found_t>) 
-        {
+        else if constexpr(std::same_as<T, events::fss_all_bodies_found_t>)
+          {
           fss_complete = true;
-        }
+          }
         else if constexpr(std::same_as<T, events::scan_bary_centre_t>)
           {
           system.scan_bary_centre.emplace_back(std::move(event));
@@ -140,8 +170,7 @@ void journal_state_t::handle(events::event_holder_t && payload)
         else if constexpr(std::same_as<T, events::scan_detailed_scan_t>)
           {
           auto it{system.body_by_id(event.BodyID)};
-          if(it != system.bodies.end())
-          {}// *it = to_body(std::move(event));
+          if(it != system.bodies.end()) {}  // *it = to_body(std::move(event));
           else
             system.bodies.emplace_back(to_body(std::move(event)));
 
@@ -157,6 +186,28 @@ void journal_state_t::handle(events::event_holder_t && payload)
             details.mapped = true;
             }
           update_system = true;
+          }
+        else if constexpr(std::same_as<T, events::fuel_scoop_t>)
+          {
+          ship_loadout.FuelLevel = event.Total;
+          update_ship = true;
+          }
+        else if constexpr(std::same_as<T, events::loadout_t>)
+          {
+          ship_loadout = ship_loadout_t{
+            .Ship = std::move(event.Ship),
+            .ShipID = event.ShipID,
+            .ShipName = std::move(event.ShipName),
+            .ShipIdent = std::move(event.ShipIdent),
+            .HullHealth = event.HullHealth,
+            .CargoCapacity = event.CargoCapacity,
+            .FuelCapacity = event.FuelCapacity,
+            .Modules = std::move(event.Modules)
+          };
+          std::ranges::sort(
+            ship_loadout.Modules, std::less{}, [](events::module_t const & mod) -> uint8_t { return mod.Priority; }
+          );
+          update_ship = true;
           }
       },
       payload
@@ -186,6 +237,11 @@ void journal_state_t::handle(events::event_holder_t && payload)
       QMetaObject::invokeMethod(
         parent, [target = parent]() mutable { target->on_journal_event_received(); }, Qt::QueuedConnection
       );
+
+    if(update_ship)
+      QMetaObject::invokeMethod(
+        parent, [target = parent]() mutable { target->update_ship_ui(); }, Qt::QueuedConnection
+      );
     }
   }
 
@@ -203,7 +259,6 @@ main_window_t::main_window_t(QWidget * parent) : QMainWindow(parent), state_{thi
   worker_thread_ = std::jthread([this](std::stop_token stoken) { background_worker(stoken); });
   }
 
-
 auto main_window_t::setup_ui() -> void
   {
   resize(1200, 800);
@@ -220,6 +275,11 @@ auto main_window_t::setup_ui() -> void
   mdi_area_->addSubWindow(system_view_);
   system_view_->setProperty("window_type", QVariant::fromValue(window_type_e::system));
   system_view_->show();
+
+  ship_view_ = create_ship_tool_window();
+  mdi_area_->addSubWindow(ship_view_);
+  ship_view_->setProperty("window_type", QVariant::fromValue(window_type_e::ship));
+  ship_view_->show();
   }
 
 auto main_window_t::setup_toolbox() -> void
@@ -249,6 +309,145 @@ auto main_window_t::setup_toolbox() -> void
     toolbox_dock->addWidget(btn);
 
     connect(btn, &QPushButton::clicked, this, [this, title = "Journal log"]() { create_journal_tool_window(title); });
+    }
+  }
+
+auto main_window_t::create_ship_tool_window() -> QMdiSubWindow *
+  {
+  auto * sub_window = new QMdiSubWindow(this);
+  auto * container = new QWidget(sub_window);
+  auto * layout = new QVBoxLayout(container);
+
+  // Nagłówek statku
+  ship_ui_.ship_info_label = new QLabel("Waiting for Loadout Data...", container);
+  ship_ui_.ship_info_label->setStyleSheet("font-size: 15px; font-weight: bold; color: #ffad33;");
+  layout->addWidget(ship_ui_.ship_info_label);
+
+  // Sekcja parametrów głównych
+  auto * grid = new QGridLayout();
+
+  auto create_bar = [&](QString const & label, QString const & color)
+  {
+    auto * bar = new QProgressBar(container);
+    bar->setFormat(label + ": %v / %m");
+    bar->setStyleSheet(QString("QProgressBar::chunk { background-color: %1; }").arg(color));
+    bar->setAlignment(Qt::AlignCenter);
+    return bar;
+  };
+
+  ship_ui_.hull_bar = create_bar("HULL", "#cc4444");
+  ship_ui_.fuel_bar = create_bar("FUEL", "#4444cc");
+  ship_ui_.cargo_bar = create_bar("CARGO", "#44cc44");
+
+  grid->addWidget(new QLabel("Hull Health:"), 0, 0);
+  grid->addWidget(ship_ui_.hull_bar, 0, 1);
+  grid->addWidget(new QLabel("Fuel Level:"), 1, 0);
+  grid->addWidget(ship_ui_.fuel_bar, 1, 1);
+  grid->addWidget(new QLabel("Cargo Bay:"), 2, 0);
+  grid->addWidget(ship_ui_.cargo_bar, 2, 1);
+  layout->addLayout(grid);
+
+  // Obszar scrollowania dla modułów
+  auto * scroll = new QScrollArea(container);
+  scroll->setWidgetResizable(true);
+  scroll->setFrameShape(QFrame::NoFrame);
+
+  auto * scroll_content = new QWidget();
+  ship_ui_.modules_layout = new QVBoxLayout(scroll_content);
+  ship_ui_.modules_layout->setAlignment(Qt::AlignTop);
+  ship_ui_.modules_layout->setContentsMargins(0, 5, 0, 0);
+
+  scroll->setWidget(scroll_content);
+  layout->addWidget(new QLabel("<b>System Modules:</b>"));
+  layout->addWidget(scroll);
+
+  sub_window->setWidget(container);
+  sub_window->setWindowTitle("Ship Diagnostic Tool");
+  sub_window->resize(450, 550);
+  ship_ui_.window = sub_window;
+
+  return sub_window;
+  }
+
+auto main_window_t::update_ship_ui() -> void
+  {
+  auto const & loadout{state_.ship_loadout};
+  if(!ship_ui_.window)
+    return;
+
+  // 1. Aktualizacja danych podstawowych
+  ship_ui_.ship_info_label->setText(
+    QString::fromStdString(loadout.ShipName + " (" + loadout.Ship + ") - " + loadout.ShipIdent)
+  );
+
+  ship_ui_.hull_bar->setRange(0, 100);
+  ship_ui_.hull_bar->setValue(static_cast<int>(loadout.HullHealth * 100));
+  ship_ui_.hull_bar->setFormat(QString("Hull: %1%").arg(static_cast<int>(loadout.HullHealth * 100)));
+
+  ship_ui_.fuel_bar->setMaximum(static_cast<int>(loadout.FuelCapacity.Main));
+  ship_ui_.fuel_bar->setValue(static_cast<int>(loadout.FuelLevel));
+
+  ship_ui_.cargo_bar->setMaximum(loadout.CargoCapacity);
+  ship_ui_.cargo_bar->setValue(loadout.CargoUsed);
+
+  // 2. Synchronizacja modułów (Dynamic Rebuild if size changes)
+  if(ship_ui_.module_rows.size() != loadout.Modules.size())
+    {
+    // Czyścimy layout
+    QLayoutItem * child;
+    while((child = ship_ui_.modules_layout->takeAt(0)) != nullptr)
+      {
+      if(child->widget())
+        delete child->widget();
+      delete child;
+      }
+    ship_ui_.module_rows.clear();
+
+    // Budujemy od nowa
+    for(auto const & mod: loadout.Modules)
+      {
+      auto * row = new QWidget();
+      auto * row_l = new QHBoxLayout(row);
+      row_l->setContentsMargins(2, 2, 2, 2);
+
+      auto * name = new QLabel(QString::fromStdString(mod.Slot));
+      name->setFixedWidth(140);
+      name->setToolTip(QString::fromStdString(mod.Item));
+
+      auto * h_bar = new QProgressBar();
+      h_bar->setFixedHeight(10);
+      h_bar->setTextVisible(false);
+
+      auto * p_lab = new QLabel();
+      p_lab->setFixedWidth(25);
+
+      auto * s_lab = new QLabel();
+      s_lab->setFixedWidth(35);
+
+      row_l->addWidget(name);
+      row_l->addWidget(h_bar, 1);
+      row_l->addWidget(p_lab);
+      row_l->addWidget(s_lab);
+
+      ship_ui_.modules_layout->addWidget(row);
+      ship_ui_.module_rows.push_back({h_bar, p_lab, s_lab});
+      }
+    }
+
+  // 3. Aktualizacja wartości wierszy (zawsze)
+  for(size_t i = 0; i < loadout.Modules.size(); ++i)
+    {
+    auto const & mod = loadout.Modules[i];
+    auto & ui = ship_ui_.module_rows[i];
+
+    ui.health->setValue(static_cast<int>(mod.Health * 100));
+    ui.health->setStyleSheet(
+      QString("QProgressBar::chunk { background-color: %1; }").arg(mod.Health > 0.4 ? "#2ecc71" : "#e74c3c")
+    );
+
+    ui.prio->setText(QString("P%1").arg(mod.Priority));
+    ui.status->setText(mod.On ? "ONLINE" : "OFF");
+    ui.status->setStyleSheet(mod.On ? "color: #00ff00;" : "color: #ff4444;");
     }
   }
 
@@ -303,7 +502,6 @@ auto main_window_t::save_settings() -> void
     settings.setValue("type", static_cast<int>(sub->property("window_type").value<window_type_e>()));
     settings.setValue("pos", sub->pos());
     settings.setValue("size", sub->size());
-    // settings.setValue("geometry", windows[i]->saveGeometry());
     }
   settings.endArray();
   }
@@ -327,15 +525,14 @@ auto main_window_t::load_settings() -> void
     auto type = static_cast<window_type_e>(type_int);
     auto title = settings.value("title").toString();
     auto const pos_var = settings.value("pos");
-        auto const size_var = settings.value("size");
-    // auto geometry = settings.value("geometry").toByteArray();
+    auto const size_var = settings.value("size");
 
-    // Tworzymy okno i przywracamy jego geometrię
     QMdiSubWindow * sub{};
     switch(type)
       {
       case window_type_e::none:        sub = create_tool_window(title); break;
       case window_type_e::system:      sub = system_view_; break;
+      case window_type_e::ship:        sub = ship_view_; break;
       case window_type_e::journal_log: sub = create_journal_tool_window(title); break;
       }
     if(sub) [[likely]]
@@ -343,12 +540,9 @@ auto main_window_t::load_settings() -> void
       if(sub->mdiArea() == nullptr)
         mdi_area_->addSubWindow(sub);
 
-      // LOGIKA NAPRAWCZA:
-      // Jeśli brak zapisanych danych, ustawiamy sensowne minimum
       QPoint pos = pos_var.isValid() ? pos_var.toPoint() : QPoint(10 * i, 10 * i);
       QSize size = size_var.isValid() ? size_var.toSize() : QSize(400, 300);
 
-      // Zabezpieczenie przed zerowym rozmiarem
       if(size.width() <= 0 || size.height() <= 0)
         size = QSize(400, 300);
 
@@ -356,27 +550,26 @@ auto main_window_t::load_settings() -> void
       sub->resize(size);
       sub->show();
       }
-    // if(sub)
-    //   sub->restoreGeometry(geometry);
     }
   settings.endArray();
   }
+
 auto main_window_t::background_worker(std::stop_token stoken) -> void
   {
-    file_to_monitor = *find_latest_journal("journal-dir");
+  file_to_monitor = *find_latest_journal("journal-dir");
   tail_file(
-     // "journal-dir/Journal.2025-12-25T122142.01.log"
+    // "journal-dir/Journal.2025-12-25T122142.01.log"
     // "journal-dir/debug_highmetal.json"
-    file_to_monitor
-    , std::bind_front(&generic_state_t::discovery, &state_), stoken
+    file_to_monitor,
+    std::bind_front(&generic_state_t::discovery, &state_),
+    stoken
   );
   }
 
 auto main(int argc, char * argv[]) -> int
   {
   QApplication app(argc, argv);
-  
-  
+
   main_window_t window;
   window.show();
   return app.exec();

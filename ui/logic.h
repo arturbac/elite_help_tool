@@ -8,6 +8,7 @@ struct journal_state_t : public generic_state_t
   {
   main_window_t * parent;
   star_system_t system;
+  ship_loadout_t ship_loadout;
   events::fsd_jump_t jump_info;
   events::fsd_target_t next_target;
   bool fss_complete;

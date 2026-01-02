@@ -74,7 +74,6 @@ private:
   system_bodies_model_t * model_{};
   system_bodies_filter_proxy_t * proxy_model_;
   
-  // Wskaźniki do etykiet wymagających aktualizacji
   QLabel * target_label_{};
   QLabel * system_label_{};
   QLabel * fss_label_{};

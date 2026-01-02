@@ -578,7 +578,8 @@ auto generic_state_t::discovery(std::string_view input) -> void
     case Music:             break;
     case NavRoute:          break;
     case NavRouteClear:     break;
-    case FuelScoop:         break;
+    case FuelScoop:         parse_and_handle.template operator()<events::fuel_scoop_t>(); break;
+    case Loadout:           parse_and_handle.template operator()<events::loadout_t>(); break;
     case Shutdown:          break;
     default:                break;
     }
