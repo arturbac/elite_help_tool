@@ -15,17 +15,11 @@ auto system_bodies_filter_proxy_t::filterAcceptsRow(int source_row, QModelIndex 
   if(!idx.isValid())
     return false;
 
-  // 2. Pobierz nazwę (column 0, DisplayRole)
   auto const name = sourceModel()->data(idx, Qt::DisplayRole).toString();
 
-  // 3. Logika filtrowania: odrzuć jeśli zawiera "Belt Cluster"
   if(name.contains("Belt Cluster", Qt::CaseSensitive))
     return false;
 
-  // 4. Opcjonalnie: Jeśli chcesz, aby rodzic był widoczny tylko gdy
-  // którekolwiek z jego dzieci pasuje do filtra, tutaj musiałbyś
-  // dodać rekurencyjne sprawdzanie dzieci.
-  // Ale dla "Belt Cluster" proste wycięcie wiersza wystarczy.
   return true;
   }
 
@@ -38,17 +32,12 @@ system_bodies_model_t::system_bodies_model_t(std::vector<body_t> const * bodies,
 
 auto system_bodies_model_t::index(int row, int column, QModelIndex const & parent) const -> QModelIndex
   {
-  // 1. Podstawowa walidacja zakresu kolumn
   if(column < 0 || column >= columnCount())
     return {};
 
-  // 2. Pobieramy listę dzieci, z której chcemy wyciągnąć wiersz
-  // Jeśli parent jest inwalidą -> bierzemy root_nodes_
-  // Jeśli parent jest poprawny -> bierzemy dzieci tego noda
   auto const & children_list
     = parent.isValid() ? static_cast<body_info_t *>(parent.internalPointer())->children : root_nodes_;
 
-  // 3. Sprawdzamy czy wiersz mieści się w zakresie tej listy
   if(row >= 0 && row < static_cast<int>(children_list.size())) [[likely]]
     return createIndex(row, column, children_list[row]);
 
@@ -64,8 +53,6 @@ auto system_bodies_model_t::parent(QModelIndex const & index) const -> QModelInd
   if(!node || !node->parent)
     return {};
 
-  // Rodzic noda to body_info_t. Musimy znaleźć, który to wiersz
-  // w hierarchii wyżej (u jego rodzica lub w root_nodes).
   return createIndex(node->parent->row_in_parent, 0, node->parent);
   }
 
@@ -217,7 +204,6 @@ auto system_bodies_model_t::rebuild_index() -> void
   for(auto const & b: *bodies_)
     nodes_[b.body_id] = std::make_unique<body_info_t>(&b);
 
-  // int linked_count = 0;
   for(auto const & b: *bodies_)
     {
     auto * current_node = nodes_[b.body_id].get();
@@ -241,19 +227,15 @@ auto system_bodies_model_t::rebuild_index() -> void
         current_node->parent = parent_node;
         current_node->row_in_parent = static_cast<int>(parent_node->children.size());
         parent_node->children.push_back(current_node);
-        // linked_count++;
         }
       else
         {
-        // To jest podejrzane - rodzic istnieje w danych, ale nie w mapie
-        // spdlog::warn("Model: Body {} has parent_id {} but it's missing in nodes_", b.name, parent_id);
         current_node->row_in_parent = static_cast<int>(root_nodes_.size());
         root_nodes_.push_back(current_node);
         }
       }
     }
 
-  // spdlog::info("Model rebuilt: total={}, roots={}, linked={}", raw_bodies_.size(), root_nodes_.size(), linked_count);
   endResetModel();
   }
 
@@ -287,7 +269,7 @@ auto system_window_t::update_labels() -> void
   fss_label_->setText(state_.fss_complete ? "COMPLETE" : "INCOMPLETE");
   }
 
-system_window_t::system_window_t(journal_state_t const & state, QWidget * parent) : QMdiSubWindow(parent), state_(state)
+system_window_t::system_window_t(current_state_t const & state, QWidget * parent) : QMdiSubWindow(parent), state_(state)
   {
   setup_ui();
   connect(model_, &QAbstractItemModel::modelReset, tree_view, [ tv = tree_view]{

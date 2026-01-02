@@ -69,8 +69,8 @@ public:
 class system_window_t final : public QMdiSubWindow
   {
   Q_OBJECT
-private:
-  journal_state_t const & state_;
+public:
+  current_state_t const & state_;
   system_bodies_model_t * model_{};
   system_bodies_filter_proxy_t * proxy_model_;
   
@@ -79,14 +79,11 @@ private:
   QLabel * fss_label_{};
   QTreeView * tree_view{};
 
-public:
-  explicit system_window_t(journal_state_t const & state, QWidget * parent = nullptr);
+  explicit system_window_t(current_state_t const & state, QWidget * parent = nullptr);
 
-  // Funkcja do wywołania z main_window_t, gdy state_ zostanie zaktualizowany
   auto refresh_ui() -> void;
 
-private:
-  auto setup_ui() -> void;  // Inicjalizacja layoutu (podobna do Twojej funkcji)
+  auto setup_ui() -> void;
 
   auto update_labels() -> void;
   };

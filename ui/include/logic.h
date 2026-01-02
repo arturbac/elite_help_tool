@@ -4,7 +4,7 @@
 
 class main_window_t;
 
-struct journal_state_t : public generic_state_t
+struct current_state_t : public generic_state_t
   {
   main_window_t * parent;
   star_system_t system;
@@ -15,7 +15,7 @@ struct journal_state_t : public generic_state_t
   std::vector<events::event_holder_t> event_buffer_;
   std::mutex buffer_mtx_;
 
-  journal_state_t(main_window_t * p) : parent{p} {}
+  current_state_t(main_window_t * p) : parent{p} {}
 
   void handle(events::event_holder_t && event) override;
   };

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20..4.1.20)
-project(JournalTailer LANGUAGES CXX)
+project(EliteHelpTool LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -9,7 +9,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 include(cmake/get_cpm.cmake)
 find_package(Boost REQUIRED COMPONENTS program_options)
-find_package(Qt6 REQUIRED COMPONENTS Widgets Sql)
+
 # ----------------------------------------------------------------
 # simple_enum
 # ----------------------------------------------------------------
@@ -140,16 +140,6 @@ find_package(
              thread
              program_options)
              
-# ----------------------------------------------------------------
-# ut-ext
-# ----------------------------------------------------------------
-cpmaddpackage(
-  ut
-  GITHUB_REPOSITORY
-  arturbac/ut-ext
-  GIT_TAG
-  v2.0.1_5)
-find_package(ut-ext REQUIRED)
 
 
 set(PROJECT_CXX_FLAGS
@@ -195,7 +185,13 @@ set(STRICT_CXX_FLAGS
   "-Werror=return-type"
 )
 add_library(eht)
-target_include_directories(eht PUBLIC include)
+
+target_sources(eht
+    PUBLIC FILE_SET headers
+        TYPE HEADERS
+        BASE_DIRS include
+)
+
 target_link_libraries(eht PUBLIC
   simple_enum::simple_enum
   small_vectors::small_vectors
@@ -211,16 +207,6 @@ target_link_libraries(journal_tailer PRIVATE
   eht
   )
 
-set(CMAKE_AUTOMOC ON)
-set(CMAKE_AUTORCC ON)
-set(CMAKE_AUTOUIC ON)
-
-add_executable(elite_help_tool)
-target_link_libraries(elite_help_tool PRIVATE
-  eht
-  Qt6::Widgets 
-  Qt6::Sql
-  )
   
 add_subdirectory(src)
 add_subdirectory(ui)

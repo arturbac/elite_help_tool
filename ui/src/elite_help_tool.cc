@@ -1,15 +1,17 @@
 #include "logic.h"
+#include <ship_loadout.h>
+
 #include <QApplication>
 #include <QMainWindow>
 #include <QMdiArea>
-#include <QMdiSubWindow>
+#include <qmdisubwindow.h>
 #include <QSettings>
 #include "journal_log.h"
 #include <QToolBar>
 #include <QPushButton>
-#include <QVBoxLayout>
+#include <qboxlayout.h>
 #include <QWidget>
-#include <QLabel>
+#include <qlabel.h>
 #include <string_view>
 #include <vector>
 #include <simple_enum/simple_enum.hpp>
@@ -43,39 +45,18 @@ consteval auto adl_enum_bounds(window_type_e)
   }
 Q_DECLARE_METATYPE(window_type_e)
 
-struct ship_ui_t
-  {
-  QMdiSubWindow * window{nullptr};
-  QLabel * ship_info_label{nullptr};
-  QProgressBar * hull_bar{nullptr};
-  QProgressBar * fuel_bar{nullptr};
-  QProgressBar * cargo_bar{nullptr};
-
-  // Kontener na wiersze modułów, by móc je dynamicznie czyścić/edytować
-  QVBoxLayout * modules_layout{nullptr};
-
-  struct module_row_t
-    {
-    QProgressBar * health;
-    QLabel * prio;
-    QLabel * status;
-    };
-
-  std::vector<module_row_t> module_rows;
-  };
-
 class main_window_t : public QMainWindow
   {
   Q_OBJECT
 
 public:
   journal_log_window_t * jlw_{};
-  journal_state_t state_;
+  current_state_t state_;
   std::jthread worker_thread_;
   QPointer<system_window_t> system_view_;
-  QPointer<QMdiSubWindow> ship_view_;
+  QPointer<ship_loadout_window_t> ship_view_;
   fs::path file_to_monitor{};
-  ship_ui_t ship_ui_;
+
   QMdiArea * mdi_area_{nullptr};
 
   [[nodiscard]]
@@ -87,18 +68,12 @@ public:
     QMainWindow::closeEvent(event);
     }
 
-  auto on_journal_event_received() -> void;
-  auto update_ship_ui() -> void;
-
 private:
   auto background_worker(std::stop_token stoken) -> void;
 
   auto setup_ui() -> void;
 
   auto setup_toolbox() -> void;
-
-  [[nodiscard]]
-  auto create_ship_tool_window() -> QMdiSubWindow *;
 
   [[nodiscard]]
   auto create_journal_tool_window(QString const & title) -> QMdiSubWindow *;
@@ -111,7 +86,7 @@ private:
   auto load_settings() -> void;
   };
 
-void journal_state_t::handle(events::event_holder_t && payload)
+void current_state_t::handle(events::event_holder_t && payload)
   {
   if(nullptr != parent->jlw_)
     {
@@ -235,20 +210,26 @@ void journal_state_t::handle(events::event_holder_t && payload)
 
     if(update_system)
       QMetaObject::invokeMethod(
-        parent, [target = parent]() mutable { target->on_journal_event_received(); }, Qt::QueuedConnection
+        parent,
+        [target = parent]() mutable
+        {
+          if(target->system_view_) [[likely]]
+            target->system_view_->refresh_ui();
+        },
+        Qt::QueuedConnection
       );
 
     if(update_ship)
       QMetaObject::invokeMethod(
-        parent, [target = parent]() mutable { target->update_ship_ui(); }, Qt::QueuedConnection
+        parent,
+        [target = parent]() mutable
+        {
+          if(target->ship_view_)
+            target->ship_view_->refresh_ui();
+        },
+        Qt::QueuedConnection
       );
     }
-  }
-
-auto main_window_t::on_journal_event_received() -> void
-  {
-  if(system_view_) [[likely]]
-    system_view_->refresh_ui();
   }
 
 main_window_t::main_window_t(QWidget * parent) : QMainWindow(parent), state_{this}
@@ -276,7 +257,7 @@ auto main_window_t::setup_ui() -> void
   system_view_->setProperty("window_type", QVariant::fromValue(window_type_e::system));
   system_view_->show();
 
-  ship_view_ = create_ship_tool_window();
+  ship_view_ = new ship_loadout_window_t(state_.ship_loadout);
   mdi_area_->addSubWindow(ship_view_);
   ship_view_->setProperty("window_type", QVariant::fromValue(window_type_e::ship));
   ship_view_->show();
@@ -309,145 +290,6 @@ auto main_window_t::setup_toolbox() -> void
     toolbox_dock->addWidget(btn);
 
     connect(btn, &QPushButton::clicked, this, [this, title = "Journal log"]() { create_journal_tool_window(title); });
-    }
-  }
-
-auto main_window_t::create_ship_tool_window() -> QMdiSubWindow *
-  {
-  auto * sub_window = new QMdiSubWindow(this);
-  auto * container = new QWidget(sub_window);
-  auto * layout = new QVBoxLayout(container);
-
-  // Nagłówek statku
-  ship_ui_.ship_info_label = new QLabel("Waiting for Loadout Data...", container);
-  ship_ui_.ship_info_label->setStyleSheet("font-size: 15px; font-weight: bold; color: #ffad33;");
-  layout->addWidget(ship_ui_.ship_info_label);
-
-  // Sekcja parametrów głównych
-  auto * grid = new QGridLayout();
-
-  auto create_bar = [&](QString const & label, QString const & color)
-  {
-    auto * bar = new QProgressBar(container);
-    bar->setFormat(label + ": %v / %m");
-    bar->setStyleSheet(QString("QProgressBar::chunk { background-color: %1; }").arg(color));
-    bar->setAlignment(Qt::AlignCenter);
-    return bar;
-  };
-
-  ship_ui_.hull_bar = create_bar("HULL", "#cc4444");
-  ship_ui_.fuel_bar = create_bar("FUEL", "#4444cc");
-  ship_ui_.cargo_bar = create_bar("CARGO", "#44cc44");
-
-  grid->addWidget(new QLabel("Hull Health:"), 0, 0);
-  grid->addWidget(ship_ui_.hull_bar, 0, 1);
-  grid->addWidget(new QLabel("Fuel Level:"), 1, 0);
-  grid->addWidget(ship_ui_.fuel_bar, 1, 1);
-  grid->addWidget(new QLabel("Cargo Bay:"), 2, 0);
-  grid->addWidget(ship_ui_.cargo_bar, 2, 1);
-  layout->addLayout(grid);
-
-  // Obszar scrollowania dla modułów
-  auto * scroll = new QScrollArea(container);
-  scroll->setWidgetResizable(true);
-  scroll->setFrameShape(QFrame::NoFrame);
-
-  auto * scroll_content = new QWidget();
-  ship_ui_.modules_layout = new QVBoxLayout(scroll_content);
-  ship_ui_.modules_layout->setAlignment(Qt::AlignTop);
-  ship_ui_.modules_layout->setContentsMargins(0, 5, 0, 0);
-
-  scroll->setWidget(scroll_content);
-  layout->addWidget(new QLabel("<b>System Modules:</b>"));
-  layout->addWidget(scroll);
-
-  sub_window->setWidget(container);
-  sub_window->setWindowTitle("Ship Diagnostic Tool");
-  sub_window->resize(450, 550);
-  ship_ui_.window = sub_window;
-
-  return sub_window;
-  }
-
-auto main_window_t::update_ship_ui() -> void
-  {
-  auto const & loadout{state_.ship_loadout};
-  if(!ship_ui_.window)
-    return;
-
-  // 1. Aktualizacja danych podstawowych
-  ship_ui_.ship_info_label->setText(
-    QString::fromStdString(loadout.ShipName + " (" + loadout.Ship + ") - " + loadout.ShipIdent)
-  );
-
-  ship_ui_.hull_bar->setRange(0, 100);
-  ship_ui_.hull_bar->setValue(static_cast<int>(loadout.HullHealth * 100));
-  ship_ui_.hull_bar->setFormat(QString("Hull: %1%").arg(static_cast<int>(loadout.HullHealth * 100)));
-
-  ship_ui_.fuel_bar->setMaximum(static_cast<int>(loadout.FuelCapacity.Main));
-  ship_ui_.fuel_bar->setValue(static_cast<int>(loadout.FuelLevel));
-
-  ship_ui_.cargo_bar->setMaximum(loadout.CargoCapacity);
-  ship_ui_.cargo_bar->setValue(loadout.CargoUsed);
-
-  // 2. Synchronizacja modułów (Dynamic Rebuild if size changes)
-  if(ship_ui_.module_rows.size() != loadout.Modules.size())
-    {
-    // Czyścimy layout
-    QLayoutItem * child;
-    while((child = ship_ui_.modules_layout->takeAt(0)) != nullptr)
-      {
-      if(child->widget())
-        delete child->widget();
-      delete child;
-      }
-    ship_ui_.module_rows.clear();
-
-    // Budujemy od nowa
-    for(auto const & mod: loadout.Modules)
-      {
-      auto * row = new QWidget();
-      auto * row_l = new QHBoxLayout(row);
-      row_l->setContentsMargins(2, 2, 2, 2);
-
-      auto * name = new QLabel(QString::fromStdString(mod.Slot));
-      name->setFixedWidth(140);
-      name->setToolTip(QString::fromStdString(mod.Item));
-
-      auto * h_bar = new QProgressBar();
-      h_bar->setFixedHeight(10);
-      h_bar->setTextVisible(false);
-
-      auto * p_lab = new QLabel();
-      p_lab->setFixedWidth(25);
-
-      auto * s_lab = new QLabel();
-      s_lab->setFixedWidth(35);
-
-      row_l->addWidget(name);
-      row_l->addWidget(h_bar, 1);
-      row_l->addWidget(p_lab);
-      row_l->addWidget(s_lab);
-
-      ship_ui_.modules_layout->addWidget(row);
-      ship_ui_.module_rows.push_back({h_bar, p_lab, s_lab});
-      }
-    }
-
-  // 3. Aktualizacja wartości wierszy (zawsze)
-  for(size_t i = 0; i < loadout.Modules.size(); ++i)
-    {
-    auto const & mod = loadout.Modules[i];
-    auto & ui = ship_ui_.module_rows[i];
-
-    ui.health->setValue(static_cast<int>(mod.Health * 100));
-    ui.health->setStyleSheet(
-      QString("QProgressBar::chunk { background-color: %1; }").arg(mod.Health > 0.4 ? "#2ecc71" : "#e74c3c")
-    );
-
-    ui.prio->setText(QString("P%1").arg(mod.Priority));
-    ui.status->setText(mod.On ? "ONLINE" : "OFF");
-    ui.status->setStyleSheet(mod.On ? "color: #00ff00;" : "color: #ff4444;");
     }
   }
 
