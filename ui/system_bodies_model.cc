@@ -97,7 +97,7 @@ auto system_bodies_model_t::columnCount(QModelIndex const &) const -> int { retu
 
 auto system_bodies_model_t::data(QModelIndex const & index, int role) const -> QVariant
   {
-  if(!index.isValid() /*|| role != Qt::DisplayRole*/)
+  if(!index.isValid())
     return {};
 
   auto const * node = static_cast<body_info_t *>(index.internalPointer());
@@ -159,9 +159,9 @@ auto system_bodies_model_t::data(QModelIndex const & index, int role) const -> Q
           switch(index.column())
             {
             case 0:  return QString::fromStdString(b.name);
-            case 1:  return QString::fromStdString(details.planet_class);
+            case 1:  return qformat("{} {}",exploration::get_planet_icon(details.planet_class),details.planet_class);
             case 2:  return QString("%1 g").arg(details.surface_gravity, 0, 'f', 2);
-            case 4:  return QString("%1 Cr").arg(b.value.value);
+            case 4:  return QString::fromStdString(format_credits_value(b.value.value));
             case 3:  return QString("%1").arg(details.mass_em);
             default: return {};
             }
@@ -171,9 +171,9 @@ auto system_bodies_model_t::data(QModelIndex const & index, int role) const -> Q
           switch(index.column())
             {
             case 0:  return QString::fromStdString(b.name);
-            case 1:  return QString::fromStdString(details.star_type);
+            case 1:  return qformat("{} {}", exploration::get_star_icon(details.star_type), details.star_type);
             case 2:  return {};
-            case 3:  return QString("%1 Cr").arg(b.value.value);
+            case 3:  return QString::fromStdString(format_credits_value(b.value.value));
             default: return {};
             }
           }
@@ -187,10 +187,10 @@ auto system_bodies_model_t::data(QModelIndex const & index, int role) const -> Q
 
 auto system_bodies_model_t::headerData(int section, Qt::Orientation orientation, int role) const -> QVariant
   {
-  if(orientation == Qt::Horizontal && role == Qt::DisplayRole)
+  if(orientation == Qt::Horizontal and role == Qt::DisplayRole)
     {
     static constexpr std::array const headers
-      = {"Body Name", "Class", "Gravity", "MassEM", "Value", "Terraformable", "Mapped", "Was Discovered", "Was Mapped"};
+      = {"Body", "Class", "Gravity", "MassEM", "Value", "Terraformable", "Mapped", "Was Discovered", "Was Mapped"};
     return headers.at(static_cast<size_t>(section));
     }
   return {};
@@ -351,8 +351,9 @@ auto system_window_t::setup_ui() -> void
   auto * header = tree_view->header();
   header->setSectionResizeMode(QHeaderView::Interactive);
   header->setSectionResizeMode(0, QHeaderView::ResizeToContents);
-  header->setSectionResizeMode(1, QHeaderView::ResizeToContents);
-  header->setSectionResizeMode(2, QHeaderView::Stretch);  // Ostatnia kolumna wypełnia okno
+  for(int i{2}; i != model_->columnCount(); ++i)
+    header->setSectionResizeMode(i, QHeaderView::ResizeToContents);
+  header->setSectionResizeMode(1, QHeaderView::Stretch);  // Ostatnia kolumna wypełnia okno
 
   layout->addWidget(new QLabel("System Bodies:"));
   layout->addWidget(tree_view);

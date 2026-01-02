@@ -505,8 +505,9 @@ auto value_class(sell_value_t const sv) noexcept -> planet_value_e
   return planet_value_e::low;
   }
 
+  
 [[nodiscard]]
-static auto format_credits_value(uint32_t value) -> std::string
+auto format_credits_value(uint32_t value) -> std::string
   {
   auto s_t = std::to_string(value);
   auto res_t = std::string{};

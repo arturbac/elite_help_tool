@@ -566,7 +566,7 @@ struct planet_details_t
 
   std::vector<events::signal_t> signals_;
   std::string volcanism;
-  
+
   double mass_em;
   double surface_gravity;
   double surface_pressure;
@@ -596,7 +596,6 @@ struct body_t
   double periapsis;
   double radius;
   bool was_discovered;
-  
 
   [[nodiscard]]
   auto body_type() const noexcept
@@ -654,34 +653,36 @@ struct discovery_state_t : public generic_state_t
   void handle(events::event_holder_t && event) override;
   };
 
-struct planet_value_info_t {
-    std::string_view planet_class;
-    double base_value;
-    double terraform_bonus{0.0};
-};
+struct planet_value_info_t
+  {
+  std::string_view planet_class;
+  double base_value;
+  double terraform_bonus{0.0};
+  };
+
 auto body_short_name(std::string_view system, std::string_view name) -> std::string_view;
 
-static constexpr std::array<planet_value_info_t, 19> exploration_values{{
-    {"Metal rich body", 21'790.0},
-    {"High metal content body", 9'693.0, 93'328.0}, // Bonus dodawany jeśli terraformowalna
-    {"Rocky body", 300.0, 93'328.0},
-    {"Icy body", 300.0},
-    {"Rocky ice body", 300.0},
-    {"Earthlike body", 64'831.0 + 116'295.0}, // Earth-like jest zawsze "terraformowana" z definicji bazy
-    {"Water world", 24'831.0, 116'295.0},
-    {"Ammonia world", 33'268.0},
-    {"Water giant", 1'000.0},
-    {"Water giant with life", 1'500.0},
-    {"Gas giant with water based life", 3'000.0},
-    {"Gas giant with ammonia based life", 1'500.0},
-    {"Sudarsky class I gas giant", 1'650.0},
-    {"Sudarsky class II gas giant", 9'650.0},
-    {"Sudarsky class III gas giant", 500.0},
-    {"Sudarsky class IV gas giant", 2'800.0},
-    {"Sudarsky class V gas giant", 3'100.0},
-    {"Helium rich gas giant", 3'000.0},
-    {"Helium gas giant", 500.0}
-}};
+static constexpr std::array<planet_value_info_t, 19> exploration_values{
+  {{"Metal rich body", 21'790.0},
+   {"High metal content body", 9'693.0, 93'328.0},  // Bonus dodawany jeśli terraformowalna
+   {"Rocky body", 300.0, 93'328.0},
+   {"Icy body", 300.0},
+   {"Rocky ice body", 300.0},
+   {"Earthlike body", 64'831.0 + 116'295.0},  // Earth-like jest zawsze "terraformowana" z definicji bazy
+   {"Water world", 24'831.0, 116'295.0},
+   {"Ammonia world", 33'268.0},
+   {"Water giant", 1'000.0},
+   {"Water giant with life", 1'500.0},
+   {"Gas giant with water based life", 3'000.0},
+   {"Gas giant with ammonia based life", 1'500.0},
+   {"Sudarsky class I gas giant", 1'650.0},
+   {"Sudarsky class II gas giant", 9'650.0},
+   {"Sudarsky class III gas giant", 500.0},
+   {"Sudarsky class IV gas giant", 2'800.0},
+   {"Sudarsky class V gas giant", 3'100.0},
+   {"Helium rich gas giant", 3'000.0},
+   {"Helium gas giant", 500.0}}
+};
 
 namespace exploration
   {
@@ -705,4 +706,63 @@ auto calculate_value(
   bool efficiency_bonus
 ) -> uint32_t;
 
+[[nodiscard]]
+constexpr auto get_star_icon(std::string_view star_type) -> std::string_view
+  {
+  using namespace std::literals;
+
+  if(star_type.starts_with("D"sv))
+    return "⚪"sv;  // White Dwarfs
+  if(star_type == "Neutron"sv)
+    return "⚡"sv;  // Neutron Stars
+  if(star_type == "BlackHole"sv)
+    return "🕳"sv;  // Black Holes
+
+  // Giganty i Supergiganty
+  if(star_type.find("Giant"sv) != std::string_view::npos)
+    return "✺"sv;
+
+  // Brązowe karły
+  if(star_type.starts_with("L"sv) or star_type.starts_with("T"sv) or star_type.starts_with("Y"sv))
+    return "🌑"sv;
+
+  // Klasy główne (KGBFOAM)
+  return "☀"sv;
+  }
+
+[[nodiscard]]
+constexpr auto get_planet_icon(std::string_view planet_class) -> std::string_view
+  {
+  using namespace std::literals;
+
+  // Najwyższa wartość
+  if(planet_class == "Earthlike body"sv)
+    return "🌎"sv;
+  if(planet_class.contains("Water world"sv))
+    return "💧"sv;  // Kropla zamiast fal dla przejrzystości
+  if(planet_class == "Ammonia world"sv)
+    return "☣"sv;
+
+  // Metale (HMC i Metal Rich) - używamy symboli sugerujących gęstość
+  if(planet_class == "Metal rich body"sv)
+    return "◈"sv;  // Diamentowy, rzadki kształt
+  if(planet_class == "High metal content body"sv)
+    return "🔘"sv;  // "Ciężki" metalowy przycisk/rdzeń
+
+  // Gazowe Giganty
+  if(planet_class.contains("gas giant"sv))
+    return "◎"sv;
+
+  // Icy Body - wyraźne odróżnienie od metalu
+  if(planet_class.contains("Icy"sv))
+    return "❄"sv;  // Płatek śniegu - natychmiastowa identyfikacja
+
+  // Rocky Body - zwykła kropka
+  if(planet_class == "Rocky body"sv)
+    return "●"sv;
+
+  return "○"sv;
+  }
   }  // namespace exploration
+  [[nodiscard]]
+  auto format_credits_value(uint32_t value) -> std::string;
