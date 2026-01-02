@@ -98,9 +98,7 @@ if(NOT glaze_FOUND)
     GITHUB_REPOSITORY
     stephenberry/glaze
     GIT_TAG
-    # v5.3.0
-    v6.4.1
-    # v6.0.0
+    v6.5.0
     OPTIONS
     "glaze_DISABLE_SIMD_WHEN_SUPPORTED ON")
 endif()

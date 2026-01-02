@@ -554,8 +554,8 @@ auto generic_state_t::discovery(std::string_view input) -> void
 
     if(parse_res) [[unlikely]]
       {
-      auto pre{stralgo::substr(input, parse_res.location - 40, 40)};
-      auto post{stralgo::substr(input, parse_res.location, 40)};
+      auto pre{stralgo::substr(input, parse_res.count - 40, 40)};
+      auto post{stralgo::substr(input, parse_res.count, 40)};
       warn("failed to parse [{}]..[{}] {}", pre, post, input);  // Assumes 'input' is available in scope
       return;
       }
