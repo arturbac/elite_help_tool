@@ -108,10 +108,10 @@ auto solve_kepler(double mean_anomaly_rad, double eccentricity) noexcept -> doub
   return e_anomaly;
   }
 
-using events::location_t;
+using events::body_location_t;
 
 [[nodiscard]]
-auto calculate_relative_pos(orbital_node_t const & node, double dt) -> location_t
+auto calculate_relative_pos(orbital_node_t const & node, double dt) -> body_location_t
   {
   if(node.orbital_period <= 0.0)
     return {node.body_id, 0.0, 0.0, 0.0};
@@ -137,23 +137,22 @@ auto calculate_relative_pos(orbital_node_t const & node, double dt) -> location_
   }
 
 [[nodiscard]]
-auto order_calculation(
-  std::span<events::scan_bary_centre_t const> barycentres, std::vector<body_t const *> const & scans
-) -> std::vector<location_t>
+auto order_calculation(std::span<bary_centre_t const> barycentres, std::vector<body_t const *> const & scans)
+  -> std::vector<body_location_t>
   {
   std::unordered_map<body_id_t, orbital_node_t> registry;
 
   // Populate registry with both barycentres and detailed scans
   for(auto const & bc: barycentres)
-    registry[bc.BodyID] = {
-      bc.BodyID,
-      bc.SemiMajorAxis,
-      bc.Eccentricity,
-      bc.OrbitalInclination,
-      bc.Periapsis,
-      bc.OrbitalPeriod,
-      bc.AscendingNode,
-      bc.MeanAnomaly,
+    registry[bc.body_id] = {
+      bc.body_id,
+      bc.semi_major_axis,
+      bc.eccentricity,
+      bc.orbital_inclination,
+      bc.periapsis,
+      bc.orbital_period,
+      bc.ascending_node,
+      bc.mean_anomaly,
       {}
     };
 
@@ -204,11 +203,11 @@ auto order_calculation(
   // Explicit logic error check: If a barycentre has parents in the log, they should be mapped!
   // Note: Barycentre logs in ED sometimes don't list parents, but they are referenced by bodies.
 
-  std::unordered_map<body_id_t, location_t> rel_coords;
+  std::unordered_map<body_id_t, body_location_t> rel_coords;
   for(auto const & [id, node]: registry)
     rel_coords[id] = calculate_relative_pos(node, 0.0);
 
-  std::vector<location_t> absolute_positions;
+  std::vector<body_location_t> absolute_positions;
   absolute_positions.reserve(scans.size());
 
   for(auto const & s: scans)
@@ -238,7 +237,7 @@ auto order_calculation(
   if(absolute_positions.empty())
     return {};
 
-  std::vector<location_t> path;
+  std::vector<body_location_t> path;
   std::vector<bool> visited(absolute_positions.size(), false);
   size_t current_idx = 0;
 
@@ -284,7 +283,7 @@ auto order_calculation(
 // C++
 
 [[nodiscard]]
-auto calculate_distance(location_t const & a, location_t const & b) noexcept -> double
+auto calculate_distance(body_location_t const & a, body_location_t const & b) noexcept -> double
   {
   double const dx = a.x - b.x;
   double const dy = a.y - b.y;
@@ -293,18 +292,18 @@ auto calculate_distance(location_t const & a, location_t const & b) noexcept -> 
   }
 
 [[nodiscard]]
-auto order_calculation_2_opt(location_t const player_pos, std::span<location_t const> targets)
-  -> std::vector<location_t>
+auto order_calculation_2_opt(body_location_t const player_pos, std::span<body_location_t const> targets)
+  -> std::vector<body_location_t>
   {
   if(targets.empty())
     return {};
 
   // 1. Inicjalizacja: Budujemy ścieżkę zaczynając od gracza (Nearest Neighbor)
-  std::vector<location_t> path;
+  std::vector<body_location_t> path;
   path.reserve(targets.size() + 1);
   path.push_back(player_pos);
 
-  std::vector<location_t> remaining(targets.begin(), targets.end());
+  std::vector<body_location_t> remaining(targets.begin(), targets.end());
 
   while(!remaining.empty())
     {
@@ -364,7 +363,7 @@ auto order_calculation_2_opt(location_t const player_pos, std::span<location_t c
  * Speed of light constant is taken as 299,792,458 m/s.
  */
 [[nodiscard]]
-constexpr auto distance_ls(location_t const a, location_t const b) noexcept -> double
+constexpr auto distance_ls(body_location_t const a, body_location_t const b) noexcept -> double
   {
   // Constant for the speed of light in m/s
   constexpr double light_speed_mps = 299'792'458.0;
@@ -436,9 +435,9 @@ auto calculate_value(
   return static_cast<uint32_t>(std::max(500.0, std::round(final_value)));
   }
 
-auto aprox_value(body_t const & body) noexcept -> sell_value_t
+auto aprox_value(body_t const & body) noexcept -> uint32_t
   {
-  sell_value_t result{};
+  uint32_t result{};
   if(body.body_type() == body_type_e::star)
     {
     star_details_t const & details{std::get<star_details_t>(body.details)};
@@ -470,7 +469,7 @@ auto aprox_value(body_t const & body) noexcept -> sell_value_t
     auto const mass = details.stellar_mass;
 
     // Standardowy wzór FDEV dla gwiazd
-    result.value = k + (mass * k / 66.25);
+    result = k + (mass * k / 66.25);
     }
   else
     {
@@ -484,7 +483,7 @@ auto aprox_value(body_t const & body) noexcept -> sell_value_t
     if(it != exploration_values.end())
       {
       planet_value_info_t const & info{*it};
-      result.value = calculate_value(
+      result = calculate_value(
         info,
         details.mass_em,
         details.terraform_state != events::terraform_state_e::none,
@@ -498,11 +497,11 @@ auto aprox_value(body_t const & body) noexcept -> sell_value_t
   }
   }  // namespace exploration
 
-auto value_class(sell_value_t const sv) noexcept -> planet_value_e
+auto value_class(uint32_t const sv) noexcept -> planet_value_e
   {
-  if(sv.value > 400000)
+  if(sv > 400000)
     return planet_value_e::high;
-  if(sv.value > 200000)
+  if(sv > 200000)
     return planet_value_e::medium;
   return planet_value_e::low;
   }
@@ -540,7 +539,7 @@ auto generic_state_t::discovery(std::string_view input) -> void
   {
   std::string buffer{input};
   events::generic_event_t gevt;
-  auto parse_res{glz::read<glz::opts{.error_on_unknown_keys = false}>(gevt, buffer)};
+  auto parse_res{glz::read<glz::opts{.error_on_unknown_keys = false, .error_on_missing_keys = false}>(gevt, buffer)};
   if(parse_res) [[unlikely]]
     {
     warn("failed to parse {}", input);
@@ -550,13 +549,14 @@ auto generic_state_t::discovery(std::string_view input) -> void
   auto const parse_and_handle = [&]<typename event_t>() -> void
   {
     event_t obj{};
-    auto const parse_res = glz::read<glz::opts{.error_on_unknown_keys = false}>(obj, buffer);
+    auto const parse_res
+      = glz::read<glz::opts{.error_on_unknown_keys = false, .error_on_missing_keys = false}>(obj, buffer);
 
     if(parse_res) [[unlikely]]
       {
-      auto pre{stralgo::substr(input, parse_res.count - 40, 40)};
-      auto post{stralgo::substr(input, parse_res.count, 40)};
-      warn("failed to parse [{}]..[{}] {}", pre, post, input);  // Assumes 'input' is available in scope
+      // auto pre{stralgo::substr(input, parse_res.count - 40, 40)};
+      // auto post{stralgo::substr(input, parse_res.count, 40)};
+      warn("failed to parse {}", input);  // Assumes 'input' is available in scope
       return;
       }
 
@@ -581,6 +581,7 @@ auto generic_state_t::discovery(std::string_view input) -> void
     case NavRouteClear:     break;
     case FuelScoop:         parse_and_handle.template operator()<events::fuel_scoop_t>(); break;
     case Loadout:           parse_and_handle.template operator()<events::loadout_t>(); break;
+    case Location:          parse_and_handle.template operator()<events::location_t>(); break;
     case Shutdown:          break;
     default:                break;
     }
@@ -632,6 +633,7 @@ auto to_body(events::scan_detailed_scan_t && event) -> body_t
       .volcanism = event.Volcanism,
       .mass_em = event.MassEM,
       .surface_gravity = event.SurfaceGravity,
+      .surface_temperature = event.SurfaceTemperature,
       .surface_pressure = event.SurfacePressure,
       .ascending_node = event.AscendingNode,
       .mean_anomaly = event.MeanAnomaly,
@@ -640,7 +642,9 @@ auto to_body(events::scan_detailed_scan_t && event) -> body_t
       .landable = event.Landable,
       .tidal_lock = event.TidalLock,
       .was_mapped = event.WasMapped,
-      .mapped = {}
+      .was_footfalled = event.WasFootfalled,
+      .mapped = {},
+      .footfalled = {}
     };
 
     planet_details_t & details{std::get<planet_details_t>(b.details)};
@@ -699,13 +703,11 @@ auto discovery_state_t::handle(events::event_holder_t && e) -> void
             .system_address = *event.SystemAddress,
             .name = *event.StarSystem,
             .star_type = *event.StarClass,
-            .luminosity = {},
-            .scan_bary_centre = {},
+            .bary_centre = {},
             .bodies = {},
-            .stellar_mass = {},
-            .sub_class = {}
+            .sub_class = {},
+            .fss_complete = {}
           };
-          state.fss_complete = false;
           }
         }
 
@@ -732,7 +734,7 @@ auto discovery_state_t::handle(events::event_holder_t && e) -> void
       else if constexpr(std::same_as<T, events::fss_all_bodies_found_t>)
         {
         debug("fss scan complete");
-        state.fss_complete = true;
+        state.system.fss_complete = true;
         std::ranges::sort(
           state.system.bodies,
           [](body_t const & l, body_t const & r) -> bool
@@ -745,7 +747,7 @@ auto discovery_state_t::handle(events::event_holder_t && e) -> void
 
         for(body_t const & obj: state.system.bodies)
           {
-          sell_value_t value{exploration::aprox_value(obj)};
+          uint32_t value{exploration::aprox_value(obj)};
           std::visit(
             [&obj, value]<typename U>(U const & details)
             {
@@ -756,7 +758,7 @@ auto discovery_state_t::handle(events::event_holder_t && e) -> void
                   value_color(obj.value_class()),
                   obj.name,
                   details.planet_class,
-                  format_credits_value(value.value),
+                  format_credits_value(value),
                   color_codes_t::reset
                 );
               else
@@ -765,7 +767,7 @@ auto discovery_state_t::handle(events::event_holder_t && e) -> void
                   obj.body_id,
                   value_color(obj.value_class()),
                   obj.name,
-                  format_credits_value(value.value),
+                  format_credits_value(value),
                   color_codes_t::reset
                 );
             },
@@ -791,12 +793,12 @@ auto discovery_state_t::handle(events::event_holder_t && e) -> void
           [](body_t const & body) -> std::pair<body_id_t, body_t const *> { return {body.body_id, &body}; }
         );
 
-        auto order_info = [&name_ref](std::span<location_t const> order, std::string_view label)
+        auto order_info = [&name_ref](std::span<body_location_t const> order, std::string_view label)
         {
           std::string order_str;
-          std::optional<location_t> prev;
+          std::optional<body_location_t> prev;
           double total_ls{};
-          for(location_t const & loc: order)
+          for(body_location_t const & loc: order)
             {
             std::string dist_ls;
             planet_value_e vc{};
@@ -819,9 +821,9 @@ auto discovery_state_t::handle(events::event_holder_t && e) -> void
         };
         auto calculate_order_for = [&state, &order_info](std::vector<body_t const *> const & visiting)
         {
-          std::vector<location_t> order{order_calculation(state.system.scan_bary_centre, visiting)};
+          std::vector<body_location_t> order{order_calculation(state.system.bary_centre, visiting)};
           // order_info(order, "naive"sv);
-          std::vector<location_t> order2d{order_calculation_2_opt(state.jump_info.player_position(), order)};
+          std::vector<body_location_t> order2d{order_calculation_2_opt(state.jump_info.player_position(), order)};
           order_info(order2d, "2nd opt");
         };
         std::unordered_map<int, std::vector<body_t const *>> sub_systems;
@@ -843,12 +845,23 @@ auto discovery_state_t::handle(events::event_holder_t && e) -> void
 
       else if constexpr(std::same_as<T, events::scan_bary_centre_t>)
         {
-        state.system.scan_bary_centre.emplace_back(std::move(event));
+        state.system.bary_centre.emplace_back(
+          bary_centre_t{
+            .body_id = event.BodyID,
+            .semi_major_axis = event.SemiMajorAxis,
+            .eccentricity = event.Eccentricity,
+            .orbital_inclination = event.OrbitalInclination,
+            .periapsis = event.Periapsis,
+            .orbital_period = event.OrbitalPeriod,
+            .ascending_node = event.AscendingNode,
+            .mean_anomaly = event.MeanAnomaly
+          }
+        );
         }
 
       else if constexpr(std::same_as<T, events::scan_detailed_scan_t>)
         {
-        if(state.fss_complete)
+        if(state.system.fss_complete)
           return;
 
         state.system.bodies.emplace_back(to_body(std::move(event)));
@@ -866,7 +879,7 @@ auto discovery_state_t::handle(events::event_holder_t && e) -> void
                 details.terraform_state,
                 details.planet_class,
                 details.atmosphere,
-                format_credits_value(body.value.value),
+                format_credits_value(body.value),
                 body.was_discovered ? " \033[33mdiscovered\033[m" : "",
                 details.was_mapped ? " \033[31mmapped\033[m" : ""
               );
@@ -875,7 +888,7 @@ auto discovery_state_t::handle(events::event_holder_t && e) -> void
                 "{}{}\033[m [fss: {}]{}",
                 value_color(body.value_class()),
                 body.name,
-                format_credits_value(body.value.value),
+                format_credits_value(body.value),
                 body.was_discovered ? " \033[33mdiscovered\033[m" : ""
               );
           },

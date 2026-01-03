@@ -11,7 +11,7 @@ struct current_state_t : public generic_state_t
   ship_loadout_t ship_loadout;
   events::fsd_jump_t jump_info;
   events::fsd_target_t next_target;
-  bool fss_complete;
+  
   std::vector<events::event_holder_t> event_buffer_;
   std::mutex buffer_mtx_;
 

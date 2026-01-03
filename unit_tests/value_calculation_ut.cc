@@ -60,7 +60,7 @@ auto main() -> int
       },
       .was_discovered = false
     };
-    auto const value {exploration::aprox_value(b).value};
+    auto const value {exploration::aprox_value(b)};
     expect(value > 1'000'000);
   };
   }

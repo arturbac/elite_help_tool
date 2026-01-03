@@ -31,13 +31,11 @@ void current_state_t::handle(events::event_holder_t && payload)
               .system_address = *event.SystemAddress,
               .name = *event.StarSystem,
               .star_type = *event.StarClass,
-              .luminosity = {},
-              .scan_bary_centre = {},
+              .bary_centre = {},
               .bodies = {},
-              .stellar_mass = {},
-              .sub_class = {}
+              .sub_class = {},
+              .fss_complete = {}
             };
-            fss_complete = false;
             update_system = true;
             }
           }
@@ -54,11 +52,22 @@ void current_state_t::handle(events::event_holder_t && payload)
           }
         else if constexpr(std::same_as<T, events::fss_all_bodies_found_t>)
           {
-          fss_complete = true;
+          system.fss_complete = true;
           }
         else if constexpr(std::same_as<T, events::scan_bary_centre_t>)
           {
-          system.scan_bary_centre.emplace_back(std::move(event));
+          system.bary_centre.emplace_back(
+            bary_centre_t{
+              .body_id = event.BodyID,
+              .semi_major_axis = event.SemiMajorAxis,
+              .eccentricity = event.Eccentricity,
+              .orbital_inclination = event.OrbitalInclination,
+              .periapsis = event.Periapsis,
+              .orbital_period = event.OrbitalPeriod,
+              .ascending_node = event.AscendingNode,
+              .mean_anomaly = event.MeanAnomaly
+            }
+          );
           }
         else if constexpr(std::same_as<T, events::scan_detailed_scan_t>)
           {

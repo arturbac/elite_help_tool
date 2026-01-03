@@ -11,11 +11,10 @@
 #include <print>
 
 
-[[nodiscard]]
-auto find_latest_journal(fs::path const & dir) -> std::optional<fs::path>
+auto find_all_journals(fs::path const & dir) -> std::vector<fs::path>
   {
   if(!fs::exists(dir) || !fs::is_directory(dir))
-    return std::nullopt;
+    return {};
 
   auto journals
     = fs::directory_iterator{dir}
@@ -25,13 +24,20 @@ auto find_latest_journal(fs::path const & dir) -> std::optional<fs::path>
       | std::ranges::to<std::vector<fs::path>>();
 
   if(journals.empty())
-    return std::nullopt;
+    return journals;
 
   // Sortowanie leksykograficzne nazw plików (ISO 8601 w nazwie to gwarantuje)
   std::ranges::sort(journals);
-  return journals.back();
+  return journals;
   }
 
+auto find_latest_journal(fs::path const & dir) -> std::optional<fs::path>
+{
+  auto journals{find_all_journals(dir)};
+  if(journals.empty())
+    return std::nullopt;
+  return journals.back();
+}
 auto tail_file(fs::path const & path, process_callback const & cb, std::stop_token stoken) -> void
   {
   // Tryb "współdzielony" w systemach POSIX to standardowy fstream.
@@ -65,4 +71,17 @@ auto tail_file(fs::path const & path, process_callback const & cb, std::stop_tok
       }
     }
   }
+auto read_file(fs::path const & path, process_callback const & cb) -> void
+  {
+  std::ifstream file(path, std::ios::in);
+  if(!file.is_open())
+    {
+    std::println(stderr, "Błąd: Nie można otworzyć pliku {}", path.string());
+    return;
+    }
 
+  std::string line;
+  // Najpierw przeczytaj całą obecną zawartość
+  while(std::getline(file, line))
+    cb(line);
+  }

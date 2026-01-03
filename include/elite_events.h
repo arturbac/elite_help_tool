@@ -16,7 +16,7 @@ inline constexpr std::string_view yellow = "\033[33m";
 namespace events
   {
 
-enum struct event_e
+enum struct event_e : uint16_t
   {
   FSDTarget,
   FSDJump,
@@ -27,7 +27,9 @@ enum struct event_e
   FSSAllBodiesFound,
   FSSSignalDiscovered,
   DiscoveryScan,
+  Scanned,
   Scan,
+  NavBeaconScan,
   ScanBaryCentre,
   SAAScanComplete,
   SAASignalsFound,
@@ -67,6 +69,83 @@ enum struct event_e
   Docked,
   Promotion,
   SupercruiseEntry,
+  SuitLoadout,
+  Backpack,
+  ApproachSettlement,
+  BuySuit,
+  CreateSuitLoadout,
+  SwitchSuitLoadout,
+  Embark,
+  Undocked,
+  BookTaxi,
+  ApproachBody,
+  LeaveBody,
+  DockingDenied,
+  Touchdown,
+  ShipTargeted,
+  RepairAll,
+  EscapeInterdiction,
+  Disembark,
+  PayFines,
+  CodexEntry,
+  CollectItems,
+  BackpackChange,
+  ShipyardSwap,
+  Shipyard,
+  UseConsumable,
+  StoredShips,
+  ShipyardTransfer,
+  ShipyardBuy,
+  CommitCrime,
+  CrimeVictim,
+  UnderAttack,
+  TradeMicroResources,
+  CollectCargo,
+  RestockVehicle,
+  LaunchSRV,
+  SRVDestroyed,
+  Bounty,
+  DockSRV,
+  ModuleRetrieve,
+  BuyMicroResources,
+  ShieldState,
+  HullDamage,
+  BuyAmmo,
+  Liftoff,
+  Died,
+  MissionAccepted,
+  MissionFailed,
+  MissionAbandoned,
+  MissionRedirected,
+  MissionCompleted,
+  MaterialDiscovered,
+  MaterialCollected,
+  CargoDepot,
+  CrewAssign,
+  Resurrect,
+  Market,
+  MarketSell,
+  MarketBuy,
+  HeatWarning,
+  HeatDamage,
+  EjectCargo,
+  BuyWeapon,
+  PayBounties,
+  LoadoutEquipModule,
+  ShipyardNew,
+  USSDrop,
+  Interdicted,
+  FetchRemoteModule,
+  ModuleSellRemote,
+  EngineerCraft,
+  SearchAndRescue,
+  BuyDrones,
+  SellDrones,
+  LaunchDrone,
+  LaunchFighter,
+  DockFighter,
+  MiningRefined,
+  MaterialTrade,
   NavRoute,
   NavRouteClear
   
@@ -80,6 +159,7 @@ consteval auto adl_enum_bounds(event_e)
 enum struct scan_type_e
   {
   AutoScan,
+  NavBeaconDetail,
   Detailed
   };
 
@@ -157,7 +237,7 @@ enum struct jump_type_e
 consteval auto adl_enum_bounds(jump_type_e)
   {
   using enum jump_type_e;
-  return simple_enum::adl_info{Hyperspace, Hyperspace};
+  return simple_enum::adl_info{Hyperspace, Supercruise};
   }
 
 ///\brief When written: at the start of a Hyperspace or Supercruise jump (start of countdown)
@@ -168,6 +248,7 @@ struct start_jump_t
   std::optional<std::string> StarSystem;
   std::optional<uint64_t> SystemAddress;
   std::optional<std::string> StarClass;
+  std::optional<bool> Taxi;
   };
 
 using body_id_t = uint32_t;
@@ -194,7 +275,7 @@ struct system_faction_t
   std::string Name;
   };
 
-struct location_t
+struct body_location_t
   {
   events::body_id_t body_id;
   double x, y, z;
@@ -218,9 +299,9 @@ struct fsd_jump_t
   bool Multicrew;
 
   [[nodiscard]]
-  constexpr auto player_position() const noexcept -> location_t
+  constexpr auto player_position() const noexcept -> body_location_t
     {
-    return location_t{{}, StarPos[0], StarPos[1], StarPos[2]};
+    return body_location_t{{}, StarPos[0], StarPos[1], StarPos[2]};
     }
 
   system_faction_t SystemFaction;
@@ -235,11 +316,31 @@ struct fsd_jump_t
   uint32_t PowerplayStateReinforcement;
   uint32_t PowerplayStateUndermining;
   std::vector<std::string> Powers;
-  int64_t Population;
+  uint64_t Population;
 
   bool Wanted;
   std::vector<faction_info_t> Factions;
   };
+
+struct location_t
+{
+  bool Docked;
+  bool Taxi;
+  bool Multicrew;
+  std::string StarSystem;
+  uint64_t SystemAddress;
+  std::array<double, 3> StarPos;
+  std::string SystemAllegiance;
+  std::string SystemEconomy_Localised;
+  std::string SystemSecondEconomy_Localised;
+  std::string SystemGovernment_Localised;
+  std::string SystemSecurity_Localised;
+  uint64_t Population;
+  std::string Body;
+  body_id_t BodyID;
+  std::string BodyType;
+};
+
 
 ///\brief When plotting a multi-star route, the file "NavRoute.json" is written in the same directory as the journal,
 /// with a list of stars along that route
@@ -492,13 +593,6 @@ struct fss_body_signals_t
   std::vector<signal_t> Signals;
   };
 
-// {
-//   "timestamp": "2025-12-24T10:15:10Z",
-//   "event": "FSSAllBodiesFound",
-//   "SystemName": "Pru Theia LV-I c24-0",
-//   "SystemAddress": 95395713490,
-//   "Count": 12
-// }
 
 struct fss_all_bodies_found_t
   {
@@ -518,7 +612,8 @@ using event_holder_t = std::variant<
   scan_detailed_scan_t,
   saa_scan_complete_t,
   fuel_scoop_t,
-  loadout_t>;
+  loadout_t,
+  location_t>;
 
   }  // namespace events
 
@@ -535,13 +630,9 @@ consteval auto adl_enum_bounds(planet_value_e)
   return simple_enum::adl_info{low, high};
   }
 
-struct sell_value_t
-  {
-  uint32_t value;
-  };
 
 [[nodiscard]]
-auto value_class(sell_value_t const sv) noexcept -> planet_value_e;
+auto value_class(uint32_t const sv) noexcept -> planet_value_e;
 enum struct body_type_e : uint8_t
   {
   star,
@@ -601,6 +692,7 @@ struct planet_details_t
 
   double mass_em;
   double surface_gravity;
+  double surface_temperature;
   double surface_pressure;
   double ascending_node;
   double mean_anomaly;
@@ -609,14 +701,16 @@ struct planet_details_t
   bool landable;
   bool tidal_lock;
   bool was_mapped;
+  bool was_footfalled;
   bool mapped;
+  bool footfalled;
   };
 
 using body_variant_t = std::variant<star_details_t, planet_details_t>;
 
 struct body_t
   {
-  sell_value_t value;
+  uint32_t value;
   events::body_id_t body_id;
   std::string name;
   body_variant_t details;
@@ -647,17 +741,28 @@ auto to_body(events::scan_detailed_scan_t && scan) -> body_t;
 
 inline constexpr auto body_body_id_proj = [](body_t const & b) noexcept -> events::body_id_t { return b.body_id; };
 
+struct bary_centre_t
+  {
+  events::body_id_t body_id;
+  double semi_major_axis;
+  double eccentricity;
+  double orbital_inclination;
+  double periapsis;
+  double orbital_period;
+  double ascending_node;
+  double mean_anomaly;
+  };
+  
 struct star_system_t
   {
   uint64_t system_address;
   std::string name;
   std::string star_type;
-  std::string luminosity;
-  std::vector<events::scan_bary_centre_t> scan_bary_centre;
+  std::vector<bary_centre_t> bary_centre;
   std::vector<body_t> bodies;
-  double stellar_mass;
   uint8_t sub_class;
-
+  bool fss_complete;
+  
   [[nodiscard]]
   auto body_by_id(this auto && self, events::body_id_t const body_id) noexcept
     {
@@ -668,7 +773,6 @@ struct star_system_t
 struct state_t
   {
   star_system_t system;
-  bool fss_complete;
   events::fsd_jump_t jump_info;
   };
 
@@ -741,7 +845,7 @@ auto extract_mass_code(std::string_view name) noexcept -> char;
 [[nodiscard]]
 auto system_approx_value(std::string_view star_class, std::string_view system_name) noexcept -> planet_value_e;
 [[nodiscard]]
-auto aprox_value(body_t const & body) noexcept -> sell_value_t;
+auto aprox_value(body_t const & body) noexcept -> uint32_t;
 [[nodiscard]]
 auto calculate_value(
   planet_value_info_t const & info,

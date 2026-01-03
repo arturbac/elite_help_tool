@@ -139,6 +139,8 @@ find_package(
              program_options)
              
 
+# find_package(Qt6 REQUIRED COMPONENTS Sql)
+find_package(SQLite3 REQUIRED)
 
 set(PROJECT_CXX_FLAGS
   "-fPIC"
@@ -182,6 +184,8 @@ set(STRICT_CXX_FLAGS
   "-Werror=implicit-int-float-conversion"
   "-Werror=return-type"
 )
+
+
 add_library(eht)
 
 target_sources(eht
@@ -189,12 +193,15 @@ target_sources(eht
         TYPE HEADERS
         BASE_DIRS include
 )
+target_compile_definitions(eht PUBLIC -DSMALL_VECTORS_ENABLE_CUSTOM_EXCPECTED=1
+-DSPDLOG_USE_STD_FORMAT=1)
 
 target_link_libraries(eht PUBLIC
   simple_enum::simple_enum
   small_vectors::small_vectors
   stralgo::stralgo
   glaze::glaze
+  SQLite::SQLite3
   )
 
 add_executable(journal_tailer)

@@ -148,7 +148,7 @@ auto system_bodies_model_t::data(QModelIndex const & index, int role) const -> Q
             case 0:  return QString::fromStdString(b.name);
             case 1:  return qformat("{} {}",exploration::get_planet_icon(details.planet_class),details.planet_class);
             case 2:  return QString("%1 g").arg(details.surface_gravity, 0, 'f', 2);
-            case 4:  return QString::fromStdString(format_credits_value(b.value.value));
+            case 4:  return QString::fromStdString(format_credits_value(b.value));
             case 3:  return QString("%1").arg(details.mass_em);
             default: return {};
             }
@@ -160,7 +160,7 @@ auto system_bodies_model_t::data(QModelIndex const & index, int role) const -> Q
             case 0:  return QString::fromStdString(b.name);
             case 1:  return qformat("{} {}", exploration::get_star_icon(details.star_type), details.star_type);
             case 2:  return {};
-            case 3:  return QString::fromStdString(format_credits_value(b.value.value));
+            case 3:  return QString::fromStdString(format_credits_value(b.value));
             default: return {};
             }
           }
@@ -266,7 +266,7 @@ auto system_window_t::update_labels() -> void
   system_label_->setText(QString::fromStdString(state_.system.name));
   set_label_color(system_label_, value);
 
-  fss_label_->setText(state_.fss_complete ? "COMPLETE" : "INCOMPLETE");
+  fss_label_->setText(state_.system.fss_complete ? "COMPLETE" : "INCOMPLETE");
   }
 
 system_window_t::system_window_t(current_state_t const & state, QWidget * parent) : QMdiSubWindow(parent), state_(state)

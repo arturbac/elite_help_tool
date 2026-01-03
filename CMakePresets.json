@@ -56,7 +56,6 @@
         "cfg-logging",
         "cfg-build-shared",
         "cfg-asan",
-        "cfg-unit-tests-targeo",
         "cfg-relwithdebinfo"
       ],
       "cacheVariables": {

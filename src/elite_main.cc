@@ -11,6 +11,7 @@
 #include <boost/program_options.hpp>
 #include <spdlog/spdlog.h>
 #include <elite_events.h>
+#include <database_import_state.h>
 
 namespace fs = std::filesystem;
 namespace po = boost::program_options;
@@ -23,11 +24,13 @@ struct config_t
 [[nodiscard]]
 auto main(int argc, char ** argv) -> int
   {
+  // spdlog::set_level(spdlog::level::debug);
+
   po::options_description desc("Opcje");
   desc
-    .add_options()("help,h", "Wyświetl pomoc")("dir,d", po::value<std::string>()->default_value("."), "journal folder")(
-      "file,f", po::value<std::string>()->default_value("."), "file for explicit load"
-    );
+    .add_options()("help,h", "Wyświetl pomoc")("dir,d", po::value<std::string>()->default_value("."),
+                                               "journal folder")
+    ;
 
   po::variables_map vm;
   try
@@ -47,26 +50,20 @@ auto main(int argc, char ** argv) -> int
     return 0;
     }
 
-  spdlog::set_level(spdlog::level::debug);
   auto const path = fs::path{vm["dir"].as<std::string>()};
-  std::optional<fs::path> latest;
 
-  if(vm.count("file"))
-    latest = fs::path{vm["file"].as<std::string>()};
-  else
-    latest = find_latest_journal(path);
-  std::stop_source stop_source;
-  if(latest)
+  if(fs::exists("ehtdb.sqlite"))
+    fs::remove("ehtdb.sqlite");
+  database_import_state_t dbimport;
+  database_import_state_t::state_t state{"ehtdb.sqlite"};
+  if(not state.db_.open())
+    return EXIT_FAILURE;
+  dbimport.state = &state;
+  std::vector<fs::path> journals{find_all_journals(path)};
+  for(fs::path const & p: journals)
     {
-    std::println("Listning to file: {}", latest->string());
-    state_t state{};
-    discovery_state_t monitor;
-    monitor.state = &state;
-    tail_file(*latest, std::bind_front(&generic_state_t::discovery, &monitor), stop_source.get_token());
-    }
-  else
-    {
-    std::println("Nie znaleziono pliku Journal w {}", path.string());
+    spdlog::info("Importing file: {}", p.string());
+    read_file(p, std::bind_front(&generic_state_t::discovery, &dbimport));
     }
 
   return 0;

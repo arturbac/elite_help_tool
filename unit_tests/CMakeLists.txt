@@ -21,3 +21,4 @@ function(add_ut_test source_file_name)
 endfunction()
 
 add_ut_test(value_calculation_ut.cc)
+add_ut_test(db_ut.cc)
