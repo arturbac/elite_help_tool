@@ -381,9 +381,14 @@ constexpr auto distance_ls(body_location_t const a, body_location_t const b) noe
 
 auto body_short_name(std::string_view system, std::string_view name) -> std::string_view
   {
-  return name.substr(system.size());
+  return stralgo::trim(name.substr(system.size()));
   }
-
+auto planet_name_from_ring_name(std::string_view system, std::string_view name)-> std::string_view
+{
+  //"18 Camelopardalis AB 3 A Ring" . sub "18 Camelopardalis AB 3""
+  std::string_view plane_with_ring_name{body_short_name(system, name)}; // AB 3 A Ring
+  return stralgo::trim(stralgo::substr(plane_with_ring_name, 0, plane_with_ring_name.size() -7));
+}
 namespace exploration
   {
 [[nodiscard]]
@@ -560,7 +565,7 @@ auto generic_state_t::discovery(std::string_view input) -> void
       return;
       }
 
-    handle(gevt.timestamp,std::move(obj));  // Assumes 'handle' is available in scope
+    handle(gevt.timestamp, std::move(obj));  // Assumes 'handle' is available in scope
   };
   auto castres{simple_enum::enum_cast<events::event_e>(gevt.event)};
   if(not castres) [[unlikely]]
@@ -581,7 +586,7 @@ auto generic_state_t::discovery(std::string_view input) -> void
     case ScanBaryCentre:    parse_and_handle.template operator()<events::scan_bary_centre_t>(); break;
     case Scan:              parse_and_handle.template operator()<events::scan_detailed_scan_t>(); break;
     case SAAScanComplete:   parse_and_handle.template operator()<events::saa_scan_complete_t>(); break;
-    case SAASignalsFound:   break;
+    case SAASignalsFound:   parse_and_handle.template operator()<events::dss_body_signals_t>(); break;
     case Music:             break;
     case NavRoute:          break;
     case NavRouteClear:     break;
@@ -654,6 +659,7 @@ auto to_body(events::scan_detailed_scan_t && event) -> body_t
     };
 
     planet_details_t & details{std::get<planet_details_t>(b.details)};
+
     if(not event.TerraformState.empty())
       {
       auto res{simple_enum::enum_cast<events::terraform_state_e>(event.TerraformState)};
@@ -678,7 +684,7 @@ auto to_body(events::scan_detailed_scan_t && event) -> body_t
 
     b.value = exploration::aprox_value(b);
     }
-
+    
   return b;
   }
 

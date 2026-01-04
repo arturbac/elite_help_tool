@@ -11,6 +11,7 @@ struct current_state_t : public generic_state_t
     {
     events::body_id_t body_id;
     std::vector<events::signal_t> signals_;
+    std::vector<events::genus_t> genuses_;
     };
   main_window_t * parent;
   star_system_t system;

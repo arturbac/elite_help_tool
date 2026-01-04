@@ -200,3 +200,9 @@ auto main(int argc, char * argv[]) -> int
   return app.exec();
   }
 
+void main_window_t::closeEvent(QCloseEvent * event)
+  {
+  save_settings();
+  QMainWindow::closeEvent(event);
+  }
+

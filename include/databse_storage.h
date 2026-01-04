@@ -45,12 +45,30 @@ struct database_storage_t
   auto store(uint64_t ref_body_oid, events::signal_t const & value) -> cxx23::expected<void, std::error_code>;
 
   [[nodiscard]]
+  auto store(uint64_t ref_body_oid, events::genus_t const & value) -> cxx23::expected<void, std::error_code>;
+
+  [[nodiscard]]
+  auto store(uint64_t system_address, ring_t const & value) -> cxx23::expected<void, std::error_code>;
+
+  [[nodiscard]]
   auto oid_for_body(uint64_t system_address, events::body_id_t body_id) -> cxx23::expected<uint64_t, std::error_code>;
 
   [[nodiscard]]
   auto store(uint64_t system_address, events::body_id_t body_id, std::span<events::signal_t const> value)
     -> cxx23::expected<void, std::error_code>;
 
+  [[nodiscard]]
+  auto store(uint64_t system_address, events::body_id_t body_id, std::span<events::genus_t const> value)
+    -> cxx23::expected<void, std::error_code>;
+
+  [[nodiscard]]
+  auto store(uint64_t system_address, std::span<ring_t const> value)
+    -> cxx23::expected<void, std::error_code>;
+
+  [[nodiscard]]
+  auto store_ring_body_id(uint64_t system_address, events::body_id_t parent_body_id, std::string_view ring_name, 
+                          events::body_id_t ring_body_id)
+    -> cxx23::expected<void, std::error_code>;
   [[nodiscard]]
   auto store(uint64_t ref_body_oid, events::atmosphere_element_t const & value)
     -> cxx23::expected<void, std::error_code>;

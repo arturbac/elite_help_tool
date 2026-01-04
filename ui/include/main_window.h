@@ -1,7 +1,7 @@
 #pragma once
 #include "logic.h"
 #include <journal_log.h>
-#include <system_bodies_model.h>
+#include <system_window.h>
 #include <ship_loadout.h>
 
 #include <simple_enum/simple_enum.hpp>
@@ -43,11 +43,7 @@ public:
   [[nodiscard]]
   explicit main_window_t(std::string db_path, QWidget * parent = nullptr);
 
-  auto closeEvent(QCloseEvent * event) -> void override
-    {
-    save_settings();
-    QMainWindow::closeEvent(event);
-    }
+  auto closeEvent(QCloseEvent * event) -> void override;
 
 private:
   auto background_worker(std::stop_token stoken) -> void;

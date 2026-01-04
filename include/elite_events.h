@@ -565,23 +565,15 @@ struct scan_bary_centre_t
   double MeanAnomaly;
   };
 
-enum struct signal_type_e
-  {
-  Biological,
-  Geological,
-  Human
-  };
-
-consteval auto adl_enum_bounds(signal_type_e)
-  {
-  using enum signal_type_e;
-  return simple_enum::adl_info{Biological, Human};
-  }
-
 struct signal_t
   {
-  signal_type_e Type_Localised;
+  std::string Type_Localised;
   uint16_t Count;
+  };
+
+struct genus_t
+  {
+  std::string Genus_Localised;
   };
 
 struct fss_body_signals_t
@@ -591,6 +583,19 @@ struct fss_body_signals_t
   uint64_t SystemAddress;
   std::vector<signal_t> Signals;
   };
+
+struct dss_body_signals_t
+  {
+  std::string BodyName;
+  body_id_t BodyID;
+  uint64_t SystemAddress;
+  std::vector<signal_t> Signals;
+  std::vector<genus_t> Genuses;
+  };
+
+// { "event":"SAASignalsFound", "BodyName":"Fedgau MY-G d11-4 1", "SystemAddress":149191313507, "BodyID":1,
+// "Signals":[ { "Type":"$SAA_SignalType_Biological;", "Type_Localised":"Biological", "Count":1 } ],
+// "Genuses":[ { "Genus":"$Codex_Ent_Bacterial_Genus_Name;", "Genus_Localised":"Bacterium" } ] }
 
 struct fss_all_bodies_found_t
   {
@@ -609,6 +614,7 @@ using event_holder_t = std::variant<
   scan_bary_centre_t,
   scan_detailed_scan_t,
   saa_scan_complete_t,
+  dss_body_signals_t,
   fuel_scoop_t,
   loadout_t,
   location_t>;
@@ -672,6 +678,21 @@ struct star_details_t
   uint8_t sub_class;
   };
 
+struct ring_t
+  {
+  std::string name;
+  std::string ring_class;
+  double mass_mt;
+  double inner_rad;
+  double outer_rad;
+  uint32_t parent_body_id;
+  int32_t body_id{-1};  // known after DSS
+  std::vector<events::signal_t> signals_;
+  };
+
+inline constexpr auto ring_name_proj = [](ring_t const & b) noexcept -> std::string_view { return b.name; };
+inline constexpr auto ring_body_id_proj = [](ring_t const & b) noexcept -> int32_t { return b.body_id; };
+
 struct planet_details_t
   {
   std::optional<events::body_id_t> parent_planet;
@@ -685,6 +706,8 @@ struct planet_details_t
   events::composition_t composition;
 
   std::vector<events::signal_t> signals_;
+  std::vector<events::genus_t> genuses_;
+
   std::string volcanism;
 
   double mass_em;
@@ -737,6 +760,7 @@ struct body_t
 auto to_body(events::scan_detailed_scan_t && scan) -> body_t;
 
 inline constexpr auto body_body_id_proj = [](body_t const & b) noexcept -> events::body_id_t { return b.body_id; };
+inline constexpr auto body_body_name_proj = [](body_t const & b) noexcept -> std::string_view { return b.name; };
 
 struct bary_centre_t
   {
@@ -762,6 +786,7 @@ struct star_system_t
   std::array<double, 3> system_location;
   std::vector<bary_centre_t> bary_centre;
   std::vector<body_t> bodies;
+  std::vector<ring_t> rings;
   uint8_t sub_class;
   bool fss_complete;
 
@@ -769,6 +794,17 @@ struct star_system_t
   auto body_by_id(this auto && self, events::body_id_t const body_id) noexcept
     {
     return std::ranges::find(self.bodies, body_id, body_body_id_proj);
+    }
+  [[nodiscard]]
+  auto ring_by_id(this auto && self, events::body_id_t const body_id) noexcept
+    {
+    return std::ranges::find(self.rings, body_id, ring_body_id_proj);
+    }
+    
+  [[nodiscard]]
+  auto body_by_name(this auto && self, std::string_view name) noexcept
+    {
+    return std::ranges::find(self.bodies, name, body_body_name_proj);
     }
   };
 
@@ -798,7 +834,11 @@ struct planet_value_info_t
   double terraform_bonus{0.0};
   };
 
+[[nodiscard]]
 auto body_short_name(std::string_view system, std::string_view name) -> std::string_view;
+
+[[nodiscard]]
+auto planet_name_from_ring_name(std::string_view system, std::string_view name) -> std::string_view;
 
 static constexpr std::array<planet_value_info_t, 19> exploration_values{
   {{"Metal rich body", 21'790.0},

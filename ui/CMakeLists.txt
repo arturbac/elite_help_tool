@@ -18,7 +18,7 @@ target_sources(elite_help_tool
             include/journal_log.h
             include/logic.h
             include/qformat.h
-            include/system_bodies_model.h
+            include/system_window.h
             include/ship_loadout.h
             include/main_window.h
 )

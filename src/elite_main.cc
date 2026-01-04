@@ -62,7 +62,7 @@ auto main(int argc, char ** argv) -> int
   std::vector<fs::path> journals{find_all_journals(path)};
   for(fs::path const & p: journals)
     {
-    spdlog::info("Importing file: {}", p.string());
+    std::println("Importing file: {}", p.string());
     read_file(p, std::bind_front(&generic_state_t::discovery, &dbimport));
     }
 

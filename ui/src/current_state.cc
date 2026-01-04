@@ -1,6 +1,8 @@
 #include "logic.h"
 #include <main_window.h>
 #include <spdlog/spdlog.h>
+#include <stralgo/stralgo.h>
+using namespace std::string_view_literals;
 
 static auto new_system_def(uint64_t system_address, std::string_view name, std::string_view star_type)
   {
@@ -112,6 +114,41 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
             }
           update_system = true;
           }
+        else if constexpr(std::same_as<T, events::dss_body_signals_t>)
+          {
+          if(stralgo::ends_with(event.BodyName, "Ring"sv))
+            {
+            if(auto it{system.ring_by_id(event.BodyID)}; it != system.rings.end())
+              {
+              ring_t & ring{*it};
+              ring.signals_ = std::move(event.Signals);
+              if(auto res{db_.store(system.system_address, event.BodyID, ring.signals_)}; not res)
+                spdlog::error("failed to store signals for ring {}: {}", system.system_address, event.BodyID);
+              }
+            else
+              spdlog::error("ring was not found for {}: {} {}", system.system_address, event.BodyID, event.BodyName);
+            }
+          else if(auto it{system.body_by_id(event.BodyID)}; it != system.bodies.end())
+            {
+            planet_details_t & details{std::get<planet_details_t>(it->details)};
+            if(details.signals_.size() != event.Signals.size())
+              {
+              details.signals_ = std::move(event.Signals);
+              if(auto res{db_.store(system.system_address, event.BodyID, details.signals_)}; not res)
+                spdlog::error("failed to store signal for {}: {}", system.system_address, event.BodyID);
+              }
+            if(details.genuses_.size() != event.Genuses.size())
+              {
+              details.genuses_ = std::move(event.Genuses);
+              if(auto res{db_.store(system.system_address, event.BodyID, details.genuses_)}; not res)
+                spdlog::error("failed to store genuses_ for {}: {}", system.system_address, event.BodyID);
+              }
+            }
+          else
+            buffered_signals.emplace_back(event.BodyID, std::move(event.Signals), std::move(event.Genuses));
+
+          update_system = true;
+          }
         else if constexpr(std::same_as<T, events::fss_all_bodies_found_t>)
           {
           system.fss_complete = true;
@@ -153,6 +190,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
                      buffered_signals.end() != it)
                     {
                     details.signals_ = std::move(it->signals_);
+                    details.genuses_ = std::move(it->genuses_);
                     buffered_signals.erase(it);
                     }
                   }
@@ -161,14 +199,68 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
             );
             if(auto res{db_.store(system.system_address, body)}; not res)
               spdlog::error("failed to store body {}: {}", system.system_address, body.name);
+
+            // handle rings
+            if(not event.Rings.empty())
+              {
+              std::vector<ring_t> rings;
+              std::ranges::transform(
+                event.Rings,
+                std::back_inserter(rings),
+                [&event](events::ring_t & ring) -> ring_t
+                {
+                  return ring_t{
+                    .name = std::string(stralgo::right(ring.Name, 6)),
+                    .ring_class = ring.RingClass,
+                    .mass_mt = ring.MassMT,
+                    .inner_rad = ring.InnerRad,
+                    .outer_rad = ring.OuterRad,
+                    .parent_body_id = event.BodyID,
+                    .body_id = -1
+                  };
+                }
+              );
+              if(auto res{db_.store(system.system_address, rings)}; not res)
+                spdlog::error("failed to store rings for {}: {}", system.system_address, body.name);
+              else
+                system.rings.insert(system.rings.end(), rings.begin(), rings.end());
+              }
             }
 
           update_system = true;
           }
         else if constexpr(std::same_as<T, events::saa_scan_complete_t>)
           {
-          auto it{system.body_by_id(event.BodyID)};
-          if(it != system.bodies.end())
+          if(stralgo::ends_with(event.BodyName, "Ring"sv))
+            {
+            // we got BodyID for ring, unknown at fss
+            std::string_view planet_name{planet_name_from_ring_name(system.name, event.BodyName)};
+            std::string_view ring_name{stralgo::right(event.BodyName, 6)};
+            if(auto it{system.body_by_name(planet_name)}; it != system.bodies.end())
+              {
+              events::body_id_t const parent_planet_id{it->body_id};
+              if(auto res{db_.store_ring_body_id(system.system_address, parent_planet_id, ring_name, event.BodyID)};
+                 not res) [[unlikely]]
+                spdlog::error("failed to update ring body id for {}:{}", system.system_address, event.BodyName);
+
+              if(auto itr{std::ranges::find_if(
+                   system.rings,
+                   [&parent_planet_id, &ring_name](ring_t const & ring) noexcept -> bool
+                   { return ring.parent_body_id == parent_planet_id and ring_name == ring.name; }
+                 )};
+                 itr != system.rings.end())
+                itr->body_id = event.BodyID;
+              else
+                spdlog::error(
+                  "failed to update (runtime) ring body id for {}:{}", system.system_address, event.BodyName
+                );
+              }
+            else
+              spdlog::error(
+                "failed to find body for ring {}:{}, system not scanned", system.system_address, event.BodyName
+              );
+            }
+          else if(auto it{system.body_by_id(event.BodyID)}; it != system.bodies.end())
             {
             planet_details_t & details{std::get<planet_details_t>(it->details)};
             details.mapped = true;

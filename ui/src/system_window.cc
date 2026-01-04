@@ -1,4 +1,4 @@
-#include "system_bodies_model.h"
+#include <system_window.h>
 #include <qabstractitemmodel.h>
 #include <qboxlayout.h>
 #include <qgroupbox.h>

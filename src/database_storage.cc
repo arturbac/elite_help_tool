@@ -79,7 +79,7 @@ struct signal_t
   uint64_t oid;
   uint64_t ref_body_oid;
 
-  events::signal_type_e type;
+  std::string type;
   uint16_t count;
   };
 
@@ -93,6 +93,69 @@ auto to_db_fromat(uint64_t ref_body_oid, events::signal_t const & v) noexcept ->
 auto to_native_fromat(sql_iface::signal_t const & v) noexcept -> events::signal_t
   {
   return events::signal_t{.Type_Localised = v.type, .Count = v.count};
+  }
+
+struct genus_t
+  {
+  uint64_t oid;
+  uint64_t ref_body_oid;
+
+  std::string genus;
+  };
+
+[[nodiscard]]
+auto to_db_fromat(uint64_t ref_body_oid, events::genus_t const & v) noexcept -> sql_iface::genus_t
+  {
+  return sql_iface::genus_t{.ref_body_oid = ref_body_oid, .genus = v.Genus_Localised};
+  }
+
+[[nodiscard]]
+auto to_native_fromat(sql_iface::genus_t const & v) noexcept -> events::genus_t
+  {
+  return events::genus_t{.Genus_Localised = v.genus};
+  }
+
+struct ring_t
+  {
+  uint64_t oid;
+  uint64_t ref_system_address;
+
+  std::string name;
+  std::string ring_class;
+  double mass_mt;
+  double inner_rad;
+  double outer_rad;
+  uint32_t parent_body_id;
+  int32_t body_id{-1};  // known after DSS
+  };
+
+[[nodiscard]]
+auto to_db_fromat(uint64_t ref_system_address, ::ring_t const & v) noexcept -> sql_iface::ring_t
+  {
+  return sql_iface::ring_t{
+    .ref_system_address = ref_system_address,
+    .name = v.name,
+    .ring_class = v.ring_class,
+    .mass_mt = v.mass_mt,
+    .inner_rad = v.inner_rad,
+    .outer_rad = v.outer_rad,
+    .parent_body_id = v.parent_body_id,
+    .body_id = v.body_id
+  };
+  }
+
+[[nodiscard]]
+auto to_native_fromat(sql_iface::ring_t const & v) noexcept -> ::ring_t
+  {
+  return ::ring_t{
+    .name = v.name,
+    .ring_class = v.ring_class,
+    .mass_mt = v.mass_mt,
+    .inner_rad = v.inner_rad,
+    .outer_rad = v.outer_rad,
+    .parent_body_id = v.parent_body_id,
+    .body_id = v.body_id
+  };
   }
 
 struct planet_details_t
@@ -318,6 +381,8 @@ namespace tables
   inline constexpr std::string_view star_details{"star_details"};
   inline constexpr std::string_view atmosphere_element{"atmosphere_element"};
   inline constexpr std::string_view signal{"signal"};
+  inline constexpr std::string_view genus{"genus"};
+  inline constexpr std::string_view ring{"ring"};
   inline constexpr std::string_view body{"body"};
   inline constexpr std::string_view planet_details{"planet_details"};
   }  // namespace tables
@@ -717,25 +782,39 @@ auto database_storage_t::create_database() -> cxx23::expected<void, std::error_c
      };
      not res) [[unlikely]]
     return res;
+
   if(auto res{sqlite::create_table<sql_iface::bary_centre_t>(db_->db, "oid"sv, sql_iface::tables::bary_centre)};
      not res) [[unlikely]]
     return res;
+
   if(auto res{sqlite::create_table<sql_iface::body_t>(db_->db, "oid"sv, sql_iface::tables::body)}; not res) [[unlikely]]
     return res;
+
+  if(auto res{sqlite::create_table<sql_iface::ring_t>(db_->db, "oid"sv, sql_iface::tables::ring)}; not res) [[unlikely]]
+    return res;
+    
   if(auto res{sqlite::create_table<sql_iface::planet_details_t>(db_->db, "oid"sv, sql_iface::tables::planet_details)};
      not res) [[unlikely]]
     return res;
+
   if(auto res{sqlite::create_table<sql_iface::signal_t>(db_->db, "oid"sv, sql_iface::tables::signal)}; not res)
     [[unlikely]]
     return res;
+
+  if(auto res{sqlite::create_table<sql_iface::genus_t>(db_->db, "oid"sv, sql_iface::tables::genus)}; not res)
+    [[unlikely]]
+    return res;
+
   if(auto res{
        sqlite::create_table<sql_iface::atmosphere_element_t>(db_->db, "oid"sv, sql_iface::tables::atmosphere_element)
      };
      not res) [[unlikely]]
     return res;
+
   if(auto res{sqlite::create_table<sql_iface::star_details_t>(db_->db, "oid"sv, sql_iface::tables::star_details)};
      not res) [[unlikely]]
     return res;
+
   return {};
   }
 
@@ -804,6 +883,11 @@ auto database_storage_t::store(uint64_t system_address, body_t const & value)
     for(events::signal_t const & sig: pd.signals_)
       if(auto res{store(body_oid, sig)}; not res)
         return cxx23::unexpected{res.error()};
+
+    for(events::genus_t const & sig: pd.genuses_)
+      if(auto res{store(body_oid, sig)}; not res)
+        return cxx23::unexpected{res.error()};
+
     for(events::atmosphere_element_t const & el: pd.atmosphere_composition)
       if(auto res{store(body_oid, el)}; not res)
         return cxx23::unexpected{res.error()};
@@ -834,13 +918,40 @@ auto database_storage_t::store_dss_complete(uint64_t system_address, events::bod
   return sqlite::execute_query_no_result(db_->db, query);
   }
 
+auto database_storage_t::store_ring_body_id(
+  uint64_t system_address, events::body_id_t parent_body_id, std::string_view ring_name, events::body_id_t ring_body_id
+) -> cxx23::expected<void, std::error_code>
+  {
+  std::string query{
+    std::format(
+      "UPDATE {} SET body_id={}  WHERE ref_system_address={} AND parent_body_id={} AND name='{}'",
+      sql_iface::tables::ring,
+      ring_body_id,
+      system_address,
+      parent_body_id,
+      sqlite::escape_sql_quotes(ring_name)
+    )
+
+  };
+  spdlog::warn("{}",query);
+  return sqlite::execute_query_no_result(db_->db, query);
+  }
+
 auto database_storage_t::store(uint64_t ref_body_oid, events::signal_t const & value)
   -> cxx23::expected<void, std::error_code>
   {
-  if(auto res{sqlite::insert_into(db_->db, sql_iface::tables::signal, sql_iface::to_db_fromat(ref_body_oid, value))};
-     not res)
-    return cxx23::unexpected{res.error()};
-  return {};
+  return sqlite::insert_into(db_->db, sql_iface::tables::signal, sql_iface::to_db_fromat(ref_body_oid, value));
+  }
+
+auto database_storage_t::store(uint64_t ref_body_oid, events::genus_t const & value)
+  -> cxx23::expected<void, std::error_code>
+  {
+  return sqlite::insert_into(db_->db, sql_iface::tables::genus, sql_iface::to_db_fromat(ref_body_oid, value));
+  }
+
+auto database_storage_t::store(uint64_t system_address, ring_t const & value) -> cxx23::expected<void, std::error_code>
+  {
+  return sqlite::insert_into(db_->db, sql_iface::tables::ring, sql_iface::to_db_fromat(system_address, value));
   }
 
 auto database_storage_t::oid_for_body(uint64_t system_address, events::body_id_t body_id)
@@ -864,6 +975,30 @@ auto database_storage_t::store(
     if(auto res{store(body_oid, sig)}; not res)
       return cxx23::unexpected{res.error()};
 
+  return {};
+  }
+
+auto database_storage_t::store(
+  uint64_t system_address, events::body_id_t body_id, std::span<events::genus_t const> genuses
+) -> cxx23::expected<void, std::error_code>
+  {
+  auto resoid{oid_for_body(system_address, body_id)};
+  if(not resoid)
+    return cxx23::unexpected{resoid.error()};
+  uint64_t body_oid{*resoid};
+  for(events::genus_t const & gen: genuses)
+    if(auto res{store(body_oid, gen)}; not res)
+      return cxx23::unexpected{res.error()};
+
+  return {};
+  }
+
+auto database_storage_t::store(uint64_t system_address, std::span<ring_t const> rings)
+  -> cxx23::expected<void, std::error_code>
+  {
+  for(ring_t const & ring: rings)
+    if(auto res{store(system_address, ring)}; not res)
+      return cxx23::unexpected{res.error()};
   return {};
   }
 
@@ -892,49 +1027,94 @@ auto database_storage_t::load_system(uint64_t system_address)
     assert(res->size() == 1);
     star_system_t system{to_native_fromat(std::move((*res)[0]))};
 
-    auto res2{sqlite::select_from<sql_iface::body_t>(
-      db_->db, sql_iface::tables::body, std::format(" WHERE ref_system_address='{}'", system_address)
-    )};
-    if(not res2) [[unlikely]]
-      return cxx23::unexpected{res.error()};
-
-    std::vector<sql_iface::body_t> bodies{std::move(*res2)};
-    for(sql_iface::body_t & body: bodies)
       {
-      system.bodies.emplace_back(sql_iface::to_native_fromat(std::move(body)));
-      body_t & out_body{system.bodies.back()};
-      if(body_type_e(body.details_type) == body_type_e::planet)
-        {
-        auto res3{sqlite::select_from<sql_iface::planet_details_t>(
-          db_->db, sql_iface::tables::planet_details, std::format(" WHERE ref_body_oid='{}'", body.oid)
-        )};
-        if(not res3) [[unlikely]]
-          return cxx23::unexpected{res.error()};
-        assert(res3->size() == 1);
-        out_body.details = sql_iface::to_native_fromat((*res3)[0]);
-        planet_details_t & details{std::get<planet_details_t>(out_body.details)};
+      auto res2{sqlite::select_from<sql_iface::body_t>(
+        db_->db, sql_iface::tables::body, std::format(" WHERE ref_system_address='{}'", system_address)
+      )};
+      if(not res2) [[unlikely]]
+        return cxx23::unexpected{res.error()};
 
-        auto res4{sqlite::select_from<sql_iface::signal_t>(
-          db_->db, sql_iface::tables::signal, std::format(" WHERE ref_body_oid='{}'", body.oid)
-        )};
-        if(not res4) [[unlikely]]
-          return cxx23::unexpected{res.error()};
-        if(not res4->empty())
-          std::ranges::transform(
-            *res4,
-            std::back_inserter(details.signals_),
-            [](sql_iface::signal_t & sig) -> events::signal_t { return sql_iface::to_native_fromat(std::move(sig)); }
-          );
-        }
-      else
+      std::vector<sql_iface::body_t> bodies{std::move(*res2)};
+      for(sql_iface::body_t & body: bodies)
         {
-        auto res3{sqlite::select_from<sql_iface::star_details_t>(
-          db_->db, sql_iface::tables::star_details, std::format(" WHERE ref_body_oid='{}'", body.oid)
-        )};
-        if(not res3) [[unlikely]]
-          return cxx23::unexpected{res.error()};
-        assert(res3->size() == 1);
-        out_body.details = sql_iface::to_native_fromat((*res3)[0]);
+        system.bodies.emplace_back(sql_iface::to_native_fromat(std::move(body)));
+        body_t & out_body{system.bodies.back()};
+
+        if(body_type_e(body.details_type) == body_type_e::planet)
+          {
+          auto res3{sqlite::select_from<sql_iface::planet_details_t>(
+            db_->db, sql_iface::tables::planet_details, std::format(" WHERE ref_body_oid='{}'", body.oid)
+          )};
+          if(not res3) [[unlikely]]
+            return cxx23::unexpected{res.error()};
+          assert(res3->size() == 1);
+          out_body.details = sql_iface::to_native_fromat((*res3)[0]);
+          planet_details_t & details{std::get<planet_details_t>(out_body.details)};
+
+            {
+            auto res4{sqlite::select_from<sql_iface::signal_t>(
+              db_->db, sql_iface::tables::signal, std::format(" WHERE ref_body_oid='{}'", body.oid)
+            )};
+            if(not res4) [[unlikely]]
+              return cxx23::unexpected{res.error()};
+            if(not res4->empty())
+              std::ranges::transform(
+                *res4,
+                std::back_inserter(details.signals_),
+                [](sql_iface::signal_t & sig) -> events::signal_t
+                { return sql_iface::to_native_fromat(std::move(sig)); }
+              );
+            }
+            {
+            auto res4{sqlite::select_from<sql_iface::genus_t>(
+              db_->db, sql_iface::tables::genus, std::format(" WHERE ref_body_oid='{}'", body.oid)
+            )};
+            if(not res4) [[unlikely]]
+              return cxx23::unexpected{res.error()};
+            if(not res4->empty())
+              std::ranges::transform(
+                *res4,
+                std::back_inserter(details.genuses_),
+                [](sql_iface::genus_t & sig) -> events::genus_t { return sql_iface::to_native_fromat(std::move(sig)); }
+              );
+            }
+          }
+        else
+          {
+          auto res3{sqlite::select_from<sql_iface::star_details_t>(
+            db_->db, sql_iface::tables::star_details, std::format(" WHERE ref_body_oid='{}'", body.oid)
+          )};
+          if(not res3) [[unlikely]]
+            return cxx23::unexpected{res.error()};
+          assert(res3->size() == 1);
+          out_body.details = sql_iface::to_native_fromat((*res3)[0]);
+          }
+        }
+      }
+      // rings
+      {
+      auto res4{sqlite::select_from<sql_iface::ring_t>(
+        db_->db, sql_iface::tables::ring, std::format(" WHERE ref_system_address='{}'", system_address)
+      )};
+      if(not res4) [[unlikely]]
+        return cxx23::unexpected{res.error()};
+      if(not res4->empty())
+        {
+        for(sql_iface::ring_t & db_ring: *res4)
+          {
+          ring_t & ring{system.rings.emplace_back(sql_iface::to_native_fromat(std::move(db_ring)))};
+          auto res4{sqlite::select_from<sql_iface::signal_t>(
+            db_->db, sql_iface::tables::signal, std::format(" WHERE ref_body_oid='{}'", db_ring.oid)
+          )};
+          if(not res4) [[unlikely]]
+            return cxx23::unexpected{res.error()};
+          if(not res4->empty())
+            std::ranges::transform(
+              *res4,
+              std::back_inserter(ring.signals_),
+              [](sql_iface::signal_t & sig) -> events::signal_t { return sql_iface::to_native_fromat(std::move(sig)); }
+            );
+          }
         }
       }
     return system;
