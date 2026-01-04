@@ -24,7 +24,7 @@ struct tool_definition_t
 
 Q_DECLARE_METATYPE(window_type_e)
 
-main_window_t::main_window_t(QWidget * parent) : QMainWindow(parent), state_{this}
+main_window_t::main_window_t(std::string db_path, QWidget * parent) : QMainWindow(parent), state_{this, db_path}
   {
   setup_ui();
   load_settings();
@@ -180,8 +180,6 @@ auto main_window_t::background_worker(std::stop_token stoken) -> void
   {
   file_to_monitor = *find_latest_journal("journal-dir");
   tail_file(
-    // "journal-dir/Journal.2025-12-25T122142.01.log"
-    // "journal-dir/debug_highmetal.json"
     file_to_monitor,
     std::bind_front(&generic_state_t::discovery, &state_),
     stoken
@@ -191,8 +189,13 @@ auto main_window_t::background_worker(std::stop_token stoken) -> void
 auto main(int argc, char * argv[]) -> int
   {
   QApplication app(argc, argv);
-
-  main_window_t window;
+  
+  main_window_t window{"ehtdb.sqlite"};
+  if(not window.state_.db_.open())
+    {
+    return EXIT_FAILURE;
+    }
+    
   window.show();
   return app.exec();
   }

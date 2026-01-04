@@ -23,7 +23,7 @@ auto system_bodies_filter_proxy_t::filterAcceptsRow(int source_row, QModelIndex 
   return true;
   }
 
-system_bodies_model_t::system_bodies_model_t(std::vector<body_t> const * bodies, QObject * parent) :
+system_bodies_model_t::system_bodies_model_t(std::vector<body_t> const & bodies, QObject * parent) :
     QAbstractItemModel(parent),
     bodies_(bodies)
   {
@@ -88,6 +88,9 @@ auto system_bodies_model_t::data(QModelIndex const & index, int role) const -> Q
     return {};
 
   auto const * node = static_cast<body_info_t *>(index.internalPointer());
+  if(not node)
+    return {};
+    
   auto const & b = *node->data;
 
   if(role == Qt::CheckStateRole)
@@ -201,10 +204,10 @@ auto system_bodies_model_t::rebuild_index() -> void
   nodes_.clear();
   root_nodes_.clear();
 
-  for(auto const & b: *bodies_)
+  for(auto const & b: bodies_)
     nodes_[b.body_id] = std::make_unique<body_info_t>(&b);
 
-  for(auto const & b: *bodies_)
+  for(auto const & b: bodies_)
     {
     auto * current_node = nodes_[b.body_id].get();
     if(b.body_type() == body_type_e::star or not std::get<planet_details_t>(b.details).parent_planet
@@ -259,7 +262,7 @@ auto system_window_t::update_labels() -> void
   {
   target_label_->setText(
     QString::fromStdString(
-      std::format("Next: {} [{}] {}", state_.next_target.Name, state_.next_target.StarClass, model_->bodies_->size())
+      std::format("Next: {} [{}] {}", state_.next_target.Name, state_.next_target.StarClass, model_->bodies_.size())
     )
   );
   planet_value_e const value{exploration::system_approx_value(state_.system.star_type, state_.system.name)};
@@ -283,23 +286,22 @@ system_window_t::system_window_t(current_state_t const & state, QWidget * parent
 // Funkcja do wywołania z main_window_t, gdy state_ zostanie zaktualizowany
 auto system_window_t::refresh_ui() -> void
   {
-  // Używamy invokeMethod, aby zapewnić bezpieczeństwo wątkowe (z jthread)
-  // update_labels();
-  // if(model_) [[likely]]
-  //   model_->layoutChanged();  // Informuje TreeView o nowych danych w vectorze
-  model_->bodies_ = &state_.system.bodies;
+  model_->bodies_ = state_.system.bodies;
   model_->rebuild_index();
-  QMetaObject::invokeMethod(tree_view, "expandAll", Qt::QueuedConnection);
-  QMetaObject::invokeMethod(
-    this,
-    [this]
-    {
-      update_labels();
-      if(model_) [[likely]]
-        model_->layoutChanged();  // Informuje TreeView o nowych danych w vectorze
-    },
-    Qt::QueuedConnection
-  );
+  tree_view->expandAll();
+  update_labels();
+  if(model_) [[likely]]
+    model_->layoutChanged();  // Informuje TreeView o nowych danych w vectorze
+  // QMetaObject::invokeMethod(
+  //   this,
+  //   [this]
+  //   {
+  //     update_labels();
+  //     if(model_) [[likely]]
+  //       model_->layoutChanged();  // Informuje TreeView o nowych danych w vectorze
+  //   },
+  //   Qt::QueuedConnection
+  // );
   }
 
 auto system_window_t::setup_ui() -> void
@@ -322,7 +324,7 @@ auto system_window_t::setup_ui() -> void
 
   // Sekcja dolna: TreeView
   tree_view = new QTreeView();
-  model_ = new system_bodies_model_t(&state_.system.bodies, this);
+  model_ = new system_bodies_model_t(state_.system.bodies, this);
   proxy_model_ = new system_bodies_filter_proxy_t(this);
   proxy_model_->setSourceModel(model_);
 

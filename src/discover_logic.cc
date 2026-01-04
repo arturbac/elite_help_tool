@@ -560,10 +560,16 @@ auto generic_state_t::discovery(std::string_view input) -> void
       return;
       }
 
-    handle(std::move(obj));  // Assumes 'handle' is available in scope
+    handle(gevt.timestamp,std::move(obj));  // Assumes 'handle' is available in scope
   };
-
-  switch(gevt.event)
+  auto castres{simple_enum::enum_cast<events::event_e>(gevt.event)};
+  if(not castres) [[unlikely]]
+    {
+    warn("failed to cast event type {}", gevt.event);
+    return;
+    }
+  events::event_e type{*castres};
+  switch(type)
     {
     case FSDJump:   parse_and_handle.template operator()<events::fsd_jump_t>(); break;
     case FSDTarget: parse_and_handle.template operator()<events::fsd_target_t>(); break;
@@ -676,7 +682,7 @@ auto to_body(events::scan_detailed_scan_t && event) -> body_t
   return b;
   }
 
-auto discovery_state_t::handle(events::event_holder_t && e) -> void
+auto discovery_state_t::handle(std::chrono::sys_seconds timestamp, events::event_holder_t && e) -> void
   {
   state_t & state{*this->state};
   std::visit(

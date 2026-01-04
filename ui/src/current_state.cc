@@ -1,7 +1,21 @@
 #include "logic.h"
 #include <main_window.h>
+#include <spdlog/spdlog.h>
 
-void current_state_t::handle(events::event_holder_t && payload)
+static auto new_system_def(uint64_t system_address, std::string_view name, std::string_view star_type)
+  {
+  return star_system_t{
+    .system_address = system_address,
+    .name = std::string(name),
+    .star_type = std::string(star_type),
+    .bary_centre = {},
+    .bodies = {},
+    .sub_class = {},
+    .fss_complete = {}
+  };
+  }
+
+void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_holder_t && payload)
   {
   if(nullptr != parent->jlw_)
     {
@@ -11,8 +25,66 @@ void current_state_t::handle(events::event_holder_t && payload)
       [&](auto && event)
       {
         using T = std::decay_t<decltype(event)>;
-        if constexpr(std::same_as<T, events::fsd_jump_t>)
+        if constexpr(std::same_as<T, events::start_jump_t>)
           {
+          if(event.JumpType == events::jump_type_e::Hyperspace)
+            {
+            auto res{db_.load_system(*event.SystemAddress)};
+            if(not res) [[unlikely]]
+              {
+              spdlog::error("error loading system {} {}", *event.SystemAddress, *event.StarSystem);
+              system = new_system_def(*event.SystemAddress, *event.StarSystem, *event.StarClass);
+              }
+            else if(std::optional loaded{std::move(*res)}; loaded)
+              system = std::move(*loaded);
+            else
+              {
+              system = new_system_def(*event.SystemAddress, *event.StarSystem, *event.StarClass);
+              if(auto res2{db_.store(system)}; not res2) [[unlikely]]
+                spdlog::error("error string system {} {}", system.system_address, system.star_type);
+              }
+            update_system = true;
+            }
+          }
+        else if constexpr(std::same_as<T, events::location_t>)
+          {
+          // after reloading game start at this system
+          buffered_signals.clear();
+
+          if(auto res{db_.load_system(event.SystemAddress)}; not res) [[unlikely]]
+            {
+            spdlog::error("error loading system {} {}", event.SystemAddress, event.StarSystem);
+            system = new_system_def(event.SystemAddress, event.StarSystem, {});
+            }
+          else if(std::optional loaded{std::move(*res)}; loaded)
+            {
+            system = std::move(*loaded);
+            if(system.system_location != event.StarPos)
+              {
+              system.system_location = event.StarPos;
+              if(auto res{db_.store_system_location(system.system_address, system.system_location)}; not res)
+                spdlog::error("failed to store system location {}", system.system_address);
+              }
+            }
+          else
+            {
+            system = new_system_def(event.SystemAddress, event.StarSystem, {});
+            system.system_location = event.StarPos;
+            if(auto res2{db_.store(system)}; not res2) [[unlikely]]
+              spdlog::error("error string system {} {}", event.SystemAddress, event.StarSystem);
+            }
+          update_system = true;
+          }
+        else if constexpr(std::same_as<T, events::fsd_jump_t>)
+          {
+          if(system.system_address != event.SystemAddress)
+            spdlog::error("jump without start jump {}", system.system_address, event.SystemAddress);
+          else if(system.system_location != event.StarPos)
+            {
+            system.system_location = event.StarPos;
+            if(auto res{db_.store_system_location(system.system_address, system.system_location)}; not res)
+              spdlog::error("failed to store system location {}", system.system_address);
+            }
           jump_info = event;
           ship_loadout.FuelLevel = event.FuelLevel;
           update_system = true;
@@ -23,36 +95,28 @@ void current_state_t::handle(events::event_holder_t && payload)
           next_target = event;
           update_system = true;
           }
-        else if constexpr(std::same_as<T, events::start_jump_t>)
-          {
-          if(event.JumpType == events::jump_type_e::Hyperspace)
-            {
-            system = star_system_t{
-              .system_address = *event.SystemAddress,
-              .name = *event.StarSystem,
-              .star_type = *event.StarClass,
-              .bary_centre = {},
-              .bodies = {},
-              .sub_class = {},
-              .fss_complete = {}
-            };
-            update_system = true;
-            }
-          }
+
         else if constexpr(std::same_as<T, events::fss_body_signals_t>)
           {
-          // info(" {}", event.BodyName);
           auto it{system.body_by_id(event.BodyID)};
           if(it != system.bodies.end())
             {
             planet_details_t & details{std::get<planet_details_t>(it->details)};
             details.signals_ = std::move(event.Signals);
+            if(auto res{db_.store(system.system_address, event.BodyID, details.signals_)}; not res)
+              spdlog::error("failed to store signal for {}: {}", system.system_address, event.BodyID);
+            }
+          else
+            {
+            buffered_signals.emplace_back(event.BodyID, std::move(event.Signals));
             }
           update_system = true;
           }
         else if constexpr(std::same_as<T, events::fss_all_bodies_found_t>)
           {
           system.fss_complete = true;
+          if(auto res{db_.store_fss_complete(system.system_address)}; not res) [[unlikely]]
+            spdlog::error("failed to update fss scan complete for {}", system.system_address);
           }
         else if constexpr(std::same_as<T, events::scan_bary_centre_t>)
           {
@@ -71,21 +135,45 @@ void current_state_t::handle(events::event_holder_t && payload)
           }
         else if constexpr(std::same_as<T, events::scan_detailed_scan_t>)
           {
-          auto it{system.body_by_id(event.BodyID)};
-          if(it != system.bodies.end()) {}  // *it = to_body(std::move(event));
-          else
+          if(system.fss_complete)
+            return;
+
+          if(auto it{system.body_by_id(event.BodyID)}; it == system.bodies.end())
+            {
             system.bodies.emplace_back(to_body(std::move(event)));
+            body_t & body{system.bodies.back()};
+            std::visit(
+              [&]<typename U>(U & details)
+              {
+                if constexpr(std::same_as<U, planet_details_t>)
+                  {
+                  if(auto it{
+                       std::ranges::find(buffered_signals, body.body_id, [](auto const & bs) { return bs.body_id; })
+                     };
+                     buffered_signals.end() != it)
+                    {
+                    details.signals_ = std::move(it->signals_);
+                    buffered_signals.erase(it);
+                    }
+                  }
+              },
+              body.details
+            );
+            if(auto res{db_.store(system.system_address, body)}; not res)
+              spdlog::error("failed to store body {}: {}", system.system_address, body.name);
+            }
 
           update_system = true;
           }
         else if constexpr(std::same_as<T, events::saa_scan_complete_t>)
           {
-          // info("saa scan complete for {}", event.BodyName);
           auto it{system.body_by_id(event.BodyID)};
           if(it != system.bodies.end())
             {
             planet_details_t & details{std::get<planet_details_t>(it->details)};
             details.mapped = true;
+            if(auto res{db_.store_dss_complete(system.system_address, event.BodyID)}; not res) [[unlikely]]
+              spdlog::error("failed to update dss scan complete for {}:{}", system.system_address, event.BodyID);
             }
           update_system = true;
           }
@@ -135,6 +223,7 @@ void current_state_t::handle(events::event_holder_t && payload)
       Qt::QueuedConnection
     );
 
+    // parent->system_view_->model_->clear();
     if(update_system)
       QMetaObject::invokeMethod(
         parent,

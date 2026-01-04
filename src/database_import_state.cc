@@ -2,9 +2,12 @@
 #include <spdlog/spdlog.h>
 #include <simple_enum/std_format.hpp>
 
-void database_import_state_t::handle(events::event_holder_t && e)
+        
+void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events::event_holder_t && e)
   {
   state_t & state{*this->state};
+  std::visit([&state]<typename T>(T & event) {} , e );
+  
   std::visit(
     [&state]<typename T>(T & event)
     {
@@ -33,6 +36,7 @@ void database_import_state_t::handle(events::event_holder_t && e)
               .system_address = *event.SystemAddress,
               .name = *event.StarSystem,
               .star_type = *event.StarClass,
+              .system_location = {},
               .bary_centre = {},
               .bodies = {},
               .sub_class = {},
@@ -57,8 +61,7 @@ void database_import_state_t::handle(events::event_holder_t && e)
           std::abort();
           }
         state.buffered_signals.clear();
-        std::optional loaded{std::move(*res)};
-        if(loaded)
+        if(std::optional loaded{std::move(*res)}; loaded)
           {
           state.system = std::move(*loaded);
           spdlog::info(
@@ -71,6 +74,7 @@ void database_import_state_t::handle(events::event_holder_t && e)
             .system_address = event.SystemAddress,
             .name = event.StarSystem,
             .star_type = {},  //*event.StarClass,
+            .system_location = event.StarPos,
             .bary_centre = {},
             .bodies = {},
             .sub_class = {},
@@ -89,6 +93,16 @@ void database_import_state_t::handle(events::event_holder_t && e)
           {
           spdlog::critical("jump without start jump {}", state.system.system_address, event.SystemAddress);
           std::abort();
+          }
+        else if(state.system.system_location != event.StarPos)
+          {
+          state.system.system_location = event.StarPos;
+          if(auto res{state.db_.store_system_location(state.system.system_address, state.system.system_location)};
+             not res)
+            {
+            spdlog::critical("failed to store system location {}", state.system.system_address);
+            std::abort();
+            }
           }
         }
       else if constexpr(std::same_as<T, events::fss_discovery_scan_t>)

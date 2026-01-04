@@ -31,11 +31,11 @@ class system_bodies_model_t final : public QAbstractItemModel
   {
   Q_OBJECT
 public:
-  std::vector<body_t> const * bodies_{};
+  std::vector<body_t> bodies_{};
   std::unordered_map<events::body_id_t, std::unique_ptr<body_info_t>> nodes_;
   std::vector<body_info_t *> root_nodes_;
 
-  explicit system_bodies_model_t(std::vector<body_t> const * bodies, QObject * parent);
+  explicit system_bodies_model_t(std::vector<body_t> const & bodies, QObject * parent);
 
   [[nodiscard]]
   auto hasChildren(QModelIndex const & parent = QModelIndex()) const -> bool override;
@@ -62,7 +62,12 @@ public:
 
   // Funkcja wywoływana przed modyfikacją vectora w state_
   // auto notify_update() -> void;
-
+  auto clear() 
+  {
+    bodies_ = {};
+    nodes_.clear();
+    root_nodes_.clear();
+  }
   auto rebuild_index() -> void;
   };
 

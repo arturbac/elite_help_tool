@@ -277,6 +277,9 @@ struct star_system_t
   std::string name;
   std::string star_type;
   uint8_t sub_class;
+  double loc_x;
+  double loc_y;
+  double loc_z;
   bool fss_complete;
   };
 
@@ -288,6 +291,9 @@ auto to_db_fromat(::star_system_t const & system) noexcept -> sql_iface::star_sy
     .name = system.name,
     .star_type = system.star_type,
     .sub_class = system.sub_class,
+    .loc_x = system.system_location[0],
+    .loc_y = system.system_location[1],
+    .loc_z = system.system_location[2],
     .fss_complete = system.fss_complete
   };
   }
@@ -299,6 +305,7 @@ auto to_native_fromat(sql_iface::star_system_t && system) noexcept -> ::star_sys
     .system_address = system.system_address,
     .name = std::move(system.name),
     .star_type = std::move(system.star_type),
+    .system_location = std::array{system.loc_x, system.loc_y, system.loc_z},
     .sub_class = system.sub_class,
     .fss_complete = system.fss_complete
   };
@@ -379,6 +386,7 @@ constexpr auto escape_sql_quotes(std::string_view const value) -> std::string
 
   return result;
   }
+
 static_assert("''b''s''"sv == escape_sql_quotes("'b's'"));
 
 template<typename T>
@@ -755,6 +763,20 @@ auto database_storage_t::store_fss_complete(uint64_t system_address) -> cxx23::e
   std::string query{
     std::format("UPDATE {} SET fss_complete=1  WHERE system_address={}", sql_iface::tables::star_system, system_address)
   };
+  return sqlite::execute_query_no_result(db_->db, query);
+  }
+
+auto database_storage_t::store_system_location(uint64_t system_address, std::array<double, 3> const & loc)
+  -> cxx23::expected<void, std::error_code>
+  {
+  std::string query{std::format(
+    "UPDATE {} SET loc_x={}, loc_y={}, loc_z={} WHERE system_address={}",
+    sql_iface::tables::star_system,
+    loc[0],
+    loc[1],
+    loc[2],
+    system_address
+  )};
   return sqlite::execute_query_no_result(db_->db, query);
   }
 

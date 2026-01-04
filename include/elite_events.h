@@ -148,7 +148,7 @@ enum struct event_e : uint16_t
   MaterialTrade,
   NavRoute,
   NavRouteClear
-  
+
   };
 
 consteval auto adl_enum_bounds(event_e)
@@ -172,7 +172,7 @@ consteval auto adl_enum_bounds(scan_type_e)
 struct generic_event_t
   {
   std::chrono::sys_seconds timestamp;
-  event_e event;
+  std::string event;
   std::optional<scan_type_e> ScanType;
   };
 
@@ -323,7 +323,7 @@ struct fsd_jump_t
   };
 
 struct location_t
-{
+  {
   bool Docked;
   bool Taxi;
   bool Multicrew;
@@ -339,8 +339,7 @@ struct location_t
   std::string Body;
   body_id_t BodyID;
   std::string BodyType;
-};
-
+  };
 
 ///\brief When plotting a multi-star route, the file "NavRoute.json" is written in the same directory as the journal,
 /// with a list of stars along that route
@@ -593,7 +592,6 @@ struct fss_body_signals_t
   std::vector<signal_t> Signals;
   };
 
-
 struct fss_all_bodies_found_t
   {
   std::string SystemName;
@@ -629,7 +627,6 @@ consteval auto adl_enum_bounds(planet_value_e)
   using enum planet_value_e;
   return simple_enum::adl_info{low, high};
   }
-
 
 [[nodiscard]]
 auto value_class(uint32_t const sv) noexcept -> planet_value_e;
@@ -752,17 +749,22 @@ struct bary_centre_t
   double ascending_node;
   double mean_anomaly;
   };
-  
+
 struct star_system_t
   {
   uint64_t system_address;
   std::string name;
   std::string star_type;
+  // absolute location in galaxy in LY
+  // X	East / West	Wartości dodatnie rosną w prawo od Sol (patrząc na mapę z góry).
+  // Y	Up / Down	Wysokość nad lub pod płaszczyzną galaktyki. Sol leży prawie na 0.
+  // Z	North / South
+  std::array<double, 3> system_location;
   std::vector<bary_centre_t> bary_centre;
   std::vector<body_t> bodies;
   uint8_t sub_class;
   bool fss_complete;
-  
+
   [[nodiscard]]
   auto body_by_id(this auto && self, events::body_id_t const body_id) noexcept
     {
@@ -780,13 +782,13 @@ struct generic_state_t
   {
   virtual ~generic_state_t();
   auto discovery(std::string_view input) -> void;
-  virtual auto handle(events::event_holder_t && event) -> void = 0;
+  virtual auto handle(std::chrono::sys_seconds timestamp, events::event_holder_t && event) -> void = 0;
   };
 
 struct discovery_state_t : public generic_state_t
   {
   state_t * state;
-  void handle(events::event_holder_t && event) override;
+  void handle(std::chrono::sys_seconds timestamp, events::event_holder_t && event) override;
   };
 
 struct planet_value_info_t
@@ -833,7 +835,7 @@ struct ship_loadout_t
   float FuelLevel;
   std::vector<events::module_t> Modules;
   };
-  
+
 namespace exploration
   {
 [[nodiscard]]

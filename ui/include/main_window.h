@@ -41,7 +41,7 @@ public:
   QMdiArea * mdi_area_{nullptr};
 
   [[nodiscard]]
-  explicit main_window_t(QWidget * parent = nullptr);
+  explicit main_window_t(std::string db_path, QWidget * parent = nullptr);
 
   auto closeEvent(QCloseEvent * event) -> void override
     {

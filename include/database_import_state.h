@@ -23,5 +23,5 @@ struct database_import_state_t : public generic_state_t
 
   state_t * state;
 
-  void handle(events::event_holder_t && event) override;
+  void handle(std::chrono::sys_seconds timestamp, events::event_holder_t && event) override;
   };
