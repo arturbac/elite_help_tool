@@ -1,5 +1,6 @@
 #include <file_io.h>
 #include <elite_events.h>
+#include <elite_data.h>
 #include <sstream>
 #include <glaze/glaze.hpp>
 #include <simple_enum/glaze_json_enum_name.hpp>
@@ -14,7 +15,7 @@
 
 using spdlog::debug;
 using spdlog::error;
-using spdlog::info;
+// using spdlog::info;
 using spdlog::warn;
 using namespace std::string_view_literals;
 
@@ -710,7 +711,7 @@ auto discovery_state_t::handle(std::chrono::sys_seconds timestamp, events::event
         if(event.JumpType == events::jump_type_e::Hyperspace)
           {
           planet_value_e const vl{exploration::system_approx_value(*event.StarClass, *event.StarSystem)};
-          info("[{}] jump to {}[{}] {}\033[m\n", event.timestamp, value_color(vl), *event.StarClass, *event.StarSystem);
+          spdlog::info("[{}] jump to {}[{}] {}\033[m\n", event.timestamp, value_color(vl), *event.StarClass, *event.StarSystem);
           state.system = star_system_t{
             .system_address = *event.SystemAddress,
             .name = *event.StarSystem,
@@ -725,15 +726,15 @@ auto discovery_state_t::handle(std::chrono::sys_seconds timestamp, events::event
 
       else if constexpr(std::same_as<T, events::fss_discovery_scan_t>)
         {
-        info("discovery system {} body:{} nonbody:{}", event.SystemName, event.BodyCount, event.NonBodyCount);
+        spdlog::info("discovery system {} body:{} nonbody:{}", event.SystemName, event.BodyCount, event.NonBodyCount);
         state.system.bodies.reserve(event.BodyCount);
         }
 
       else if constexpr(std::same_as<T, events::fss_body_signals_t>)
         {
-        info(" {}", event.BodyName);
+        spdlog::info(" {}", event.BodyName);
         for(events::signal_t const & signal: event.Signals)
-          info("   {}: {}", signal.Type_Localised, signal.Count);
+          spdlog::info("   {}: {}", signal.Type_Localised, signal.Count);
 
         auto it{state.system.body_by_id(event.BodyID)};
         if(it != state.system.bodies.end())
@@ -829,7 +830,7 @@ auto discovery_state_t::handle(std::chrono::sys_seconds timestamp, events::event
             order_str.append(std::format("{}{}{}{},", value_color(vc), name, color_codes_t::reset, dist_ls));
             prev = loc;
             }
-          info("visiting order {} [{:1.1f}Ls]: {}", label, total_ls, order_str);
+          spdlog::info("visiting order {} [{:1.1f}Ls]: {}", label, total_ls, order_str);
         };
         auto calculate_order_for = [&state, &order_info](std::vector<body_t const *> const & visiting)
         {
@@ -909,7 +910,7 @@ auto discovery_state_t::handle(std::chrono::sys_seconds timestamp, events::event
         }
       else if constexpr(std::same_as<T, events::saa_scan_complete_t>)
         {
-        info("saa scan complete for {}", event.BodyName);
+        spdlog::info("saa scan complete for {}", event.BodyName);
         auto it{state.system.body_by_id(event.BodyID)};
         if(it != state.system.bodies.end())
           {

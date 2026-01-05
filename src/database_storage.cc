@@ -385,6 +385,8 @@ namespace tables
   inline constexpr std::string_view ring{"ring"};
   inline constexpr std::string_view body{"body"};
   inline constexpr std::string_view planet_details{"planet_details"};
+  inline constexpr std::string_view faction_info{"faction_info"};
+
   }  // namespace tables
   };  // namespace sql_iface
 
@@ -494,8 +496,7 @@ constexpr auto serialize(T const & value) -> std::string
   }
 
 template<typename table_type>
-static auto create_table(sqlite3 * db, std::string_view const pk, std::string_view name)
-  -> cxx23::expected<void, std::error_code>
+static auto create_table(sqlite3 * db, std::string_view const pk, std::string_view name) -> expected_ec<void>
   {
   std::string query{std::format("CREATE TABLE IF NOT EXISTS {} (", name)};
 
@@ -529,18 +530,18 @@ static auto create_table(sqlite3 * db, std::string_view const pk, std::string_vi
   }
 
 template<typename table_type>
-static auto insert_into(sqlite3 * db, std::string_view name, table_type const & record)
-  -> cxx23::expected<void, std::error_code>
+static auto insert_into(sqlite3 * db, std::string_view const pk, std::string_view name, table_type const & record)
+  -> expected_ec<void>
   {
   std::string query{std::format("INSERT INTO {} (", name)};
   // (name) VALUES ('{}');
   uint32_t ix{};
   glz::for_each_field(
     record,
-    [&query, &ix]<typename T>(T &)
+    [&query, &ix, &pk]<typename T>(T &)
     {
       auto const key{glz::reflect<table_type>::keys[ix]};
-      if(key != "oid"sv)
+      if(key != pk)
         query.append(std::format("{},", key));
       ++ix;
     }
@@ -550,16 +551,49 @@ static auto insert_into(sqlite3 * db, std::string_view name, table_type const & 
   ix = 0;
   glz::for_each_field(
     record,
-    [&query, &ix]<typename T>(T & value)
+    [&query, &ix, &pk]<typename T>(T & value)
     {
       auto const key{glz::reflect<table_type>::keys[ix]};
-      if(key != "oid"sv)
+      if(key != pk)
         query.append(std::format("'{}',", serialize(value)));
       ++ix;
     }
   );
   query.pop_back();  // drop ,
   query.append(");");
+
+  char * err_msg = nullptr;
+  int const rc = sqlite3_exec(db, query.c_str(), nullptr, nullptr, &err_msg);
+
+  if(rc != SQLITE_OK)
+    {
+    spdlog::error("[sql] {} {}", query, err_msg);
+    sqlite3_free(err_msg);
+    return cxx23::unexpected(std::make_error_code(std::errc::bad_message));
+    }
+  spdlog::debug("[sql] {}", query);
+  return {};
+  }
+
+template<typename table_type, typename pk_type>
+static auto update_pk(
+  sqlite3 * db, std::string_view const pk, std::string_view name, table_type const & record, pk_type const & pk_value
+) -> expected_ec<void>
+  {
+  std::string query{std::format("UPDATE {} SET ", name)};
+  uint32_t ix{};
+  glz::for_each_field(
+    record,
+    [&query, &ix, &pk]<typename T>(T & value)
+    {
+      auto const key{glz::reflect<table_type>::keys[ix]};
+      if(key != pk)
+        query.append(std::format("{}='{}',", key, serialize(value)));
+      ++ix;
+    }
+  );
+  query.pop_back();  // drop ,
+  query.append(std::format(" WHERE {}='{}'", pk, serialize(pk_value)));
 
   char * err_msg = nullptr;
   int const rc = sqlite3_exec(db, query.c_str(), nullptr, nullptr, &err_msg);
@@ -686,16 +720,17 @@ static int select_single_callback(
   {
   assert(argc == 1);
   std::span<char *> fields{argv, size_t(argc)};
-  value_type & value{*static_cast<value_type *>(d)};
+  std::optional<value_type> & value{*static_cast<std::optional<value_type> *>(d)};
   value = deserialize<value_type>(fields[0]);
 
   return 0;
   }
 
 template<typename value_type>
-static auto select_signle_from(sqlite3 * db, std::string_view query) -> cxx23::expected<value_type, std::error_code>
+static auto select_signle_from(sqlite3 * db, std::string_view query)
+  -> cxx23::expected<std::optional<value_type>, std::error_code>
   {
-  value_type value{};
+  std::optional<value_type> value{};
   char * err_msg = nullptr;
   int const rc = sqlite3_exec(db, query.data(), &select_single_callback<value_type>, &value, &err_msg);
 
@@ -709,7 +744,7 @@ static auto select_signle_from(sqlite3 * db, std::string_view query) -> cxx23::e
   return value;
   }
 
-static auto execute_query_no_result(sqlite3 * db, std::string_view query) -> cxx23::expected<void, std::error_code>
+static auto execute_query_no_result(sqlite3 * db, std::string_view query) -> expected_ec<void>
   {
   char * err_msg = nullptr;
   int const rc = sqlite3_exec(db, query.data(), nullptr, nullptr, &err_msg);
@@ -757,7 +792,7 @@ database_storage_t::database_storage_t(std::string db_path) :
 
 database_storage_t::~database_storage_t() { close(); }
 
-auto database_storage_t::open() -> cxx23::expected<void, std::error_code>
+auto database_storage_t::open() -> expected_ec<void>
   {
   bool const needs_init = !std::filesystem::exists(db_path_);
 
@@ -772,7 +807,7 @@ auto database_storage_t::open() -> cxx23::expected<void, std::error_code>
   return {};
   }
 
-auto database_storage_t::create_database() -> cxx23::expected<void, std::error_code>
+auto database_storage_t::create_database() -> expected_ec<void>
   {
   if(not db_->db)
     return cxx23::unexpected(std::make_error_code(std::errc::not_connected));
@@ -792,7 +827,7 @@ auto database_storage_t::create_database() -> cxx23::expected<void, std::error_c
 
   if(auto res{sqlite::create_table<sql_iface::ring_t>(db_->db, "oid"sv, sql_iface::tables::ring)}; not res) [[unlikely]]
     return res;
-    
+
   if(auto res{sqlite::create_table<sql_iface::planet_details_t>(db_->db, "oid"sv, sql_iface::tables::planet_details)};
      not res) [[unlikely]]
     return res;
@@ -815,16 +850,20 @@ auto database_storage_t::create_database() -> cxx23::expected<void, std::error_c
      not res) [[unlikely]]
     return res;
 
+  if(auto res{sqlite::create_table<info::faction_info_t>(db_->db, "oid"sv, sql_iface::tables::faction_info)}; not res)
+    [[unlikely]]
+    return res;
+
   return {};
   }
 
-auto database_storage_t::store(star_system_t const & system) -> cxx23::expected<void, std::error_code>
+auto database_storage_t::store(star_system_t const & system) -> expected_ec<void>
   {
   if(not db_->db)
     return cxx23::unexpected(std::make_error_code(std::errc::not_connected));
 
-  if(auto res{sqlite::insert_into(db_->db, sql_iface::tables::star_system, sql_iface::to_db_fromat(system))}; not res)
-    [[unlikely]]
+  if(auto res{sqlite::insert_into(db_->db, "oid"sv, sql_iface::tables::star_system, sql_iface::to_db_fromat(system))};
+     not res) [[unlikely]]
     return res;
   // auto const star_system_oid{sqlite3_last_insert_rowid(db_->db)};
   for(bary_centre_t const & bc: system.bary_centre)
@@ -837,7 +876,7 @@ auto database_storage_t::store(star_system_t const & system) -> cxx23::expected<
   return {};
   }
 
-auto database_storage_t::store_fss_complete(uint64_t system_address) -> cxx23::expected<void, std::error_code>
+auto database_storage_t::store_fss_complete(uint64_t system_address) -> expected_ec<void>
   {
   std::string query{
     std::format("UPDATE {} SET fss_complete=1  WHERE system_address={}", sql_iface::tables::star_system, system_address)
@@ -846,7 +885,7 @@ auto database_storage_t::store_fss_complete(uint64_t system_address) -> cxx23::e
   }
 
 auto database_storage_t::store_system_location(uint64_t system_address, std::array<double, 3> const & loc)
-  -> cxx23::expected<void, std::error_code>
+  -> expected_ec<void>
   {
   std::string query{std::format(
     "UPDATE {} SET loc_x={}, loc_y={}, loc_z={} WHERE system_address={}",
@@ -859,16 +898,18 @@ auto database_storage_t::store_system_location(uint64_t system_address, std::arr
   return sqlite::execute_query_no_result(db_->db, query);
   }
 
-auto database_storage_t::store(uint64_t system_address, bary_centre_t const & bc)
-  -> cxx23::expected<void, std::error_code>
+auto database_storage_t::store(uint64_t system_address, bary_centre_t const & bc) -> expected_ec<void>
   {
-  return sqlite::insert_into(db_->db, sql_iface::tables::bary_centre, sql_iface::to_db_fromat(system_address, bc));
+  return sqlite::insert_into(
+    db_->db, "oid"sv, sql_iface::tables::bary_centre, sql_iface::to_db_fromat(system_address, bc)
+  );
   }
 
-auto database_storage_t::store(uint64_t system_address, body_t const & value)
-  -> cxx23::expected<uint64_t, std::error_code>
+auto database_storage_t::store(uint64_t system_address, body_t const & value) -> expected_ec<uint64_t>
   {
-  if(auto res{sqlite::insert_into(db_->db, sql_iface::tables::body, sql_iface::to_db_fromat(system_address, value))};
+  if(auto res{
+       sqlite::insert_into(db_->db, "oid"sv, sql_iface::tables::body, sql_iface::to_db_fromat(system_address, value))
+     };
      not res)
     return cxx23::unexpected{res.error()};
 
@@ -876,7 +917,9 @@ auto database_storage_t::store(uint64_t system_address, body_t const & value)
   if(value.body_type() == body_type_e::planet)
     {
     planet_details_t const & pd{std::get<planet_details_t>(value.details)};
-    if(auto res{sqlite::insert_into(db_->db, sql_iface::tables::planet_details, sql_iface::to_db_fromat(body_oid, pd))};
+    if(auto res{
+         sqlite::insert_into(db_->db, "oid"sv, sql_iface::tables::planet_details, sql_iface::to_db_fromat(body_oid, pd))
+       };
        not res)
       return cxx23::unexpected{res.error()};
 
@@ -896,6 +939,7 @@ auto database_storage_t::store(uint64_t system_address, body_t const & value)
     {
     if(auto res{sqlite::insert_into(
          db_->db,
+         "oid"sv,
          sql_iface::tables::star_details,
          sql_iface::to_db_fromat(body_oid, std::get<star_details_t>(value.details))
        )};
@@ -906,21 +950,21 @@ auto database_storage_t::store(uint64_t system_address, body_t const & value)
   return body_oid;
   }
 
-auto database_storage_t::store_dss_complete(uint64_t system_address, events::body_id_t body_id)
-  -> cxx23::expected<void, std::error_code>
+auto database_storage_t::store_dss_complete(uint64_t system_address, events::body_id_t body_id) -> expected_ec<void>
   {
   auto oidres{oid_for_body(system_address, body_id)};
   if(not oidres)
     return cxx23::unexpected{oidres.error()};
+  std::optional<uint64_t> boid_oid{*oidres};
   std::string query{
-    std::format("UPDATE {} SET mapped=1  WHERE ref_body_oid={}", sql_iface::tables::planet_details, *oidres)
+    std::format("UPDATE {} SET mapped=1  WHERE ref_body_oid={}", sql_iface::tables::planet_details, *boid_oid)
   };
   return sqlite::execute_query_no_result(db_->db, query);
   }
 
 auto database_storage_t::store_ring_body_id(
   uint64_t system_address, events::body_id_t parent_body_id, std::string_view ring_name, events::body_id_t ring_body_id
-) -> cxx23::expected<void, std::error_code>
+) -> expected_ec<void>
   {
   std::string query{
     std::format(
@@ -933,29 +977,27 @@ auto database_storage_t::store_ring_body_id(
     )
 
   };
-  spdlog::warn("{}",query);
+  spdlog::warn("{}", query);
   return sqlite::execute_query_no_result(db_->db, query);
   }
 
-auto database_storage_t::store(uint64_t ref_body_oid, events::signal_t const & value)
-  -> cxx23::expected<void, std::error_code>
+auto database_storage_t::store(uint64_t ref_body_oid, events::signal_t const & value) -> expected_ec<void>
   {
-  return sqlite::insert_into(db_->db, sql_iface::tables::signal, sql_iface::to_db_fromat(ref_body_oid, value));
+  return sqlite::insert_into(db_->db, "oid"sv, sql_iface::tables::signal, sql_iface::to_db_fromat(ref_body_oid, value));
   }
 
-auto database_storage_t::store(uint64_t ref_body_oid, events::genus_t const & value)
-  -> cxx23::expected<void, std::error_code>
+auto database_storage_t::store(uint64_t ref_body_oid, events::genus_t const & value) -> expected_ec<void>
   {
-  return sqlite::insert_into(db_->db, sql_iface::tables::genus, sql_iface::to_db_fromat(ref_body_oid, value));
+  return sqlite::insert_into(db_->db, "oid"sv, sql_iface::tables::genus, sql_iface::to_db_fromat(ref_body_oid, value));
   }
 
-auto database_storage_t::store(uint64_t system_address, ring_t const & value) -> cxx23::expected<void, std::error_code>
+auto database_storage_t::store(uint64_t system_address, ring_t const & value) -> expected_ec<void>
   {
-  return sqlite::insert_into(db_->db, sql_iface::tables::ring, sql_iface::to_db_fromat(system_address, value));
+  return sqlite::insert_into(db_->db, "oid"sv, sql_iface::tables::ring, sql_iface::to_db_fromat(system_address, value));
   }
 
 auto database_storage_t::oid_for_body(uint64_t system_address, events::body_id_t body_id)
-  -> cxx23::expected<uint64_t, std::error_code>
+  -> expected_ec<std::optional<uint64_t>>
   {
   std::string query{std::format(
     "SELECT oid from {} WHERE ref_system_address={} AND body_id='{}'", sql_iface::tables::body, system_address, body_id
@@ -965,14 +1007,14 @@ auto database_storage_t::oid_for_body(uint64_t system_address, events::body_id_t
 
 auto database_storage_t::store(
   uint64_t system_address, events::body_id_t body_id, std::span<events::signal_t const> signals
-) -> cxx23::expected<void, std::error_code>
+) -> expected_ec<void>
   {
   auto resoid{oid_for_body(system_address, body_id)};
   if(not resoid)
     return cxx23::unexpected{resoid.error()};
-  uint64_t body_oid{*resoid};
+  std::optional<uint64_t> boid_oid{*resoid};
   for(events::signal_t const & sig: signals)
-    if(auto res{store(body_oid, sig)}; not res)
+    if(auto res{store(*boid_oid, sig)}; not res)
       return cxx23::unexpected{res.error()};
 
   return {};
@@ -980,21 +1022,20 @@ auto database_storage_t::store(
 
 auto database_storage_t::store(
   uint64_t system_address, events::body_id_t body_id, std::span<events::genus_t const> genuses
-) -> cxx23::expected<void, std::error_code>
+) -> expected_ec<void>
   {
   auto resoid{oid_for_body(system_address, body_id)};
   if(not resoid)
     return cxx23::unexpected{resoid.error()};
-  uint64_t body_oid{*resoid};
+  std::optional<uint64_t> boid_oid{*resoid};
   for(events::genus_t const & gen: genuses)
-    if(auto res{store(body_oid, gen)}; not res)
+    if(auto res{store(*boid_oid, gen)}; not res)
       return cxx23::unexpected{res.error()};
 
   return {};
   }
 
-auto database_storage_t::store(uint64_t system_address, std::span<ring_t const> rings)
-  -> cxx23::expected<void, std::error_code>
+auto database_storage_t::store(uint64_t system_address, std::span<ring_t const> rings) -> expected_ec<void>
   {
   for(ring_t const & ring: rings)
     if(auto res{store(system_address, ring)}; not res)
@@ -1002,15 +1043,48 @@ auto database_storage_t::store(uint64_t system_address, std::span<ring_t const> 
   return {};
   }
 
-auto database_storage_t::store(uint64_t ref_body_oid, events::atmosphere_element_t const & value)
-  -> cxx23::expected<void, std::error_code>
+auto database_storage_t::store(uint64_t ref_body_oid, events::atmosphere_element_t const & value) -> expected_ec<void>
   {
-  if(auto res{
-       sqlite::insert_into(db_->db, sql_iface::tables::atmosphere_element, sql_iface::to_db_fromat(ref_body_oid, value))
-     };
+  if(auto res{sqlite::insert_into(
+       db_->db, "oid"sv, sql_iface::tables::atmosphere_element, sql_iface::to_db_fromat(ref_body_oid, value)
+     )};
      not res)
     return cxx23::unexpected{res.error()};
   return {};
+  }
+
+[[nodiscard]]
+auto database_storage_t::faction_oid(std::string_view name) -> expected_ec<std::optional<uint32_t>>
+  {
+  std::string query{
+    std::format("SELECT oid FROM {} WHERE name='{}'", sql_iface::tables::faction_info, sqlite::escape_sql_quotes(name))
+  };
+  return sqlite::select_signle_from<uint32_t>(db_->db, query);
+  }
+
+[[nodiscard]]
+auto database_storage_t::load_faction(std::string_view name) -> expected_ec<std::optional<info::faction_info_t>>
+  {
+  auto res{sqlite::select_from<info::faction_info_t>(
+    db_->db, sql_iface::tables::faction_info, std::format(" WHERE name='{}'",  sqlite::escape_sql_quotes(name))
+  )};
+  if(not res) [[unlikely]]
+    return cxx23::unexpected{res.error()};
+  if(not res->empty())
+    {
+    if(res->size() != 1) [[unlikely]]
+      spdlog::error("multiple faction records for {}", name);
+    return std::move(res->front());
+    }
+  return {};
+  }
+
+auto database_storage_t::update_faction_info(info::faction_info_t const & faction) -> expected_ec<void>
+  {
+  if(faction.oid != -1)
+    return sqlite::update_pk(db_->db, "oid"sv, sql_iface::tables::faction_info, faction, faction.oid);
+  else
+    return sqlite::insert_into(db_->db, "oid"sv, sql_iface::tables::faction_info, faction);
   }
 
 auto database_storage_t::load_system(uint64_t system_address)

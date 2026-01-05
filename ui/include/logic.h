@@ -1,5 +1,6 @@
 #pragma once
 #include <elite_events.h>
+#include <elite_data.h>
 #include <simple_enum/simple_enum.hpp>
 #include <databse_storage.h>
 
@@ -15,6 +16,8 @@ struct current_state_t : public generic_state_t
     };
   main_window_t * parent;
   star_system_t system;
+  std::vector<info::faction_info_t> system_factions;
+  
   ship_loadout_t ship_loadout;
   database_storage_t db_;
   std::vector<buffered_signal_t> buffered_signals;

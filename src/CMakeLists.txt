@@ -4,6 +4,7 @@ target_sources(eht
   discover_logic.cc
   database_storage.cc
   database_import_state.cc
+  elite_data.cc
   )
 
 target_sources(journal_tailer

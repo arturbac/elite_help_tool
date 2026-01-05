@@ -273,6 +273,7 @@ struct faction_info_t
 struct system_faction_t
   {
   std::string Name;
+  std::string FactionState; // volatile
   };
 
 struct body_location_t
@@ -339,6 +340,8 @@ struct location_t
   std::string Body;
   body_id_t BodyID;
   std::string BodyType;
+  
+  std::vector<faction_info_t> Factions;
   };
 
 ///\brief When plotting a multi-star route, the file "NavRoute.json" is written in the same directory as the journal,

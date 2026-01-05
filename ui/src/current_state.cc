@@ -17,6 +17,44 @@ static auto new_system_def(uint64_t system_address, std::string_view name, std::
   };
   }
 
+auto process_factions(database_storage_t & db, std::span<events::faction_info_t> factions)
+  -> std::vector<info::faction_info_t>
+  {
+  std::vector<info::faction_info_t> result;
+  result.reserve(factions.size());
+  
+  for(events::faction_info_t & f: factions)
+    {
+    info::faction_info_t new_faction_data{info::to_native(std::move(f))};
+    auto res{db.load_faction(new_faction_data.name)};
+    if(not res)
+      spdlog::error("failed to load faction info for {}", new_faction_data.name);
+    else if(not *res)
+      {
+      // no data add
+      spdlog::info("adding faction {}", new_faction_data.name);
+      if(auto updres{db.update_faction_info(new_faction_data)}; not updres)
+        spdlog::error("failed to add faction data for {}", new_faction_data.name);
+      auto oidres{db.faction_oid(new_faction_data.name)};
+      if(oidres and *oidres)
+        new_faction_data.oid = int32_t(**oidres);
+      }
+    else
+      {
+      info::faction_info_t old_faction_data{std::move(**res)};
+      new_faction_data.oid = old_faction_data.oid;
+      if(old_faction_data != new_faction_data)
+        {
+        spdlog::info("updating faction {}", new_faction_data.name);
+        if(auto updres{db.update_faction_info(new_faction_data)}; not updres)
+          spdlog::error("failed to update faction data for {}", new_faction_data.name);
+        }
+      }
+    result.emplace_back(std::move(new_faction_data));
+    }
+  return result;
+  }
+  
 void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_holder_t && payload)
   {
   if(nullptr != parent->jlw_)
@@ -45,6 +83,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
               if(auto res2{db_.store(system)}; not res2) [[unlikely]]
                 spdlog::error("error string system {} {}", system.system_address, system.star_type);
               }
+            system_factions.clear();
             update_system = true;
             }
           }
@@ -75,6 +114,9 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
             if(auto res2{db_.store(system)}; not res2) [[unlikely]]
               spdlog::error("error string system {} {}", event.SystemAddress, event.StarSystem);
             }
+          // add/update factions database
+          if(not event.Factions.empty())
+            system_factions = process_factions(db_, event.Factions);
           update_system = true;
           }
         else if constexpr(std::same_as<T, events::fsd_jump_t>)
@@ -89,6 +131,10 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
             }
           jump_info = event;
           ship_loadout.FuelLevel = event.FuelLevel;
+          
+          if(not event.Factions.empty())
+            system_factions = process_factions(db_, event.Factions);
+            
           update_system = true;
           update_ship = true;
           }

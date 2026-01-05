@@ -71,6 +71,65 @@ public:
   auto rebuild_index() -> void;
   };
 
+struct body_signal_t
+{
+  events::body_id_t body_id;
+  std::string name;
+  
+  std::vector<events::signal_t> signals_;
+  std::vector<events::genus_t> genuses_;
+};
+using body_signals_t = std::vector<body_signal_t>;
+
+class system_bodies_signals_model_t final : public QAbstractItemModel
+  {
+  Q_OBJECT
+  
+  enum class node_type_t : int8_t { body, category_signals, category_genuses, signal_item, genus_item };
+
+  struct internal_id_t {
+    int32_t body_idx;
+    node_type_t type;
+    int32_t item_idx;
+  };
+
+  [[nodiscard]]
+  auto pack_id(internal_id_t id) const noexcept -> quintptr;
+  
+  [[nodiscard]]
+  auto unpack_id(quintptr id) const noexcept -> internal_id_t;
+  
+public:
+  body_signals_t body_signals_{};
+  
+  explicit system_bodies_signals_model_t(body_signals_t const & bodies, QObject * parent);
+
+  [[nodiscard]]
+  auto hasChildren(QModelIndex const & parent = QModelIndex()) const -> bool override;
+
+  [[nodiscard]]
+  auto index(int row, int column, QModelIndex const & parent = QModelIndex()) const -> QModelIndex override;
+
+  [[nodiscard]]
+  auto parent(QModelIndex const & index) const -> QModelIndex override;
+
+  [[nodiscard]]
+  auto rowCount(QModelIndex const & parent = QModelIndex()) const -> int override;
+
+  [[nodiscard]]
+  auto columnCount(QModelIndex const & = QModelIndex()) const -> int override;
+
+  [[nodiscard]]
+  auto flags(QModelIndex const& index) const -> Qt::ItemFlags override;
+  [[nodiscard]]
+  auto data(QModelIndex const & index, int role = Qt::DisplayRole) const -> QVariant override;
+
+  [[nodiscard]]
+  auto headerData(int section, Qt::Orientation orientation, int role) const -> QVariant override;
+  
+  void refresh(body_signals_t && new_data);
+  };
+  
 class system_window_t final : public QMdiSubWindow
   {
   Q_OBJECT
@@ -79,10 +138,13 @@ public:
   system_bodies_model_t * model_{};
   system_bodies_filter_proxy_t * proxy_model_;
   
+  system_bodies_signals_model_t * signals_model_;
+  
   QLabel * target_label_{};
   QLabel * system_label_{};
   QLabel * fss_label_{};
   QTreeView * tree_view{};
+  QTreeView *signals_view{};
 
   explicit system_window_t(current_state_t const & state, QWidget * parent = nullptr);
 

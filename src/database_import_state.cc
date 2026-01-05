@@ -4,11 +4,48 @@
 #include <stralgo/stralgo.h>
 using namespace std::string_view_literals;
 
+namespace
+  {
+template<typename... Args>
+void critical_abort(std::format_string<Args...> fmt, Args &&... args)
+  {
+  spdlog::default_logger_raw()->debug(fmt, std::forward<Args>(args)...);
+  std::abort();
+  }
+
+void process_factions(database_storage_t & db, std::span<events::faction_info_t> factions)
+  {
+  for(events::faction_info_t & f: factions)
+    {
+    info::faction_info_t new_faction_data{info::to_native(std::move(f))};
+    auto res{db.load_faction(new_faction_data.name)};
+    if(not res)
+      critical_abort("failed to load cation info for {}", new_faction_data.name);
+    if(not *res)
+      {
+      // no data add
+      spdlog::info("adding faction {}", new_faction_data.name);
+      if(auto updres{db.update_faction_info(new_faction_data)}; not updres)
+        critical_abort("failed to add faction data for {}", new_faction_data.name);
+      }
+    else
+      {
+      info::faction_info_t old_faction_data{std::move(**res)};
+      if(old_faction_data != new_faction_data)
+        {
+        new_faction_data.oid = old_faction_data.oid;
+        spdlog::info("updating faction {}", new_faction_data.name);
+        if(auto updres{db.update_faction_info(new_faction_data)}; not updres)
+          critical_abort("failed to update faction data for {}", new_faction_data.name);
+        }
+      }
+    }
+  }
+  }  // namespace
+
 void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events::event_holder_t && e)
   {
   state_t & state{*this->state};
-  std::visit([&state]<typename T>(T & event) {}, e);
-
   std::visit(
     [&state]<typename T>(T & event)
     {
@@ -19,10 +56,8 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
           spdlog::info("jump to [{}] {}", *event.StarClass, *event.StarSystem);
           auto res{state.db_.load_system(*event.SystemAddress)};
           if(not res) [[unlikely]]
-            {
-            spdlog::critical("error loading system {} {}", *event.SystemAddress, *event.StarSystem);
-            std::abort();
-            }
+            critical_abort("error loading system {} {}", *event.SystemAddress, *event.StarSystem);
+
           std::optional loaded{std::move(*res)};
           if(loaded)
             {
@@ -44,10 +79,7 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
               .fss_complete = {}
             };
             if(auto res2{state.db_.store(state.system)}; not res2) [[unlikely]]
-              {
-              spdlog::critical("error string system {} {}", *event.SystemAddress, *event.StarSystem);
-              std::abort();
-              }
+              critical_abort("error string system {} {}", *event.SystemAddress, *event.StarSystem);
             }
           }
         }
@@ -57,10 +89,8 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
         spdlog::info("location {}: {}", event.SystemAddress, event.StarSystem);
         auto res{state.db_.load_system(event.SystemAddress)};
         if(not res) [[unlikely]]
-          {
-          spdlog::critical("error loading system {} {}", event.SystemAddress, event.StarSystem);
-          std::abort();
-          }
+          critical_abort("error loading system {} {}", event.SystemAddress, event.StarSystem);
+
         state.buffered_signals.clear();
         if(std::optional loaded{std::move(*res)}; loaded)
           {
@@ -82,29 +112,26 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
             .fss_complete = {}
           };
           if(auto res2{state.db_.store(state.system)}; not res2) [[unlikely]]
-            {
-            spdlog::critical("error string system {} {}", event.SystemAddress, event.StarSystem);
-            std::abort();
-            }
+            critical_abort("error string system {} {}", event.SystemAddress, event.StarSystem);
           }
+        // add/update factions database
+        if(not event.Factions.empty())
+          process_factions(state.db_, event.Factions);
         }
       else if constexpr(std::same_as<T, events::fsd_jump_t>)
         {
         if(state.system.system_address != event.SystemAddress)
-          {
-          spdlog::critical("jump without start jump {}", state.system.system_address, event.SystemAddress);
-          std::abort();
-          }
+          critical_abort("jump without start jump {}", state.system.system_address, event.SystemAddress);
         else if(state.system.system_location != event.StarPos)
           {
           state.system.system_location = event.StarPos;
           if(auto res{state.db_.store_system_location(state.system.system_address, state.system.system_location)};
              not res)
-            {
-            spdlog::critical("failed to store system location {}", state.system.system_address);
-            std::abort();
-            }
+            critical_abort("failed to store system location {}", state.system.system_address);
           }
+        // add/update factions database
+        if(not event.Factions.empty())
+          process_factions(state.db_, event.Factions);
         }
       else if constexpr(std::same_as<T, events::fss_discovery_scan_t>)
         {
@@ -159,11 +186,10 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
           },
           body.details
         );
+
         if(auto res{state.db_.store(state.system.system_address, body)}; not res)
-          {
-          spdlog::critical("failed to store body {}: {}", state.system.system_address, body.name);
-          std::abort();
-          }
+          critical_abort("failed to store body {}: {}", state.system.system_address, body.name);
+
         // handle rings
         if(not event.Rings.empty())
           {
@@ -185,10 +211,8 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
             }
           );
           if(auto res{state.db_.store(state.system.system_address, rings)}; not res)
-            {
-            spdlog::critical("failed to store rings for {}: {}", state.system.system_address, body.name);
-            std::abort();
-            }
+            critical_abort("failed to store rings for {}: {}", state.system.system_address, body.name);
+
           state.system.rings.insert(state.system.rings.end(), rings.begin(), rings.end());
           }
         }
@@ -208,10 +232,7 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
         );
         auto const & bc{state.system.bary_centre.back()};
         if(auto res{state.db_.store(state.system.system_address, bc)}; not res)
-          {
-          spdlog::critical("failed to store bary_centre {}: {}", state.system.system_address, bc.body_id);
-          std::abort();
-          }
+          critical_abort("failed to store bary_centre {}: {}", state.system.system_address, bc.body_id);
         }
       else if constexpr(std::same_as<T, events::fss_body_signals_t>)
         {
@@ -226,10 +247,7 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
           details.signals_ = std::move(event.Signals);
 
           if(auto res{state.db_.store(state.system.system_address, event.BodyID, details.signals_)}; not res)
-            {
-            spdlog::critical("failed to store signals for {}: {}", state.system.system_address, event.BodyID);
-            std::abort();
-            }
+            critical_abort("failed to store signals for {}: {}", state.system.system_address, event.BodyID);
           }
         else
           {
@@ -246,18 +264,12 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
             ring_t & ring{*it};
             ring.signals_ = std::move(event.Signals);
             if(auto res{state.db_.store(state.system.system_address, event.BodyID, ring.signals_)}; not res)
-              {
-              spdlog::critical("failed to store signals for ring {}: {}", state.system.system_address, event.BodyID);
-              std::abort();
-              }
+              critical_abort("failed to store signals for ring {}: {}", state.system.system_address, event.BodyID);
             }
           else
-            {
-            spdlog::critical(
+            critical_abort(
               "ring was not found for {}: {} {}", state.system.system_address, event.BodyID, event.BodyName
             );
-            std::abort();
-            }
           }
         else if(auto it{state.system.body_by_id(event.BodyID)}; it != state.system.bodies.end())
           {
@@ -266,30 +278,19 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
             {
             details.signals_ = std::move(event.Signals);
             if(auto res{state.db_.store(state.system.system_address, event.BodyID, details.signals_)}; not res)
-              {
-              spdlog::critical("failed to store signals for {}: {}", state.system.system_address, event.BodyID);
-              std::abort();
-              }
+              critical_abort("failed to store signals for {}: {}", state.system.system_address, event.BodyID);
             }
           if(details.genuses_.size() != event.Genuses.size())
             {
             details.genuses_ = std::move(event.Genuses);
             if(auto res{state.db_.store(state.system.system_address, event.BodyID, details.genuses_)}; not res)
-              {
-              spdlog::critical("failed to store genuses_ for {}: {}", state.system.system_address, event.BodyID);
-              std::abort();
-              }
+              critical_abort("failed to store genuses_ for {}: {}", state.system.system_address, event.BodyID);
             }
           }
         else
           {
-          // spdlog::critical("failed to store singal dss for {}: {} {}", state.system.system_address, event.BodyID, event.BodyName);
-          // std::abort();
           spdlog::info("buffering signals for {}: {}", state.system.system_address, event.BodyID);
-          state.buffered_signals.emplace_back(event.BodyID,
-                                              std::move(event.Signals),
-                                              std::move(event.Genuses)
-                                              );
+          state.buffered_signals.emplace_back(event.BodyID, std::move(event.Signals), std::move(event.Genuses));
           }
         }
       else if constexpr(std::same_as<T, events::fss_all_bodies_found_t>)
@@ -297,10 +298,7 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
         spdlog::info("fss scan complete");
         state.system.fss_complete = true;
         if(auto res{state.db_.store_fss_complete(state.system.system_address)}; not res) [[unlikely]]
-          {
-          spdlog::critical("failed to update fss scan complete for {}", state.system.system_address);
-          std::abort();
-          }
+          critical_abort("failed to update fss scan complete for {}", state.system.system_address);
         }
       else if constexpr(std::same_as<T, events::saa_scan_complete_t>)
         {
@@ -319,10 +317,7 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
                  state.db_.store_ring_body_id(state.system.system_address, parent_planet_id, ring_name, event.BodyID)
                };
                not res) [[unlikely]]
-              {
-              spdlog::critical("failed to update ring body id for {}:{}", state.system.system_address, event.BodyName);
-              std::abort();
-              }
+              critical_abort("failed to update ring body id for {}:{}", state.system.system_address, event.BodyName);
 
             if(auto itr{std::ranges::find_if(
                  state.system.rings,
@@ -332,28 +327,21 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
                itr != state.system.rings.end())
               itr->body_id = event.BodyID;
             else
-              {
-              spdlog::critical(
+              critical_abort(
                 "failed to update (runtime) ring body id for {}:{}", state.system.system_address, event.BodyName
               );
-              std::abort();
-              }
             }
           else
-            {
-            spdlog::error("failed to find body for ring {}:{}, system not scanned", state.system.system_address, event.BodyName);
-            // std::abort();
-            }
+            spdlog::error(
+              "failed to find body for ring {}:{}, system not scanned", state.system.system_address, event.BodyName
+            );
           }
         else if(auto it{state.system.body_by_id(event.BodyID)}; it != state.system.bodies.end())
           {
           planet_details_t & details{std::get<planet_details_t>(it->details)};
           details.mapped = true;
           if(auto res{state.db_.store_dss_complete(state.system.system_address, event.BodyID)}; not res) [[unlikely]]
-            {
-            spdlog::critical("failed to update dss scan complete for {}:{}", state.system.system_address, event.BodyID);
-            std::abort();
-            }
+            critical_abort("failed to update dss scan complete for {}:{}", state.system.system_address, event.BodyID);
           }
         }
     },

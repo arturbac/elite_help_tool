@@ -90,7 +90,7 @@ auto system_bodies_model_t::data(QModelIndex const & index, int role) const -> Q
   auto const * node = static_cast<body_info_t *>(index.internalPointer());
   if(not node)
     return {};
-    
+
   auto const & b = *node->data;
 
   if(role == Qt::CheckStateRole)
@@ -126,7 +126,7 @@ auto system_bodies_model_t::data(QModelIndex const & index, int role) const -> Q
       return QColor(0xff, 0x33, 0x22);
     if(index.column() >= 5)
       return QColor(0x22, 0xAA, 0x22);
-      
+
     switch(value_class(b.value))
       {
       using enum planet_value_e;
@@ -149,7 +149,7 @@ auto system_bodies_model_t::data(QModelIndex const & index, int role) const -> Q
           switch(index.column())
             {
             case 0:  return QString::fromStdString(b.name);
-            case 1:  return qformat("{} {}",exploration::get_planet_icon(details.planet_class),details.planet_class);
+            case 1:  return qformat("{} {}", exploration::get_planet_icon(details.planet_class), details.planet_class);
             case 2:  return QString("%1 g").arg(details.surface_gravity, 0, 'f', 2);
             case 4:  return QString::fromStdString(format_credits_value(b.value));
             case 3:  return QString("%1").arg(details.mass_em);
@@ -242,6 +242,175 @@ auto system_bodies_model_t::rebuild_index() -> void
   endResetModel();
   }
 
+// -----------------------------------------------------------------------------------
+
+system_bodies_signals_model_t::system_bodies_signals_model_t(body_signals_t const & bodies, QObject * parent) :
+    QAbstractItemModel(parent),
+    body_signals_(bodies)
+  {
+  }
+
+[[nodiscard]]
+auto system_bodies_signals_model_t::pack_id(internal_id_t id) const noexcept -> quintptr
+  {
+  // Pakowanie 3 wartości w 64-bitowy identyfikator dla QModelIndex
+  uint64_t packed = 0;
+  packed |= (static_cast<uint64_t>(id.body_idx) & 0xFFFFFFFF);
+  packed |= (static_cast<uint64_t>(id.type) << 32);
+  packed |= (static_cast<uint64_t>(id.item_idx) << 40);
+  return static_cast<quintptr>(packed);
+  }
+
+[[nodiscard]]
+auto system_bodies_signals_model_t::unpack_id(quintptr id) const noexcept -> internal_id_t
+  {
+  uint64_t packed = static_cast<uint64_t>(id);
+  return {
+    .body_idx = static_cast<int32_t>(packed & 0xFFFFFFFF),
+    .type = static_cast<node_type_t>((packed >> 32) & 0xFF),
+    .item_idx = static_cast<int32_t>(packed >> 40)
+  };
+  }
+
+[[nodiscard]]
+auto system_bodies_signals_model_t::rowCount(QModelIndex const & parent) const -> int
+  {
+  if(parent.column() > 0) [[unlikely]]
+    return 0;
+
+  if(!parent.isValid())
+    return static_cast<int>(body_signals_.size());
+
+  auto const id = unpack_id(parent.internalId());
+  auto const & body = body_signals_[id.body_idx];
+
+  switch(id.type)
+    {
+    case node_type_t::body:
+        {
+        int count = 0;
+        if(!body.signals_.empty())
+          ++count;
+        if(!body.genuses_.empty())
+          ++count;
+        return count;
+        }
+    case node_type_t::category_signals: return static_cast<int>(body_signals_[id.body_idx].signals_.size());
+    case node_type_t::category_genuses: return static_cast<int>(body_signals_[id.body_idx].genuses_.size());
+    default:                            return 0;
+    }
+  }
+
+[[nodiscard]]
+auto system_bodies_signals_model_t::index(int row, int column, QModelIndex const & parent) const -> QModelIndex
+  {
+  if(!hasIndex(row, column, parent))
+    return {};
+  if(!parent.isValid())
+    return createIndex(row, column, pack_id({row, node_type_t::body, -1}));
+
+  auto const id = unpack_id(parent.internalId());
+  auto const & body = body_signals_[id.body_idx];
+
+  if(id.type == node_type_t::body)
+    {
+    // Dynamiczne mapowanie wiersza na typ kategorii
+    if(!body.signals_.empty())
+      {
+      if(row == 0)
+        return createIndex(row, column, pack_id({id.body_idx, node_type_t::category_signals, -1}));
+      // Jeśli sygnały istnieją, to row 1 musi być rodzajami (genus)
+      return createIndex(row, column, pack_id({id.body_idx, node_type_t::category_genuses, -1}));
+      }
+    // Jeśli nie ma sygnałów, row 0 to rodzaje (genus)
+    return createIndex(row, column, pack_id({id.body_idx, node_type_t::category_genuses, -1}));
+    }
+
+  // Reszta bez zmian (leaf nodes)
+  auto const type = (id.type == node_type_t::category_signals) ? node_type_t::signal_item : node_type_t::genus_item;
+  return createIndex(row, column, pack_id({id.body_idx, type, row}));
+  }
+
+[[nodiscard]]
+auto system_bodies_signals_model_t::parent(QModelIndex const & index) const -> QModelIndex
+  {
+  if(!index.isValid())
+    return {};
+  auto const id = unpack_id(index.internalId());
+  if(id.type == node_type_t::body)
+    return {};
+
+  auto const & body = body_signals_[id.body_idx];
+
+  if(id.type == node_type_t::category_signals || id.type == node_type_t::category_genuses)
+    return createIndex(id.body_idx, 0, pack_id({id.body_idx, node_type_t::body, -1}));
+
+  // Dla elementów liści (signal_item / genus_item)
+  if(id.type == node_type_t::signal_item)
+    return createIndex(0, 0, pack_id({id.body_idx, node_type_t::category_signals, -1}));
+
+  if(id.type == node_type_t::genus_item)
+    {
+    // Wiersz rodzica zależy od tego, czy istnieją sygnały
+    int parent_row = body.signals_.empty() ? 0 : 1;
+    return createIndex(parent_row, 0, pack_id({id.body_idx, node_type_t::category_genuses, -1}));
+    }
+
+  return {};
+  }
+
+[[nodiscard]]
+auto system_bodies_signals_model_t::data(QModelIndex const & index, int role) const -> QVariant
+  {
+  if(!index.isValid() || role != Qt::DisplayRole)
+    return {};
+
+  auto const id = unpack_id(index.internalId());
+  auto const & body = body_signals_[id.body_idx];
+
+  switch(id.type)
+    {
+    case node_type_t::body:             return QString::fromStdString(body.name);
+    case node_type_t::category_signals: return QString("Signals (%1)").arg(body.signals_.size());
+    case node_type_t::category_genuses: return QString("Genuses (%1)").arg(body.genuses_.size());
+    case node_type_t::signal_item:
+        {
+        auto const & s = body.signals_[id.item_idx];
+        return QString("%1: %2").arg(QString::fromStdString(s.Type_Localised)).arg(s.Count);
+        }
+    case node_type_t::genus_item: return QString::fromStdString(body.genuses_[id.item_idx].Genus_Localised);
+    }
+  return {};
+  }
+
+void system_bodies_signals_model_t::refresh(body_signals_t && new_data)
+  {
+  beginResetModel();
+  body_signals_ = std::move(new_data);
+  endResetModel();
+  // Zawsze rozwinięte TreeView obsługuje się w widoku (QTreeView::expandAll()),
+  // ale wywołanie tego po każdym restarcie modelu jest kluczowe.
+  }
+
+// Pozostałe metody standardowe
+auto system_bodies_signals_model_t::hasChildren(QModelIndex const & parent) const -> bool
+  {
+  return rowCount(parent) > 0;
+  }
+
+auto system_bodies_signals_model_t::columnCount(QModelIndex const &) const -> int { return 1; }
+
+auto system_bodies_signals_model_t::flags(QModelIndex const & index) const -> Qt::ItemFlags
+  {
+  return index.isValid() ? Qt::ItemIsEnabled | Qt::ItemIsSelectable : Qt::NoItemFlags;
+  }
+
+auto system_bodies_signals_model_t::headerData(int, Qt::Orientation, int role) const -> QVariant
+  {
+  return (role == Qt::DisplayRole) ? "Body / Signals / Genus" : QVariant{};
+  }
+
+// -----------------------------------------------------------------------------------
 static auto set_label_color(QLabel * label, planet_value_e val) -> void
   {
   if(!label or planet_value_e::low == val) [[unlikely]]
@@ -275,12 +444,10 @@ auto system_window_t::update_labels() -> void
 system_window_t::system_window_t(current_state_t const & state, QWidget * parent) : QMdiSubWindow(parent), state_(state)
   {
   setup_ui();
-  connect(model_, &QAbstractItemModel::modelReset, tree_view, [ tv = tree_view]{
-    tv->expandAll();
-});
-  connect(proxy_model_, &QAbstractItemModel::modelReset, tree_view, [ tv = tree_view]{
-    tv->expandAll();
-});
+  connect(model_, &QAbstractItemModel::modelReset, tree_view, [tv = tree_view] { tv->expandAll(); });
+  connect(proxy_model_, &QAbstractItemModel::modelReset, tree_view, [tv = tree_view] { tv->expandAll(); });
+
+  connect(signals_model_, &QAbstractItemModel::modelReset, signals_view, [tv = signals_view] { tv->expandAll(); });
   }
 
 // Funkcja do wywołania z main_window_t, gdy state_ zostanie zaktualizowany
@@ -291,17 +458,25 @@ auto system_window_t::refresh_ui() -> void
   tree_view->expandAll();
   update_labels();
   if(model_) [[likely]]
-    model_->layoutChanged();  // Informuje TreeView o nowych danych w vectorze
-  // QMetaObject::invokeMethod(
-  //   this,
-  //   [this]
-  //   {
-  //     update_labels();
-  //     if(model_) [[likely]]
-  //       model_->layoutChanged();  // Informuje TreeView o nowych danych w vectorze
-  //   },
-  //   Qt::QueuedConnection
-  // );
+    model_->layoutChanged();
+
+  body_signals_t signal_data;
+  for(body_t const & body: state_.system.bodies)
+    std::visit(
+      [&signal_data, &body]<typename T>(T const & details)
+      {
+        if constexpr(std::same_as<T, planet_details_t>)
+          if(not details.signals_.empty() or not details.genuses_.empty())
+            signal_data.emplace_back(
+              body_signal_t{
+                .body_id = body.body_id, .name = body.name, .signals_ = details.signals_, .genuses_ = details.genuses_
+              }
+            );
+      },
+      body.details
+    );
+
+  signals_model_->refresh(std::move(signal_data));
   }
 
 auto system_window_t::setup_ui() -> void
@@ -328,7 +503,6 @@ auto system_window_t::setup_ui() -> void
   proxy_model_ = new system_bodies_filter_proxy_t(this);
   proxy_model_->setSourceModel(model_);
 
-  // tree_view->setModel(model_);
   tree_view->setModel(proxy_model_);
 
   tree_view->setAlternatingRowColors(true);
@@ -341,6 +515,17 @@ auto system_window_t::setup_ui() -> void
 
   layout->addWidget(new QLabel("System Bodies:"));
   layout->addWidget(tree_view);
+
+  layout->addWidget(new QLabel("Body Signals & Genuses:"));
+  signals_view = new QTreeView();
+  signals_model_ = new system_bodies_signals_model_t({}, this);  // Inicjalizacja pustym wektorem
+  signals_view->setModel(signals_model_);
+  signals_view->setAlternatingRowColors(true);
+  signals_view->header()->setSectionResizeMode(QHeaderView::Stretch);
+
+  // Połączenie automatycznego rozwijania dla sygnałów
+  connect(signals_model_, &QAbstractItemModel::modelReset, signals_view, [&] { signals_view->expandAll(); });
+  layout->addWidget(signals_view);
 
   setWidget(central_widget);
   update_labels();  // Pierwsze wypełnienie
