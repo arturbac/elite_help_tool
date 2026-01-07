@@ -290,7 +290,7 @@ static auto aggregate_missions(std::vector<info::mission_t> const & m) -> std::v
   for(auto const & mission: filtered)
     {
     target_mm_t tgt{.destination_system = mission.destination_system, .faction = mission.faction};
-  
+
     auto & counts{aggregate[tgt]};
     if(mission.status == info::mission_status_e::redirected)
       counts.count_done += mission.kill_count;
@@ -328,14 +328,15 @@ auto mission_window_t::setup_ui() -> void
   view_->setModel(model_);
   view_->setAlternatingRowColors(true);
   view_->setSelectionBehavior(QAbstractItemView::SelectRows);
-  auto * header{view_->horizontalHeader()};
-  header->setStretchLastSection(true);
-  header->setSectionResizeMode(QHeaderView::Interactive);
-  header->setSectionResizeMode(0, QHeaderView::ResizeToContents);
-  for(int i{0}; i < model_->columnCount() - 1; ++i)
-    header->setSectionResizeMode(i, QHeaderView::ResizeToContents);
-  header->setSectionResizeMode(model_->columnCount() - 1, QHeaderView::Stretch);
-
+    {
+    auto * header{view_->horizontalHeader()};
+    header->setStretchLastSection(true);
+    header->setSectionResizeMode(QHeaderView::Interactive);
+    header->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    for(int i{0}; i < model_->columnCount() - 1; ++i)
+      header->setSectionResizeMode(i, QHeaderView::ResizeToContents);
+    header->setSectionResizeMode(model_->columnCount() - 1, QHeaderView::Stretch);
+    }
   mission_layout->addWidget(view_);
   tabs->addTab(mission_page, QStringLiteral("Missions"));
 
@@ -351,7 +352,14 @@ auto mission_window_t::setup_ui() -> void
   massace_view_->setModel(massacre_stack_model_);
   massace_view_->setAlternatingRowColors(true);
   massace_view_->setSelectionBehavior(QAbstractItemView::SelectRows);
-
+    {
+    auto * header{massace_view_->horizontalHeader()};
+    header->setStretchLastSection(true);
+    header->setSectionResizeMode(QHeaderView::Interactive);
+    header->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    for(int i{0}; i < model_->columnCount(); ++i)
+      header->setSectionResizeMode(i, QHeaderView::ResizeToContents);
+    }
   massacre_layout->addWidget(massace_view_);
   tabs->addTab(massacre_page, QStringLiteral("Massacre Stacking"));
 
