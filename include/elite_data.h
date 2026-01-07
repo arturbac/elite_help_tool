@@ -109,6 +109,10 @@ struct mission_t
   std::string destination_station;  //": "Yamazaki Base",
   std::string destination_settlement;
 
+  std::string redirected_system;   //": "Anana",
+  std::string redirected_station;  //": "Yamazaki Base",
+  std::string redirected_settlement;
+  
   uint32_t count;
   uint16_t kill_count;
   uint16_t passenger_count;

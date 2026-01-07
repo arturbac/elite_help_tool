@@ -87,14 +87,18 @@ auto mission_model_t::data(QModelIndex const & index, int role) const -> QVarian
     {
     switch(static_cast<column_e>(index.column()))
       {
-      case column_e::id:          return static_cast<qlonglong>(mission.mission_id);
-      case column_e::status:      return qformat("{}", mission.status);
-      case column_e::type:        return QString::fromStdString(mission.type);
-      case column_e::faction:     return QString::fromStdString(mission.faction);
-      case column_e::count:       return qlonglong(mission.mission_count());
-      case column_e::reward:      return QString::fromStdString(format_credits_value(mission.reward));
-      case column_e::destination: return QString::fromStdString(mission.destination_system);
-      default:                    return {};
+      case column_e::id:      return static_cast<qlonglong>(mission.mission_id);
+      case column_e::status:  return qformat("{}", mission.status);
+      case column_e::type:    return QString::fromStdString(mission.type);
+      case column_e::faction: return QString::fromStdString(mission.faction);
+      case column_e::count:   return qlonglong(mission.mission_count());
+      case column_e::reward:  return QString::fromStdString(format_credits_value(mission.reward));
+      case column_e::destination:
+        if(mission.status == info::mission_status_e::redirected)
+          return QString::fromStdString(mission.redirected_system);
+        else
+          return QString::fromStdString(mission.destination_system);
+      default: return {};
       }
     }
   else if(role == Qt::ForegroundRole)

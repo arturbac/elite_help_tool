@@ -927,7 +927,7 @@ auto database_storage_t::redirect_mission(
 ) -> expected_ec<void>
   {
   std::string query{std::format(
-    "UPDATE {} SET status='{}', destination_system='{}', destination_station='{}', destination_settlement='{}' WHERE "
+    "UPDATE {} SET status='{}', redirected_system='{}', redirected_station='{}', redirected_settlement='{}' WHERE "
     "mission_id={}",
     sql_iface::tables::mission,
     info::mission_status_e::redirected,
