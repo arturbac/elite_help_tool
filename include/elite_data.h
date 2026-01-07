@@ -76,7 +76,6 @@ struct faction_info_t
 [[nodiscard]]
 auto to_native(events::faction_info_t && faction) -> faction_info_t;
 
-
 enum struct mission_status_e : uint8_t
   {
   accepted,
@@ -101,18 +100,24 @@ struct mission_t
   std::string type;
   std::string description;
   uint64_t reward;
-  
+
   std::string target;
   std::string target_type;
   std::string target_faction;
-  
+
   std::string destination_system;   //": "Anana",
   std::string destination_station;  //": "Yamazaki Base",
   std::string destination_settlement;
-  
+
   uint32_t count;
   uint16_t kill_count;
   uint16_t passenger_count;
+
+  [[nodiscard]]
+  auto mission_count() const noexcept
+    {
+    return std::max<uint32_t>(std::max<uint32_t>(count,kill_count),passenger_count);
+    }
   };
 
   }  // namespace info
