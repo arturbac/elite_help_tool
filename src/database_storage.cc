@@ -6,6 +6,7 @@
 #include <elite_events.h>
 #include <spdlog/spdlog.h>
 #include <simple_enum/enum_cast.hpp>
+#include <simple_enum/std_format.hpp>
 
 using events::body_id_t;
 
@@ -386,7 +387,7 @@ namespace tables
   inline constexpr std::string_view body{"body"};
   inline constexpr std::string_view planet_details{"planet_details"};
   inline constexpr std::string_view faction_info{"faction_info"};
-
+  inline constexpr std::string_view mission{"mission"};
   }  // namespace tables
   };  // namespace sql_iface
 
@@ -415,6 +416,8 @@ constexpr auto reflection_type_name() -> std::string_view
   {
   if constexpr(is_optional<T>)
     return reflection_type_name<typename T::value_type>();
+  else if constexpr(std::same_as<T, std::chrono::sys_seconds>)
+    return "TEXT"sv;
   else if constexpr(simple_enum::bounded_enum<T>)
     return "TEXT"sv;
   else if constexpr(std::integral<T>)
@@ -423,6 +426,8 @@ constexpr auto reflection_type_name() -> std::string_view
     return "REAL"sv;
   else if constexpr(std::same_as<T, std::string> or std::same_as<T, std::string_view>)
     return "TEXT"sv;
+  else
+    static_assert(false);
   }
 
 [[nodiscard]]
@@ -464,6 +469,8 @@ constexpr auto serialize(T const & value) -> std::string
       return std::string{"NULL"};
     else
       return serialize(*value);
+  else if constexpr(std::same_as<T, std::chrono::sys_seconds>)
+    return std::format("{:%Y-%m-%dT%H:%M:%SZ}", value);
   else if constexpr(simple_enum::bounded_enum<T>)
     return std::string(simple_enum::enum_name(value));
   else if constexpr(std::same_as<T, bool>)
@@ -529,7 +536,7 @@ static auto create_table(sqlite3 * db, std::string_view const pk, std::string_vi
   return {};
   }
 
-template<typename table_type>
+template<typename table_type, bool with_pk_store = false>
 static auto insert_into(sqlite3 * db, std::string_view const pk, std::string_view name, table_type const & record)
   -> expected_ec<void>
   {
@@ -541,7 +548,9 @@ static auto insert_into(sqlite3 * db, std::string_view const pk, std::string_vie
     [&query, &ix, &pk]<typename T>(T &)
     {
       auto const key{glz::reflect<table_type>::keys[ix]};
-      if(key != pk)
+      if constexpr(with_pk_store)
+        query.append(std::format("{},", key));
+      else if(key != pk)
         query.append(std::format("{},", key));
       ++ix;
     }
@@ -554,7 +563,9 @@ static auto insert_into(sqlite3 * db, std::string_view const pk, std::string_vie
     [&query, &ix, &pk]<typename T>(T & value)
     {
       auto const key{glz::reflect<table_type>::keys[ix]};
-      if(key != pk)
+      if constexpr(with_pk_store)
+        query.append(std::format("'{}',", serialize(value)));
+      else if(key != pk)
         query.append(std::format("'{}',", serialize(value)));
       ++ix;
     }
@@ -616,6 +627,19 @@ constexpr auto deserialize(std::string_view const value) -> T
       return T{};
     else
       return deserialize<typename T::value_type>(value);
+  else if constexpr(std::same_as<T, std::chrono::sys_seconds>)
+    {
+    using namespace std::string_literals;
+    std::chrono::sys_seconds tp;
+    std::stringstream ss{std::string{value}};
+
+    ss >> std::chrono::parse("%Y-%m-%dT%H:%M:%SZ"s, tp);
+
+    if(ss.fail())
+      return std::chrono::sys_seconds{std::chrono::seconds{0}};
+
+    return tp;
+    }
   else if constexpr(simple_enum::bounded_enum<T>)
     {
     auto res{simple_enum::enum_cast<T>(value)};
@@ -854,7 +878,65 @@ auto database_storage_t::create_database() -> expected_ec<void>
     [[unlikely]]
     return res;
 
+  if(auto res{sqlite::create_table<info::mission_t>(db_->db, "mission_id"sv, sql_iface::tables::mission)}; not res)
+    [[unlikely]]
+    return res;
   return {};
+  }
+
+auto database_storage_t::store(info::mission_t const & value) -> expected_ec<void>
+  {
+  if(not db_->db)
+    return cxx23::unexpected(std::make_error_code(std::errc::not_connected));
+
+  return sqlite::insert_into<info::mission_t, true>(db_->db, "mission_id"sv, sql_iface::tables::mission, value);
+  }
+
+auto database_storage_t::load_missions() -> expected_ec<std::vector<info::mission_t>>
+  {
+  return sqlite::select_from<info::mission_t>(
+    db_->db,
+    sql_iface::tables::mission,
+    std::format(
+      " WHERE (status='accepted' and expiry >'{:%Y-%m-%dT%H:%M:%SZ}') OR status='redirected'",
+      std::chrono::system_clock::now()
+    )
+    // where status='accepted' and expiry >'2026-01-07T10:43:00Z' or status='redirected'
+  );
+  }
+
+auto database_storage_t::mission_exists(uint64_t mission_id) ->expected_ec<bool>
+{
+  if( auto res{sqlite::select_signle_from<uint32_t>(db_->db,
+    std::format("select count(*) from {} where mission_id={}",sql_iface::tables::mission,mission_id) )}; not res)
+    return cxx23::unexpected{res.error()};
+  else
+    return *res != 0;
+}
+auto database_storage_t::change_mission_status(uint64_t mission_id, info::mission_status_e const status)
+  -> expected_ec<void>
+  {
+  std::string query{
+    std::format("UPDATE {} SET status='{}' WHERE mission_id={}", sql_iface::tables::mission, status, mission_id)
+  };
+  return sqlite::execute_query_no_result(db_->db, query);
+  }
+
+auto database_storage_t::redirect_mission(
+  uint64_t mission_id, std::string_view system, std::string_view station, std::string_view settlement
+) -> expected_ec<void>
+  {
+  std::string query{std::format(
+    "UPDATE {} SET status='{}', destination_system='{}', destination_station='{}', destination_settlement='{}' WHERE "
+    "mission_id={}",
+    sql_iface::tables::mission,
+    info::mission_status_e::redirected,
+    sqlite::escape_sql_quotes(system),
+    sqlite::escape_sql_quotes(station),
+    sqlite::escape_sql_quotes(settlement),
+    mission_id
+  )};
+  return sqlite::execute_query_no_result(db_->db, query);
   }
 
 auto database_storage_t::store(star_system_t const & system) -> expected_ec<void>
@@ -1054,19 +1136,19 @@ auto database_storage_t::store(uint64_t ref_body_oid, events::atmosphere_element
   }
 
 [[nodiscard]]
-auto database_storage_t::faction_oid(std::string_view name) -> expected_ec<std::optional<uint32_t>>
+auto database_storage_t::faction_oid(std::string_view name) -> expected_ec<std::optional<uint64_t>>
   {
   std::string query{
     std::format("SELECT oid FROM {} WHERE name='{}'", sql_iface::tables::faction_info, sqlite::escape_sql_quotes(name))
   };
-  return sqlite::select_signle_from<uint32_t>(db_->db, query);
+  return sqlite::select_signle_from<uint64_t>(db_->db, query);
   }
 
 [[nodiscard]]
 auto database_storage_t::load_faction(std::string_view name) -> expected_ec<std::optional<info::faction_info_t>>
   {
   auto res{sqlite::select_from<info::faction_info_t>(
-    db_->db, sql_iface::tables::faction_info, std::format(" WHERE name='{}'",  sqlite::escape_sql_quotes(name))
+    db_->db, sql_iface::tables::faction_info, std::format(" WHERE name='{}'", sqlite::escape_sql_quotes(name))
   )};
   if(not res) [[unlikely]]
     return cxx23::unexpected{res.error()};

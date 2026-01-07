@@ -58,6 +58,11 @@ auto main_window_t::setup_ui() -> void
   mdi_area_->addSubWindow(jlw_);
   jlw_->setProperty("window_type", QVariant::fromValue(window_type_e::journal_log));
   jlw_->show();
+  
+  mission_view_ = new mission_window_t{state_};
+  mdi_area_->addSubWindow(mission_view_);
+  mission_view_->setProperty("window_type", QVariant::fromValue(window_type_e::mission));
+  mission_view_->show();
   }
 
 auto main_window_t::setup_toolbox() -> void
@@ -155,6 +160,7 @@ auto main_window_t::load_settings() -> void
       case window_type_e::none:        sub = create_tool_window(title); break;
       case window_type_e::system:      sub = system_view_; break;
       case window_type_e::ship:        sub = ship_view_; break;
+      case window_type_e::mission:        sub = mission_view_; break;
       case window_type_e::journal_log: sub = jlw_; break;
       }
     if(sub) [[likely]]

@@ -27,6 +27,21 @@ struct database_storage_t
   auto create_database() -> expected_ec<void>;
 
   [[nodiscard]]
+  auto store(info::mission_t const & value) -> expected_ec<void>;
+  
+  [[nodiscard]]
+  auto mission_exists(uint64_t mission_id) ->expected_ec<bool>;
+  
+  [[nodiscard]]
+  auto load_missions() -> expected_ec<std::vector<info::mission_t>>;
+  
+  [[nodiscard]]
+  auto change_mission_status(uint64_t mission_id, info::mission_status_e const status)-> expected_ec<void>;
+  
+  [[nodiscard]]
+  auto redirect_mission(uint64_t mission_id, std::string_view system, std::string_view station, std::string_view settlment)-> expected_ec<void>;
+  
+  [[nodiscard]]
   auto store(star_system_t const & value) -> expected_ec<void>;
 
   [[nodiscard]]
@@ -78,7 +93,7 @@ struct database_storage_t
   auto store(uint64_t ref_body_oid, events::atmosphere_element_t const & value) -> expected_ec<void>;
 
   [[nodiscard]]
-  auto faction_oid( std::string_view name ) -> expected_ec<std::optional<uint32_t>>;
+  auto faction_oid( std::string_view name ) -> expected_ec<std::optional<uint64_t>>;
   
   [[nodiscard]]
   auto load_faction( std::string_view name )-> expected_ec<std::optional<info::faction_info_t>>;

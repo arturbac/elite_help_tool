@@ -113,11 +113,13 @@ enum struct event_e : uint16_t
   BuyAmmo,
   Liftoff,
   Died,
-  MissionAccepted,
-  MissionFailed,
+
   MissionAbandoned,
-  MissionRedirected,
+  MissionAccepted,
   MissionCompleted,
+  MissionFailed,
+  MissionRedirected,
+
   MaterialDiscovered,
   MaterialCollected,
   CargoDepot,
@@ -150,6 +152,62 @@ enum struct event_e : uint16_t
   NavRouteClear
 
   };
+
+struct mission_abandoned_t
+  {
+  uint64_t MissionID;
+  };
+
+struct mission_accepted_t
+  {
+  uint64_t MissionID;
+  std::chrono::sys_seconds Expiry;
+  std::string Faction;
+  std::string Name;  // Mission_Massacre*
+  std::string LocalisedName;
+  std::string Target;                 //: name of target; //
+  std::string TargetType_Localised;   // "Pirates"
+  std::string TargetFaction;          // "Anana Brotherhood"
+  std::string DestinationSystem;      //": "Anana",
+  std::string DestinationStation;     //": "Yamazaki Base",
+  std::string DestinationSettlement;  //
+  std::string Commodity;              //: commodity type
+  uint32_t Count;                     //: number required / to deliver
+  std::string Donation;               //: contracted donation (as string) (for altruism missions)
+  int32_t Donated;                    //: actual donation (as int)
+  uint16_t PassengerCount;
+  bool PassengerVIPs;         //
+  bool PassengerWanted;       //
+  std::string PassengerType;  //: eg Tourist, Soldier, Explorer,...
+  /// expected cash reward
+  uint64_t Reward;  //": 2454378,
+  bool Wing;
+  uint16_t KillCount;  //
+  };
+
+struct mission_completed_t
+  {
+  uint64_t MissionID;
+  };
+
+struct mission_failed_t
+  {
+  uint64_t MissionID;
+  };
+
+struct mission_redirected_t
+  {
+  uint64_t MissionID;
+  std::string NewDestinationStation;
+  std::string NewDestinationSystem;
+  std::string NewDestinationSettlement;
+  };
+
+struct missions_t
+{
+  std::vector<mission_failed_t> Failed;
+  std::vector<mission_completed_t> Complete;
+};
 
 consteval auto adl_enum_bounds(event_e)
   {
@@ -273,7 +331,7 @@ struct faction_info_t
 struct system_faction_t
   {
   std::string Name;
-  std::string FactionState; // volatile
+  std::string FactionState;  // volatile
   };
 
 struct body_location_t
@@ -340,7 +398,7 @@ struct location_t
   std::string Body;
   body_id_t BodyID;
   std::string BodyType;
-  
+
   std::vector<faction_info_t> Factions;
   };
 
@@ -620,7 +678,14 @@ using event_holder_t = std::variant<
   dss_body_signals_t,
   fuel_scoop_t,
   loadout_t,
-  location_t>;
+  location_t,
+  mission_accepted_t,
+  mission_abandoned_t,
+  mission_completed_t,
+  mission_failed_t,
+  mission_redirected_t,
+  missions_t
+  >;
 
   }  // namespace events
 
@@ -798,12 +863,13 @@ struct star_system_t
     {
     return std::ranges::find(self.bodies, body_id, body_body_id_proj);
     }
+
   [[nodiscard]]
   auto ring_by_id(this auto && self, events::body_id_t const body_id) noexcept
     {
     return std::ranges::find(self.rings, body_id, ring_body_id_proj);
     }
-    
+
   [[nodiscard]]
   auto body_by_name(this auto && self, std::string_view name) noexcept
     {

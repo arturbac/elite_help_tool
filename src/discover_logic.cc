@@ -384,12 +384,14 @@ auto body_short_name(std::string_view system, std::string_view name) -> std::str
   {
   return stralgo::trim(name.substr(system.size()));
   }
-auto planet_name_from_ring_name(std::string_view system, std::string_view name)-> std::string_view
-{
+
+auto planet_name_from_ring_name(std::string_view system, std::string_view name) -> std::string_view
+  {
   //"18 Camelopardalis AB 3 A Ring" . sub "18 Camelopardalis AB 3""
-  std::string_view plane_with_ring_name{body_short_name(system, name)}; // AB 3 A Ring
-  return stralgo::trim(stralgo::substr(plane_with_ring_name, 0, plane_with_ring_name.size() -7));
-}
+  std::string_view plane_with_ring_name{body_short_name(system, name)};  // AB 3 A Ring
+  return stralgo::trim(stralgo::substr(plane_with_ring_name, 0, plane_with_ring_name.size() - 7));
+  }
+
 namespace exploration
   {
 [[nodiscard]]
@@ -594,6 +596,12 @@ auto generic_state_t::discovery(std::string_view input) -> void
     case FuelScoop:         parse_and_handle.template operator()<events::fuel_scoop_t>(); break;
     case Loadout:           parse_and_handle.template operator()<events::loadout_t>(); break;
     case Location:          parse_and_handle.template operator()<events::location_t>(); break;
+    case MissionAbandoned:  parse_and_handle.template operator()<events::mission_abandoned_t>(); break;
+    case MissionAccepted:   parse_and_handle.template operator()<events::mission_accepted_t>(); break;
+    case MissionCompleted:  parse_and_handle.template operator()<events::mission_completed_t>(); break;
+    case MissionFailed:     parse_and_handle.template operator()<events::mission_failed_t>(); break;
+    case MissionRedirected: parse_and_handle.template operator()<events::mission_redirected_t>(); break;
+    case Missions:          parse_and_handle.template operator()<events::missions_t>(); break;
     case Shutdown:          break;
     default:                break;
     }
@@ -685,7 +693,7 @@ auto to_body(events::scan_detailed_scan_t && event) -> body_t
 
     b.value = exploration::aprox_value(b);
     }
-    
+
   return b;
   }
 
@@ -711,7 +719,9 @@ auto discovery_state_t::handle(std::chrono::sys_seconds timestamp, events::event
         if(event.JumpType == events::jump_type_e::Hyperspace)
           {
           planet_value_e const vl{exploration::system_approx_value(*event.StarClass, *event.StarSystem)};
-          spdlog::info("[{}] jump to {}[{}] {}\033[m\n", event.timestamp, value_color(vl), *event.StarClass, *event.StarSystem);
+          spdlog::info(
+            "[{}] jump to {}[{}] {}\033[m\n", event.timestamp, value_color(vl), *event.StarClass, *event.StarSystem
+          );
           state.system = star_system_t{
             .system_address = *event.SystemAddress,
             .name = *event.StarSystem,

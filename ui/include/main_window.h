@@ -3,6 +3,7 @@
 #include <journal_log.h>
 #include <system_window.h>
 #include <ship_loadout.h>
+#include <mission_window.h>
 
 #include <simple_enum/simple_enum.hpp>
 #include <qmainwindow.h>
@@ -17,6 +18,7 @@ enum struct window_type_e
   none,
   system,
   journal_log,
+  mission,
   ship
   };
 
@@ -36,6 +38,8 @@ public:
   std::jthread worker_thread_;
   QPointer<system_window_t> system_view_;
   QPointer<ship_loadout_window_t> ship_view_;
+  QPointer<mission_window_t> mission_view_;
+  
   fs::path file_to_monitor{};
 
   QMdiArea * mdi_area_{nullptr};

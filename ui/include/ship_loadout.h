@@ -11,7 +11,7 @@ class ship_loadout_window_t final : public QMdiSubWindow
   {
   Q_OBJECT
   public:
-  ship_loadout_t * ship_loadout_;
+  ship_loadout_t ship_loadout_;
   
   QLabel * ship_info_label{};
   QProgressBar * hull_bar{};
@@ -30,8 +30,8 @@ class ship_loadout_window_t final : public QMdiSubWindow
 
   std::vector<module_row_t> module_rows;
   
-  explicit ship_loadout_window_t(ship_loadout_t & state, QWidget * parent = nullptr);
+  explicit ship_loadout_window_t(ship_loadout_t const & state, QWidget * parent = nullptr);
   
   auto setup_ui() -> void;
-  auto refresh_ui() -> void;
+  auto refresh_ui(ship_loadout_t const & load) -> void;
   };

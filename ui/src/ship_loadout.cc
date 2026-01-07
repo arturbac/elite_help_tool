@@ -1,9 +1,9 @@
 #include <ship_loadout.h>
 #include <qscrollarea.h>
 
-ship_loadout_window_t::ship_loadout_window_t(ship_loadout_t & state, QWidget * parent) :
+ship_loadout_window_t::ship_loadout_window_t(ship_loadout_t const & state, QWidget * parent) :
     QMdiSubWindow(parent),
-    ship_loadout_{&state}
+    ship_loadout_{state}
   {
     setup_ui();
   }
@@ -61,9 +61,10 @@ auto ship_loadout_window_t::setup_ui() -> void
   resize(450, 550);
   }
 
-auto ship_loadout_window_t::refresh_ui() -> void
+auto ship_loadout_window_t::refresh_ui(ship_loadout_t const & load) -> void
   {
-  auto const & loadout{*ship_loadout_};
+  ship_loadout_ = load;
+  auto const & loadout{ship_loadout_};
 
   ship_info_label->setText(QString::fromStdString(loadout.ShipName + " (" + loadout.Ship + ") - " + loadout.ShipIdent));
 

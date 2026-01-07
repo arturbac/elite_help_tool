@@ -22,7 +22,7 @@ auto process_factions(database_storage_t & db, std::span<events::faction_info_t>
   {
   std::vector<info::faction_info_t> result;
   result.reserve(factions.size());
-  
+
   for(events::faction_info_t & f: factions)
     {
     info::faction_info_t new_faction_data{info::to_native(std::move(f))};
@@ -54,13 +54,14 @@ auto process_factions(database_storage_t & db, std::span<events::faction_info_t>
     }
   return result;
   }
-  
+
 void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_holder_t && payload)
   {
   if(nullptr != parent->jlw_)
     {
     bool update_system{};
     bool update_ship{};
+    bool update_mission_info{};
     std::visit(
       [&](auto && event)
       {
@@ -131,10 +132,10 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
             }
           jump_info = event;
           ship_loadout.FuelLevel = event.FuelLevel;
-          
+
           if(not event.Factions.empty())
             system_factions = process_factions(db_, event.Factions);
-            
+
           update_system = true;
           update_ship = true;
           }
@@ -337,6 +338,85 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           );
           update_ship = true;
           }
+        else if constexpr(std::same_as<T, events::mission_accepted_t>)
+          {
+          // in case restarted multiple times with same log prevent adding same missions
+          if(auto res{db_.mission_exists(event.MissionID)}; res and not *res)
+            {
+            info::mission_t mission{
+              .mission_id = event.MissionID,
+              .status = info::mission_status_e::accepted,
+              .expiry = event.Expiry,
+
+              .faction = event.Faction,
+              .type = event.Name,
+              .description = event.LocalisedName,
+              .reward = event.Reward,
+              .target = event.Target,
+              .target_type = event.TargetType_Localised,
+              .target_faction = event.TargetFaction,
+              .destination_system = event.DestinationSystem,
+              .destination_station = event.DestinationStation,
+              .destination_settlement = event.DestinationSettlement,
+
+              .count = event.Count,
+              .kill_count = event.KillCount,
+              .passenger_count = event.PassengerCount
+            };
+            if(auto res{db_.store(mission)}; not res) [[unlikely]]
+              spdlog::error("failed to store mission details for {}", event.MissionID);
+            }
+          load_missions();
+          update_mission_info = true;
+          }
+        else if constexpr(std::same_as<T, events::mission_completed_t>)
+          {
+          if(auto res{db_.change_mission_status(event.MissionID, info::mission_status_e::completed)}; not res)
+            [[unlikely]]
+            [[unlikely]] spdlog::error("failed to change mission status for {}", event.MissionID);
+          load_missions();
+          update_mission_info = true;
+          }
+        else if constexpr(std::same_as<T, events::mission_abandoned_t>)
+          {
+          if(auto res{db_.change_mission_status(event.MissionID, info::mission_status_e::abandoned)}; not res)
+            [[unlikely]]
+            [[unlikely]] spdlog::error("failed to change mission status for {}", event.MissionID);
+          load_missions();
+          update_mission_info = true;
+          }
+        else if constexpr(std::same_as<T, events::mission_failed_t>)
+          {
+          if(auto res{db_.change_mission_status(event.MissionID, info::mission_status_e::failed)}; not res) [[unlikely]]
+            [[unlikely]] spdlog::error("failed to change mission status for {}", event.MissionID);
+          load_missions();
+          update_mission_info = true;
+          }
+        else if constexpr(std::same_as<T, events::mission_redirected_t>)
+          {
+          if(auto res{db_.redirect_mission(
+               event.MissionID, event.NewDestinationSystem, event.NewDestinationStation, event.NewDestinationSettlement
+             )};
+             not res) [[unlikely]]
+            spdlog::error("failed to change mission status for {}", event.MissionID);
+          load_missions();
+          update_mission_info = true;
+          }
+        else if constexpr(std::same_as<T, events::missions_t>)
+          {
+          for(events::mission_failed_t const & mission: event.Failed)
+            if(auto res{db_.change_mission_status(mission.MissionID, info::mission_status_e::failed)}; not res)
+              [[unlikely]]
+              spdlog::warn("failed to change mission status for {}", mission.MissionID);
+          for(events::mission_completed_t const & mission: event.Complete)
+            if(auto res{db_.change_mission_status(mission.MissionID, info::mission_status_e::completed)}; not res)
+              [[unlikely]]
+              spdlog::warn("failed to change mission status for {}", mission.MissionID);
+
+          // called on startup so we are loading accepted missions
+          load_missions();
+          update_mission_info = true;
+          }
       },
       payload
     );
@@ -376,12 +456,30 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
     if(update_ship)
       QMetaObject::invokeMethod(
         parent,
-        [target = parent]() mutable
+        [target = parent, sh = &ship_loadout]() mutable
         {
           if(target->ship_view_)
-            target->ship_view_->refresh_ui();
+            target->ship_view_->refresh_ui(*sh);
+        },
+        Qt::QueuedConnection
+      );
+    if(update_mission_info)
+      QMetaObject::invokeMethod(
+        parent,
+        [target = parent]() mutable
+        {
+          if(target->mission_view_)
+            target->mission_view_->refresh_ui();
         },
         Qt::QueuedConnection
       );
     }
+  }
+
+void current_state_t::load_missions()
+  {
+  if(auto res{db_.load_missions()}; not res) [[unlikely]]
+    spdlog::warn("failed to load missions status");
+  else
+    active_missions = std::move(*res);
   }

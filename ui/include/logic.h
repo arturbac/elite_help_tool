@@ -17,6 +17,7 @@ struct current_state_t : public generic_state_t
   main_window_t * parent;
   star_system_t system;
   std::vector<info::faction_info_t> system_factions;
+  std::vector<info::mission_t> active_missions;
   
   ship_loadout_t ship_loadout;
   database_storage_t db_;
@@ -31,4 +32,7 @@ struct current_state_t : public generic_state_t
   current_state_t(main_window_t * p, std::string db_path) : parent{p}, db_{db_path} {}
 
   void handle(std::chrono::sys_seconds timestamp, events::event_holder_t && event) override;
+  
+private:
+  void load_missions();
   };

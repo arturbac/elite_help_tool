@@ -61,18 +61,58 @@ consteval auto adl_enum_bounds(happiness_e)
 struct faction_info_t
   {
   std::string name;
-  int32_t oid{-1};
+  int64_t oid{-1};
   double influence;
   double reputation;
   government_e government;
   allegiance_e allegiance;
   happiness_e happiness;
-  
+
   // assuming same name and skips oid verification
   [[nodiscard]]
-  auto operator==(faction_info_t const&) const noexcept -> bool;
+  auto operator==(faction_info_t const &) const noexcept -> bool;
   };
-  
+
 [[nodiscard]]
-auto to_native( events::faction_info_t && faction ) -> faction_info_t;
+auto to_native(events::faction_info_t && faction) -> faction_info_t;
+
+
+enum struct mission_status_e : uint8_t
+  {
+  accepted,
+  redirected,  // done but not delivered and completed
+  completed,
+  failed,
+  abandoned
+  };
+
+consteval auto adl_enum_bounds(mission_status_e)
+  {
+  using enum mission_status_e;
+  return simple_enum::adl_info{accepted, abandoned};
+  }
+
+struct mission_t
+  {
+  uint64_t mission_id;
+  mission_status_e status;
+  std::chrono::sys_seconds expiry;
+  std::string faction;
+  std::string type;
+  std::string description;
+  uint64_t reward;
+  
+  std::string target;
+  std::string target_type;
+  std::string target_faction;
+  
+  std::string destination_system;   //": "Anana",
+  std::string destination_station;  //": "Yamazaki Base",
+  std::string destination_settlement;
+  
+  uint32_t count;
+  uint16_t kill_count;
+  uint16_t passenger_count;
+  };
+
   }  // namespace info

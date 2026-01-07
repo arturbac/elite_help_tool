@@ -344,6 +344,67 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
             critical_abort("failed to update dss scan complete for {}:{}", state.system.system_address, event.BodyID);
           }
         }
+
+      else if constexpr(std::same_as<T, events::mission_accepted_t>)
+        {
+        info::mission_t mission{
+          .mission_id = event.MissionID,
+          .status = info::mission_status_e::accepted,
+          .expiry = event.Expiry,
+          .faction = event.Faction,
+          .type = event.Name,
+          .description = event.LocalisedName,
+          .reward = event.Reward,
+          .target = event.Target,
+          .target_type = event.TargetType_Localised,
+          .target_faction = event.TargetFaction,
+          .destination_system = event.DestinationSystem,
+          .destination_station = event.DestinationStation,
+          .destination_settlement = event.DestinationSettlement,
+          .count = event.Count,
+          .kill_count = event.KillCount,
+          .passenger_count = event.PassengerCount
+        };
+        if(auto res{state.db_.store(mission)}; not res) [[unlikely]]
+          critical_abort("failed to store mission details for {}", event.MissionID);
+        }
+      else if constexpr(std::same_as<T, events::mission_completed_t>)
+        {
+        if(auto res{state.db_.change_mission_status(event.MissionID, info::mission_status_e::completed)}; not res)
+          [[unlikely]]
+          critical_abort("failed to change mission status for {}", event.MissionID);
+        }
+      else if constexpr(std::same_as<T, events::mission_abandoned_t>)
+        {
+        if(auto res{state.db_.change_mission_status(event.MissionID, info::mission_status_e::abandoned)}; not res)
+          [[unlikely]]
+          critical_abort("failed to change mission status for {}", event.MissionID);
+        }
+      else if constexpr(std::same_as<T, events::mission_failed_t>)
+        {
+        if(auto res{state.db_.change_mission_status(event.MissionID, info::mission_status_e::failed)}; not res)
+          [[unlikely]]
+          critical_abort("failed to change mission status for {}", event.MissionID);
+        }
+      else if constexpr(std::same_as<T, events::mission_redirected_t>)
+        {
+        if(auto res{state.db_.redirect_mission(
+             event.MissionID, event.NewDestinationSystem, event.NewDestinationStation, event.NewDestinationSettlement
+           )};
+           not res) [[unlikely]]
+          critical_abort("failed to change mission status for {}", event.MissionID);
+        }
+      else if constexpr(std::same_as<T, events::missions_t>)
+        {
+        for(events::mission_failed_t const & mission: event.Failed)
+          if(auto res{state.db_.change_mission_status(mission.MissionID, info::mission_status_e::failed)}; not res)
+            [[unlikely]]
+            spdlog::warn("failed to change mission status for {}", mission.MissionID);
+        for(events::mission_completed_t const & mission: event.Complete)
+          if(auto res{state.db_.change_mission_status(mission.MissionID, info::mission_status_e::completed)}; not res)
+            [[unlikely]]
+            spdlog::warn("failed to change mission status for {}", mission.MissionID);
+        }
     },
     e
   );
