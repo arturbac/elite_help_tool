@@ -148,9 +148,23 @@ enum struct event_e : uint16_t
   DockFighter,
   MiningRefined,
   MaterialTrade,
+
   NavRoute,
   NavRouteClear
 
+  };
+
+struct nav_route_t
+  {
+  struct item_t
+    {
+    std::string StarSystem;
+    uint64_t SystemAddress;
+    std::array<double, 3> StarPos;
+    std::string StarClass;
+    };
+
+  std::vector<nav_route_t::item_t> Route;
   };
 
 struct mission_abandoned_t
@@ -204,10 +218,10 @@ struct mission_redirected_t
   };
 
 struct missions_t
-{
+  {
   std::vector<mission_failed_t> Failed;
   std::vector<mission_completed_t> Complete;
-};
+  };
 
 consteval auto adl_enum_bounds(event_e)
   {
@@ -400,16 +414,6 @@ struct location_t
   std::string BodyType;
 
   std::vector<faction_info_t> Factions;
-  };
-
-///\brief When plotting a multi-star route, the file "NavRoute.json" is written in the same directory as the journal,
-/// with a list of stars along that route
-struct nav_route_t
-  {
-  };
-
-struct nav_route_clear_t
-  {
   };
 
 struct fss_discovery_scan_t
@@ -684,8 +688,7 @@ using event_holder_t = std::variant<
   mission_completed_t,
   mission_failed_t,
   mission_redirected_t,
-  missions_t
-  >;
+  missions_t>;
 
   }  // namespace events
 
@@ -877,23 +880,11 @@ struct star_system_t
     }
   };
 
-struct state_t
-  {
-  star_system_t system;
-  events::fsd_jump_t jump_info;
-  };
-
 struct generic_state_t
   {
   virtual ~generic_state_t();
   auto discovery(std::string_view input) -> void;
   virtual auto handle(std::chrono::sys_seconds timestamp, events::event_holder_t && event) -> void = 0;
-  };
-
-struct discovery_state_t : public generic_state_t
-  {
-  state_t * state;
-  void handle(std::chrono::sys_seconds timestamp, events::event_holder_t && event) override;
   };
 
 struct planet_value_info_t
