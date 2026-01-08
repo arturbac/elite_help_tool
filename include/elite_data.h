@@ -112,7 +112,7 @@ struct mission_t
   std::string redirected_system;   //": "Anana",
   std::string redirected_station;  //": "Yamazaki Base",
   std::string redirected_settlement;
-  
+
   uint32_t count;
   uint16_t kill_count;
   uint16_t passenger_count;
@@ -120,8 +120,18 @@ struct mission_t
   [[nodiscard]]
   auto mission_count() const noexcept
     {
-    return std::max<uint32_t>(std::max<uint32_t>(count,kill_count),passenger_count);
+    return std::max<uint32_t>(std::max<uint32_t>(count, kill_count), passenger_count);
     }
   };
+
+struct route_item_t
+  {
+  std::string system;
+  uint64_t system_address;
+  std::array<double, 3> star_location;
+  std::string star_class;
+  bool visited;
+  };
+  
 
   }  // namespace info

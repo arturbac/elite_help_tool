@@ -27,10 +27,9 @@ auto main(int argc, char ** argv) -> int
   // spdlog::set_level(spdlog::level::debug);
 
   po::options_description desc("Opcje");
-  desc
-    .add_options()("help,h", "Wyświetl pomoc")("dir,d", po::value<std::string>()->default_value("."),
-                                               "journal folder")
-    ;
+  desc.add_options()("help,h", "Wyświetl pomoc")(
+    "dir,d", po::value<std::string>()->default_value("."), "journal folder"
+  );
 
   po::variables_map vm;
   try
@@ -54,7 +53,7 @@ auto main(int argc, char ** argv) -> int
 
   if(fs::exists("ehtdb.sqlite"))
     fs::remove("ehtdb.sqlite");
-  database_import_state_t dbimport;
+  database_import_state_t dbimport{path.string()};
   database_import_state_t::state_t state{"ehtdb.sqlite"};
   if(not state.db_.open())
     return EXIT_FAILURE;

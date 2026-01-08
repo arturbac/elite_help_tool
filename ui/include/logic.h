@@ -28,11 +28,15 @@ struct current_state_t : public generic_state_t
   
   std::vector<events::event_holder_t> event_buffer_;
   std::mutex buffer_mtx_;
+  
+  std::vector<info::route_item_t> route_;
+  uint64_t current_system_address_{};
 
-  current_state_t(main_window_t * p, std::string db_path) : parent{p}, db_{db_path} {}
+  current_state_t(main_window_t * p, std::string db_path, std::string journal_path) : generic_state_t{journal_path}, parent{p}, db_{db_path} {}
 
   void handle(std::chrono::sys_seconds timestamp, events::event_holder_t && event) override;
   
+  void route_system_visited(uint64_t system_address);
 private:
   void load_missions();
   };

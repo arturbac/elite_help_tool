@@ -22,5 +22,6 @@ target_sources(elite_help_tool
             include/ship_loadout.h
             include/main_window.h
             include/mission_window.h
+            include/route_window.h
 )
 add_subdirectory(src)

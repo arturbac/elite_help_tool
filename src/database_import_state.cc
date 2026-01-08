@@ -405,6 +405,14 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
             [[unlikely]]
             spdlog::warn("failed to change mission status for {}", mission.MissionID);
         }
+      else if constexpr(std::same_as<T, events::nav_route_t>)
+        {
+        // ignored in import
+        }
+      else if constexpr(std::same_as<T, events::nav_route_clear_t>)
+        {
+        // ignored in import
+        }
     },
     e
   );

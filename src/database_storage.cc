@@ -808,8 +808,8 @@ struct sqlite3_handle_t
     }
   };
 
-database_storage_t::database_storage_t(std::string db_path) :
-    db_path_{std::move(db_path)},
+database_storage_t::database_storage_t(std::string_view db_path) :
+    db_path_{db_path},
     db_{std::make_unique<sqlite3_handle_t>()}
   {
   }

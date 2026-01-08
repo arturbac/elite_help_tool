@@ -17,7 +17,7 @@ struct database_storage_t
   std::string db_path_;
   std::unique_ptr<sqlite3_handle_t> db_;
 
-  explicit database_storage_t(std::string db_path);
+  explicit database_storage_t(std::string_view db_path);
   ~database_storage_t();
 
   [[nodiscard]]

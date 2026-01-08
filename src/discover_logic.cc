@@ -543,6 +543,24 @@ static constexpr auto value_color(planet_value_e value)
   return color;
   }
 
+namespace
+  {
+[[nodiscard]]
+auto load_nav_route(std::string journal_dir_path) -> cxx23::expected<events::nav_route_t, std::error_code>
+  {
+  events::nav_route_t result;
+  std::string buffer;
+  std::filesystem::path navroute_json{journal_dir_path};
+  navroute_json /= "NavRoute.json";
+
+  if(auto res{glz::read_file_json<glz::opts{.error_on_unknown_keys = false}>(result, navroute_json.string(), buffer)};
+     res) [[unlikely]]
+    return cxx23::unexpected(std::make_error_code(std::errc::resource_unavailable_try_again));
+
+  return result;
+  }
+  }  // namespace
+
 auto generic_state_t::discovery(std::string_view input) -> void
   {
   std::string buffer{input};
@@ -591,8 +609,18 @@ auto generic_state_t::discovery(std::string_view input) -> void
     case SAAScanComplete:   parse_and_handle.template operator()<events::saa_scan_complete_t>(); break;
     case SAASignalsFound:   parse_and_handle.template operator()<events::dss_body_signals_t>(); break;
     case Music:             break;
-    case NavRoute:          break;
-    case NavRouteClear:     break;
+    case NavRoute:
+        {
+        auto nr{load_nav_route(journal_dir_path_)};
+        if(not nr) [[unlikely]]
+          {
+          warn("failed to parse event type {}", gevt.event);
+          return;
+          }
+        handle(gevt.timestamp, std::move(*nr));
+        }
+      break;
+    case NavRouteClear:     handle(gevt.timestamp, events::nav_route_clear_t{}); break;
     case FuelScoop:         parse_and_handle.template operator()<events::fuel_scoop_t>(); break;
     case Loadout:           parse_and_handle.template operator()<events::loadout_t>(); break;
     case Location:          parse_and_handle.template operator()<events::location_t>(); break;

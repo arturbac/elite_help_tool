@@ -4,6 +4,7 @@
 #include <system_window.h>
 #include <ship_loadout.h>
 #include <mission_window.h>
+#include <route_window.h>
 
 #include <simple_enum/simple_enum.hpp>
 #include <qmainwindow.h>
@@ -19,6 +20,7 @@ enum struct window_type_e
   system,
   journal_log,
   mission,
+  route,
   ship
   };
 
@@ -39,13 +41,14 @@ public:
   QPointer<system_window_t> system_view_;
   QPointer<ship_loadout_window_t> ship_view_;
   QPointer<mission_window_t> mission_view_;
+  QPointer<route_window_t> route_view_;
   
   fs::path file_to_monitor{};
 
   QMdiArea * mdi_area_{nullptr};
 
   [[nodiscard]]
-  explicit main_window_t(std::string db_path, QWidget * parent = nullptr);
+  explicit main_window_t(std::string db_path, std::string journal_path, QWidget * parent = nullptr);
 
   auto closeEvent(QCloseEvent * event) -> void override;
 

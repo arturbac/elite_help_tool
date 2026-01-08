@@ -54,7 +54,20 @@ auto process_factions(database_storage_t & db, std::span<events::faction_info_t>
     }
   return result;
   }
-
+  
+void current_state_t::route_system_visited(uint64_t system_address)
+{
+  auto it{std::ranges::find( route_, system_address, [](info::route_item_t const & rt ) -> uint64_t{
+    return rt.system_address;
+  })};
+  if( it != route_.end())
+  {
+    it->visited = true;
+    // make sure all previous marked as visited
+    for( auto itb{route_.begin()}; itb != it; ++itb)
+      itb->visited = true;
+  }
+}
 void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_holder_t && payload)
   {
   if(nullptr != parent->jlw_)
@@ -62,9 +75,17 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
     bool update_system{};
     bool update_ship{};
     bool update_mission_info{};
+    bool route_changed{};
     std::visit(
       [&](auto && event)
       {
+        auto f_route_progress = [&](uint64_t system_address)
+        {
+          route_changed = true;
+          current_system_address_ = system_address;
+          route_system_visited(system_address);
+        };
+        
         using T = std::decay_t<decltype(event)>;
         if constexpr(std::same_as<T, events::start_jump_t>)
           {
@@ -86,6 +107,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
               }
             system_factions.clear();
             update_system = true;
+            f_route_progress(*event.SystemAddress);
             }
           }
         else if constexpr(std::same_as<T, events::location_t>)
@@ -118,6 +140,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           // add/update factions database
           if(not event.Factions.empty())
             system_factions = process_factions(db_, event.Factions);
+          f_route_progress(event.SystemAddress);
           update_system = true;
           }
         else if constexpr(std::same_as<T, events::fsd_jump_t>)
@@ -136,6 +159,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           if(not event.Factions.empty())
             system_factions = process_factions(db_, event.Factions);
 
+          f_route_progress(event.SystemAddress);
           update_system = true;
           update_ship = true;
           }
@@ -417,9 +441,47 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           load_missions();
           update_mission_info = true;
           }
+        else if constexpr(std::same_as<T, events::nav_route_t>)
+          {
+          route_.clear();
+          std::ranges::transform(
+            event.Route,
+            std::back_inserter(route_),
+            [](events::nav_route_t::item_t & ri) -> info::route_item_t
+            {
+              return info::route_item_t{
+                .system = std::move(ri.StarSystem),
+                .system_address = ri.SystemAddress,
+                .star_location = ri.StarPos,
+                .star_class = std::move(ri.StarClass),
+                .visited{}
+              };
+            }
+          );
+          route_system_visited(current_system_address_);
+          route_changed = true;
+          }
+        else if constexpr(std::same_as<T, events::nav_route_clear_t>)
+          {
+          route_.clear();
+          route_changed = true;
+          }
       },
       payload
     );
+    
+    if(route_changed)
+    {
+      QMetaObject::invokeMethod(
+        parent,
+        [target = parent]() mutable
+        {
+          if(target->route_view_) [[likely]]
+            target->route_view_->refresh_ui();
+        },
+        Qt::QueuedConnection
+      );
+    }
       {
       std::lock_guard lock(buffer_mtx_);
       event_buffer_.push_back(std::move(payload));

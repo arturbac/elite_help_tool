@@ -1,6 +1,5 @@
 #include <main_window.h>
 
-
 #include <qapplication.h>
 #include <qmdisubwindow.h>
 #include <qsettings.h>
@@ -24,7 +23,9 @@ struct tool_definition_t
 
 Q_DECLARE_METATYPE(window_type_e)
 
-main_window_t::main_window_t(std::string db_path, QWidget * parent) : QMainWindow(parent), state_{this, db_path}
+main_window_t::main_window_t(std::string db_path, std::string journal_path, QWidget * parent) :
+    QMainWindow(parent),
+    state_{this, db_path, journal_path}
   {
   setup_ui();
   load_settings();
@@ -53,16 +54,21 @@ auto main_window_t::setup_ui() -> void
   mdi_area_->addSubWindow(ship_view_);
   ship_view_->setProperty("window_type", QVariant::fromValue(window_type_e::ship));
   ship_view_->show();
-  
+
   jlw_ = new journal_log_window_t{};
   mdi_area_->addSubWindow(jlw_);
   jlw_->setProperty("window_type", QVariant::fromValue(window_type_e::journal_log));
   jlw_->show();
-  
+
   mission_view_ = new mission_window_t{state_};
   mdi_area_->addSubWindow(mission_view_);
   mission_view_->setProperty("window_type", QVariant::fromValue(window_type_e::mission));
   mission_view_->show();
+  
+  route_view_ = new route_window_t{state_};
+  mdi_area_->addSubWindow(route_view_);
+  route_view_->setProperty("window_type", QVariant::fromValue(window_type_e::route));
+  route_view_->show();
   }
 
 auto main_window_t::setup_toolbox() -> void
@@ -87,12 +93,6 @@ auto main_window_t::setup_toolbox() -> void
     connect(btn, &QPushButton::clicked, this, [this, title = tool.window_title]() { create_tool_window(title); });
     }
 
-    // {
-    // auto * btn = new QPushButton("journal", this);
-    // toolbox_dock->addWidget(btn);
-    // 
-    // // connect(btn, &QPushButton::clicked, this, [this, title = "Journal log"]() { create_journal_tool_window(title); });
-    // }
   }
 
 auto main_window_t::create_tool_window(QString const & title) -> QMdiSubWindow *
@@ -160,7 +160,8 @@ auto main_window_t::load_settings() -> void
       case window_type_e::none:        sub = create_tool_window(title); break;
       case window_type_e::system:      sub = system_view_; break;
       case window_type_e::ship:        sub = ship_view_; break;
-      case window_type_e::mission:        sub = mission_view_; break;
+      case window_type_e::mission:     sub = mission_view_; break;
+      case window_type_e::route:     sub = route_view_; break;
       case window_type_e::journal_log: sub = jlw_; break;
       }
     if(sub) [[likely]]
@@ -185,23 +186,17 @@ auto main_window_t::load_settings() -> void
 auto main_window_t::background_worker(std::stop_token stoken) -> void
   {
   file_to_monitor = *find_latest_journal("journal-dir");
-  tail_file(
-    file_to_monitor,
-    std::bind_front(&generic_state_t::discovery, &state_),
-    stoken
-  );
+  tail_file(file_to_monitor, std::bind_front(&generic_state_t::discovery, &state_), stoken);
   }
 
 auto main(int argc, char * argv[]) -> int
   {
   QApplication app(argc, argv);
-  
-  main_window_t window{"ehtdb.sqlite"};
+
+  main_window_t window{"ehtdb.sqlite", "journal-dir"};
   if(not window.state_.db_.open())
-    {
     return EXIT_FAILURE;
-    }
-    
+
   window.show();
   return app.exec();
   }

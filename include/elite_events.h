@@ -167,6 +167,10 @@ struct nav_route_t
   std::vector<nav_route_t::item_t> Route;
   };
 
+struct nav_route_clear_t
+  {
+  };
+
 struct mission_abandoned_t
   {
   uint64_t MissionID;
@@ -688,7 +692,9 @@ using event_holder_t = std::variant<
   mission_completed_t,
   mission_failed_t,
   mission_redirected_t,
-  missions_t>;
+  missions_t,
+  nav_route_t,
+  nav_route_clear_t>;
 
   }  // namespace events
 
@@ -882,7 +888,12 @@ struct star_system_t
 
 struct generic_state_t
   {
+  std::string journal_dir_path_;
+
+  generic_state_t(std::string_view journal_dir_path) : journal_dir_path_{journal_dir_path} {}
+
   virtual ~generic_state_t();
+
   auto discovery(std::string_view input) -> void;
   virtual auto handle(std::chrono::sys_seconds timestamp, events::event_holder_t && event) -> void = 0;
   };
