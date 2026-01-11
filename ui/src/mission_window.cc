@@ -89,7 +89,8 @@ auto mission_model_t::data(QModelIndex const & index, int role) const -> QVarian
       {
       case column_e::id:      return static_cast<qlonglong>(mission.mission_id);
       case column_e::status:  return qformat("{}", mission.status);
-      case column_e::type:    return QString::fromStdString(mission.type);
+      case column_e::type:    return QString::fromStdString(info::transform_mission_name(mission.type));
+      case column_e::description:    return QString::fromStdString(mission.description);
       case column_e::faction: return QString::fromStdString(mission.faction);
       case column_e::count:   return qlonglong(mission.mission_count());
       case column_e::reward:  return QString::fromStdString(format_credits_value(mission.reward));
@@ -125,6 +126,7 @@ auto mission_model_t::headerData(int section, Qt::Orientation orientation, int r
       case column_e::id:          return QStringLiteral("ID");
       case column_e::status:      return QStringLiteral("Status");
       case column_e::type:        return QStringLiteral("Type");
+      case column_e::description:        return QStringLiteral("Description");
       case column_e::faction:     return QStringLiteral("Faction");
       case column_e::count:       return QStringLiteral("Count");
       case column_e::reward:      return QStringLiteral("Reward");

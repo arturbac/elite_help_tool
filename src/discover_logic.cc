@@ -364,10 +364,9 @@ auto order_calculation_2_opt(body_location_t const player_pos, std::span<body_lo
  * Speed of light constant is taken as 299,792,458 m/s.
  */
 [[nodiscard]]
-constexpr auto distance_ls(body_location_t const a, body_location_t const b) noexcept -> double
+auto distance_ls(body_location_t const a, body_location_t const b) noexcept -> double
   {
   // Constant for the speed of light in m/s
-  constexpr double light_speed_mps = 299'792'458.0;
 
   double const dx = a.x - b.x;
   double const dy = a.y - b.y;
@@ -377,7 +376,7 @@ constexpr auto distance_ls(body_location_t const a, body_location_t const b) noe
   double const distance_m = std::sqrt(dx * dx + dy * dy + dz * dz);
 
   // Convert to Light Seconds
-  return distance_m / light_speed_mps;
+  return distance_m / info::light_speed_mps;
   }
 
 auto body_short_name(std::string_view system, std::string_view name) -> std::string_view
@@ -630,6 +629,7 @@ auto generic_state_t::discovery(std::string_view input) -> void
     case MissionFailed:     parse_and_handle.template operator()<events::mission_failed_t>(); break;
     case MissionRedirected: parse_and_handle.template operator()<events::mission_redirected_t>(); break;
     case Missions:          parse_and_handle.template operator()<events::missions_t>(); break;
+    case Cargo:             parse_and_handle.template operator()<events::cargo_t>(); break;  //
     case Shutdown:          break;
     default:                break;
     }

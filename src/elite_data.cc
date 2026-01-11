@@ -4,6 +4,15 @@
 
 namespace info
   {
+
+auto distance(space_location_t const & a, space_location_t const & b) -> double
+  {
+  double const dx = a[0] - b[0];
+  double const dy = a[1] - b[1];
+  double const dz = a[2] - b[2];
+  return std::sqrt(dx * dx + dy * dy + dz * dz);
+  }
+
 [[nodiscard]]
 constexpr auto to_lower(std::string_view input) -> std::string
   {
@@ -33,5 +42,48 @@ auto to_native(events::faction_info_t && faction) -> faction_info_t
     result.happiness = *castres;
 
   return result;
+  }
+
+auto transform_mission_name(std::string_view input) -> std::string
+  {
+  std::string result;
+
+  // 1. Usuwanie "Mission" (oraz opcjonalnego podkreślnika po nim)
+  std::string_view working_view = input;
+  if(working_view.starts_with("Mission_"))
+    working_view.remove_prefix(8);
+  else if(working_view.starts_with("Mission"))
+    working_view.remove_prefix(7);
+
+  // Rezerwujemy pamięć (bezpieczny zapas na dodatkowe spacje)
+  result.reserve(working_view.size() * 2);
+
+  for(std::size_t i = 0; i < working_view.size(); ++i)
+    {
+    char const c = working_view[i];
+
+    // 2. Zamiana '_' na spację
+    if(c == '_')
+      {
+      // Unikamy podwójnych spacji, jeśli po '_' następuje wielka litera
+      if(result.empty() || result.back() != ' ')
+        result.push_back(' ');
+      continue;
+      }
+
+    // 3. Dodawanie spacji przed wielkimi literami (CamelCase -> Camel Case)
+    // Logic error check: Zawsze sprawdzaj, czy nie dodajesz spacji na samym początku
+    if(std::isupper(static_cast<unsigned char>(c)) && i > 0)
+      {
+      if(!result.empty() && result.back() != ' ')
+        result.push_back(' ');
+      }
+
+    result.push_back(c);
+    }
+
+  // Opcjonalne: czyszczenie spacji na początku (jeśli Mission zostało usunięte niefortunnie)
+  auto trimmed = result | std::views::drop_while(isspace);
+  return std::string(trimmed.begin(), trimmed.end());
   }
   }  // namespace info

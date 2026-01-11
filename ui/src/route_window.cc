@@ -3,7 +3,7 @@
 #include <qboxlayout.h>
 #include <ranges>
 #include <algorithm>
-
+#include <qheaderview.h>
 route_model_t::route_model_t(std::vector<info::route_item_t> const & route, QObject * parent) :
     QAbstractTableModel(parent),
     route_(route)
@@ -19,23 +19,23 @@ auto route_model_t::rowCount(QModelIndex const &) const -> int
 [[nodiscard]]
 auto route_model_t::columnCount(QModelIndex const &) const -> int
   {
-  return 3;  // System, Class, Status
+  return int(column_e::column_max);  // System, Class, Status
   }
 
 [[nodiscard]]
 auto route_model_t::data(QModelIndex const & index, int role) const -> QVariant
   {
-  if(!index.isValid() || index.row() >= static_cast<int>(route_.size()))
+  if(not index.isValid() or index.row() >= static_cast<int>(route_.size()))
     return {};
 
   auto const & item = route_[static_cast<std::size_t>(index.row())];
 
   if(role == Qt::DisplayRole)
     {
-    switch(index.column())
+    switch(column_e(index.column()))
       {
-      case 0: return QString::fromStdString(item.system);
-      case 1:
+      case column_e::system: return QString::fromStdString(item.system);
+      case column_e::star_type:
           {
           static constexpr std::string_view kgbfoam = "KGBFOAM";
           bool is_scoopable = item.star_class.length() == 1 && kgbfoam.contains(item.star_class[0]);
@@ -43,11 +43,13 @@ auto route_model_t::data(QModelIndex const & index, int role) const -> QVariant
           return is_scoopable ? QString::fromUtf8("\u26FD ") + QString::fromStdString(item.star_class)
                               : QString::fromStdString(item.star_class);
           }
-      case 2: return item.visited ? "Visited" : "Pending";
+      case column_e::visited: return item.visited ? "Visited" : "Pending";
+      case column_e::distance: return item.distance;
+      default: break;
       }
     }
 
-  if(role == Qt::ForegroundRole && item.visited)
+  if(role == Qt::ForegroundRole and item.visited)
     return QBrush(Qt::gray);
 
   return {};
@@ -90,11 +92,12 @@ auto route_model_t::headerData(int s, Qt::Orientation o, int r) const -> QVarian
   {
   if(r != Qt::DisplayRole || o != Qt::Horizontal)
     return {};
-  switch(s)
+  switch(column_e(s))
     {
-    case 0:  return "System";
-    case 1:  return "Class";
-    case 2:  return "Status";
+    case column_e::system:  return "System";
+    case column_e::star_type:  return "Class";
+    case column_e::visited:  return "Status";
+    case column_e::distance:  return "Distance";
     default: return {};
     }
   }
@@ -114,7 +117,15 @@ auto route_window_t::setup_ui() -> void
 
   model_ = new route_model_t({}, this);
   table_view_->setModel(model_);
-
+    {
+    auto * header{table_view_->horizontalHeader()};
+    header->setStretchLastSection(true);
+    header->setSectionResizeMode(QHeaderView::Interactive);
+    header->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    for(int i{0}; i < model_->columnCount() - 1; ++i)
+      header->setSectionResizeMode(i, QHeaderView::ResizeToContents);
+    header->setSectionResizeMode(model_->columnCount() - 1, QHeaderView::Stretch);
+    }
   layout->addWidget(info_label_);
   layout->addWidget(table_view_);
 

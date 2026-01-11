@@ -163,8 +163,7 @@ int main()
   "WasFootfalled": false
 }
 */
-    },
-    .sub_class = 1
+    }
   };
   using namespace std::string_view_literals;
   auto res{dbs.open()};

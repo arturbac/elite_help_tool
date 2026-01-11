@@ -153,6 +153,10 @@ enum struct event_e : uint16_t
   NavRouteClear
 
   };
+struct cargo_t
+{
+  uint32_t Count;
+};
 
 struct nav_route_t
   {
@@ -694,7 +698,8 @@ using event_holder_t = std::variant<
   mission_redirected_t,
   missions_t,
   nav_route_t,
-  nav_route_clear_t>;
+  nav_route_clear_t,
+  cargo_t>;
 
   }  // namespace events
 
@@ -864,7 +869,6 @@ struct star_system_t
   std::vector<bary_centre_t> bary_centre;
   std::vector<body_t> bodies;
   std::vector<ring_t> rings;
-  uint8_t sub_class;
   bool fss_complete;
 
   [[nodiscard]]

@@ -340,7 +340,6 @@ struct star_system_t
   uint64_t system_address;
   std::string name;
   std::string star_type;
-  uint8_t sub_class;
   double loc_x;
   double loc_y;
   double loc_z;
@@ -354,7 +353,6 @@ auto to_db_fromat(::star_system_t const & system) noexcept -> sql_iface::star_sy
     .system_address = system.system_address,
     .name = system.name,
     .star_type = system.star_type,
-    .sub_class = system.sub_class,
     .loc_x = system.system_location[0],
     .loc_y = system.system_location[1],
     .loc_z = system.system_location[2],
@@ -370,7 +368,6 @@ auto to_native_fromat(sql_iface::star_system_t && system) noexcept -> ::star_sys
     .name = std::move(system.name),
     .star_type = std::move(system.star_type),
     .system_location = std::array{system.loc_x, system.loc_y, system.loc_z},
-    .sub_class = system.sub_class,
     .fss_complete = system.fss_complete
   };
   }

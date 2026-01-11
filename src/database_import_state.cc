@@ -75,7 +75,6 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
               .system_location = {},
               .bary_centre = {},
               .bodies = {},
-              .sub_class = {},
               .fss_complete = {}
             };
             if(auto res2{state.db_.store(state.system)}; not res2) [[unlikely]]
@@ -108,7 +107,6 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
             .system_location = event.StarPos,
             .bary_centre = {},
             .bodies = {},
-            .sub_class = {},
             .fss_complete = {}
           };
           if(auto res2{state.db_.store(state.system)}; not res2) [[unlikely]]

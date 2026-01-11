@@ -12,7 +12,6 @@ static auto new_system_def(uint64_t system_address, std::string_view name, std::
     .star_type = std::string(star_type),
     .bary_centre = {},
     .bodies = {},
-    .sub_class = {},
     .fss_complete = {}
   };
   }
@@ -65,7 +64,8 @@ void current_state_t::route_system_visited(uint64_t system_address)
     it->visited = true;
     // make sure all previous marked as visited
     for( auto itb{route_.begin()}; itb != it; ++itb)
-      itb->visited = true;
+      if(not itb->visited)
+        itb->visited = true;
   }
 }
 void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_holder_t && payload)
@@ -362,6 +362,11 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           );
           update_ship = true;
           }
+        else if constexpr(std::same_as<T, events::cargo_t>)
+          {
+          ship_loadout.CargoUsed = event.Count;
+          update_ship = true;
+          }
         else if constexpr(std::same_as<T, events::mission_accepted_t>)
           {
           // in case restarted multiple times with same log prevent adding same missions
@@ -444,20 +449,26 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
         else if constexpr(std::same_as<T, events::nav_route_t>)
           {
           route_.clear();
+          if(not event.Route.empty())
+            {
+          info::space_location_t prev{event.Route.front().StarPos};
           std::ranges::transform(
             event.Route,
             std::back_inserter(route_),
-            [](events::nav_route_t::item_t & ri) -> info::route_item_t
+            [&prev](events::nav_route_t::item_t & ri) -> info::route_item_t
             {
-              return info::route_item_t{
+              info::route_item_t result{
                 .system = std::move(ri.StarSystem),
                 .system_address = ri.SystemAddress,
                 .star_location = ri.StarPos,
                 .star_class = std::move(ri.StarClass),
+                .distance = info::distance(ri.StarPos, prev),
                 .visited{}
               };
+              prev = ri.StarPos;
+              return result;
             }
-          );
+          );}
           route_system_visited(current_system_address_);
           route_changed = true;
           }

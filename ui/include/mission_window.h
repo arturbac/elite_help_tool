@@ -13,11 +13,12 @@ public:
     {
     id,
     destination,
-    status,
+    type,
+    description,
     faction,
     count,
     reward,
-    type,
+    status,
     count_max
     };
   explicit mission_model_t(std::vector<info::mission_t> const & m, QObject * parent);

@@ -10,6 +10,14 @@
 class route_model_t final : public QAbstractTableModel
   {
   Q_OBJECT
+  enum struct column_e : int
+    {
+    system,
+    star_type,
+    distance,
+    visited,
+    column_max
+    };
 public:
   std::vector<info::route_item_t> route_{};
 

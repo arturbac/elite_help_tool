@@ -124,14 +124,25 @@ struct mission_t
     }
   };
 
+using space_location_t = std::array<double, 3>;
+
 struct route_item_t
   {
   std::string system;
   uint64_t system_address;
-  std::array<double, 3> star_location;
+  /// star position in light years
+  space_location_t star_location;
   std::string star_class;
+  double distance;
   bool visited;
   };
-  
 
+constexpr double light_speed_mps = 299'792'458.0;
+
+///\returns distance in Ly
+[[nodiscard]]
+auto distance(space_location_t const & loc1, space_location_t const & loc2) -> double;
+
+[[nodiscard]]
+auto transform_mission_name(std::string_view input) -> std::string;
   }  // namespace info
