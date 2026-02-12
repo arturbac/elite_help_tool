@@ -64,14 +64,20 @@ enum struct event_e : uint16_t
   ModuleStore,
   MultiSellExplorationData,
   SellExplorationData,
+
+  ApproachSettlement,
   DockingRequested,
   DockingGranted,
   Docked,
+  Market,
+  ColonisationConstructionDepot,
+  ColonisationContribution,
+  
   Promotion,
   SupercruiseEntry,
   SuitLoadout,
   Backpack,
-  ApproachSettlement,
+  
   BuySuit,
   CreateSuitLoadout,
   SwitchSuitLoadout,
@@ -125,7 +131,7 @@ enum struct event_e : uint16_t
   CargoDepot,
   CrewAssign,
   Resurrect,
-  Market,
+
   MarketSell,
   MarketBuy,
   HeatWarning,
@@ -153,10 +159,58 @@ enum struct event_e : uint16_t
   NavRouteClear
 
   };
+
+enum struct station_type : uint8_t
+  {
+  AsteroidBase,
+  Bernal,
+  Coriolis,
+  CraterOutpost,
+  CraterPort,
+  DockablePlanetStation,
+  Dodec,
+  FleetCarrier,
+  GameplayPOI,
+  MegaShip,
+  Ocellus,
+  OnFootSettlement,
+  Orbis,
+  Outpost,
+  PlanetaryConstructionDepot,
+  SpaceConstructionDepot,
+  SurfaceStation
+  };
+
+consteval auto adl_enum_bounds(station_type)
+  {
+  using enum station_type;
+  return simple_enum::adl_info{AsteroidBase, SurfaceStation};
+  }
+enum struct landing_pad_size_t : uint8_t
+  {
+  none,
+  small,
+  medium,
+  large
+  };
+
+consteval auto adl_enum_bounds(landing_pad_size_t)
+  {
+  using enum landing_pad_size_t;
+  return simple_enum::adl_info{none, large};
+  }
+
+struct docking_requested_t
+  {
+    uint64_t MarketID;
+    std::string StationName;
+    station_type StationType;
+  };
+
 struct cargo_t
-{
+  {
   uint32_t Count;
-};
+  };
 
 struct nav_route_t
   {
@@ -339,6 +393,12 @@ struct faction_state_trend_t
   int32_t Trend;
   };
 
+// Allied	+75 do +100
+// Friendly	+35 do +74
+// Cordial	+4 do +34
+// Neutral	-3 do +3
+// Unfriendly	-34 do -4
+// Hostile	-100 do -35
 struct faction_info_t
   {
   std::string Name;
