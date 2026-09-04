@@ -53,21 +53,22 @@ auto process_factions(database_storage_t & db, std::span<events::faction_info_t>
     }
   return result;
   }
-  
+
 void current_state_t::route_system_visited(uint64_t system_address)
-{
-  auto it{std::ranges::find( route_, system_address, [](info::route_item_t const & rt ) -> uint64_t{
-    return rt.system_address;
-  })};
-  if( it != route_.end())
   {
+  auto it{std::ranges::find(
+    route_, system_address, [](info::route_item_t const & rt) -> uint64_t { return rt.system_address; }
+  )};
+  if(it != route_.end())
+    {
     it->visited = true;
     // make sure all previous marked as visited
-    for( auto itb{route_.begin()}; itb != it; ++itb)
+    for(auto itb{route_.begin()}; itb != it; ++itb)
       if(not itb->visited)
         itb->visited = true;
+    }
   }
-}
+
 void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_holder_t && payload)
   {
   if(nullptr != parent->jlw_)
@@ -85,7 +86,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           current_system_address_ = system_address;
           route_system_visited(system_address);
         };
-        
+
         using T = std::decay_t<decltype(event)>;
         if constexpr(std::same_as<T, events::start_jump_t>)
           {
@@ -255,10 +256,12 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
               {
                 if constexpr(std::same_as<U, planet_details_t>)
                   {
-                  if(auto it{
-                       std::ranges::find(buffered_signals, body.body_id, [](auto const & bs) { return bs.body_id; })
-                     };
-                     buffered_signals.end() != it)
+                  if(
+                    auto it{
+                      std::ranges::find(buffered_signals, body.body_id, [](auto const & bs) { return bs.body_id; })
+                    };
+                    buffered_signals.end() != it
+                  )
                     {
                     details.signals_ = std::move(it->signals_);
                     details.genuses_ = std::move(it->genuses_);
@@ -310,16 +313,20 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
             if(auto it{system.body_by_name(planet_name)}; it != system.bodies.end())
               {
               events::body_id_t const parent_planet_id{it->body_id};
-              if(auto res{db_.store_ring_body_id(system.system_address, parent_planet_id, ring_name, event.BodyID)};
-                 not res) [[unlikely]]
+              if(
+                auto res{db_.store_ring_body_id(system.system_address, parent_planet_id, ring_name, event.BodyID)};
+                not res
+              ) [[unlikely]]
                 spdlog::error("failed to update ring body id for {}:{}", system.system_address, event.BodyName);
 
-              if(auto itr{std::ranges::find_if(
-                   system.rings,
-                   [&parent_planet_id, &ring_name](ring_t const & ring) noexcept -> bool
-                   { return ring.parent_body_id == parent_planet_id and ring_name == ring.name; }
-                 )};
-                 itr != system.rings.end())
+              if(
+                auto itr{std::ranges::find_if(
+                  system.rings,
+                  [&parent_planet_id, &ring_name](ring_t const & ring) noexcept -> bool
+                  { return ring.parent_body_id == parent_planet_id and ring_name == ring.name; }
+                )};
+                itr != system.rings.end()
+              )
                 itr->body_id = event.BodyID;
               else
                 spdlog::error(
@@ -423,10 +430,12 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           }
         else if constexpr(std::same_as<T, events::mission_redirected_t>)
           {
-          if(auto res{db_.redirect_mission(
-               event.MissionID, event.NewDestinationSystem, event.NewDestinationStation, event.NewDestinationSettlement
-             )};
-             not res) [[unlikely]]
+          if(
+            auto res{db_.redirect_mission(
+              event.MissionID, event.NewDestinationSystem, event.NewDestinationStation, event.NewDestinationSettlement
+            )};
+            not res
+          ) [[unlikely]]
             spdlog::error("failed to change mission status for {}", event.MissionID);
           load_missions();
           update_mission_info = true;
@@ -451,24 +460,25 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           route_.clear();
           if(not event.Route.empty())
             {
-          info::space_location_t prev{event.Route.front().StarPos};
-          std::ranges::transform(
-            event.Route,
-            std::back_inserter(route_),
-            [&prev](events::nav_route_t::item_t & ri) -> info::route_item_t
-            {
-              info::route_item_t result{
-                .system = std::move(ri.StarSystem),
-                .system_address = ri.SystemAddress,
-                .star_location = ri.StarPos,
-                .star_class = std::move(ri.StarClass),
-                .distance = info::distance(ri.StarPos, prev),
-                .visited{}
-              };
-              prev = ri.StarPos;
-              return result;
+            info::space_location_t prev{event.Route.front().StarPos};
+            std::ranges::transform(
+              event.Route,
+              std::back_inserter(route_),
+              [&prev](events::nav_route_t::item_t & ri) -> info::route_item_t
+              {
+                info::route_item_t result{
+                  .system = std::move(ri.StarSystem),
+                  .system_address = ri.SystemAddress,
+                  .star_location = ri.StarPos,
+                  .star_class = std::move(ri.StarClass),
+                  .distance = info::distance(ri.StarPos, prev),
+                  .visited{}
+                };
+                prev = ri.StarPos;
+                return result;
+              }
+            );
             }
-          );}
           route_system_visited(current_system_address_);
           route_changed = true;
           }
@@ -477,12 +487,60 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           route_.clear();
           route_changed = true;
           }
+        else if constexpr(std::same_as<T, events::fcmaterials_t>)
+          {
+          events::fcmaterials_t fcmat{std::move(event)};
+          spdlog::info("Carrier: {} mats: {}", fcmat.CarrierID, fcmat.Items.size());
+          // carrier_oid( std::string_view name ) -> expected_ec<std::optional<uint64_t>
+          auto res{db_.carrier_oid(fcmat.CarrierID)};
+          if(not res)
+            spdlog::error("failed to retrieve carrier oid for {}", fcmat.CarrierID);
+          else
+            {
+            std::optional<int64_t> carrier_oid{*res};
+            info::carrier_t carrier{
+              .oid = carrier_oid.value_or(-1),
+              .market_id = fcmat.MarketID,
+              .carrier_name = fcmat.CarrierName,
+              .carrier_id = fcmat.CarrierID
+            };
+            if(auto res{db_.update_carrier(carrier)}; not res)
+              spdlog::error("failed to update carrier info for {}", fcmat.CarrierID);
+            else
+              {
+              if(not carrier_oid)
+                {
+                auto res{db_.carrier_oid(fcmat.CarrierID)};
+                if(not res)
+                  spdlog::error("failed to retrieve carrier oid for {}", fcmat.CarrierID);
+                else
+                  carrier_oid = *res;
+                }
+
+              if(carrier_oid)
+                {
+                for(events::fcmaterial_t const & fmat: fcmat.Items)
+                  {
+                  info::fcmaterial_t mat{
+                    .carrier_id = *carrier_oid,
+                    .timestamp = fcmat.timestamp.time_since_epoch().count(),
+                    .material_id = fmat.id,
+                    .price = fmat.Price,
+                    .stock = fmat.Stock,
+                    .demand = fmat.Demand
+                  };
+                  if(auto res{db_.store(mat)}; not res)
+                    spdlog::error("failed to store material id {} for {}", fmat.id, fcmat.CarrierID);
+                  }
+                }
+              }
+            }
+          }
       },
       payload
     );
-    
+
     if(route_changed)
-    {
       QMetaObject::invokeMethod(
         parent,
         [target = parent]() mutable
@@ -492,11 +550,12 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
         },
         Qt::QueuedConnection
       );
-    }
+      // --------------------------
       {
       std::lock_guard lock(buffer_mtx_);
       event_buffer_.push_back(std::move(payload));
       }
+
     QMetaObject::invokeMethod(
       parent->jlw_,
       [this]()

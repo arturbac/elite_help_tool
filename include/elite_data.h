@@ -137,6 +137,26 @@ struct route_item_t
   bool visited;
   };
 
+
+struct fcmaterial_t
+{
+  int64_t oid;
+  int64_t carrier_id;
+  int64_t timestamp;
+  uint64_t material_id;
+  uint32_t price;
+  uint32_t stock;
+  uint32_t demand;
+};
+
+struct carrier_t
+{
+  int64_t oid;
+  uint64_t market_id;
+  std::string carrier_name;
+  std::string carrier_id;
+};
+
 constexpr double light_speed_mps = 299'792'458.0;
 
 ///\returns distance in Ly

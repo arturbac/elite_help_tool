@@ -7,6 +7,7 @@
 #include <qformlayout.h>
 #include <qtreeview.h>
 #include "qformat.h"
+#include <qsplitter.h>
 
 auto system_bodies_filter_proxy_t::filterAcceptsRow(int source_row, QModelIndex const & source_parent) const -> bool
   {
@@ -26,9 +27,7 @@ auto system_bodies_filter_proxy_t::filterAcceptsRow(int source_row, QModelIndex 
 system_bodies_model_t::system_bodies_model_t(std::vector<body_t> const & bodies, QObject * parent) :
     QAbstractItemModel(parent),
     bodies_(bodies)
-  {
-  rebuild_index();
-  }
+  { rebuild_index(); }
 
 auto system_bodies_model_t::index(int row, int column, QModelIndex const & parent) const -> QModelIndex
   {
@@ -210,8 +209,10 @@ auto system_bodies_model_t::rebuild_index() -> void
   for(auto const & b: bodies_)
     {
     auto * current_node = nodes_[b.body_id].get();
-    if(b.body_type() == body_type_e::star or not std::get<planet_details_t>(b.details).parent_planet
-       or not std::get<planet_details_t>(b.details).parent_star)
+    if(
+      b.body_type() == body_type_e::star or not std::get<planet_details_t>(b.details).parent_planet
+      or not std::get<planet_details_t>(b.details).parent_star
+    )
       {
       current_node->row_in_parent = static_cast<int>(root_nodes_.size());
       root_nodes_.push_back(current_node);
@@ -375,6 +376,8 @@ auto system_bodies_signals_model_t::data(QModelIndex const & index, int role) co
     case node_type_t::category_genuses: return QString("Genuses (%1)").arg(body.genuses_.size());
     case node_type_t::signal_item:
         {
+        // Planetary
+        // Geological
         auto const & s = body.signals_[id.item_idx];
         return QString("%1: %2").arg(QString::fromStdString(s.Type_Localised)).arg(s.Count);
         }
@@ -386,6 +389,15 @@ auto system_bodies_signals_model_t::data(QModelIndex const & index, int role) co
 void system_bodies_signals_model_t::refresh(body_signals_t && new_data)
   {
   beginResetModel();
+  for(body_signal_t & bsig: new_data)
+    {
+    auto new_end{std::ranges::remove_if(
+      bsig.signals_,
+      [](events::signal_t const & sig)
+      { return sig.Type_Localised.starts_with("Planetary") or sig.Type_Localised.starts_with("Geological"); }
+    )};
+    bsig.signals_.erase(new_end.begin(), new_end.end());
+    }
   body_signals_ = std::move(new_data);
   endResetModel();
   // Zawsze rozwinięte TreeView obsługuje się w widoku (QTreeView::expandAll()),
@@ -394,21 +406,15 @@ void system_bodies_signals_model_t::refresh(body_signals_t && new_data)
 
 // Pozostałe metody standardowe
 auto system_bodies_signals_model_t::hasChildren(QModelIndex const & parent) const -> bool
-  {
-  return rowCount(parent) > 0;
-  }
+  { return rowCount(parent) > 0; }
 
 auto system_bodies_signals_model_t::columnCount(QModelIndex const &) const -> int { return 1; }
 
 auto system_bodies_signals_model_t::flags(QModelIndex const & index) const -> Qt::ItemFlags
-  {
-  return index.isValid() ? Qt::ItemIsEnabled | Qt::ItemIsSelectable : Qt::NoItemFlags;
-  }
+  { return index.isValid() ? Qt::ItemIsEnabled | Qt::ItemIsSelectable : Qt::NoItemFlags; }
 
 auto system_bodies_signals_model_t::headerData(int, Qt::Orientation, int role) const -> QVariant
-  {
-  return (role == Qt::DisplayRole) ? "Body / Signals / Genus" : QVariant{};
-  }
+  { return (role == Qt::DisplayRole) ? "Body / Signals / Genus" : QVariant{}; }
 
 // -----------------------------------------------------------------------------------
 static auto set_label_color(QLabel * label, planet_value_e val) -> void
@@ -482,7 +488,7 @@ auto system_window_t::refresh_ui() -> void
 auto system_window_t::setup_ui() -> void
   {
   auto * central_widget = new QWidget();
-  auto * layout = new QVBoxLayout(central_widget);
+  auto * main_layout = new QVBoxLayout(central_widget);
 
   // Sekcja górna: Labele
   auto * info_group = new QGroupBox("Status");
@@ -495,7 +501,8 @@ auto system_window_t::setup_ui() -> void
   form->addRow("Next Target:", target_label_);
   form->addRow("Current System:", system_label_);
   form->addRow("FSS Status:", fss_label_);
-  layout->addWidget(info_group);
+  main_layout->addWidget(info_group);
+  auto* splitter = new QSplitter(Qt::Vertical, central_widget);
 
   // Sekcja dolna: TreeView
   tree_view = new QTreeView();
@@ -513,10 +520,10 @@ auto system_window_t::setup_ui() -> void
     header->setSectionResizeMode(i, QHeaderView::ResizeToContents);
   header->setSectionResizeMode(1, QHeaderView::Stretch);  // Ostatnia kolumna wypełnia okno
 
-  layout->addWidget(new QLabel("System Bodies:"));
-  layout->addWidget(tree_view);
+  main_layout->addWidget(new QLabel("System Bodies:"));
+  main_layout->addWidget(tree_view);
 
-  layout->addWidget(new QLabel("Body Signals & Genuses:"));
+  main_layout->addWidget(new QLabel("Body Signals & Genuses:"));
   signals_view = new QTreeView();
   signals_model_ = new system_bodies_signals_model_t({}, this);  // Inicjalizacja pustym wektorem
   signals_view->setModel(signals_model_);
@@ -525,7 +532,7 @@ auto system_window_t::setup_ui() -> void
 
   // Połączenie automatycznego rozwijania dla sygnałów
   connect(signals_model_, &QAbstractItemModel::modelReset, signals_view, [&] { signals_view->expandAll(); });
-  layout->addWidget(signals_view);
+  main_layout->addWidget(signals_view);
 
   setWidget(central_widget);
   update_labels();  // Pierwsze wypełnienie

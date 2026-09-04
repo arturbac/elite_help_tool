@@ -42,6 +42,15 @@ struct database_storage_t
   auto redirect_mission(uint64_t mission_id, std::string_view system, std::string_view station, std::string_view settlment)-> expected_ec<void>;
   
   [[nodiscard]]
+  auto carrier_oid( std::string_view name ) -> expected_ec<std::optional<int64_t>>;
+  
+  [[nodiscard]]
+  auto update_carrier(info::carrier_t const & value) -> expected_ec<void>;
+  
+  [[nodiscard]]
+  auto store(info::fcmaterial_t const & value) -> expected_ec<void>;
+  
+  [[nodiscard]]
   auto store(star_system_t const & value) -> expected_ec<void>;
 
   [[nodiscard]]

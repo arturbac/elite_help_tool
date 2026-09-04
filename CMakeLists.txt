@@ -8,7 +8,6 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 
 include(cmake/get_cpm.cmake)
-find_package(Boost REQUIRED COMPONENTS program_options)
 
 # ----------------------------------------------------------------
 # simple_enum
@@ -134,7 +133,8 @@ find_package(
   1.70.0
   CONFIG
   REQUIRED
-  COMPONENTS system
+  COMPONENTS 
+	#system
              thread
              program_options)
              
@@ -201,7 +201,7 @@ target_link_libraries(eht PUBLIC
   small_vectors::small_vectors
   stralgo::stralgo
   glaze::glaze
-  SQLite::SQLite3
+  SQLite3::SQLite3
   )
 
 add_executable(journal_tailer)

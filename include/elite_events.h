@@ -72,12 +72,12 @@ enum struct event_e : uint16_t
   Market,
   ColonisationConstructionDepot,
   ColonisationContribution,
-  
+
   Promotion,
   SupercruiseEntry,
   SuitLoadout,
   Backpack,
-  
+
   BuySuit,
   CreateSuitLoadout,
   SwitchSuitLoadout,
@@ -152,12 +152,21 @@ enum struct event_e : uint16_t
   LaunchDrone,
   LaunchFighter,
   DockFighter,
+  DockingCancelled,
   MiningRefined,
   MaterialTrade,
 
+  CarrierStats,
+  FCMaterials,
+  CarrierLocation,
+  CargoTransfer,
+  CarrierJumpRequest,
+  SquadronStartup,
+  
+  FactionKillBond,
+  
   NavRoute,
   NavRouteClear
-
   };
 
 enum struct station_type : uint8_t
@@ -202,15 +211,66 @@ consteval auto adl_enum_bounds(landing_pad_size_t)
 
 struct docking_requested_t
   {
-    uint64_t MarketID;
-    std::string StationName;
-    station_type StationType;
+  uint64_t MarketID;
+  std::string StationName;
+  station_type StationType;
   };
 
 struct cargo_t
   {
   uint32_t Count;
   };
+
+struct carrier_space_sage_t
+  {
+  uint32_t TotalCapacity;
+  uint32_t Crew;
+  uint32_t Cargo;
+  uint32_t CargoSpaceReserved;
+  uint32_t ShipPacks;
+  uint32_t ModulePacks;
+  uint32_t FreeSpace;
+  };
+
+struct carrier_finance_t
+  {
+  uint64_t CarrierBalance;
+  uint64_t ReserveBalance;
+  uint64_t AvailableBalance;
+  uint8_t ReservePercent;
+  uint8_t TaxRate_refuel;
+  };
+
+struct carrier_stats_t
+  {
+  uint64_t CarrierID;
+  std::string Callsign;
+  std::string Name;
+  uint16_t FuelLevel;
+  double JumpRangeCurr;
+  double JumpRangeMax;
+
+  carrier_space_sage_t SpaceUsage;
+  carrier_finance_t Finance;
+  };
+  
+struct fcmaterial_t
+{
+  uint64_t id;
+  std::string Name_Localised;
+  uint32_t Price;
+  uint32_t Stock;
+  uint32_t Demand;
+};
+
+struct fcmaterials_t
+{
+  std::chrono::sys_seconds timestamp;
+  uint64_t MarketID;
+  std::string CarrierName;
+  std::string CarrierID;
+  std::vector<fcmaterial_t> Items;
+};
 
 struct nav_route_t
   {
@@ -441,9 +501,7 @@ struct fsd_jump_t
 
   [[nodiscard]]
   constexpr auto player_position() const noexcept -> body_location_t
-    {
-    return body_location_t{{}, StarPos[0], StarPos[1], StarPos[2]};
-    }
+    { return body_location_t{{}, StarPos[0], StarPos[1], StarPos[2]}; }
 
   system_faction_t SystemFaction;
   std::string SystemAllegiance;
@@ -759,7 +817,9 @@ using event_holder_t = std::variant<
   missions_t,
   nav_route_t,
   nav_route_clear_t,
-  cargo_t>;
+  cargo_t,
+  carrier_stats_t,
+  fcmaterials_t>;
 
   }  // namespace events
 
@@ -887,15 +947,11 @@ struct body_t
 
   [[nodiscard]]
   auto body_type() const noexcept
-    {
-    return std::holds_alternative<planet_details_t>(details) ? body_type_e::planet : body_type_e::star;
-    }
+    { return std::holds_alternative<planet_details_t>(details) ? body_type_e::planet : body_type_e::star; }
 
   [[nodiscard]]
   auto value_class() const noexcept -> planet_value_e
-    {
-    return ::value_class(value);
-    }
+    { return ::value_class(value); }
   };
 
 [[nodiscard]]
@@ -933,21 +989,15 @@ struct star_system_t
 
   [[nodiscard]]
   auto body_by_id(this auto && self, events::body_id_t const body_id) noexcept
-    {
-    return std::ranges::find(self.bodies, body_id, body_body_id_proj);
-    }
+    { return std::ranges::find(self.bodies, body_id, body_body_id_proj); }
 
   [[nodiscard]]
   auto ring_by_id(this auto && self, events::body_id_t const body_id) noexcept
-    {
-    return std::ranges::find(self.rings, body_id, ring_body_id_proj);
-    }
+    { return std::ranges::find(self.rings, body_id, ring_body_id_proj); }
 
   [[nodiscard]]
   auto body_by_name(this auto && self, std::string_view name) noexcept
-    {
-    return std::ranges::find(self.bodies, name, body_body_name_proj);
-    }
+    { return std::ranges::find(self.bodies, name, body_body_name_proj); }
   };
 
 struct generic_state_t
@@ -1010,6 +1060,7 @@ struct ship_loadout_t
   float FuelLevel;
   std::vector<events::module_t> Modules;
   };
+
 
 namespace exploration
   {

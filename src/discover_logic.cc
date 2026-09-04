@@ -558,6 +558,22 @@ auto load_nav_route(std::string journal_dir_path) -> cxx23::expected<events::nav
 
   return result;
   }
+  
+  [[nodiscard]]
+  auto load_fcmaterials(std::string journal_dir_path)
+  -> cxx23::expected<events::fcmaterials_t, std::error_code>
+  {
+  events::fcmaterials_t result;
+  std::string buffer;
+  std::filesystem::path navroute_json{journal_dir_path};
+  navroute_json /= "FCMaterials.json";
+
+  if(auto res{glz::read_file_json<glz::opts{.error_on_unknown_keys = false}>(result, navroute_json.string(), buffer)};
+     res) [[unlikely]]
+    return cxx23::unexpected(std::make_error_code(std::errc::resource_unavailable_try_again));
+
+  return result;
+  }
   }  // namespace
 
 auto generic_state_t::discovery(std::string_view input) -> void
@@ -631,6 +647,19 @@ auto generic_state_t::discovery(std::string_view input) -> void
     case Missions:          parse_and_handle.template operator()<events::missions_t>(); break;
     case Cargo:             parse_and_handle.template operator()<events::cargo_t>(); break;  //
     case Shutdown:          break;
+    case CarrierStats:      
+      parse_and_handle.template operator()<events::carrier_stats_t>();
+        {
+        auto nr{load_fcmaterials(journal_dir_path_)};
+        if(not nr) [[unlikely]]
+          {
+          warn("failed to parse fcmaterials");
+          return;
+          }
+        handle(gevt.timestamp, std::move(*nr));
+        }
+    break;
+    // case FCMaterials:      parse_and_handle.template operator()<events::fcmaterials_t>();break;
     default:                break;
     }
   }

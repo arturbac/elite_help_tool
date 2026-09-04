@@ -265,8 +265,8 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
               critical_abort("failed to store signals for ring {}: {}", state.system.system_address, event.BodyID);
             }
           else
-            critical_abort(
-              "ring was not found for {}: {} {}", state.system.system_address, event.BodyID, event.BodyName
+            spdlog::error(
+              "ring was not found for {}: {} {}, skipping", state.system.system_address, event.BodyID, event.BodyName
             );
           }
         else if(auto it{state.system.body_by_id(event.BodyID)}; it != state.system.bodies.end())
@@ -408,6 +408,14 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
         // ignored in import
         }
       else if constexpr(std::same_as<T, events::nav_route_clear_t>)
+        {
+        // ignored in import
+        }
+      else if constexpr(std::same_as<T, events::carrier_stats_t>)
+        {
+        // ignored in import
+        }
+      else if constexpr(std::same_as<T, events::fcmaterials_t>)
         {
         // ignored in import
         }

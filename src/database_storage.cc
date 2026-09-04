@@ -372,6 +372,29 @@ auto to_native_fromat(sql_iface::star_system_t && system) noexcept -> ::star_sys
   };
   }
 
+[[nodiscard]]
+auto to_db_fromat(events::fcmaterials_t const & fc) noexcept -> info::carrier_t
+  {
+  return info::carrier_t{
+    .market_id = fc.MarketID,
+    .carrier_name = fc.CarrierName,
+    .carrier_id = fc.CarrierID
+  };
+  }
+
+[[nodiscard]]
+auto to_db_fromat(int64_t ref_fc, std::chrono::sys_seconds timestamp, events::fcmaterial_t const & fcm) noexcept -> info::fcmaterial_t
+  {
+  return info::fcmaterial_t{
+    .carrier_id = ref_fc,
+    .timestamp = timestamp.time_since_epoch().count(),
+    .material_id= fcm.id,
+    .price = fcm.Price,
+    .stock = fcm.Stock,
+    .demand = fcm.Demand
+  };
+  }
+  
 namespace tables
   {
   inline constexpr std::string_view star_system{"star_system"};
@@ -385,6 +408,8 @@ namespace tables
   inline constexpr std::string_view planet_details{"planet_details"};
   inline constexpr std::string_view faction_info{"faction_info"};
   inline constexpr std::string_view mission{"mission"};
+  inline constexpr std::string_view carrier{"carrier"};
+  inline constexpr std::string_view carrier_materials{"carrier_materials"};
   }  // namespace tables
   };  // namespace sql_iface
 
@@ -878,6 +903,14 @@ auto database_storage_t::create_database() -> expected_ec<void>
   if(auto res{sqlite::create_table<info::mission_t>(db_->db, "mission_id"sv, sql_iface::tables::mission)}; not res)
     [[unlikely]]
     return res;
+    
+  if(auto res{sqlite::create_table<info::carrier_t>(db_->db, "oid"sv, sql_iface::tables::carrier)}; not res)
+    [[unlikely]]
+    return res;
+    
+  if(auto res{sqlite::create_table<info::fcmaterial_t>(db_->db, "oid"sv, sql_iface::tables::carrier_materials)}; not res)
+    [[unlikely]]
+    return res;
   return {};
   }
 
@@ -1092,9 +1125,10 @@ auto database_storage_t::store(
   if(not resoid)
     return cxx23::unexpected{resoid.error()};
   std::optional<uint64_t> boid_oid{*resoid};
-  for(events::signal_t const & sig: signals)
-    if(auto res{store(*boid_oid, sig)}; not res)
-      return cxx23::unexpected{res.error()};
+  if(boid_oid)
+    for(events::signal_t const & sig: signals)
+      if(auto res{store(*boid_oid, sig)}; not res)
+        return cxx23::unexpected{res.error()};
 
   return {};
   }
@@ -1164,6 +1198,45 @@ auto database_storage_t::update_faction_info(info::faction_info_t const & factio
     return sqlite::update_pk(db_->db, "oid"sv, sql_iface::tables::faction_info, faction, faction.oid);
   else
     return sqlite::insert_into(db_->db, "oid"sv, sql_iface::tables::faction_info, faction);
+  }
+
+auto database_storage_t::carrier_oid( std::string_view name ) -> expected_ec<std::optional<int64_t>>
+  {
+  std::string query{
+    std::format("SELECT oid FROM {} WHERE carrier_id='{}'", sql_iface::tables::carrier, sqlite::escape_sql_quotes(name))
+  };
+  return sqlite::select_signle_from<uint64_t>(db_->db, query);
+  }
+
+[[nodiscard]]
+auto database_storage_t::update_carrier(info::carrier_t const & carrier) -> expected_ec<void>
+  {
+  if(not db_->db)
+    return cxx23::unexpected(std::make_error_code(std::errc::not_connected));
+  
+  if(carrier.oid != -1)
+    return sqlite::update_pk(db_->db, "oid"sv, sql_iface::tables::carrier, carrier, carrier.oid);
+  else
+  if(auto res{sqlite::insert_into(db_->db, "oid"sv, sql_iface::tables::carrier, carrier)};
+     not res) [[unlikely]]
+    return res;
+    
+  return {};
+  }
+  
+auto database_storage_t::store(info::fcmaterial_t const & value) -> expected_ec<void>
+  {
+  std::string query{
+    std::format("SELECT count(*) FROM {} WHERE carrier_id={} and material_id={} and timestamp={}",
+                sql_iface::tables::carrier_materials, value.carrier_id, value.material_id, value.timestamp)
+  };
+  auto cntres{sqlite::select_signle_from<uint64_t>(db_->db, query)};
+  if(not cntres) [[unlikely]]
+    return cxx23::unexpected{cntres.error()};
+  auto cnt { *cntres};
+  if( *cnt == 0)
+    return sqlite::insert_into(db_->db, "oid"sv, sql_iface::tables::carrier_materials, value);
+  return {};
   }
 
 auto database_storage_t::load_system(uint64_t system_address)
