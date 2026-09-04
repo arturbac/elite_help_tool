@@ -502,6 +502,7 @@ auto system_window_t::setup_ui() -> void
   form->addRow("Current System:", system_label_);
   form->addRow("FSS Status:", fss_label_);
   main_layout->addWidget(info_group);
+  
   auto* splitter = new QSplitter(Qt::Vertical, central_widget);
 
   // Sekcja dolna: TreeView
@@ -511,8 +512,8 @@ auto system_window_t::setup_ui() -> void
   proxy_model_->setSourceModel(model_);
 
   tree_view->setModel(proxy_model_);
-
   tree_view->setAlternatingRowColors(true);
+  
   auto * header = tree_view->header();
   header->setSectionResizeMode(QHeaderView::Interactive);
   header->setSectionResizeMode(0, QHeaderView::ResizeToContents);
@@ -520,19 +521,40 @@ auto system_window_t::setup_ui() -> void
     header->setSectionResizeMode(i, QHeaderView::ResizeToContents);
   header->setSectionResizeMode(1, QHeaderView::Stretch);  // Ostatnia kolumna wypełnia okno
 
-  main_layout->addWidget(new QLabel("System Bodies:"));
-  main_layout->addWidget(tree_view);
+  // Dodaj etykietę "System Bodies:" do splittera (opcjonalnie jako widget w pionowym układzie)
+  auto* tree_label = new QLabel("System Bodies:");
+  auto* tree_container = new QWidget();
+  auto* tree_layout = new QVBoxLayout(tree_container);
+  tree_layout->addWidget(tree_label);
+  tree_layout->addWidget(tree_view);
 
-  main_layout->addWidget(new QLabel("Body Signals & Genuses:"));
+  // main_layout->addWidget(new QLabel("System Bodies:"));
+  // main_layout->addWidget(tree_view);
+
+  // Sekcja dolna: Signals View
+  // main_layout->addWidget(new QLabel("Body Signals & Genuses:"));
   signals_view = new QTreeView();
-  signals_model_ = new system_bodies_signals_model_t({}, this);  // Inicjalizacja pustym wektorem
+  signals_model_ = new system_bodies_signals_model_t({}, this);
   signals_view->setModel(signals_model_);
   signals_view->setAlternatingRowColors(true);
   signals_view->header()->setSectionResizeMode(QHeaderView::Stretch);
+  // Dodaj etykietę "Body Signals & Genuses:" do splittera
+  auto* signals_label = new QLabel("Body Signals & Genuses:");
+  auto* signals_container = new QWidget();
+  auto* signals_layout = new QVBoxLayout(signals_container);
+  signals_layout->addWidget(signals_label);
+  signals_layout->addWidget(signals_view);
 
   // Połączenie automatycznego rozwijania dla sygnałów
   connect(signals_model_, &QAbstractItemModel::modelReset, signals_view, [&] { signals_view->expandAll(); });
-  main_layout->addWidget(signals_view);
+  // main_layout->addWidget(signals_view);
+  
+  // Dodaj obie sekcje do splittera
+  splitter->addWidget(tree_container);
+  splitter->addWidget(signals_container);
+
+  // Dodaj splitter do głównego layoutu
+  main_layout->addWidget(splitter);
 
   setWidget(central_widget);
   update_labels();  // Pierwsze wypełnienie
