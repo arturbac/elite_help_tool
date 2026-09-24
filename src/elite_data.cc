@@ -24,14 +24,12 @@ constexpr auto to_lower(std::string_view input) -> std::string
 auto faction_info_t::operator==(faction_info_t const & rh) const noexcept -> bool
   {
   return government == rh.government and allegiance == rh.allegiance and happiness == rh.happiness
-         and influence == rh.influence and reputation == rh.reputation;
+         and reputation == rh.reputation;
   }
 
 auto to_native(events::faction_info_t && faction) -> faction_info_t
   {
-  faction_info_t result{
-    .name = std::move(faction.Name), .oid = -1, .influence = faction.Influence, .reputation = faction.MyReputation
-  };
+  faction_info_t result{.name = std::move(faction.Name), .oid = -1, .reputation = faction.MyReputation};
   if(auto castres{simple_enum::enum_cast<government_e>(to_lower(faction.Government))}; castres)
     result.government = *castres;
 
@@ -42,6 +40,22 @@ auto to_native(events::faction_info_t && faction) -> faction_info_t
     result.happiness = *castres;
 
   return result;
+  }
+
+auto to_influence(
+  int64_t faction_oid,
+  uint64_t system_address,
+  std::chrono::sys_seconds timestamp,
+  events::faction_info_t const & faction
+) -> faction_influence_t
+  {
+  return faction_influence_t{
+    .faction_oid = faction_oid,
+    .system_address = system_address,
+    .timestamp = timestamp,
+    .influence = faction.Influence,
+    .faction_state = faction.FactionState
+  };
   }
 
 auto transform_mission_name(std::string_view input) -> std::string

@@ -16,15 +16,49 @@ static auto new_system_def(uint64_t system_address, std::string_view name, std::
   };
   }
 
-auto process_factions(database_storage_t & db, std::span<events::faction_info_t> factions)
-  -> std::vector<info::faction_info_t>
+///\brief rejestruje influence frakcji w systemie, tylko gdy zmienila sie wzgledem ostatniego wpisu
+void store_influence(
+  database_storage_t & db,
+  std::chrono::sys_seconds timestamp,
+  uint64_t system_address,
+  int64_t faction_oid,
+  events::faction_info_t const & event_faction
+)
+  {
+  if(faction_oid == -1) [[unlikely]]
+    {
+    spdlog::error("missing faction oid for {}", event_faction.Name);
+    return;
+    }
+
+  auto last{db.last_influence(faction_oid, system_address)};
+  if(not last)
+    {
+    spdlog::error("failed to load influence for {} in {}", event_faction.Name, system_address);
+    return;
+    }
+
+  if(*last and (*last)->influence == event_faction.Influence and (*last)->faction_state == event_faction.FactionState)
+    return;
+
+  if(auto res{db.store(info::to_influence(faction_oid, system_address, timestamp, event_faction))}; not res)
+    spdlog::error("failed to store influence for {} in {}", event_faction.Name, system_address);
+  }
+
+auto process_factions(
+  database_storage_t & db,
+  std::chrono::sys_seconds timestamp,
+  uint64_t system_address,
+  std::span<events::faction_info_t> factions
+) -> std::vector<info::faction_info_t>
   {
   std::vector<info::faction_info_t> result;
   result.reserve(factions.size());
 
   for(events::faction_info_t & f: factions)
     {
-    info::faction_info_t new_faction_data{info::to_native(std::move(f))};
+    // influence jest per system i rejestrowane w czasie, wiec f nie moze byc skonsumowane
+    info::faction_info_t new_faction_data{info::to_native(events::faction_info_t{f})};
     auto res{db.load_faction(new_faction_data.name)};
     if(not res)
       spdlog::error("failed to load faction info for {}", new_faction_data.name);
@@ -36,7 +70,7 @@ auto process_factions(database_storage_t & db, std::span<events::faction_info_t>
         spdlog::error("failed to add faction data for {}", new_faction_data.name);
       auto oidres{db.faction_oid(new_faction_data.name)};
       if(oidres and *oidres)
-        new_faction_data.oid = int32_t(**oidres);
+        new_faction_data.oid = int64_t(**oidres);
       }
     else
       {
@@ -49,6 +83,7 @@ auto process_factions(database_storage_t & db, std::span<events::faction_info_t>
           spdlog::error("failed to update faction data for {}", new_faction_data.name);
         }
       }
+    store_influence(db, timestamp, system_address, new_faction_data.oid, f);
     result.emplace_back(std::move(new_faction_data));
     }
   return result;
@@ -143,7 +178,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           // add/update factions database
           if(not event.Factions.empty())
             {
-            system_factions = process_factions(db_, event.Factions);
+            system_factions = process_factions(db_, timestamp, event.SystemAddress, event.Factions);
             update_factions = true;
             }
           f_route_progress(event.SystemAddress);
@@ -164,7 +199,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
 
           if(not event.Factions.empty())
             {
-            system_factions = process_factions(db_, event.Factions);
+            system_factions = process_factions(db_, timestamp, event.SystemAddress, event.Factions);
             update_factions = true;
             }
 

@@ -407,6 +407,7 @@ namespace tables
   inline constexpr std::string_view body{"body"};
   inline constexpr std::string_view planet_details{"planet_details"};
   inline constexpr std::string_view faction_info{"faction_info"};
+  inline constexpr std::string_view faction_influence{"faction_influence"};
   inline constexpr std::string_view mission{"mission"};
   inline constexpr std::string_view carrier{"carrier"};
   inline constexpr std::string_view carrier_materials{"carrier_materials"};
@@ -900,6 +901,12 @@ auto database_storage_t::create_database() -> expected_ec<void>
     [[unlikely]]
     return res;
 
+  if(
+    auto res{sqlite::create_table<info::faction_influence_t>(db_->db, "oid"sv, sql_iface::tables::faction_influence)};
+    not res
+  ) [[unlikely]]
+    return res;
+
   if(auto res{sqlite::create_table<info::mission_t>(db_->db, "mission_id"sv, sql_iface::tables::mission)}; not res)
     [[unlikely]]
     return res;
@@ -911,6 +918,28 @@ auto database_storage_t::create_database() -> expected_ec<void>
   if(auto res{sqlite::create_table<info::fcmaterial_t>(db_->db, "oid"sv, sql_iface::tables::carrier_materials)}; not res)
     [[unlikely]]
     return res;
+
+  // wyszukiwanie frakcji po nazwie i ostatniego wpisu influence idzie przy kazdym odwiedzonym systemie
+  if(
+    auto res{sqlite::execute_query_no_result(
+      db_->db, std::format("CREATE INDEX IF NOT EXISTS {0}_name ON {0} (name);", sql_iface::tables::faction_info)
+    )};
+    not res
+  ) [[unlikely]]
+    return res;
+
+  if(
+    auto res{sqlite::execute_query_no_result(
+      db_->db,
+      std::format(
+        "CREATE INDEX IF NOT EXISTS {0}_key ON {0} (faction_oid, system_address, timestamp);",
+        sql_iface::tables::faction_influence
+      )
+    )};
+    not res
+  ) [[unlikely]]
+    return res;
+
   return {};
   }
 
@@ -1190,6 +1219,30 @@ auto database_storage_t::load_faction(std::string_view name) -> expected_ec<std:
     return std::move(res->front());
     }
   return {};
+  }
+
+auto database_storage_t::store(info::faction_influence_t const & value) -> expected_ec<void>
+  {
+  return sqlite::insert_into(db_->db, "oid"sv, sql_iface::tables::faction_influence, value);
+  }
+
+auto database_storage_t::last_influence(int64_t faction_oid, uint64_t system_address)
+  -> expected_ec<std::optional<info::faction_influence_t>>
+  {
+  auto res{sqlite::select_from<info::faction_influence_t>(
+    db_->db,
+    sql_iface::tables::faction_influence,
+    std::format(
+      " WHERE faction_oid={} AND system_address={} ORDER BY timestamp DESC LIMIT 1", faction_oid, system_address
+    )
+  )};
+  if(not res) [[unlikely]]
+    return cxx23::unexpected{res.error()};
+
+  if(res->empty())
+    return std::optional<info::faction_influence_t>{};
+
+  return std::optional<info::faction_influence_t>{std::move((*res)[0])};
   }
 
 auto database_storage_t::load_factions() -> expected_ec<std::vector<info::faction_info_t>>

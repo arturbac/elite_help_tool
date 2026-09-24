@@ -62,7 +62,6 @@ auto faction_model_t::data(QModelIndex const & index, int role) const -> QVarian
       {
       case column_e::name:       return QString::fromStdString(item.name);
       case column_e::reputation: return qformat("{:.1f}%", item.reputation);
-      case column_e::influence:  return qformat("{:.1f}%", item.influence * 100.);
       case column_e::allegiance: return enum_to_qstring(item.allegiance);
       case column_e::government: return enum_to_qstring(item.government);
       default:                   break;
@@ -74,13 +73,12 @@ auto faction_model_t::data(QModelIndex const & index, int role) const -> QVarian
       {
       case column_e::name:       return QString::fromStdString(item.name);
       case column_e::reputation: return item.reputation;
-      case column_e::influence:  return item.influence;
       case column_e::allegiance: return int(item.allegiance);
       case column_e::government: return int(item.government);
       default:                   break;
       }
 
-  if(role == Qt::TextAlignmentRole and (column == column_e::reputation or column == column_e::influence))
+  if(role == Qt::TextAlignmentRole and column == column_e::reputation)
     return int(Qt::AlignRight | Qt::AlignVCenter);
 
   if(role == Qt::ForegroundRole and column == column_e::reputation)
@@ -132,7 +130,6 @@ auto faction_model_t::headerData(int s, Qt::Orientation o, int r) const -> QVari
     case column_e::name:       return "Faction";
     case column_e::reputation: return "Reputation";
     case column_e::allegiance: return "Allegiance";
-    case column_e::influence:  return "Influence";
     case column_e::government: return "Government";
     default:                   return {};
     }

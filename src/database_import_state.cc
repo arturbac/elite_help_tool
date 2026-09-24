@@ -13,11 +13,40 @@ void critical_abort(std::format_string<Args...> fmt, Args &&... args)
   std::abort();
   }
 
-void process_factions(database_storage_t & db, std::span<events::faction_info_t> factions)
+///\brief rejestruje influence frakcji w systemie, tylko gdy zmienila sie wzgledem ostatniego wpisu
+void store_influence(
+  database_storage_t & db,
+  std::chrono::sys_seconds timestamp,
+  uint64_t system_address,
+  int64_t faction_oid,
+  events::faction_info_t const & event_faction
+)
+  {
+  if(faction_oid == -1) [[unlikely]]
+    critical_abort("missing faction oid for {}", event_faction.Name);
+
+  auto last{db.last_influence(faction_oid, system_address)};
+  if(not last)
+    critical_abort("failed to load influence for {} in {}", event_faction.Name, system_address);
+
+  if(*last and (*last)->influence == event_faction.Influence and (*last)->faction_state == event_faction.FactionState)
+    return;
+
+  if(auto res{db.store(info::to_influence(faction_oid, system_address, timestamp, event_faction))}; not res)
+    critical_abort("failed to store influence for {} in {}", event_faction.Name, system_address);
+  }
+
+void process_factions(
+  database_storage_t & db,
+  std::chrono::sys_seconds timestamp,
+  uint64_t system_address,
+  std::span<events::faction_info_t> factions
+)
   {
   for(events::faction_info_t & f: factions)
     {
-    info::faction_info_t new_faction_data{info::to_native(std::move(f))};
+    // influence jest per system i rejestrowane w czasie, wiec f nie moze byc skonsumowane
+    info::faction_info_t new_faction_data{info::to_native(events::faction_info_t{f})};
     auto res{db.load_faction(new_faction_data.name)};
     if(not res)
       critical_abort("failed to load cation info for {}", new_faction_data.name);
@@ -27,18 +56,23 @@ void process_factions(database_storage_t & db, std::span<events::faction_info_t>
       spdlog::info("adding faction {}", new_faction_data.name);
       if(auto updres{db.update_faction_info(new_faction_data)}; not updres)
         critical_abort("failed to add faction data for {}", new_faction_data.name);
+      auto oidres{db.faction_oid(new_faction_data.name)};
+      if(not oidres or not *oidres)
+        critical_abort("failed to read faction oid for {}", new_faction_data.name);
+      new_faction_data.oid = int64_t(**oidres);
       }
     else
       {
       info::faction_info_t old_faction_data{std::move(**res)};
+      new_faction_data.oid = old_faction_data.oid;
       if(old_faction_data != new_faction_data)
         {
-        new_faction_data.oid = old_faction_data.oid;
         spdlog::info("updating faction {}", new_faction_data.name);
         if(auto updres{db.update_faction_info(new_faction_data)}; not updres)
           critical_abort("failed to update faction data for {}", new_faction_data.name);
         }
       }
+    store_influence(db, timestamp, system_address, new_faction_data.oid, f);
     }
   }
   }  // namespace
@@ -48,7 +82,7 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
   state_t & state{*this->state};
 
   std::visit(
-    [&state]<typename T>(T & event)
+    [&state, timestamp]<typename T>(T & event)
     {
       if constexpr(std::same_as<T, events::start_jump_t>)
         {
@@ -115,7 +149,7 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
           }
         // add/update factions database
         if(not event.Factions.empty())
-          process_factions(state.db_, event.Factions);
+          process_factions(state.db_, timestamp, event.SystemAddress, event.Factions);
         }
       else if constexpr(std::same_as<T, events::fsd_jump_t>)
         {
@@ -132,7 +166,7 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
           }
         // add/update factions database
         if(not event.Factions.empty())
-          process_factions(state.db_, event.Factions);
+          process_factions(state.db_, timestamp, event.SystemAddress, event.Factions);
         }
       else if constexpr(std::same_as<T, events::fss_discovery_scan_t>)
         {

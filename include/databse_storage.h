@@ -114,6 +114,14 @@ struct database_storage_t
   auto update_faction_info(info::faction_info_t const & faction) -> expected_ec<void>;
 
   [[nodiscard]]
+  auto store(info::faction_influence_t const & value) -> expected_ec<void>;
+
+  /// ostatni zarejestrowany wpis influence dla pary frakcja/system
+  [[nodiscard]]
+  auto last_influence(int64_t faction_oid, uint64_t system_address)
+    -> expected_ec<std::optional<info::faction_influence_t>>;
+
+  [[nodiscard]]
   auto load_system(uint64_t system_address) -> expected_ec<std::optional<star_system_t>>;
   auto close() -> void;
   };

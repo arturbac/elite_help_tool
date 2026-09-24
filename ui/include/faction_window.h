@@ -19,7 +19,6 @@ class faction_model_t final : public QAbstractTableModel
     name,
     reputation,
     allegiance,
-    influence,
     government,
     column_max
     };

@@ -62,7 +62,6 @@ struct faction_info_t
   {
   std::string name;
   int64_t oid{-1};
-  double influence;
   double reputation;
   government_e government;
   allegiance_e allegiance;
@@ -75,6 +74,25 @@ struct faction_info_t
 
 [[nodiscard]]
 auto to_native(events::faction_info_t && faction) -> faction_info_t;
+
+/// influence jest wartoscia per system, rejestrowana w czasie wg daty eventu
+struct faction_influence_t
+  {
+  int64_t oid{-1};
+  int64_t faction_oid{-1};
+  uint64_t system_address;
+  std::chrono::sys_seconds timestamp;
+  double influence;
+  std::string faction_state;
+  };
+
+[[nodiscard]]
+auto to_influence(
+  int64_t faction_oid,
+  uint64_t system_address,
+  std::chrono::sys_seconds timestamp,
+  events::faction_info_t const & faction
+) -> faction_influence_t;
 
 enum struct mission_status_e : uint8_t
   {
