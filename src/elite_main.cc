@@ -12,6 +12,12 @@
 #include <spdlog/spdlog.h>
 #include <elite_events.h>
 #include <database_import_state.h>
+#include <iostream>
+#include <csignal>
+#include <cstdlib>
+#include <exception>
+#include <boost/stacktrace.hpp>
+#include <boost/exception/to_string.hpp>
 
 namespace fs = std::filesystem;
 namespace po = boost::program_options;
@@ -21,9 +27,31 @@ struct config_t
   fs::path directory;
   };
 
+void terminate_handler()
+  {
+  std::cerr << "\nTerminate handler called.\n";
+  std::cerr << boost::stacktrace::stacktrace();
+  std::abort();
+  }
+
+void signal_handler(int signal)
+  {
+  std::cerr << "\nSignal handler called for signal: " << signal << "\n";
+  std::cerr << boost::stacktrace::stacktrace();
+  std::abort();
+  }
+
 [[nodiscard]]
 auto main(int argc, char ** argv) -> int
   {
+  spdlog::set_pattern("[%^%l%$] %v");
+  // Rejestracja handlera dla std::terminate
+  std::set_terminate(terminate_handler);
+
+  // Rejestracja handlera dla sygnałów (SIGABRT, SIGTERM, itp.)
+  std::signal(SIGABRT, signal_handler);
+  std::signal(SIGTERM, signal_handler);
+
   // spdlog::set_level(spdlog::level::debug);
 
   po::options_description desc("Opcje");
