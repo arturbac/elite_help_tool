@@ -394,9 +394,17 @@ void system_bodies_signals_model_t::refresh(body_signals_t && new_data)
     auto new_end{std::ranges::remove_if(
       bsig.signals_,
       [](events::signal_t const & sig)
-      { return sig.Type_Localised.starts_with("Planetary") or sig.Type_Localised.starts_with("Geological"); }
+      {
+        return sig.Type_Localised.starts_with("Planetary") or sig.Type_Localised.starts_with("Human")
+               or sig.Type_Localised.starts_with("Geological");
+      }
     )};
     bsig.signals_.erase(new_end.begin(), new_end.end());
+    auto proj{[](events::signal_t const & sig) -> std::string { return sig.Type_Localised; }};
+    std::ranges::sort(bsig.signals_, std::ranges::less{}, proj);
+
+    auto newrng{std::ranges::unique(bsig.signals_, std::ranges::equal, proj)};
+    bsig.signals_.erase(newrng.begin(), newrng.end());
     }
   body_signals_ = std::move(new_data);
   endResetModel();
@@ -428,6 +436,7 @@ static auto set_label_color(QLabel * label, planet_value_e val) -> void
     // case planet_value_e::low:    color = "#808080"; break;  // Szary
     case planet_value_e::medium: color = "#FFD700"; break;
     case planet_value_e::high:   color = "#1144AA"; break;
+    case planet_value_e::low:    break;
     }
 
   label->setStyleSheet(QString("color: %1; font-weight: bold;").arg(color.data()));
@@ -502,8 +511,8 @@ auto system_window_t::setup_ui() -> void
   form->addRow("Current System:", system_label_);
   form->addRow("FSS Status:", fss_label_);
   main_layout->addWidget(info_group);
-  
-  auto* splitter = new QSplitter(Qt::Vertical, central_widget);
+
+  auto * splitter = new QSplitter(Qt::Vertical, central_widget);
 
   // Sekcja dolna: TreeView
   tree_view = new QTreeView();
@@ -513,7 +522,7 @@ auto system_window_t::setup_ui() -> void
 
   tree_view->setModel(proxy_model_);
   tree_view->setAlternatingRowColors(true);
-  
+
   auto * header = tree_view->header();
   header->setSectionResizeMode(QHeaderView::Interactive);
   header->setSectionResizeMode(0, QHeaderView::ResizeToContents);
@@ -522,9 +531,9 @@ auto system_window_t::setup_ui() -> void
   header->setSectionResizeMode(1, QHeaderView::Stretch);  // Ostatnia kolumna wypełnia okno
 
   // Dodaj etykietę "System Bodies:" do splittera (opcjonalnie jako widget w pionowym układzie)
-  auto* tree_label = new QLabel("System Bodies:");
-  auto* tree_container = new QWidget();
-  auto* tree_layout = new QVBoxLayout(tree_container);
+  auto * tree_label = new QLabel("System Bodies:");
+  auto * tree_container = new QWidget();
+  auto * tree_layout = new QVBoxLayout(tree_container);
   tree_layout->addWidget(tree_label);
   tree_layout->addWidget(tree_view);
 
@@ -539,16 +548,16 @@ auto system_window_t::setup_ui() -> void
   signals_view->setAlternatingRowColors(true);
   signals_view->header()->setSectionResizeMode(QHeaderView::Stretch);
   // Dodaj etykietę "Body Signals & Genuses:" do splittera
-  auto* signals_label = new QLabel("Body Signals & Genuses:");
-  auto* signals_container = new QWidget();
-  auto* signals_layout = new QVBoxLayout(signals_container);
+  auto * signals_label = new QLabel("Body Signals & Genuses:");
+  auto * signals_container = new QWidget();
+  auto * signals_layout = new QVBoxLayout(signals_container);
   signals_layout->addWidget(signals_label);
   signals_layout->addWidget(signals_view);
 
   // Połączenie automatycznego rozwijania dla sygnałów
   connect(signals_model_, &QAbstractItemModel::modelReset, signals_view, [&] { signals_view->expandAll(); });
   // main_layout->addWidget(signals_view);
-  
+
   // Dodaj obie sekcje do splittera
   splitter->addWidget(tree_container);
   splitter->addWidget(signals_container);
