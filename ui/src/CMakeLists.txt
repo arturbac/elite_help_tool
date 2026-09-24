@@ -8,4 +8,5 @@ target_sources(elite_help_tool
   mission_window.cc
   current_state.cc
   route_window.cc
+  faction_window.cc
   )

@@ -69,6 +69,11 @@ auto main_window_t::setup_ui() -> void
   mdi_area_->addSubWindow(route_view_);
   route_view_->setProperty("window_type", QVariant::fromValue(window_type_e::route));
   route_view_->show();
+
+  faction_view_ = new faction_window_t{state_};
+  mdi_area_->addSubWindow(faction_view_);
+  faction_view_->setProperty("window_type", QVariant::fromValue(window_type_e::faction));
+  faction_view_->show();
   }
 
 auto main_window_t::setup_toolbox() -> void
@@ -162,6 +167,7 @@ auto main_window_t::load_settings() -> void
       case window_type_e::ship:        sub = ship_view_; break;
       case window_type_e::mission:     sub = mission_view_; break;
       case window_type_e::route:     sub = route_view_; break;
+      case window_type_e::faction:     sub = faction_view_; break;
       case window_type_e::journal_log: sub = jlw_; break;
       }
     if(sub) [[likely]]
@@ -186,6 +192,19 @@ auto main_window_t::load_settings() -> void
 auto main_window_t::background_worker(std::stop_token stoken) -> void
   {
   file_to_monitor = *find_latest_journal("journal-dir");
+
+  // pierwsze wypełnienie listy frakcji - db_ dotykane wyłącznie z tego wątku
+  state_.load_factions();
+  QMetaObject::invokeMethod(
+    this,
+    [this]()
+    {
+      if(faction_view_)
+        faction_view_->refresh_ui();
+    },
+    Qt::QueuedConnection
+  );
+
   tail_file(file_to_monitor, std::bind_front(&generic_state_t::discovery, &state_), stoken);
   }
 

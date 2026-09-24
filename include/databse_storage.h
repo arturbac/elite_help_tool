@@ -108,6 +108,9 @@ struct database_storage_t
   auto load_faction( std::string_view name )-> expected_ec<std::optional<info::faction_info_t>>;
   
   [[nodiscard]]
+  auto load_factions() -> expected_ec<std::vector<info::faction_info_t>>;
+
+  [[nodiscard]]
   auto update_faction_info(info::faction_info_t const & faction) -> expected_ec<void>;
 
   [[nodiscard]]

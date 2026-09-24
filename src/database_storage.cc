@@ -1192,6 +1192,11 @@ auto database_storage_t::load_faction(std::string_view name) -> expected_ec<std:
   return {};
   }
 
+auto database_storage_t::load_factions() -> expected_ec<std::vector<info::faction_info_t>>
+  {
+  return sqlite::select_from<info::faction_info_t>(db_->db, sql_iface::tables::faction_info, {});
+  }
+
 auto database_storage_t::update_faction_info(info::faction_info_t const & faction) -> expected_ec<void>
   {
   if(faction.oid != -1)

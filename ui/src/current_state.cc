@@ -76,6 +76,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
     bool update_system{};
     bool update_ship{};
     bool update_mission_info{};
+    bool update_factions{};
     bool route_changed{};
     std::visit(
       [&](auto && event)
@@ -108,6 +109,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
               }
             system_factions.clear();
             update_system = true;
+            update_factions = true;
             f_route_progress(*event.SystemAddress);
             }
           }
@@ -140,7 +142,10 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
             }
           // add/update factions database
           if(not event.Factions.empty())
+            {
             system_factions = process_factions(db_, event.Factions);
+            update_factions = true;
+            }
           f_route_progress(event.SystemAddress);
           update_system = true;
           }
@@ -158,7 +163,10 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           ship_loadout.FuelLevel = event.FuelLevel;
 
           if(not event.Factions.empty())
+            {
             system_factions = process_factions(db_, event.Factions);
+            update_factions = true;
+            }
 
           f_route_progress(event.SystemAddress);
           update_system = true;
@@ -605,7 +613,28 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
         },
         Qt::QueuedConnection
       );
+    if(update_factions)
+      {
+      load_factions();
+      QMetaObject::invokeMethod(
+        parent,
+        [target = parent]() mutable
+        {
+          if(target->faction_view_)
+            target->faction_view_->refresh_ui();
+        },
+        Qt::QueuedConnection
+      );
+      }
     }
+  }
+
+void current_state_t::load_factions()
+  {
+  if(auto res{db_.load_factions()}; not res) [[unlikely]]
+    spdlog::warn("failed to load factions");
+  else
+    known_factions = std::move(*res);
   }
 
 void current_state_t::load_missions()

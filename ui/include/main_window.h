@@ -5,6 +5,7 @@
 #include <ship_loadout.h>
 #include <mission_window.h>
 #include <route_window.h>
+#include <faction_window.h>
 
 #include <simple_enum/simple_enum.hpp>
 #include <qmainwindow.h>
@@ -21,13 +22,14 @@ enum struct window_type_e
   journal_log,
   mission,
   route,
-  ship
+  ship,
+  faction
   };
 
 consteval auto adl_enum_bounds(window_type_e)
   {
   using enum window_type_e;
-  return simple_enum::adl_info{none, ship};
+  return simple_enum::adl_info{none, faction};
   }
 
 class main_window_t : public QMainWindow
@@ -42,6 +44,7 @@ public:
   QPointer<ship_loadout_window_t> ship_view_;
   QPointer<mission_window_t> mission_view_;
   QPointer<route_window_t> route_view_;
+  QPointer<faction_window_t> faction_view_;
   
   fs::path file_to_monitor{};
 
