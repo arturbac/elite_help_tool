@@ -46,6 +46,7 @@ void process_factions(database_storage_t & db, std::span<events::faction_info_t>
 void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events::event_holder_t && e)
   {
   state_t & state{*this->state};
+
   std::visit(
     [&state]<typename T>(T & event)
     {
@@ -123,8 +124,10 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
         else if(state.system.system_location != event.StarPos)
           {
           state.system.system_location = event.StarPos;
-          if(auto res{state.db_.store_system_location(state.system.system_address, state.system.system_location)};
-             not res)
+          if(
+            auto res{state.db_.store_system_location(state.system.system_address, state.system.system_location)};
+            not res
+          )
             critical_abort("failed to store system location {}", state.system.system_address);
           }
         // add/update factions database
@@ -141,8 +144,10 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
         if(state.system.fss_complete)
           return;
 
-        if(auto it{std::ranges::find(state.system.bodies, event.BodyID, body_body_id_proj)};
-           it != state.system.bodies.end())
+        if(
+          auto it{std::ranges::find(state.system.bodies, event.BodyID, body_body_id_proj)};
+          it != state.system.bodies.end()
+        )
           {
           spdlog::info("already have fss scan for body [{}]{} ", event.BodyID, event.BodyName);
           return;
@@ -157,10 +162,12 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
           {
             if constexpr(std::same_as<U, planet_details_t>)
               {
-              if(auto it{
-                   std::ranges::find(state.buffered_signals, body.body_id, [](auto const & bs) { return bs.body_id; })
-                 };
-                 state.buffered_signals.end() != it)
+              if(
+                auto it{
+                  std::ranges::find(state.buffered_signals, body.body_id, [](auto const & bs) { return bs.body_id; })
+                };
+                state.buffered_signals.end() != it
+              )
                 {
                 details.signals_ = std::move(it->signals_);
                 details.genuses_ = std::move(it->genuses_);
@@ -241,11 +248,16 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
         auto it{state.system.body_by_id(event.BodyID)};
         if(it != state.system.bodies.end())
           {
-          planet_details_t & details{std::get<planet_details_t>(it->details)};
-          details.signals_ = std::move(event.Signals);
+          if(std::holds_alternative<planet_details_t>(it->details))
+            {
+            planet_details_t & details{std::get<planet_details_t>(it->details)};
+            details.signals_ = std::move(event.Signals);
 
-          if(auto res{state.db_.store(state.system.system_address, event.BodyID, details.signals_)}; not res)
-            critical_abort("failed to store signals for {}: {}", state.system.system_address, event.BodyID);
+            if(auto res{state.db_.store(state.system.system_address, event.BodyID, details.signals_)}; not res)
+              critical_abort("failed to store signals for {}: {}", state.system.system_address, event.BodyID);
+            }
+          else
+            spdlog::error("body {}:{} does not hold planet details ...", event.BodyID, it->name);
           }
         else
           {
@@ -271,19 +283,24 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
           }
         else if(auto it{state.system.body_by_id(event.BodyID)}; it != state.system.bodies.end())
           {
-          planet_details_t & details{std::get<planet_details_t>(it->details)};
-          if(details.signals_.size() != event.Signals.size())
+          if(std::holds_alternative<planet_details_t>(it->details))
             {
-            details.signals_ = std::move(event.Signals);
-            if(auto res{state.db_.store(state.system.system_address, event.BodyID, details.signals_)}; not res)
-              critical_abort("failed to store signals for {}: {}", state.system.system_address, event.BodyID);
+            planet_details_t & details{std::get<planet_details_t>(it->details)};
+            if(details.signals_.size() != event.Signals.size())
+              {
+              details.signals_ = std::move(event.Signals);
+              if(auto res{state.db_.store(state.system.system_address, event.BodyID, details.signals_)}; not res)
+                critical_abort("failed to store signals for {}: {}", state.system.system_address, event.BodyID);
+              }
+            if(details.genuses_.size() != event.Genuses.size())
+              {
+              details.genuses_ = std::move(event.Genuses);
+              if(auto res{state.db_.store(state.system.system_address, event.BodyID, details.genuses_)}; not res)
+                critical_abort("failed to store genuses_ for {}: {}", state.system.system_address, event.BodyID);
+              }
             }
-          if(details.genuses_.size() != event.Genuses.size())
-            {
-            details.genuses_ = std::move(event.Genuses);
-            if(auto res{state.db_.store(state.system.system_address, event.BodyID, details.genuses_)}; not res)
-              critical_abort("failed to store genuses_ for {}: {}", state.system.system_address, event.BodyID);
-            }
+          else
+            spdlog::error("body {}:{} does not hold planet details ...", event.BodyID, it->name);
           }
         else
           {
@@ -311,18 +328,22 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
           if(auto it{state.system.body_by_name(planet_name)}; it != state.system.bodies.end())
             {
             events::body_id_t const parent_planet_id{it->body_id};
-            if(auto res{
-                 state.db_.store_ring_body_id(state.system.system_address, parent_planet_id, ring_name, event.BodyID)
-               };
-               not res) [[unlikely]]
+            if(
+              auto res{
+                state.db_.store_ring_body_id(state.system.system_address, parent_planet_id, ring_name, event.BodyID)
+              };
+              not res
+            ) [[unlikely]]
               critical_abort("failed to update ring body id for {}:{}", state.system.system_address, event.BodyName);
 
-            if(auto itr{std::ranges::find_if(
-                 state.system.rings,
-                 [&parent_planet_id, &ring_name](ring_t const & ring) noexcept -> bool
-                 { return ring.parent_body_id == parent_planet_id and ring_name == ring.name; }
-               )};
-               itr != state.system.rings.end())
+            if(
+              auto itr{std::ranges::find_if(
+                state.system.rings,
+                [&parent_planet_id, &ring_name](ring_t const & ring) noexcept -> bool
+                { return ring.parent_body_id == parent_planet_id and ring_name == ring.name; }
+              )};
+              itr != state.system.rings.end()
+            )
               itr->body_id = event.BodyID;
             else
               critical_abort(
@@ -336,10 +357,15 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
           }
         else if(auto it{state.system.body_by_id(event.BodyID)}; it != state.system.bodies.end())
           {
-          planet_details_t & details{std::get<planet_details_t>(it->details)};
-          details.mapped = true;
-          if(auto res{state.db_.store_dss_complete(state.system.system_address, event.BodyID)}; not res) [[unlikely]]
-            critical_abort("failed to update dss scan complete for {}:{}", state.system.system_address, event.BodyID);
+          if(std::holds_alternative<planet_details_t>(it->details))
+            {
+            planet_details_t & details{std::get<planet_details_t>(it->details)};
+            details.mapped = true;
+            if(auto res{state.db_.store_dss_complete(state.system.system_address, event.BodyID)}; not res) [[unlikely]]
+              critical_abort("failed to update dss scan complete for {}:{}", state.system.system_address, event.BodyID);
+            }
+          else
+            spdlog::error("body {}:{} does not hold planet details ...", event.BodyID, it->name);
           }
         }
 
@@ -386,10 +412,12 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
         }
       else if constexpr(std::same_as<T, events::mission_redirected_t>)
         {
-        if(auto res{state.db_.redirect_mission(
-             event.MissionID, event.NewDestinationSystem, event.NewDestinationStation, event.NewDestinationSettlement
-           )};
-           not res) [[unlikely]]
+        if(
+          auto res{state.db_.redirect_mission(
+            event.MissionID, event.NewDestinationSystem, event.NewDestinationStation, event.NewDestinationSettlement
+          )};
+          not res
+        ) [[unlikely]]
           critical_abort("failed to change mission status for {}", event.MissionID);
         }
       else if constexpr(std::same_as<T, events::missions_t>)

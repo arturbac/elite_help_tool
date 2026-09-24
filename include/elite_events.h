@@ -20,6 +20,7 @@ enum struct event_e : uint16_t
   {
   FSDTarget,
   FSDJump,
+  JetConeBoost,
   StartJump,
   ReceiveText,
   FSSDiscoveryScan,
@@ -47,6 +48,9 @@ enum struct event_e : uint16_t
   Rank,
   Materials,
   Commander,
+  GameModeChange,
+  Friends,
+  SellMicroResources,
   Fileheader,
   Music,
   FuelScoop,
@@ -84,6 +88,7 @@ enum struct event_e : uint16_t
   Embark,
   Undocked,
   BookTaxi,
+  CancelTaxi,
   ApproachBody,
   LeaveBody,
   DockingDenied,
@@ -495,7 +500,7 @@ struct fsd_jump_t
   double JumpDist;
   double FuelUsed;
   double FuelLevel;
-  bool BoostUsed;
+  int BoostUsed;
   bool Taxi;
   bool Multicrew;
 
@@ -520,7 +525,35 @@ struct fsd_jump_t
   bool Wanted;
   std::vector<faction_info_t> Factions;
   };
+/*
+{ 
+"timestamp":"2026-09-04T01:49:45Z",
+"event":"FSDJump",
+"Taxi":false,
+"Multicrew":false,
+"StarSystem":"M25 Sector PI-T d3-51",
+"SystemAddress":1762740111931,
+"StarPos":[-419.03125,-153.18750,2099.09375],
+"SystemAllegiance":"",
+"SystemEconomy":"$economy_None;",
+"SystemEconomy_Localised":"None",
+"SystemSecondEconomy":"$economy_None;",
+"SystemSecondEconomy_Localised":"None",
+"SystemGovernment":"$government_None;",
+"SystemGovernment_Localised":"None",
+"SystemSecurity":"$GAlAXY_MAP_INFO_state_anarchy;",
+"SystemSecurity_Localised":"Anarchy",
+"Population":0,
+"Body":"M25 Sector PI-T d3-51",
+"BodyID":0,
+"BodyType":"Star",
+"JumpDist":454.287,
+"FuelUsed":6.287253,
+"FuelLevel":38.012375,
+"BoostUsed":4
+  }
 
+ */
 struct location_t
   {
   bool Docked;
