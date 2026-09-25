@@ -86,6 +86,8 @@ auto faction_presence_model_t::data(QModelIndex const & index, int role) const -
         return item.pending.empty() ? QString::fromUtf8(no_data.data()) : QString::fromStdString(item.pending);
       case column_e::active:
         return item.active.empty() ? QString::fromUtf8(no_data.data()) : QString::fromStdString(item.active);
+      case column_e::recovering:
+        return item.recovering.empty() ? QString::fromUtf8(no_data.data()) : QString::fromStdString(item.recovering);
       case column_e::influence: return qformat("{:.1f}%", item.influence * 100.);
       default:                  break;
       }
@@ -98,6 +100,7 @@ auto faction_presence_model_t::data(QModelIndex const & index, int role) const -
       case column_e::allegiance: return int(item.allegiance);
       case column_e::pending:    return QString::fromStdString(item.pending);
       case column_e::active:     return QString::fromStdString(item.active);
+      case column_e::recovering: return QString::fromStdString(item.recovering);
       case column_e::influence:  return item.influence;
       default:                   break;
       }
@@ -120,6 +123,7 @@ auto faction_presence_model_t::headerData(int s, Qt::Orientation o, int r) const
     case column_e::allegiance: return "Allegiance";
     case column_e::pending:    return "Pending";
     case column_e::active:     return "Active";
+    case column_e::recovering: return "Recovering";
     case column_e::influence:  return "Inf";
     default:                   return {};
     }
@@ -444,6 +448,7 @@ auto faction_state_window_t::show_system(uint64_t system_address) -> void
       .active = not entry->active_states.empty() ? entry->active_states
                 : entry->faction_state == "None" ? std::string{}
                                                  : entry->faction_state,
+      .recovering = entry->recovering_states,
       .influence = entry->influence
     };
 

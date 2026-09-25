@@ -93,7 +93,8 @@ auto to_influence(
     .influence = faction.Influence,
     .faction_state = faction.FactionState,
     .pending_states = join_states(faction.PendingStates),
-    .active_states = join_states(faction.ActiveStates)
+    .active_states = join_states(faction.ActiveStates),
+    .recovering_states = join_states(faction.RecoveringStates)
   };
   }
 

@@ -20,8 +20,9 @@ struct faction_presence_t
   std::string name;
   info::government_e government;
   info::allegiance_e allegiance;
-  std::string pending;  // PendingStates z ostatniego wpisu
-  std::string active;   // ActiveStates, a gdy puste to FactionState
+  std::string pending;     // PendingStates z ostatniego wpisu
+  std::string active;      // ActiveStates, a gdy puste to FactionState
+  std::string recovering;  // RecoveringStates - stany z ktorych frakcja wychodzi
   double influence;
   };
 
@@ -36,6 +37,7 @@ class faction_presence_model_t final : public QAbstractTableModel
     allegiance,
     pending,
     active,
+    recovering,
     influence,
     column_max
     };

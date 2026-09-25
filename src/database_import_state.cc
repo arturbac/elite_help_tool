@@ -34,6 +34,7 @@ void store_influence(
   if(
     *last and (*last)->influence == record.influence and (*last)->faction_state == record.faction_state
     and (*last)->pending_states == record.pending_states and (*last)->active_states == record.active_states
+    and (*last)->recovering_states == record.recovering_states
   )
     return;
 

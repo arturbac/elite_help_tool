@@ -86,6 +86,7 @@ struct faction_influence_t
   std::string faction_state;
   std::string pending_states;
   std::string active_states;
+  std::string recovering_states;
   };
 
 ///\brief konflikt w systemie zarejestrowany w czasie wg daty eventu
