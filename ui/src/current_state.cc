@@ -712,9 +712,8 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           }
         else if constexpr(std::same_as<T, events::mission_completed_t>)
           {
-          if(auto res{db_.change_mission_status(event.MissionID, info::mission_status_e::completed, timestamp)}; not res)
-            [[unlikely]]
-            [[unlikely]] spdlog::error("failed to change mission status for {}", event.MissionID);
+          if(auto res{db_.complete_mission(event.MissionID, timestamp, event.Reward)}; not res) [[unlikely]]
+            spdlog::error("failed to change mission status for {}", event.MissionID);
           load_missions();
           update_mission_info = true;
 
@@ -781,6 +780,15 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
             if(auto res{db_.change_mission_status(mission.MissionID, info::mission_status_e::completed, timestamp)}; not res)
               [[unlikely]]
               spdlog::warn("failed to change mission status for {}", mission.MissionID);
+
+          // to jedyny moment gdy gra mowi wprost co jeszcze wisi - wszystko poza ta lista juz sie zamknelo
+          std::vector<uint64_t> active;
+          active.reserve(event.Active.size());
+          for(events::mission_active_t const & mission: event.Active)
+            active.push_back(mission.MissionID);
+
+          if(auto res{db_.expire_missions_outside(active, timestamp)}; not res) [[unlikely]]
+            spdlog::warn("failed to expire stale missions");
 
           // called on startup so we are loading accepted missions
           load_missions();

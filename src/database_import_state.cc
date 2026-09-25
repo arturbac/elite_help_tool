@@ -622,8 +622,7 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
         }
       else if constexpr(std::same_as<T, events::mission_completed_t>)
         {
-        if(auto res{state.db_.change_mission_status(event.MissionID, info::mission_status_e::completed, timestamp)}; not res)
-          [[unlikely]]
+        if(auto res{state.db_.complete_mission(event.MissionID, timestamp, event.Reward)}; not res) [[unlikely]]
           critical_abort("failed to change mission status for {}", event.MissionID);
 
           // nagrody ida prosto do lockera, w plecaku sie nie pojawiaja - zadnego dublowania
@@ -684,6 +683,15 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
           if(auto res{state.db_.change_mission_status(mission.MissionID, info::mission_status_e::completed, timestamp)}; not res)
             [[unlikely]]
             spdlog::warn("failed to change mission status for {}", mission.MissionID);
+
+        // to jedyny moment gdy gra mowi wprost co jeszcze wisi - wszystko poza ta lista juz sie zamknelo
+        std::vector<uint64_t> active;
+        active.reserve(event.Active.size());
+        for(events::mission_active_t const & mission: event.Active)
+          active.push_back(mission.MissionID);
+
+        if(auto res{state.db_.expire_missions_outside(active, timestamp)}; not res) [[unlikely]]
+          spdlog::warn("failed to expire stale missions");
         }
       else if constexpr(std::same_as<T, events::nav_route_t>)
         {

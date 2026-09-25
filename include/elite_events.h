@@ -340,6 +340,8 @@ struct material_reward_t
 struct mission_completed_t
   {
   uint64_t MissionID;
+  ///\brief faktyczna wyplata, rozna od obiecanej przy braniu misji
+  uint64_t Reward;
   ///\brief nagrody materialowe - najwiekszy pojedynczy zrodlo danych, dwa razy wiekszy niz porty
   std::vector<material_reward_t> MaterialsReward;
   };
@@ -357,8 +359,14 @@ struct mission_redirected_t
   std::string NewDestinationSettlement;
   };
 
+///\brief pozycja z listy misji ktore gra uwaza za otwarte
+struct mission_active_t
+  { uint64_t MissionID; };
+
 struct missions_t
   {
+  ///\brief jedyne wiarygodne zrodlo prawdy o tym co jeszcze wisi - reszta to nasze domysly
+  std::vector<mission_active_t> Active;
   std::vector<mission_failed_t> Failed;
   std::vector<mission_completed_t> Complete;
   };

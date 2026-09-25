@@ -193,13 +193,15 @@ enum struct mission_status_e : uint8_t
   redirected,  // done but not delivered and completed
   completed,
   failed,
-  abandoned
+  abandoned,
+  ///\brief gra przestala ja wykazywac jako otwarta, a my nie widzielismy jak sie zamknela
+  expired
   };
 
 consteval auto adl_enum_bounds(mission_status_e)
   {
   using enum mission_status_e;
-  return simple_enum::adl_info{accepted, abandoned};
+  return simple_enum::adl_info{accepted, expired};
   }
 
 struct mission_t

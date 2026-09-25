@@ -1211,6 +1211,47 @@ auto database_storage_t::change_mission_status(
   return sqlite::execute_query_no_result(db_->db, query);
   }
 
+auto database_storage_t::complete_mission(uint64_t mission_id, std::chrono::sys_seconds when, uint64_t reward)
+  -> expected_ec<void>
+  {
+  // kwota z MissionAccepted to oferta, dopiero MissionCompleted mowi ile faktycznie wplynelo
+  std::string query{std::format(
+    "UPDATE {} SET status='{}', closed='{:%Y-%m-%dT%H:%M:%SZ}', reward={} WHERE mission_id={}",
+    sql_iface::tables::mission,
+    info::mission_status_e::completed,
+    when,
+    reward,
+    mission_id
+  )};
+  return sqlite::execute_query_no_result(db_->db, query);
+  }
+
+auto database_storage_t::expire_missions_outside(std::span<uint64_t const> active, std::chrono::sys_seconds when)
+  -> expected_ec<void>
+  {
+  std::string listed;
+  for(uint64_t const mission_id: active)
+    {
+    if(not listed.empty())
+      listed += ',';
+    listed += std::to_string(mission_id);
+    }
+
+  // pusta lista tez niesie informacje - znaczy ze gra nie ma juz zadnej otwartej misji
+  std::string const exclusion{listed.empty() ? std::string{} : std::format(" AND mission_id NOT IN ({})", listed)};
+
+  std::string query{std::format(
+    "UPDATE {} SET status='{}', closed='{:%Y-%m-%dT%H:%M:%SZ}' WHERE status IN ('{}','{}'){}",
+    sql_iface::tables::mission,
+    info::mission_status_e::expired,
+    when,
+    info::mission_status_e::accepted,
+    info::mission_status_e::redirected,
+    exclusion
+  )};
+  return sqlite::execute_query_no_result(db_->db, query);
+  }
+
 auto database_storage_t::redirect_mission(
   uint64_t mission_id, std::string_view system, std::string_view station, std::string_view settlement
 ) -> expected_ec<void>

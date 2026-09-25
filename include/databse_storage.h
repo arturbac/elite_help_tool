@@ -60,7 +60,15 @@ struct database_storage_t
   auto change_mission_status(
     uint64_t mission_id, info::mission_status_e const status, std::chrono::sys_seconds when
   ) -> expected_ec<void>;
-  
+
+  ///\brief zamkniecie misji razem z kwota ktora gra naprawde wyplacila
+  [[nodiscard]]
+  auto complete_mission(uint64_t mission_id, std::chrono::sys_seconds when, uint64_t reward) -> expected_ec<void>;
+
+  ///\brief zdarzenie Missions wylicza wszystko co gra uwaza za otwarte - reszta juz sie zamknela bez nas
+  [[nodiscard]]
+  auto expire_missions_outside(std::span<uint64_t const> active, std::chrono::sys_seconds when) -> expected_ec<void>;
+
   [[nodiscard]]
   auto redirect_mission(uint64_t mission_id, std::string_view system, std::string_view station, std::string_view settlment)-> expected_ec<void>;
   
