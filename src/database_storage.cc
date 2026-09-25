@@ -435,9 +435,10 @@ namespace tables
   inline constexpr std::string_view faction_influence{"faction_influence"};
   inline constexpr std::string_view system_conflict{"system_conflict"};
   inline constexpr std::string_view system_signal{"system_signal"};
-  inline constexpr std::string_view station{"station"};
-  inline constexpr std::string_view commodity{"commodity"};
-  inline constexpr std::string_view market_item{"market_item"};
+  // rynki siedza w osobnym pliku podpietym jako schemat market
+  inline constexpr std::string_view station{"market.station"};
+  inline constexpr std::string_view commodity{"market.commodity"};
+  inline constexpr std::string_view market_item{"market.market_item"};
   inline constexpr std::string_view mission{"mission"};
   inline constexpr std::string_view carrier{"carrier"};
   inline constexpr std::string_view carrier_materials{"carrier_materials"};
@@ -872,6 +873,10 @@ database_storage_t::database_storage_t(std::string_view db_path) :
     db_path_{db_path},
     db_{std::make_unique<sqlite3_handle_t>()}
   {
+  // plik rynkow lezy obok bazy glownej i zyje wlasnym zyciem
+  std::filesystem::path market_path{db_path};
+  market_path.replace_filename("market.sqlite");
+  market_db_path_ = market_path.string();
   }
 
 database_storage_t::~database_storage_t() { close(); }
@@ -885,6 +890,16 @@ auto database_storage_t::open(storage_mode_e mode) -> expected_ec<void>
 
   // czytanie z gui i zapis z watku sledzacego to osobne polaczenia, czekamy zamiast dostac SQLITE_BUSY
   sqlite3_busy_timeout(db_->db, 3000);
+
+  // rynki w osobnym pliku, podpietym jako schemat market - ATTACH zaklada go gdy nie istnieje
+  if(
+    auto res{sqlite::execute_query_no_result(
+      db_->db,
+      std::format("ATTACH DATABASE '{}' AS market;", sqlite::escape_sql_quotes(market_db_path_))
+    )};
+    not res
+  ) [[unlikely]]
+    return res;
 
   if(mode == storage_mode_e::bulk_import)
     {
@@ -1034,7 +1049,8 @@ auto database_storage_t::create_database() -> expected_ec<void>
   if(
     auto res{sqlite::execute_query_no_result(
       db_->db,
-      std::format("CREATE INDEX IF NOT EXISTS {0}_key ON {0} (market_id);", sql_iface::tables::market_item)
+      // w CREATE INDEX schemat stoi przy nazwie indeksu, a nie przy tabeli
+      std::string{"CREATE INDEX IF NOT EXISTS market.market_item_key ON market_item (market_id);"}
     )};
     not res
   ) [[unlikely]]

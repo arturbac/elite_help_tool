@@ -31,6 +31,9 @@ consteval auto adl_enum_bounds(storage_mode_e)
 struct database_storage_t
   {
   std::string db_path_;
+  ///\brief zawartosci rynkow nie da sie odtworzyc z journali, wiec mieszka w osobnym pliku
+  ///\detail przebudowa bazy glownej jej nie rusza - journal_tailer zaklada ja tylko gdy jej nie ma
+  std::string market_db_path_;
   std::unique_ptr<sqlite3_handle_t> db_;
 
   explicit database_storage_t(std::string_view db_path);
