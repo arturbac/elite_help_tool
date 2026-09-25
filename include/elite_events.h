@@ -857,6 +857,47 @@ struct scan_organic_t
   };
 
 ///\brief sygnal wykryty skanem FSS - stacja, instalacja, POI, zjawisko
+///\brief zblizenie do osady - stad bierze sie kontekst zdobywania: ekonomia i rzad miejsca
+struct approach_settlement_t
+  {
+  uint64_t MarketID;
+  uint64_t SystemAddress;
+  std::string Name;
+  std::string StationEconomy_Localised;
+  std::string StationGovernment_Localised;
+  };
+
+///\brief wyjscie z pojazdu - bywa jedynym sladem miejsca gdy przylot byl taksowka
+struct disembark_t
+  {
+  uint64_t MarketID;
+  uint64_t SystemAddress;
+  std::string StationName;
+  std::string StationType;
+  };
+
+///\brief wejscie w supercruise - konczy pobyt w osadzie
+struct supercruise_entry_t
+  {
+  uint64_t SystemAddress;
+  };
+
+///\brief pozycja plecaka
+struct backpack_item_t
+  {
+  std::string Name;
+  std::string Name_Localised;
+  ///\brief Data, Item, Component albo Consumable
+  std::string Type;
+  uint32_t Count;
+  };
+
+///\brief zmiana zawartosci plecaka - Added to zdobycz z osady, portu danych czy misji
+struct backpack_change_t
+  {
+  std::vector<backpack_item_t> Added;
+  };
+
 ///\brief pozycja sprzedazy mikrozasobow
 struct sold_micro_resource_t
   {
@@ -885,6 +926,8 @@ struct docked_t
   std::string StationName;
   std::string StationType;
   std::string StarSystem;
+  std::string StationEconomy_Localised;
+  std::string StationGovernment_Localised;
   };
 
 ///\brief event Market z journala - niesie tylko naglowek, zawartosc idzie do Market.json
@@ -970,6 +1013,10 @@ using event_holder_t = std::variant<
   market_t,
   docked_t,
   sell_micro_resources_t,
+  approach_settlement_t,
+  disembark_t,
+  supercruise_entry_t,
+  backpack_change_t,
   fss_all_bodies_found_t,
   scan_bary_centre_t,
   scan_detailed_scan_t,

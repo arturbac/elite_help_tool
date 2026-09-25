@@ -446,6 +446,7 @@ namespace tables
   // sprzedaz mikrozasobow to zdarzenie journala, wiec odtwarzalna
   inline constexpr std::string_view micro_sale{"micro_sale"};
   inline constexpr std::string_view micro_sale_item{"micro_sale_item"};
+  inline constexpr std::string_view micro_acquisition{"micro_acquisition"};
   inline constexpr std::string_view carrier{"live.carrier"};
   inline constexpr std::string_view carrier_materials{"live.carrier_materials"};
   }  // namespace tables
@@ -1073,6 +1074,10 @@ auto database_storage_t::create_database() -> expected_ec<void>
      not res) [[unlikely]]
     return res;
 
+  if(auto res{sqlite::create_table<info::micro_acquisition_t>(db_->db, "oid"sv, sql_iface::tables::micro_acquisition)};
+     not res) [[unlikely]]
+    return res;
+
   if(auto res{sqlite::create_table<info::carrier_t>(db_->db, "oid"sv, sql_iface::tables::carrier)}; not res)
     [[unlikely]]
     return res;
@@ -1141,6 +1146,19 @@ auto database_storage_t::create_database() -> expected_ec<void>
       db_->db,
       std::string{"CREATE INDEX IF NOT EXISTS live.carrier_materials_key ON carrier_materials "
                   "(carrier_id, material_id, timestamp);"}
+    )};
+    not res
+  ) [[unlikely]]
+    return res;
+
+  // kazda zdobycz sprawdza czy juz ja znamy, a jest ich sto kilkadziesiat tysiecy
+  if(
+    auto res{sqlite::execute_query_no_result(
+      db_->db,
+      std::format(
+        "CREATE INDEX IF NOT EXISTS {0}_key ON {0} (timestamp, market_id, name);",
+        sql_iface::tables::micro_acquisition
+      )
     )};
     not res
   ) [[unlikely]]
@@ -1499,10 +1517,44 @@ auto database_storage_t::store(info::station_t const & value) -> expected_ec<voi
   if(not known) [[unlikely]]
     return cxx23::unexpected{known.error()};
 
-  if(*known)
-    return sqlite::update_pk(db_->db, "market_id"sv, sql_iface::tables::station, value, value.market_id);
+  if(not *known)
+    return sqlite::insert_into<info::station_t, true>(db_->db, "market_id"sv, sql_iface::tables::station, value);
 
-  return sqlite::insert_into<info::station_t, true>(db_->db, "market_id"sv, sql_iface::tables::station, value);
+  // zrodla opisuja miejsce roznie - Docked zna typ stacji, ApproachSettlement ekonomie osady
+  info::station_t merged{**known};
+  auto const fill = [](std::string & target, std::string const & source)
+  {
+    if(target.empty() and not source.empty())
+      target = source;
+  };
+  fill(merged.name, value.name);
+  fill(merged.station_type, value.station_type);
+  fill(merged.economy, value.economy);
+  fill(merged.government, value.government);
+  if(merged.system_address == 0)
+    merged.system_address = value.system_address;
+
+  return sqlite::update_pk(db_->db, "market_id"sv, sql_iface::tables::station, merged, merged.market_id);
+  }
+
+auto database_storage_t::store(info::micro_acquisition_t const & value) -> expected_ec<void>
+  {
+  // odtwarzanie journala powtarza zdobycze, rozroznia je czas, miejsce i material
+  std::string known_query{std::format(
+    "SELECT count(*) FROM {} WHERE timestamp='{:%Y-%m-%dT%H:%M:%SZ}' AND market_id={} AND name='{}'",
+    sql_iface::tables::micro_acquisition,
+    value.timestamp,
+    value.market_id,
+    sqlite::escape_sql_quotes(value.name)
+  )};
+  auto known{sqlite::select_signle_from<uint64_t>(db_->db, known_query)};
+  if(not known) [[unlikely]]
+    return cxx23::unexpected{known.error()};
+
+  if(*known and **known != 0)
+    return {};
+
+  return sqlite::insert_into(db_->db, "oid"sv, sql_iface::tables::micro_acquisition, value);
   }
 
 auto database_storage_t::load_station(uint64_t market_id) -> expected_ec<std::optional<info::station_t>>

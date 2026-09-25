@@ -16,6 +16,8 @@ struct database_import_state_t : public generic_state_t
   struct state_t
     {
     star_system_t system{};
+    ///\brief osada w ktorej jestesmy - zdobyte mikrozasoby dostaja jej market_id
+    uint64_t settlement_market_id{};
     std::vector<buffered_signal_t> buffered_signals;
     database_storage_t db_;
 

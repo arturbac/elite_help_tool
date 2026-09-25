@@ -439,14 +439,71 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
         if(auto res{state.db_.store(sale, items)}; not res)
           critical_abort("failed to store micro resource sale at {}", event.MarketID);
         }
+      else if constexpr(std::same_as<T, events::approach_settlement_t>)
+        {
+        state.settlement_market_id = event.MarketID;
+        if(auto res{state.db_.store(info::station_t{
+             .market_id = event.MarketID,
+             .system_address = event.SystemAddress,
+             .name = event.Name,
+             .station_type = {},
+             .economy = event.StationEconomy_Localised,
+             .government = event.StationGovernment_Localised
+           })};
+           not res)
+          spdlog::error("failed to store settlement {}", event.MarketID);
+        }
+      else if constexpr(std::same_as<T, events::disembark_t>)
+        {
+        // przylot taksowka bywa jedynym sladem, ze jestesmy w tej osadzie
+        if(event.MarketID != 0)
+          {
+          state.settlement_market_id = event.MarketID;
+          if(auto res{state.db_.store(info::station_t{
+               .market_id = event.MarketID,
+               .system_address = event.SystemAddress,
+               .name = event.StationName,
+               .station_type = event.StationType,
+               .economy = {},
+               .government = {}
+             })};
+             not res)
+            spdlog::error("failed to store station {}", event.MarketID);
+          }
+        }
+      else if constexpr(std::same_as<T, events::supercruise_entry_t>)
+        state.settlement_market_id = 0;
+      else if constexpr(std::same_as<T, events::backpack_change_t>)
+        {
+        for(events::backpack_item_t const & item: event.Added)
+          {
+          auto key{micro_resource_key(item.Name)};
+          // typ z plecaka to ta sama kategoria co przy sprzedazy
+          if(auto res{state.db_.store(info::micro_resource_t{
+               .name = key, .id = {}, .localised = item.Name_Localised, .category = item.Type
+             })};
+             not res)
+            spdlog::error("failed to store micro resource {}", item.Name);
+
+          // miejsce zapisujemy jako market_id, wiec ekonomia dojdzie sama gdy ja poznamy
+          if(auto res{state.db_.store(info::micro_acquisition_t{
+               .timestamp = timestamp, .market_id = state.settlement_market_id, .name = std::move(key), .count = item.Count
+             })};
+             not res)
+            spdlog::error("failed to store acquisition {}", item.Name);
+          }
+        }
       else if constexpr(std::same_as<T, events::docked_t>)
         {
         // tozsamosc stacji odtwarzamy z journali - typ rozroznia flotowiec od stacji
+        state.settlement_market_id = event.MarketID;
         info::station_t station{
           .market_id = event.MarketID,
           .system_address = event.SystemAddress,
           .name = event.StationName,
-          .station_type = event.StationType
+          .station_type = event.StationType,
+          .economy = event.StationEconomy_Localised,
+          .government = event.StationGovernment_Localised
         };
 
         if(auto res{state.db_.store(station)}; not res) [[unlikely]]
@@ -459,7 +516,9 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
           .market_id = event.MarketID,
           .system_address = state.system.system_address,
           .name = event.StationName,
-          .station_type = event.StationType
+          .station_type = event.StationType,
+          .economy = {},
+          .government = {}
         };
 
         if(auto res{state.db_.store(station)}; not res) [[unlikely]]

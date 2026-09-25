@@ -756,6 +756,12 @@ auto generic_state_t::discovery(std::string_view input) -> void
     case FSSBodySignals:    parse_and_handle.template operator()<events::fss_body_signals_t>(); break;
     case Market:            parse_and_handle.template operator()<events::market_t>(); break;
     case Docked:            parse_and_handle.template operator()<events::docked_t>(); break;
+    case ApproachSettlement:
+      parse_and_handle.template operator()<events::approach_settlement_t>();
+      break;
+    case Disembark:        parse_and_handle.template operator()<events::disembark_t>(); break;
+    case SupercruiseEntry: parse_and_handle.template operator()<events::supercruise_entry_t>(); break;
+    case BackpackChange:   parse_and_handle.template operator()<events::backpack_change_t>(); break;
     case SellMicroResources:
       parse_and_handle.template operator()<events::sell_micro_resources_t>();
       break;

@@ -78,6 +78,10 @@ struct database_storage_t
   ///\brief zapisuje transakcje sprzedazy mikrozasobow, pomijajac juz znane
   [[nodiscard]]
   auto store(info::micro_sale_t const & sale, std::span<info::micro_sale_item_t const> items) -> expected_ec<void>;
+
+  ///\brief zapisuje zdobyty mikrozasob, pomijajac juz znane
+  [[nodiscard]]
+  auto store(info::micro_acquisition_t const & value) -> expected_ec<void>;
   
   [[nodiscard]]
   auto store(info::fcmaterial_t const & value) -> expected_ec<void>;

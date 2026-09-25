@@ -33,6 +33,8 @@ struct current_state_t : public generic_state_t
   
   std::vector<info::route_item_t> route_;
   uint64_t current_system_address_{};
+  ///\brief osada w ktorej jestesmy - zdobyte mikrozasoby dostaja jej market_id
+  uint64_t settlement_market_id_{};
 
   current_state_t(main_window_t * p, std::string db_path, std::string journal_path) : generic_state_t{journal_path}, parent{p}, db_{db_path} {}
 

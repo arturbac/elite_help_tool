@@ -125,6 +125,9 @@ struct station_t
   uint64_t system_address;
   std::string name;
   std::string station_type;
+  ///\brief ekonomia i rzad miejsca - to one mowia czego tam szukac, nie nazwa osady
+  std::string economy;
+  std::string government;
   };
 
 ///\brief kiedy ostatnio odczytalismy rynek tej stacji
@@ -288,6 +291,17 @@ struct micro_sale_t
   uint64_t market_id;
   uint64_t price;
   uint32_t total_count;
+};
+
+///\brief zdobyty mikrozasob wraz z miejscem, z ktorego pochodzi
+///\detail market_id wskazuje osade, a przez nia jej ekonomie; zero gdy zdobyte poza osada
+struct micro_acquisition_t
+{
+  int64_t oid{-1};
+  std::chrono::sys_seconds timestamp;
+  uint64_t market_id;
+  std::string name;
+  uint32_t count;
 };
 
 ///\brief pozycja transakcji, laczy sie ze slownikiem przez nazwe wewnetrzna

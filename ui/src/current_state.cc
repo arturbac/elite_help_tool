@@ -375,14 +375,74 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           if(auto res{db_.store(sale, items)}; not res)
             spdlog::error("failed to store micro resource sale at {}", event.MarketID);
           }
+        else if constexpr(std::same_as<T, events::approach_settlement_t>)
+          {
+          settlement_market_id_ = event.MarketID;
+          if(auto res{db_.store(info::station_t{
+               .market_id = event.MarketID,
+               .system_address = event.SystemAddress,
+               .name = event.Name,
+               .station_type = {},
+               .economy = event.StationEconomy_Localised,
+               .government = event.StationGovernment_Localised
+             })};
+             not res)
+            spdlog::error("failed to store settlement {}", event.MarketID);
+          }
+        else if constexpr(std::same_as<T, events::disembark_t>)
+          {
+          // przylot taksowka bywa jedynym sladem, ze jestesmy w tej osadzie
+          if(event.MarketID != 0)
+            {
+            settlement_market_id_ = event.MarketID;
+            if(auto res{db_.store(info::station_t{
+                 .market_id = event.MarketID,
+                 .system_address = event.SystemAddress,
+                 .name = event.StationName,
+                 .station_type = event.StationType,
+                 .economy = {},
+                 .government = {}
+               })};
+               not res)
+              spdlog::error("failed to store station {}", event.MarketID);
+            }
+          }
+        else if constexpr(std::same_as<T, events::supercruise_entry_t>)
+          settlement_market_id_ = 0;
+        else if constexpr(std::same_as<T, events::backpack_change_t>)
+          {
+          for(events::backpack_item_t const & item: event.Added)
+            {
+            auto key{micro_resource_key(item.Name)};
+            // typ z plecaka to ta sama kategoria co przy sprzedazy
+            if(auto res{db_.store(info::micro_resource_t{
+                 .name = key, .id = {}, .localised = item.Name_Localised, .category = item.Type
+               })};
+               not res)
+              spdlog::error("failed to store micro resource {}", item.Name);
+
+            // miejsce zapisujemy jako market_id, wiec ekonomia dojdzie sama gdy ja poznamy
+            if(auto res{db_.store(info::micro_acquisition_t{
+                 .timestamp = timestamp,
+                 .market_id = settlement_market_id_,
+                 .name = std::move(key),
+                 .count = item.Count
+               })};
+               not res)
+              spdlog::error("failed to store acquisition {}", item.Name);
+            }
+          }
         else if constexpr(std::same_as<T, events::docked_t>)
           {
           // tozsamosc stacji odtwarzamy z journali - typ rozroznia flotowiec od stacji
+          settlement_market_id_ = event.MarketID;
           info::station_t station{
             .market_id = event.MarketID,
             .system_address = event.SystemAddress,
             .name = event.StationName,
-            .station_type = event.StationType
+            .station_type = event.StationType,
+            .economy = event.StationEconomy_Localised,
+            .government = event.StationGovernment_Localised
           };
 
           if(auto res{db_.store(station)}; not res)
@@ -394,7 +454,9 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
             .market_id = event.MarketID,
             .system_address = system.system_address,
             .name = event.StationName,
-            .station_type = event.StationType
+            .station_type = event.StationType,
+            .economy = {},
+            .government = {}
           };
 
           // zawartosc rynku istnieje tylko w Market.json obok journali i tylko na zywo
