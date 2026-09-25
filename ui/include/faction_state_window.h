@@ -212,6 +212,7 @@ public:
   system_station_model_t * stations_model_{};
   QTableView * stations_view_{};
   QCheckBox * hide_carriers_{};
+  QCheckBox * hide_installations_{};
 
   QTabWidget * tabs_{};
   QLabel * market_header_{};

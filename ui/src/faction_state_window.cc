@@ -505,8 +505,15 @@ auto faction_state_window_t::setup_ui() -> void
   auto * stations_page = new QWidget(tabs);
   auto * stations_layout = new QVBoxLayout(stations_page);
 
+  auto * stations_filter = new QHBoxLayout();
   hide_carriers_ = new QCheckBox("Hide carriers", stations_page);
-  stations_layout->addWidget(hide_carriers_);
+  // instalacji jest duzo i nie da sie w nich zadokowac, wiec domyslnie nie zaslaniaja stacji
+  hide_installations_ = new QCheckBox("Hide installations", stations_page);
+  hide_installations_->setChecked(true);
+  stations_filter->addWidget(hide_carriers_);
+  stations_filter->addWidget(hide_installations_);
+  stations_filter->addStretch(1);
+  stations_layout->addLayout(stations_filter);
 
   stations_model_ = new system_station_model_t(this);
   auto * stations_proxy = new QSortFilterProxyModel(this);
@@ -567,6 +574,7 @@ auto faction_state_window_t::setup_ui() -> void
   tabs_ = tabs;
 
   connect(hide_carriers_, &QCheckBox::toggled, this, [this](bool) { update_stations(shown_system_); });
+  connect(hide_installations_, &QCheckBox::toggled, this, [this](bool) { update_stations(shown_system_); });
 
   connect(
     stations_view_,
@@ -791,6 +799,7 @@ auto faction_state_window_t::update_stations(uint64_t system_address) -> void
     }
 
   bool const hide_carriers{hide_carriers_->isChecked()};
+  bool const hide_installations{hide_installations_->isChecked()};
 
   std::vector<system_signal_t> stations;
   for(system_signal_t & signal: *res)
@@ -799,6 +808,8 @@ auto faction_state_window_t::update_stations(uint64_t system_address) -> void
       continue;
     // w zasiedlonych systemach flotowce potrafia przyslonic wszystkie prawdziwe stacje
     if(hide_carriers and station_rank(signal.signal_type) == 2)
+      continue;
+    if(hide_installations and signal.signal_type == "Installation")
       continue;
     stations.emplace_back(std::move(signal));
     }
