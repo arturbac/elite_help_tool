@@ -4,6 +4,7 @@
 #include <qformlayout.h>
 #include <qgroupbox.h>
 #include <qheaderview.h>
+#include <qbrush.h>
 #include <qsortfilterproxymodel.h>
 #include <qsplitter.h>
 #include <qcompleter.h>
@@ -125,14 +126,23 @@ auto system_conflict_model_t::columnCount(QModelIndex const &) const -> int
 [[nodiscard]]
 auto system_conflict_model_t::data(QModelIndex const & index, int role) const -> QVariant
   {
-  if(role != Qt::DisplayRole or not index.isValid() or index.row() >= static_cast<int>(conflicts_.size()))
+  if(not index.isValid() or index.row() >= static_cast<int>(conflicts_.size()))
     return {};
 
   auto const & item = conflicts_[static_cast<std::size_t>(index.row())];
+
+  // gra przestaje podawac status gdy konflikt sie skonczyl
+  if(role == Qt::ForegroundRole)
+    return item.status.empty() ? QVariant{QBrush(Qt::gray)} : QVariant{};
+
+  if(role != Qt::DisplayRole)
+    return {};
+
   switch(column_e(index.column()))
     {
     case column_e::war_type: return QString::fromStdString(item.war_type);
-    case column_e::status:   return QString::fromStdString(item.status);
+    case column_e::status:   return item.status.empty() ? QString{"finished"}
+                                                        : QString::fromStdString(item.status);
     case column_e::faction1: return QString::fromStdString(item.faction1);
     case column_e::stake1:   return QString::fromStdString(item.stake1);
     case column_e::won1:     return item.won_days1;
@@ -458,17 +468,26 @@ auto faction_state_window_t::update_conflicts(uint64_t system_address) -> void
   for(info::conflict_t const & conflict: *res)
     latest[{conflict.faction1, conflict.faction2}] = &conflict;
 
+  // zakonczony konflikt zostaje w widoku tylko dobe od chwili gdy zobaczylismy jego koniec
+  constexpr auto keep_finished{std::chrono::hours{24}};
+  auto const now{std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())};
+
   std::vector<info::conflict_t> current;
   std::chrono::sys_seconds newest{};
   for(auto const & [pair, conflict]: latest)
     {
+    if(conflict->status.empty() and now - conflict->timestamp > keep_finished)
+      continue;
+
     current.push_back(*conflict);
     newest = std::max(newest, conflict->timestamp);
     }
 
   if(current.empty())
     {
-    conflicts_note_->setText("No conflicts recorded in this system");
+    conflicts_note_->setText(
+      res->empty() ? "No conflicts recorded in this system" : "No conflict active in this system"
+    );
     return;
     }
 
