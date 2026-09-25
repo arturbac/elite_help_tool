@@ -1,4 +1,5 @@
 #include <system_window.h>
+#include <qformat.h>
 #include <qabstractitemmodel.h>
 #include <qboxlayout.h>
 #include <qgroupbox.h>
@@ -381,7 +382,14 @@ auto system_bodies_signals_model_t::data(QModelIndex const & index, int role) co
         auto const & s = body.signals_[id.item_idx];
         return QString("%1: %2").arg(QString::fromStdString(s.Type_Localised)).arg(s.Count);
         }
-    case node_type_t::genus_item: return QString::fromStdString(body.genuses_[id.item_idx].Genus_Localised);
+    case node_type_t::genus_item:
+        {
+        events::genus_t const & genus{body.genuses_[id.item_idx]};
+        // gatunek znamy dopiero po pobraniu probki, do tego czasu zostaje sam rodzaj
+        if(genus.Species_Localised.empty())
+          return QString::fromStdString(genus.Genus_Localised);
+        return qformat("{} - {}", genus.Genus_Localised, genus.Species_Localised);
+        }
     }
   return {};
   }

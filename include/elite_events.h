@@ -29,6 +29,7 @@ enum struct event_e : uint16_t
   FSSSignalDiscovered,
   DiscoveryScan,
   Scanned,
+  ScanOrganic,
   Scan,
   NavBeaconScan,
   ScanBaryCentre,
@@ -359,13 +360,20 @@ enum struct scan_type_e
   {
   AutoScan,
   NavBeaconDetail,
-  Detailed
+  Detailed,
+  // ScanType pojawia sie tez w Scanned i ScanOrganic, nieznana wartosc wywalala parsowanie
+  // generic_event_t czyli cala linie journala, nie tylko te eventy
+  Cargo,
+  Crime,
+  Log,
+  Sample,
+  Analyse
   };
 
 consteval auto adl_enum_bounds(scan_type_e)
   {
   using enum scan_type_e;
-  return simple_enum::adl_info{AutoScan, Detailed};
+  return simple_enum::adl_info{AutoScan, Analyse};
   }
 
 struct generic_event_t
@@ -829,6 +837,19 @@ struct signal_t
 struct genus_t
   {
   std::string Genus_Localised;
+  ///\brief uzupelniane dopiero po probkowaniu, mapowanie podaje sam rodzaj
+  std::string Species_Localised;
+  };
+
+///\brief pobranie probki organicznej, dopowiada gatunek do rodzaju znanego z mapowania
+struct scan_organic_t
+  {
+  scan_type_e ScanType;
+  std::string Genus_Localised;
+  std::string Species_Localised;
+  std::string Variant_Localised;
+  uint64_t SystemAddress;
+  body_id_t Body;
   };
 
 struct fss_body_signals_t
@@ -870,6 +891,7 @@ using event_holder_t = std::variant<
   scan_detailed_scan_t,
   saa_scan_complete_t,
   dss_body_signals_t,
+  scan_organic_t,
   fuel_scoop_t,
   loadout_t,
   location_t,

@@ -386,6 +386,26 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
           state.buffered_signals.emplace_back(event.BodyID, std::move(event.Signals), std::move(event.Genuses));
           }
         }
+      else if constexpr(std::same_as<T, events::scan_organic_t>)
+        {
+        // mapowanie daje tylko rodzaj, probka dopowiada gatunek
+        if(auto it{state.system.body_by_id(event.Body)}; it != state.system.bodies.end())
+          if(std::holds_alternative<planet_details_t>(it->details))
+            {
+            planet_details_t & details{std::get<planet_details_t>(it->details)};
+            auto genus{std::ranges::find(details.genuses_, event.Genus_Localised, &events::genus_t::Genus_Localised)};
+            if(genus != details.genuses_.end())
+              genus->Species_Localised = event.Species_Localised;
+            }
+
+        if(
+          auto res{state.db_.store_genus_species(
+            event.SystemAddress, event.Body, event.Genus_Localised, event.Species_Localised
+          )};
+          not res
+        ) [[unlikely]]
+          critical_abort("failed to store species for {}:{}", event.SystemAddress, event.Body);
+        }
       else if constexpr(std::same_as<T, events::fss_all_bodies_found_t>)
         {
         spdlog::info("fss scan complete");

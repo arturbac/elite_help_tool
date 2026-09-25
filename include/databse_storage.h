@@ -93,6 +93,12 @@ struct database_storage_t
   [[nodiscard]]
   auto store(uint64_t ref_body_oid, events::genus_t const & value) -> expected_ec<void>;
 
+  /// gatunek dopisywany do rodzaju znanego z mapowania, po pobraniu probki
+  [[nodiscard]]
+  auto store_genus_species(
+    uint64_t system_address, events::body_id_t body_id, std::string_view genus, std::string_view species
+  ) -> expected_ec<void>;
+
   [[nodiscard]]
   auto store(uint64_t system_address, ring_t const & value) -> expected_ec<void>;
 

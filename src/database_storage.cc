@@ -102,18 +102,21 @@ struct genus_t
   uint64_t ref_body_oid;
 
   std::string genus;
+  std::string species;
   };
 
 [[nodiscard]]
 auto to_db_fromat(uint64_t ref_body_oid, events::genus_t const & v) noexcept -> sql_iface::genus_t
   {
-  return sql_iface::genus_t{.ref_body_oid = ref_body_oid, .genus = v.Genus_Localised};
+  return sql_iface::genus_t{
+    .ref_body_oid = ref_body_oid, .genus = v.Genus_Localised, .species = v.Species_Localised
+  };
   }
 
 [[nodiscard]]
 auto to_native_fromat(sql_iface::genus_t const & v) noexcept -> events::genus_t
   {
-  return events::genus_t{.Genus_Localised = v.genus};
+  return events::genus_t{.Genus_Localised = v.genus, .Species_Localised = v.species};
   }
 
 struct ring_t
@@ -1185,6 +1188,28 @@ auto database_storage_t::store(uint64_t ref_body_oid, events::signal_t const & v
 auto database_storage_t::store(uint64_t ref_body_oid, events::genus_t const & value) -> expected_ec<void>
   {
   return sqlite::insert_into(db_->db, "oid"sv, sql_iface::tables::genus, sql_iface::to_db_fromat(ref_body_oid, value));
+  }
+
+auto database_storage_t::store_genus_species(
+  uint64_t system_address, events::body_id_t body_id, std::string_view genus, std::string_view species
+) -> expected_ec<void>
+  {
+  auto body_oid{oid_for_body(system_address, body_id)};
+  if(not body_oid) [[unlikely]]
+    return cxx23::unexpected{body_oid.error()};
+
+  // probka moze przyjsc dla ciala, ktorego jeszcze nie zmapowalismy
+  if(not *body_oid)
+    return {};
+
+  std::string query{std::format(
+    "UPDATE {} SET species='{}' WHERE ref_body_oid={} AND genus='{}'",
+    sql_iface::tables::genus,
+    sqlite::escape_sql_quotes(species),
+    **body_oid,
+    sqlite::escape_sql_quotes(genus)
+  )};
+  return sqlite::execute_query_no_result(db_->db, query);
   }
 
 auto database_storage_t::store(uint64_t system_address, ring_t const & value) -> expected_ec<void>
