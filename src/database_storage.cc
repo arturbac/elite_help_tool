@@ -1180,11 +1180,12 @@ auto database_storage_t::load_missions() -> expected_ec<std::vector<info::missio
   return sqlite::select_from<info::mission_t>(
     db_->db,
     sql_iface::tables::mission,
+    // redirected znaczy zrobiona i czekajaca na oddanie - po terminie jest zamknieta tak samo
+    // jak nieoddana, bo albo przepadla albo fakt oddania nie trafil do journala
     std::format(
-      " WHERE (status='accepted' and expiry >'{:%Y-%m-%dT%H:%M:%SZ}') OR status='redirected'",
+      " WHERE expiry > '{:%Y-%m-%dT%H:%M:%SZ}' AND (status='accepted' OR status='redirected')",
       std::chrono::system_clock::now()
     )
-    // where status='accepted' and expiry >'2026-01-07T10:43:00Z' or status='redirected'
   );
   }
 
@@ -1196,12 +1197,17 @@ auto database_storage_t::mission_exists(uint64_t mission_id) ->expected_ec<bool>
   else
     return *res != 0;
 }
-auto database_storage_t::change_mission_status(uint64_t mission_id, info::mission_status_e const status)
-  -> expected_ec<void>
+auto database_storage_t::change_mission_status(
+  uint64_t mission_id, info::mission_status_e const status, std::chrono::sys_seconds when
+) -> expected_ec<void>
   {
-  std::string query{
-    std::format("UPDATE {} SET status='{}' WHERE mission_id={}", sql_iface::tables::mission, status, mission_id)
-  };
+  std::string query{std::format(
+    "UPDATE {} SET status='{}', closed='{:%Y-%m-%dT%H:%M:%SZ}' WHERE mission_id={}",
+    sql_iface::tables::mission,
+    status,
+    when,
+    mission_id
+  )};
   return sqlite::execute_query_no_result(db_->db, query);
   }
 

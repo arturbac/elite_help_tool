@@ -329,9 +329,19 @@ struct mission_accepted_t
   uint16_t KillCount;  //
   };
 
+///\brief nagroda materialowa za misje - idzie do lockera, w plecaku sie nie pojawia
+struct material_reward_t
+  {
+  std::string Name;
+  std::string Category_Localised;
+  uint32_t Count;
+  };
+
 struct mission_completed_t
   {
   uint64_t MissionID;
+  ///\brief nagrody materialowe - najwiekszy pojedynczy zrodlo danych, dwa razy wiekszy niz porty
+  std::vector<material_reward_t> MaterialsReward;
   };
 
 struct mission_failed_t

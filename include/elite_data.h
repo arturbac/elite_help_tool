@@ -211,6 +211,10 @@ struct mission_t
   std::string type;
   std::string description;
   uint64_t reward;
+  ///\brief stacja w ktorej misja zostala wzieta, zero gdy nieznana
+  uint64_t market_id;
+  ///\brief kiedy misja sie zamknela - bez tego nie da sie liczyc statystyk tygodniowych
+  std::chrono::sys_seconds closed;
 
   std::string target;
   std::string target_type;
@@ -295,6 +299,21 @@ struct micro_sale_t
 
 ///\brief zdobyty mikrozasob wraz z miejscem, z ktorego pochodzi
 ///\detail market_id wskazuje osade, a przez nia jej ekonomie; zero gdy zdobyte poza osada
+///\brief skad wzial sie mikrozasob
+enum struct acquisition_source_e : uint8_t
+{
+  ///\brief podniesione w osadzie, porcie danych albo z pojemnika
+  collected,
+  ///\brief nagroda za misje, trafia wprost do lockera z pominieciem plecaka
+  mission_reward
+};
+
+consteval auto adl_enum_bounds(acquisition_source_e)
+{
+  using enum acquisition_source_e;
+  return simple_enum::adl_info{collected, mission_reward};
+}
+
 struct micro_acquisition_t
 {
   int64_t oid{-1};
@@ -302,6 +321,7 @@ struct micro_acquisition_t
   uint64_t market_id;
   std::string name;
   uint32_t count;
+  acquisition_source_e source;
 };
 
 ///\brief pozycja transakcji, laczy sie ze slownikiem przez nazwe wewnetrzna

@@ -439,7 +439,7 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
         if(auto res{state.db_.store(sale, items)}; not res)
           critical_abort("failed to store micro resource sale at {}", event.MarketID);
         }
-      else if constexpr(std::same_as<T, events::approach_settlement_t>)
+        else if constexpr(std::same_as<T, events::approach_settlement_t>)
         {
         state.settlement_market_id = event.MarketID;
         if(auto res{state.db_.store(info::station_t{
@@ -487,7 +487,9 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
 
           // miejsce zapisujemy jako market_id, wiec ekonomia dojdzie sama gdy ja poznamy
           if(auto res{state.db_.store(info::micro_acquisition_t{
-               .timestamp = timestamp, .market_id = state.settlement_market_id, .name = std::move(key), .count = item.Count
+               .timestamp = timestamp, .market_id = state.settlement_market_id, .name = std::move(key),
+               .count = item.Count,
+               .source = info::acquisition_source_e::collected
              })};
              not res)
             spdlog::error("failed to store acquisition {}", item.Name);
@@ -599,6 +601,7 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
         info::mission_t mission{
           .mission_id = event.MissionID,
           .status = info::mission_status_e::accepted,
+          .market_id = state.settlement_market_id,
           .expiry = event.Expiry,
           .faction = event.Faction,
           .type = event.Name,
@@ -619,19 +622,45 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
         }
       else if constexpr(std::same_as<T, events::mission_completed_t>)
         {
-        if(auto res{state.db_.change_mission_status(event.MissionID, info::mission_status_e::completed)}; not res)
+        if(auto res{state.db_.change_mission_status(event.MissionID, info::mission_status_e::completed, timestamp)}; not res)
           [[unlikely]]
           critical_abort("failed to change mission status for {}", event.MissionID);
+
+          // nagrody ida prosto do lockera, w plecaku sie nie pojawiaja - zadnego dublowania
+          for(events::material_reward_t const & reward: event.MaterialsReward)
+            {
+            // Encoded, Manufactured i Elements to materialy statku, nie mikrozasoby
+            if(reward.Category_Localised != "Data" and reward.Category_Localised != "Item"
+               and reward.Category_Localised != "Component" and reward.Category_Localised != "Consumable")
+              continue;
+      
+            auto key{micro_resource_key(reward.Name)};
+            if(auto res{state.db_.store(info::micro_resource_t{
+                 .name = key, .id = {}, .localised = {}, .category = reward.Category_Localised
+               })};
+               not res)
+              spdlog::error("failed to store micro resource {}", reward.Name);
+      
+            if(auto res{state.db_.store(info::micro_acquisition_t{
+                 .timestamp = timestamp,
+                 .market_id = state.settlement_market_id,
+                 .name = std::move(key),
+                 .count = reward.Count,
+                 .source = info::acquisition_source_e::mission_reward
+               })};
+               not res)
+              spdlog::error("failed to store mission reward {}", reward.Name);
+            }
         }
       else if constexpr(std::same_as<T, events::mission_abandoned_t>)
         {
-        if(auto res{state.db_.change_mission_status(event.MissionID, info::mission_status_e::abandoned)}; not res)
+        if(auto res{state.db_.change_mission_status(event.MissionID, info::mission_status_e::abandoned, timestamp)}; not res)
           [[unlikely]]
           critical_abort("failed to change mission status for {}", event.MissionID);
         }
       else if constexpr(std::same_as<T, events::mission_failed_t>)
         {
-        if(auto res{state.db_.change_mission_status(event.MissionID, info::mission_status_e::failed)}; not res)
+        if(auto res{state.db_.change_mission_status(event.MissionID, info::mission_status_e::failed, timestamp)}; not res)
           [[unlikely]]
           critical_abort("failed to change mission status for {}", event.MissionID);
         }
@@ -648,11 +677,11 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
       else if constexpr(std::same_as<T, events::missions_t>)
         {
         for(events::mission_failed_t const & mission: event.Failed)
-          if(auto res{state.db_.change_mission_status(mission.MissionID, info::mission_status_e::failed)}; not res)
+          if(auto res{state.db_.change_mission_status(mission.MissionID, info::mission_status_e::failed, timestamp)}; not res)
             [[unlikely]]
             spdlog::warn("failed to change mission status for {}", mission.MissionID);
         for(events::mission_completed_t const & mission: event.Complete)
-          if(auto res{state.db_.change_mission_status(mission.MissionID, info::mission_status_e::completed)}; not res)
+          if(auto res{state.db_.change_mission_status(mission.MissionID, info::mission_status_e::completed, timestamp)}; not res)
             [[unlikely]]
             spdlog::warn("failed to change mission status for {}", mission.MissionID);
         }
