@@ -274,6 +274,16 @@ auto system_bodies_signals_model_t::unpack_id(quintptr id) const noexcept -> int
   };
   }
 
+namespace
+  {
+///\brief czy pokazywac wezel sygnalow dla tego ciala
+///\detail lista rodzajow mowi to samo co licznik sygnalow biologicznych, tylko dokladniej,
+/// wiec gdy rodzaje sa znane sygnaly tylko dubluja informacje
+[[nodiscard]]
+auto shows_signals(body_signal_t const & body) noexcept -> bool
+  { return body.genuses_.empty() and not body.signals_.empty(); }
+  }  // namespace
+
 [[nodiscard]]
 auto system_bodies_signals_model_t::rowCount(QModelIndex const & parent) const -> int
   {
@@ -288,15 +298,8 @@ auto system_bodies_signals_model_t::rowCount(QModelIndex const & parent) const -
 
   switch(id.type)
     {
-    case node_type_t::body:
-        {
-        int count = 0;
-        if(!body.signals_.empty())
-          ++count;
-        if(!body.genuses_.empty())
-          ++count;
-        return count;
-        }
+    // wezly wykluczaja sie - rodzaje zastepuja licznik sygnalow
+    case node_type_t::body:             return (shows_signals(body) or not body.genuses_.empty()) ? 1 : 0;
     case node_type_t::category_signals: return static_cast<int>(body_signals_[id.body_idx].signals_.size());
     case node_type_t::category_genuses: return static_cast<int>(body_signals_[id.body_idx].genuses_.size());
     default:                            return 0;
@@ -316,16 +319,8 @@ auto system_bodies_signals_model_t::index(int row, int column, QModelIndex const
 
   if(id.type == node_type_t::body)
     {
-    // Dynamiczne mapowanie wiersza na typ kategorii
-    if(!body.signals_.empty())
-      {
-      if(row == 0)
-        return createIndex(row, column, pack_id({id.body_idx, node_type_t::category_signals, -1}));
-      // Jeśli sygnały istnieją, to row 1 musi być rodzajami (genus)
-      return createIndex(row, column, pack_id({id.body_idx, node_type_t::category_genuses, -1}));
-      }
-    // Jeśli nie ma sygnałów, row 0 to rodzaje (genus)
-    return createIndex(row, column, pack_id({id.body_idx, node_type_t::category_genuses, -1}));
+    auto const category{shows_signals(body) ? node_type_t::category_signals : node_type_t::category_genuses};
+    return createIndex(row, column, pack_id({id.body_idx, category, -1}));
     }
 
   // Reszta bez zmian (leaf nodes)
@@ -342,8 +337,6 @@ auto system_bodies_signals_model_t::parent(QModelIndex const & index) const -> Q
   if(id.type == node_type_t::body)
     return {};
 
-  auto const & body = body_signals_[id.body_idx];
-
   if(id.type == node_type_t::category_signals || id.type == node_type_t::category_genuses)
     return createIndex(id.body_idx, 0, pack_id({id.body_idx, node_type_t::body, -1}));
 
@@ -352,11 +345,8 @@ auto system_bodies_signals_model_t::parent(QModelIndex const & index) const -> Q
     return createIndex(0, 0, pack_id({id.body_idx, node_type_t::category_signals, -1}));
 
   if(id.type == node_type_t::genus_item)
-    {
-    // Wiersz rodzica zależy od tego, czy istnieją sygnały
-    int parent_row = body.signals_.empty() ? 0 : 1;
-    return createIndex(parent_row, 0, pack_id({id.body_idx, node_type_t::category_genuses, -1}));
-    }
+    // rodzaje sa wtedy jedynym wezlem ciala
+    return createIndex(0, 0, pack_id({id.body_idx, node_type_t::category_genuses, -1}));
 
   return {};
   }
