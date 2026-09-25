@@ -8,6 +8,7 @@
 #include <faction_window.h>
 #include <faction_state_window.h>
 #include <micro_resource_window.h>
+#include <overlay_feed.h>
 
 #include <simple_enum/simple_enum.hpp>
 #include <qmainwindow.h>
@@ -16,6 +17,7 @@
 #include <stop_token>
 #include <qpointer.h>
 #include <file_io.h>
+#include <qtimer.h>
 
 enum struct window_type_e
   {
@@ -52,7 +54,12 @@ public:
   QPointer<faction_window_t> faction_view_;
   QPointer<faction_state_window_t> faction_state_view_;
   QPointer<micro_resource_window_t> micro_resource_view_;
-  
+
+  ///\brief zasila overlay w oknie gry; zyje niezaleznie od tego czy gra w ogole dziala
+  std::unique_ptr<overlay_feed_t> overlay_feed_;
+  ///\brief podtrzymuje obraz gdy z journala nic nie przychodzi, np gdy stoimy zadokowani
+  QTimer * overlay_timer_{};
+
   fs::path file_to_monitor{};
 
   QMdiArea * mdi_area_{nullptr};
@@ -69,6 +76,9 @@ public:
 
   ///\brief pokazuje okno narzedziowe i wyciaga je na wierzch MDI
   auto activate_window(window_type_e type) -> void;
+
+  ///\brief przepisuje biezacy stan do overlaya, wolane z watku gui
+  auto publish_overlay() -> void;
 
 private:
   [[nodiscard]]

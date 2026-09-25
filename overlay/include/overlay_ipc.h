@@ -70,6 +70,9 @@ public:
   auto clients() const noexcept -> unsigned;
 
   ///\brief serializuje raz i zostawia watkowi io; ramka jeszcze niewyslana jest zastepowana nowa
+  ///
+  /// ostatnia ramka zostaje zapamietana i trafia do kazdego nowego klienta. gra startuje zwykle
+  /// pozniej niz narzedzie, wiec bez tego overlay swiecilby pustka az do najblizszej zmiany
   auto publish(frame_t const & frame) -> void;
 
 private:
@@ -89,6 +92,8 @@ private:
   std::atomic<unsigned> client_count_{};
   std::mutex peers_mutex_;
   std::vector<peer_t> peers_;
+  ///\brief ostatni wyslany obraz, gotowy do podania nowo podlaczonym
+  std::string retained_;
   std::thread worker_;
   };
   }  // namespace overlay

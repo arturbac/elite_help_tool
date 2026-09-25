@@ -50,6 +50,20 @@ main_window_t::main_window_t(std::string db_path, std::string journal_path, QWid
   {
   setup_ui();
   load_settings();
+
+  // serwer wstaje niezaleznie od gry - ta moze wystartowac przed narzedziem albo wcale
+  overlay_feed_ = std::make_unique<overlay_feed_t>(overlay::default_socket_path());
+
+  overlay_timer_ = new QTimer(this);
+  overlay_timer_->setInterval(2000);
+  connect(overlay_timer_, &QTimer::timeout, this, [this] { publish_overlay(); });
+  overlay_timer_->start();
+  }
+
+auto main_window_t::publish_overlay() -> void
+  {
+  if(overlay_feed_)
+    overlay_feed_->publish(state_);
   }
 
 auto main_window_t::start_monitoring() -> void

@@ -14,6 +14,8 @@ namespace
   constexpr float corner_margin{14.f};
   ///\brief present z wieksza liczba semaforow po prostu pomijamy - nie warto alokowac na sciezce klatki
   constexpr uint32_t max_wait_semaphores{16u};
+  ///\brief nigdy nie czekamy bez konca - zawieszony overlay nie ma prawa zawiesic gry
+  constexpr uint64_t fence_timeout_ns{1000000000ull};
 
   [[nodiscard]]
   auto env_flag(char const * name, bool fallback) noexcept -> bool
@@ -488,8 +490,10 @@ auto draw_overlay(
 
     if(frame.submitted)
       {
-      if(device.WaitForFences(device.device, 1u, &frame.fence, VK_TRUE, UINT64_MAX) != VK_SUCCESS)
+      // sekunda to juz awaria; wolimy stracic overlay niz zatrzymac klatki gry
+      if(device.WaitForFences(device.device, 1u, &frame.fence, VK_TRUE, fence_timeout_ns) != VK_SUCCESS)
         {
+        log("overlay command buffer did not finish in time, disabling for this swapchain");
         data.broken = true;
         return VK_NULL_HANDLE;
         }

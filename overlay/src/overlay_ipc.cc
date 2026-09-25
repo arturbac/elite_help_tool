@@ -297,8 +297,7 @@ auto server_t::publish(frame_t const & frame) -> void
 
     {
     std::lock_guard const lock{peers_mutex_};
-    if(peers_.empty())
-      return;
+    retained_ = encoded;
 
     // liczy sie tylko najswiezszy obraz, wiec zalegla ramka idzie do kosza zamiast rosnac w kolejke
     for(peer_t & peer: peers_)
@@ -356,7 +355,8 @@ auto server_t::run() -> void
           break;
 
         std::lock_guard const lock{peers_mutex_};
-        peers_.push_back(peer_t{.fd = accepted, .outbox = {}, .sent = 0u});
+        // swiezo podlaczona gra dostaje aktualny obraz od razu, nie czeka na nastepna zmiane
+        peers_.push_back(peer_t{.fd = accepted, .outbox = retained_, .sent = 0u});
         client_count_.store(static_cast<unsigned>(peers_.size()), std::memory_order_relaxed);
         }
 

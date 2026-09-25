@@ -83,6 +83,24 @@ auto main() -> int
       }
   };
 
+  // typowa kolejnosc: narzedzie chodzi od dawna, gra wstaje pozniej
+  "klient podlaczony po publikacji dostaje ostatni obraz"_test = []
+  {
+    auto const path{scratch_socket("retained")};
+    overlay::server_t server{path};
+    expect(server.listening());
+
+    server.publish(sample_frame(42u));
+
+    overlay::client_t client{path};
+    expect(wait_until([&] { return client.snapshot() != nullptr; })) << "zapamietana ramka nie dotarla";
+
+    auto const received{client.snapshot()};
+    expect(received != nullptr);
+    if(received != nullptr)
+      expect(received->frame.seq == 42_ul);
+  };
+
   // gra potrafi wystartowac przed narzedziem - brak serwera nie moze niczego zepsuc
   "klient bez serwera zyje i nic nie zwraca"_test = []
   {

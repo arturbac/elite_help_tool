@@ -960,6 +960,9 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
         },
         Qt::QueuedConnection
       );
+    // overlay dostaje obraz po kazdej paczce zdarzen, a sam decyduje czy cokolwiek sie zmienilo
+    QMetaObject::invokeMethod(parent, [target = parent]() mutable { target->publish_overlay(); }, Qt::QueuedConnection);
+
     if(update_factions)
       {
       load_factions();

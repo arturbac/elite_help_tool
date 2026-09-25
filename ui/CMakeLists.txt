@@ -7,6 +7,7 @@ add_executable(elite_help_tool)
 
 target_link_libraries(elite_help_tool PRIVATE
   eht
+  eht_overlay_ipc
   Qt6::Widgets 
   Qt6::Charts
   # Qt6::Sql
@@ -27,5 +28,6 @@ target_sources(elite_help_tool
             include/faction_window.h
             include/faction_state_window.h
             include/micro_resource_window.h
+            include/overlay_feed.h
 )
 add_subdirectory(src)
