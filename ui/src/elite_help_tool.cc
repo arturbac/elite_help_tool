@@ -2,6 +2,9 @@
 #include <spdlog/spdlog.h>
 
 #include <qapplication.h>
+#include <qguiapplication.h>
+#include <qpalette.h>
+#include <qstylefactory.h>
 #include <qmdisubwindow.h>
 #include <qsettings.h>
 #include <qtoolbar.h>
@@ -266,9 +269,57 @@ auto main_window_t::background_worker(std::stop_token stoken) -> void
   );
   }
 
+namespace
+  {
+///\brief ciemna paleta na wypadek braku motywu pulpitu
+[[nodiscard]]
+auto dark_palette() -> QPalette
+  {
+  QColor const window{0x2b, 0x2b, 0x2b};
+  QColor const text{0xdd, 0xdd, 0xdd};
+  QColor const dimmed{0x77, 0x77, 0x77};
+
+  QPalette palette;
+  palette.setColor(QPalette::Window, window);
+  palette.setColor(QPalette::WindowText, text);
+  palette.setColor(QPalette::Base, QColor{0x23, 0x23, 0x23});
+  palette.setColor(QPalette::AlternateBase, QColor{0x31, 0x31, 0x31});
+  palette.setColor(QPalette::ToolTipBase, window);
+  palette.setColor(QPalette::ToolTipText, text);
+  palette.setColor(QPalette::Text, text);
+  palette.setColor(QPalette::PlaceholderText, dimmed);
+  palette.setColor(QPalette::Button, window);
+  palette.setColor(QPalette::ButtonText, text);
+  palette.setColor(QPalette::BrightText, Qt::red);
+  palette.setColor(QPalette::Link, QColor{0x4a, 0x90, 0xd9});
+  palette.setColor(QPalette::Highlight, QColor{0x2a, 0x63, 0x9c});
+  palette.setColor(QPalette::HighlightedText, Qt::white);
+
+  palette.setColor(QPalette::Disabled, QPalette::Text, dimmed);
+  palette.setColor(QPalette::Disabled, QPalette::WindowText, dimmed);
+  palette.setColor(QPalette::Disabled, QPalette::ButtonText, dimmed);
+  return palette;
+  }
+
+///\brief wymusza ciemny motyw gdy system go nie narzuca
+///\detail uruchomienie przez ssh -X trafia na maszyne bez ustawien pulpitu i qt wstaje jasne.
+/// styleHints()->setColorScheme nic tam nie da - bez motywu pulpitu qt zostawia schemat Unknown
+/// i palete bez zmian, wiec paleta idzie wprost. O tym czy jest potrzebna decyduje jasnosc tla,
+/// bo colorScheme bywa Unknown rowniez na ciemnym pulpicie.
+auto apply_dark_theme() -> void
+  {
+  if(QApplication::palette().color(QPalette::Window).lightness() < 128)
+    return;
+
+  QApplication::setStyle(QStyleFactory::create("Fusion"));
+  QApplication::setPalette(dark_palette());
+  }
+  }  // namespace
+
 auto main(int argc, char * argv[]) -> int
   {
   QApplication app(argc, argv);
+  apply_dark_theme();
 
   main_window_t window{"ehtdb.sqlite", "journal-dir"};
   if(not window.state_.db_.open())
