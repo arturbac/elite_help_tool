@@ -418,6 +418,9 @@ auto faction_state_window_t::setup_ui() -> void
   auto * stations_page = new QWidget(tabs);
   auto * stations_layout = new QVBoxLayout(stations_page);
 
+  hide_carriers_ = new QCheckBox("Hide carriers", stations_page);
+  stations_layout->addWidget(hide_carriers_);
+
   stations_model_ = new system_station_model_t(this);
   auto * stations_proxy = new QSortFilterProxyModel(this);
   stations_proxy->setSourceModel(stations_model_);
@@ -432,6 +435,8 @@ auto faction_state_window_t::setup_ui() -> void
   stations_view_->horizontalHeader()->setStretchLastSection(true);
   stations_layout->addWidget(stations_view_);
   tabs->addTab(stations_page, "Stations");
+
+  connect(hide_carriers_, &QCheckBox::toggled, this, [this](bool) { update_stations(shown_system_); });
 
   layout->addWidget(tabs, 1);
 
@@ -643,10 +648,18 @@ auto faction_state_window_t::update_stations(uint64_t system_address) -> void
     return;
     }
 
+  bool const hide_carriers{hide_carriers_->isChecked()};
+
   std::vector<system_signal_t> stations;
   for(system_signal_t & signal: *res)
-    if(classify_signal(signal.signal_type) == signal_class_e::station)
-      stations.emplace_back(std::move(signal));
+    {
+    if(classify_signal(signal.signal_type) != signal_class_e::station)
+      continue;
+    // w zasiedlonych systemach flotowce potrafia przyslonic wszystkie prawdziwe stacje
+    if(hide_carriers and station_rank(signal.signal_type) == 2)
+      continue;
+    stations.emplace_back(std::move(signal));
+    }
 
   stations_model_->update_data(std::move(stations));
   stations_view_->resizeColumnsToContents();

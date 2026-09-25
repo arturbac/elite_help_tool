@@ -173,6 +173,7 @@ public:
 
   system_station_model_t * stations_model_{};
   QTableView * stations_view_{};
+  QCheckBox * hide_carriers_{};
 
   explicit faction_state_window_t(current_state_t const & state, std::string db_path, QWidget * parent = nullptr);
 
