@@ -138,6 +138,44 @@ public:
   auto update_data(std::vector<system_signal_t> && new_data) -> void;
   };
 
+///\brief jedna strona rynku - to co stacja sprzedaje albo to co skupuje
+class market_model_t final : public QAbstractTableModel
+  {
+  Q_OBJECT
+  enum struct column_e : int
+    {
+    name,
+    category,
+    price,
+    quantity,
+    deviation,
+    column_max
+    };
+
+public:
+  static constexpr int sort_role = Qt::UserRole + 1;
+
+  ///\brief true dla towarow na sprzedaz przez stacje, false dla skupowanych
+  bool station_sells_{};
+  std::vector<info::market_entry_t> entries_{};
+
+  explicit market_model_t(bool station_sells, QObject * parent);
+
+  [[nodiscard]]
+  auto rowCount(QModelIndex const & parent = QModelIndex()) const -> int override;
+
+  [[nodiscard]]
+  auto columnCount(QModelIndex const & = QModelIndex()) const -> int override;
+
+  [[nodiscard]]
+  auto data(QModelIndex const & index, int role = Qt::DisplayRole) const -> QVariant override;
+
+  [[nodiscard]]
+  auto headerData(int section, Qt::Orientation orientation, int role) const -> QVariant override;
+
+  auto update_data(std::vector<info::market_entry_t> && new_data) -> void;
+  };
+
 class faction_state_window_t final : public QMdiSubWindow
   {
   Q_OBJECT
@@ -175,6 +213,13 @@ public:
   QTableView * stations_view_{};
   QCheckBox * hide_carriers_{};
 
+  QTabWidget * tabs_{};
+  QLabel * market_header_{};
+  market_model_t * market_sells_model_{};
+  market_model_t * market_buys_model_{};
+  QTableView * market_sells_view_{};
+  QTableView * market_buys_view_{};
+
   explicit faction_state_window_t(current_state_t const & state, std::string db_path, QWidget * parent = nullptr);
 
   ///\brief wolane gdy stan gry sie zmienil - odswieza widok jesli sledzimy biezacy system
@@ -188,6 +233,9 @@ private:
   auto update_system_info(uint64_t system_address) -> void;
   auto update_conflicts(uint64_t system_address) -> void;
   auto update_stations(uint64_t system_address) -> void;
+
+  ///\brief pokazuje rynek stacji klikietej na liscie i przelacza na jego zakladke
+  auto show_market(std::string_view station_name) -> void;
 
   ///\brief jeden punkt na dobe, ostatni pomiar dnia, ograniczone do wybranego zakresu
   auto update_chart() -> void;

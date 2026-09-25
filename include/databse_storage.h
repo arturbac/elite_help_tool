@@ -173,6 +173,14 @@ struct database_storage_t
   [[nodiscard]]
   auto load_station(uint64_t market_id) -> expected_ec<std::optional<info::station_t>>;
 
+  ///\brief stacja po nazwie widzianej w sygnale systemu
+  [[nodiscard]]
+  auto load_station(uint64_t system_address, std::string_view name) -> expected_ec<std::optional<info::station_t>>;
+
+  ///\brief zawartosc rynku zlaczona ze slownikiem towarow
+  [[nodiscard]]
+  auto load_market_entries(uint64_t market_id) -> expected_ec<std::vector<info::market_entry_t>>;
+
   ///\brief podmienia cala zawartosc rynku na swiezy odczyt i znaczy czas aktualizacji
   [[nodiscard]]
   auto replace_market(

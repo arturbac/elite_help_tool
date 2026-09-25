@@ -150,6 +150,18 @@ struct market_item_t
   uint32_t demand;
   };
 
+///\brief pozycja rynku juz zlaczona ze slownikiem towarow, do pokazania w oknie
+struct market_entry_t
+  {
+  std::string name;
+  std::string category;
+  uint32_t buy_price;
+  uint32_t sell_price;
+  uint32_t mean_price;
+  uint32_t stock;
+  uint32_t demand;
+  };
+
 ///\brief lekka projekcja star_system do list wyboru, nazwy pol musza zgadzac sie z kolumnami
 struct system_ref_t
   {

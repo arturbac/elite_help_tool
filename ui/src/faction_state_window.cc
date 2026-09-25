@@ -279,6 +279,93 @@ auto system_station_model_t::update_data(std::vector<system_signal_t> && new_dat
   endResetModel();
   }
 
+market_model_t::market_model_t(bool station_sells, QObject * parent) :
+    QAbstractTableModel(parent),
+    station_sells_{station_sells}
+  {
+  }
+
+[[nodiscard]]
+auto market_model_t::rowCount(QModelIndex const &) const -> int
+  { return static_cast<int>(entries_.size()); }
+
+[[nodiscard]]
+auto market_model_t::columnCount(QModelIndex const &) const -> int
+  { return int(column_e::column_max); }
+
+[[nodiscard]]
+auto market_model_t::data(QModelIndex const & index, int role) const -> QVariant
+  {
+  if(not index.isValid() or index.row() >= static_cast<int>(entries_.size()))
+    return {};
+
+  auto const & item = entries_[static_cast<std::size_t>(index.row())];
+  auto const column{column_e(index.column())};
+
+  auto const price{station_sells_ ? item.buy_price : item.sell_price};
+  auto const quantity{station_sells_ ? item.stock : item.demand};
+  // srednia galaktyczna jest punktem odniesienia, przy kupnie taniej jest dobrze, przy sprzedazy drozej
+  double const deviation{
+    item.mean_price != 0 ? 100. * (double(price) - double(item.mean_price)) / double(item.mean_price) : 0.
+  };
+
+  if(role == Qt::ForegroundRole and column == column_e::deviation)
+    {
+    bool const good{station_sells_ ? deviation < 0. : deviation > 0.};
+    return QBrush(good ? QColor{0x3c, 0xb3, 0x71} : QColor{0xd9, 0x53, 0x4f});
+    }
+
+  if(role == Qt::TextAlignmentRole and column != column_e::name and column != column_e::category)
+    return int(Qt::AlignRight | Qt::AlignVCenter);
+
+  if(role == sort_role)
+    switch(column)
+      {
+      case column_e::name:      return QString::fromStdString(item.name);
+      case column_e::category:  return QString::fromStdString(item.category);
+      case column_e::price:     return price;
+      case column_e::quantity:  return quantity;
+      case column_e::deviation: return deviation;
+      default:                  return {};
+      }
+
+  if(role != Qt::DisplayRole)
+    return {};
+
+  switch(column)
+    {
+    case column_e::name:      return QString::fromStdString(item.name);
+    case column_e::category:  return QString::fromStdString(item.category);
+    case column_e::price:     return QString::fromStdString(format_credits_value(price));
+    case column_e::quantity:  return QString::fromStdString(format_credits_value(quantity));
+    case column_e::deviation: return qformat("{:+.0f}%", deviation);
+    default:                  return {};
+    }
+  }
+
+[[nodiscard]]
+auto market_model_t::headerData(int s, Qt::Orientation o, int r) const -> QVariant
+  {
+  if(r != Qt::DisplayRole || o != Qt::Horizontal)
+    return {};
+  switch(column_e(s))
+    {
+    case column_e::name:      return "Commodity";
+    case column_e::category:  return "Category";
+    case column_e::price:     return station_sells_ ? "Buy at" : "Sell at";
+    case column_e::quantity:  return station_sells_ ? "Stock" : "Demand";
+    case column_e::deviation: return "vs avg";
+    default:                  return {};
+    }
+  }
+
+auto market_model_t::update_data(std::vector<info::market_entry_t> && new_data) -> void
+  {
+  beginResetModel();
+  entries_ = std::move(new_data);
+  endResetModel();
+  }
+
 faction_state_window_t::faction_state_window_t(current_state_t const & state, std::string db_path, QWidget * parent) :
     QMdiSubWindow(parent),
     state_(state),
@@ -436,7 +523,62 @@ auto faction_state_window_t::setup_ui() -> void
   stations_layout->addWidget(stations_view_);
   tabs->addTab(stations_page, "Stations");
 
+  // --- zakladka z rynkiem klikietej stacji ---
+  auto * market_page = new QWidget(tabs);
+  auto * market_layout = new QVBoxLayout(market_page);
+
+  market_header_ = new QLabel(market_page);
+  market_layout->addWidget(market_header_);
+
+  auto * market_splitter = new QSplitter(Qt::Vertical, market_page);
+
+  auto make_market_side = [this, market_splitter](bool station_sells, char const * caption) -> QTableView *
+  {
+    auto * container = new QWidget();
+    auto * side_layout = new QVBoxLayout(container);
+    side_layout->addWidget(new QLabel(caption));
+
+    auto * model = new market_model_t(station_sells, this);
+    auto * proxy = new QSortFilterProxyModel(this);
+    proxy->setSourceModel(model);
+    proxy->setSortRole(market_model_t::sort_role);
+
+    auto * view = new QTableView();
+    view->setModel(proxy);
+    view->setSortingEnabled(true);
+    // najlepsze okazje na gorze - kupno im tansze wzgledem sredniej tym lepiej, sprzedaz odwrotnie
+    view->sortByColumn(4, station_sells ? Qt::AscendingOrder : Qt::DescendingOrder);
+    view->setSelectionBehavior(QAbstractItemView::SelectRows);
+    view->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
+    view->horizontalHeader()->setStretchLastSection(true);
+    side_layout->addWidget(view);
+    market_splitter->addWidget(container);
+
+    (station_sells ? market_sells_model_ : market_buys_model_) = model;
+    return view;
+  };
+
+  market_sells_view_ = make_market_side(true, "Station sells:");
+  market_buys_view_ = make_market_side(false, "Station buys:");
+
+  market_layout->addWidget(market_splitter, 1);
+  tabs->addTab(market_page, "Market");
+
+  tabs_ = tabs;
+
   connect(hide_carriers_, &QCheckBox::toggled, this, [this](bool) { update_stations(shown_system_); });
+
+  connect(
+    stations_view_,
+    &QTableView::clicked,
+    this,
+    [this](QModelIndex const & index)
+    {
+      if(not index.isValid())
+        return;
+      show_market(index.sibling(index.row(), 1).data().toString().toStdString());
+    }
+  );
 
   layout->addWidget(tabs, 1);
 
@@ -663,6 +805,59 @@ auto faction_state_window_t::update_stations(uint64_t system_address) -> void
 
   stations_model_->update_data(std::move(stations));
   stations_view_->resizeColumnsToContents();
+  }
+
+auto faction_state_window_t::show_market(std::string_view station_name) -> void
+  {
+  market_sells_model_->update_data({});
+  market_buys_model_->update_data({});
+  tabs_->setCurrentIndex(tabs_->count() - 1);
+
+  auto station{db_.load_station(shown_system_, station_name)};
+  if(not station)
+    {
+    spdlog::error("failed to load station {}", station_name);
+    return;
+    }
+
+  if(not *station)
+    {
+    // stacje znamy z sygnalu systemu, rynek tylko z wizyty przy wlaczonej aplikacji
+    market_header_->setText(qformat("{} - no market recorded, dock there with the tool running", station_name));
+    return;
+    }
+
+  auto entries{db_.load_market_entries((*station)->market_id)};
+  if(not entries)
+    {
+    spdlog::error("failed to load market {}", (*station)->market_id);
+    return;
+    }
+
+  if(entries->empty())
+    {
+    market_header_->setText(qformat("{} - no market recorded, dock there with the tool running", station_name));
+    return;
+    }
+
+  market_header_->setText(
+    qformat("{} - prices as of {:%Y-%m-%d %H:%M}", (*station)->name, (*station)->market_updated)
+  );
+
+  std::vector<info::market_entry_t> sells;
+  std::vector<info::market_entry_t> buys;
+  for(info::market_entry_t const & entry: *entries)
+    {
+    if(entry.stock != 0)
+      sells.push_back(entry);
+    if(entry.demand != 0)
+      buys.push_back(entry);
+    }
+
+  market_sells_model_->update_data(std::move(sells));
+  market_buys_model_->update_data(std::move(buys));
+  market_sells_view_->resizeColumnsToContents();
+  market_buys_view_->resizeColumnsToContents();
   }
 
 auto faction_state_window_t::update_system_info(uint64_t system_address) -> void

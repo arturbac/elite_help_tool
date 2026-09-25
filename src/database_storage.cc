@@ -1413,6 +1413,34 @@ auto database_storage_t::load_station(uint64_t market_id) -> expected_ec<std::op
   return std::optional<info::station_t>{std::move((*res)[0])};
   }
 
+auto database_storage_t::load_station(uint64_t system_address, std::string_view name)
+  -> expected_ec<std::optional<info::station_t>>
+  {
+  auto res{sqlite::select_from<info::station_t>(
+    db_->db,
+    sql_iface::tables::station,
+    std::format(" WHERE system_address={} AND name='{}'", system_address, sqlite::escape_sql_quotes(name))
+  )};
+  if(not res) [[unlikely]]
+    return cxx23::unexpected{res.error()};
+
+  if(res->empty())
+    return std::optional<info::station_t>{};
+
+  return std::optional<info::station_t>{std::move((*res)[0])};
+  }
+
+auto database_storage_t::load_market_entries(uint64_t market_id) -> expected_ec<std::vector<info::market_entry_t>>
+  {
+  // nazwy pol market_entry_t pokrywaja sie z kolumnami obu tabel, wiec zlaczenie idzie
+  // przez ten sam generator zapytan co zwykly odczyt
+  return sqlite::select_from<info::market_entry_t>(
+    db_->db,
+    std::format("{} JOIN {} ON id = commodity_id", sql_iface::tables::market_item, sql_iface::tables::commodity),
+    std::format(" WHERE market_id={} ORDER BY category, name", market_id)
+  );
+  }
+
 auto database_storage_t::replace_market(
   uint64_t market_id,
   std::chrono::sys_seconds updated,
