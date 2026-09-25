@@ -68,8 +68,8 @@ auto debug_enabled() noexcept -> bool
   {
   static bool const enabled{[]
                             {
-                            char const * const value{std::getenv("EHT_OVERLAY_DEBUG")};
-                            return value != nullptr and *value != '\0' and *value != '0';
+                              char const * const value{std::getenv("EHT_OVERLAY_DEBUG")};
+                              return value != nullptr and *value != '\0' and *value != '0';
                             }()};
   return enabled;
   }
@@ -133,8 +133,9 @@ namespace
                           ? create_info->pApplicationInfo->apiVersion
                           : VK_API_VERSION_1_0;
 
-    log("instance created, api {}.{}", VK_API_VERSION_MAJOR(data->api_version),
-        VK_API_VERSION_MINOR(data->api_version));
+    log(
+      "instance created, api {}.{}", VK_API_VERSION_MAJOR(data->api_version), VK_API_VERSION_MINOR(data->api_version)
+    );
 
       {
       std::unique_lock const lock{registry().mutex};
@@ -143,8 +144,8 @@ namespace
     return VK_SUCCESS;
     }
 
-  VKAPI_ATTR auto VKAPI_CALL
-    overlay_DestroyInstance(VkInstance instance, VkAllocationCallbacks const * allocator) -> void
+  VKAPI_ATTR auto VKAPI_CALL overlay_DestroyInstance(VkInstance instance, VkAllocationCallbacks const * allocator)
+    -> void
     {
     if(instance == VK_NULL_HANDLE)
       return;
@@ -194,8 +195,10 @@ namespace
     data->device = *device;
     data->next_gdpa = next_gdpa;
 
-    if(VkLayerDeviceCreateInfo const * const callback{device_chain(create_info, VK_LOADER_DATA_CALLBACK)};
-       callback != nullptr)
+    if(
+      VkLayerDeviceCreateInfo const * const callback{device_chain(create_info, VK_LOADER_DATA_CALLBACK)};
+      callback != nullptr
+    )
       data->set_device_loader_data = callback->u.pfnSetDeviceLoaderData;
 
 #define EHT_LOAD(name) data->name = reinterpret_cast<PFN_vk##name>(next_gdpa(*device, "vk" #name))
@@ -294,8 +297,8 @@ namespace
       destroy(device, allocator);
     }
 
-  VKAPI_ATTR auto VKAPI_CALL
-    overlay_GetDeviceQueue(VkDevice device, uint32_t family, uint32_t index, VkQueue * queue) -> void
+  VKAPI_ATTR auto VKAPI_CALL overlay_GetDeviceQueue(VkDevice device, uint32_t family, uint32_t index, VkQueue * queue)
+    -> void
     {
     device_data_t * const data{find_device(dispatch_key(device))};
     if(data == nullptr or data->GetDeviceQueue == nullptr)
@@ -309,8 +312,8 @@ namespace
       }
     }
 
-  VKAPI_ATTR auto VKAPI_CALL
-    overlay_GetDeviceQueue2(VkDevice device, VkDeviceQueueInfo2 const * info, VkQueue * queue) -> void
+  VKAPI_ATTR auto VKAPI_CALL overlay_GetDeviceQueue2(VkDevice device, VkDeviceQueueInfo2 const * info, VkQueue * queue)
+    -> void
     {
     device_data_t * const data{find_device(dispatch_key(device))};
     if(data == nullptr or data->GetDeviceQueue2 == nullptr)
@@ -379,9 +382,9 @@ namespace
     return VK_SUCCESS;
     }
 
-  VKAPI_ATTR auto VKAPI_CALL overlay_DestroySwapchainKHR(
-    VkDevice device, VkSwapchainKHR swapchain, VkAllocationCallbacks const * allocator
-  ) -> void
+  VKAPI_ATTR auto VKAPI_CALL
+    overlay_DestroySwapchainKHR(VkDevice device, VkSwapchainKHR swapchain, VkAllocationCallbacks const * allocator)
+      -> void
     {
     device_data_t * const data{find_device(dispatch_key(device))};
     if(data == nullptr or data->DestroySwapchainKHR == nullptr)
@@ -408,8 +411,7 @@ namespace
     data->DestroySwapchainKHR(device, swapchain, allocator);
     }
 
-  VKAPI_ATTR auto VKAPI_CALL
-    overlay_QueuePresentKHR(VkQueue queue, VkPresentInfoKHR const * present_info) -> VkResult
+  VKAPI_ATTR auto VKAPI_CALL overlay_QueuePresentKHR(VkQueue queue, VkPresentInfoKHR const * present_info) -> VkResult
     {
     device_data_t * const data{find_device(dispatch_key(queue))};
     if(data == nullptr or data->QueuePresentKHR == nullptr)
@@ -451,9 +453,8 @@ namespace
     return data->QueuePresentKHR(queue, &patched);
     }
 
-  VKAPI_ATTR auto VKAPI_CALL overlay_EnumerateInstanceLayerProperties(
-    uint32_t * count, VkLayerProperties * properties
-  ) -> VkResult
+  VKAPI_ATTR auto VKAPI_CALL overlay_EnumerateInstanceLayerProperties(uint32_t * count, VkLayerProperties * properties)
+    -> VkResult
     {
     if(properties == nullptr)
       {
@@ -472,16 +473,14 @@ namespace
     return VK_SUCCESS;
     }
 
-  VKAPI_ATTR auto VKAPI_CALL overlay_EnumerateDeviceLayerProperties(
-    VkPhysicalDevice, uint32_t * count, VkLayerProperties * properties
-  ) -> VkResult
-    {
-    return overlay_EnumerateInstanceLayerProperties(count, properties);
-    }
+  VKAPI_ATTR auto VKAPI_CALL
+    overlay_EnumerateDeviceLayerProperties(VkPhysicalDevice, uint32_t * count, VkLayerProperties * properties)
+      -> VkResult
+    { return overlay_EnumerateInstanceLayerProperties(count, properties); }
 
-  VKAPI_ATTR auto VKAPI_CALL overlay_EnumerateInstanceExtensionProperties(
-    char const * layer, uint32_t * count, VkExtensionProperties *
-  ) -> VkResult
+  VKAPI_ATTR auto VKAPI_CALL
+    overlay_EnumerateInstanceExtensionProperties(char const * layer, uint32_t * count, VkExtensionProperties *)
+      -> VkResult
     {
     if(layer == nullptr or std::strcmp(layer, layer_name) != 0)
       return VK_ERROR_LAYER_NOT_PRESENT;
@@ -518,9 +517,9 @@ namespace
 [[nodiscard]]
 auto lookup_hook(char const * name) -> PFN_vkVoidFunction
   {
-#define EHT_HOOK(entry)                                     \
-  if(std::strcmp(name, "vk" #entry) == 0)                   \
-    return reinterpret_cast<PFN_vkVoidFunction>(&overlay_##entry)
+#define EHT_HOOK(entry)                   \
+  if(std::strcmp(name, "vk" #entry) == 0) \
+  return reinterpret_cast<PFN_vkVoidFunction>(&overlay_##entry)
 
   EHT_HOOK(CreateInstance);
   EHT_HOOK(DestroyInstance);
@@ -542,66 +541,66 @@ auto lookup_hook(char const * name) -> PFN_vkVoidFunction
 
 extern "C"
   {
-VK_LAYER_EXPORT VKAPI_ATTR auto VKAPI_CALL
-  eht_overlay_GetInstanceProcAddr(VkInstance instance, char const * name) -> PFN_vkVoidFunction
-  {
-  if(std::strcmp(name, "vkGetInstanceProcAddr") == 0)
-    return reinterpret_cast<PFN_vkVoidFunction>(&eht_overlay_GetInstanceProcAddr);
-
-  if(auto const hook{eht_overlay::lookup_hook(name)}; hook != nullptr)
-    return hook;
-
-  if(instance == VK_NULL_HANDLE)
-    return nullptr;
-
-  eht_overlay::instance_data_t const * const data{
-    [instance]() -> eht_overlay::instance_data_t const *
+  VK_LAYER_EXPORT VKAPI_ATTR auto VKAPI_CALL eht_overlay_GetInstanceProcAddr(VkInstance instance, char const * name)
+    -> PFN_vkVoidFunction
     {
-    std::shared_lock const lock{eht_overlay::registry().mutex};
-    auto const it{eht_overlay::registry().instances.find(eht_overlay::dispatch_key(instance))};
-    return it != eht_overlay::registry().instances.end() ? it->second.get() : nullptr;
-    }()
-  };
+    if(std::strcmp(name, "vkGetInstanceProcAddr") == 0)
+      return reinterpret_cast<PFN_vkVoidFunction>(&eht_overlay_GetInstanceProcAddr);
 
-  return data != nullptr ? data->next_gipa(instance, name) : nullptr;
-  }
+    if(auto const hook{eht_overlay::lookup_hook(name)}; hook != nullptr)
+      return hook;
 
-VK_LAYER_EXPORT VKAPI_ATTR auto VKAPI_CALL
-  eht_overlay_GetDeviceProcAddr(VkDevice device, char const * name) -> PFN_vkVoidFunction
-  {
-  if(std::strcmp(name, "vkGetDeviceProcAddr") == 0)
-    return reinterpret_cast<PFN_vkVoidFunction>(&eht_overlay_GetDeviceProcAddr);
+    if(instance == VK_NULL_HANDLE)
+      return nullptr;
 
-  if(auto const hook{eht_overlay::lookup_hook(name)}; hook != nullptr)
-    return hook;
+    eht_overlay::instance_data_t const * const data{
+      [instance]() -> eht_overlay::instance_data_t const *
+      {
+        std::shared_lock const lock{eht_overlay::registry().mutex};
+        auto const it{eht_overlay::registry().instances.find(eht_overlay::dispatch_key(instance))};
+        return it != eht_overlay::registry().instances.end() ? it->second.get() : nullptr;
+      }()
+    };
 
-  if(device == VK_NULL_HANDLE)
-    return nullptr;
+    return data != nullptr ? data->next_gipa(instance, name) : nullptr;
+    }
 
-  eht_overlay::device_data_t const * const data{
-    [device]() -> eht_overlay::device_data_t const *
+  VK_LAYER_EXPORT VKAPI_ATTR auto VKAPI_CALL eht_overlay_GetDeviceProcAddr(VkDevice device, char const * name)
+    -> PFN_vkVoidFunction
     {
-    std::shared_lock const lock{eht_overlay::registry().mutex};
-    auto const it{eht_overlay::registry().devices.find(eht_overlay::dispatch_key(device))};
-    return it != eht_overlay::registry().devices.end() ? it->second.get() : nullptr;
-    }()
-  };
+    if(std::strcmp(name, "vkGetDeviceProcAddr") == 0)
+      return reinterpret_cast<PFN_vkVoidFunction>(&eht_overlay_GetDeviceProcAddr);
 
-  return data != nullptr ? data->next_gdpa(device, name) : nullptr;
-  }
+    if(auto const hook{eht_overlay::lookup_hook(name)}; hook != nullptr)
+      return hook;
 
-VK_LAYER_EXPORT VKAPI_ATTR auto VKAPI_CALL
-  vkNegotiateLoaderLayerInterfaceVersion(VkNegotiateLayerInterface * version) -> VkResult
-  {
-  if(version == nullptr or version->sType != LAYER_NEGOTIATE_INTERFACE_STRUCT)
-    return VK_ERROR_INITIALIZATION_FAILED;
+    if(device == VK_NULL_HANDLE)
+      return nullptr;
 
-  if(version->loaderLayerInterfaceVersion > 2u)
-    version->loaderLayerInterfaceVersion = 2u;
+    eht_overlay::device_data_t const * const data{
+      [device]() -> eht_overlay::device_data_t const *
+      {
+        std::shared_lock const lock{eht_overlay::registry().mutex};
+        auto const it{eht_overlay::registry().devices.find(eht_overlay::dispatch_key(device))};
+        return it != eht_overlay::registry().devices.end() ? it->second.get() : nullptr;
+      }()
+    };
 
-  version->pfnGetInstanceProcAddr = &eht_overlay_GetInstanceProcAddr;
-  version->pfnGetDeviceProcAddr = &eht_overlay_GetDeviceProcAddr;
-  version->pfnGetPhysicalDeviceProcAddr = nullptr;
-  return VK_SUCCESS;
-  }
+    return data != nullptr ? data->next_gdpa(device, name) : nullptr;
+    }
+
+  VK_LAYER_EXPORT VKAPI_ATTR auto VKAPI_CALL vkNegotiateLoaderLayerInterfaceVersion(VkNegotiateLayerInterface * version)
+    -> VkResult
+    {
+    if(version == nullptr or version->sType != LAYER_NEGOTIATE_INTERFACE_STRUCT)
+      return VK_ERROR_INITIALIZATION_FAILED;
+
+    if(version->loaderLayerInterfaceVersion > 2u)
+      version->loaderLayerInterfaceVersion = 2u;
+
+    version->pfnGetInstanceProcAddr = &eht_overlay_GetInstanceProcAddr;
+    version->pfnGetDeviceProcAddr = &eht_overlay_GetDeviceProcAddr;
+    version->pfnGetPhysicalDeviceProcAddr = nullptr;
+    return VK_SUCCESS;
+    }
   }

@@ -27,9 +27,7 @@ namespace eht_overlay
 ///\brief loader trzyma tablice dyspozycji w pierwszym slowie kazdego uchwytu dispatchable
 [[nodiscard]]
 inline auto dispatch_key(void * handle) noexcept -> void *
-  {
-  return *static_cast<void **>(handle);
-  }
+  { return *static_cast<void **>(handle); }
 
 [[nodiscard]]
 auto debug_enabled() noexcept -> bool;

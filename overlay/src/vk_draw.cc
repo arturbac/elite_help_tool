@@ -34,13 +34,15 @@ namespace
   [[nodiscard]]
   auto scale_override() noexcept -> float
     {
-    static float const scale{[]() -> float
-                             {
-                             char const * const value{std::getenv("EHT_OVERLAY_SCALE")};
-                             if(value == nullptr or *value == '\0')
-                               return 0.f;
-                             return std::strtof(value, nullptr);
-                             }()};
+    static float const scale{
+      []() -> float
+      {
+        char const * const value{std::getenv("EHT_OVERLAY_SCALE")};
+        if(value == nullptr or *value == '\0')
+          return 0.f;
+        return std::strtof(value, nullptr);
+      }()
+    };
     return scale;
     }
 
@@ -57,9 +59,7 @@ namespace
 
   [[nodiscard]]
   auto now_seconds() noexcept -> double
-    {
-    return std::chrono::duration<double>{std::chrono::steady_clock::now().time_since_epoch()}.count();
-    }
+    { return std::chrono::duration<double>{std::chrono::steady_clock::now().time_since_epoch()}.count(); }
 
   ///\brief imgui nie moze wolac loadera, bo ten wpuscilby nas ponownie na gore lancucha warstw
   auto vulkan_loader(char const * name, void * user_data) -> PFN_vkVoidFunction
@@ -100,9 +100,7 @@ namespace
 
   [[nodiscard]]
   auto block_visible(overlay::block_t const & block, uint64_t age_ms) noexcept -> bool
-    {
-    return not block.lines.empty() and (block.ttl_ms == 0u or age_ms <= block.ttl_ms);
-    }
+    { return not block.lines.empty() and (block.ttl_ms == 0u or age_ms <= block.ttl_ms); }
 
   auto build_ui(swapchain_data_t & data) -> void
     {
@@ -121,12 +119,11 @@ namespace
 
     ImVec2 const display{ImGui::GetIO().DisplaySize};
 
-    for(auto const corner: {
-          overlay::corner_e::top_left,
-          overlay::corner_e::top_right,
-          overlay::corner_e::bottom_left,
-          overlay::corner_e::bottom_right
-        })
+    for(auto const corner:
+        {overlay::corner_e::top_left,
+         overlay::corner_e::top_right,
+         overlay::corner_e::bottom_left,
+         overlay::corner_e::bottom_right})
       {
       bool const stats_here{stats_enabled() and corner == overlay::corner_e::top_right};
 
@@ -147,7 +144,10 @@ namespace
         if(stats_here)
           {
           ImGui::TextColored(
-            to_color(0x9ad1ff), "EHT overlay  %.0f fps  frame %llu", double{data.fps}, (unsigned long long)data.drawn_frames
+            to_color(0x9ad1ff),
+            "EHT overlay  %.0f fps  frame %llu",
+            double{data.fps},
+            (unsigned long long)data.drawn_frames
           );
           auto & client{ipc_client()};
           if(client.connected())
@@ -190,9 +190,7 @@ namespace
   }  // namespace
 
 auto imgui_assert_failed(char const * expression, char const * file, int line) -> void
-  {
-  log("imgui assert: {} at {}:{}", expression, file, line);
-  }
+  { log("imgui assert: {} at {}:{}", expression, file, line); }
 
 auto destroy_resources(swapchain_data_t & data) -> void
   {
@@ -363,12 +361,13 @@ auto ensure_resources(swapchain_data_t & data, VkQueue queue) -> bool
       .viewType = VK_IMAGE_VIEW_TYPE_2D,
       .format = data.format,
       .components = {},
-      .subresourceRange
-      = {.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-         .baseMipLevel = 0u,
-         .levelCount = 1u,
-         .baseArrayLayer = 0u,
-         .layerCount = 1u}
+      .subresourceRange = {
+        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+        .baseMipLevel = 0u,
+        .levelCount = 1u,
+        .baseArrayLayer = 0u,
+        .layerCount = 1u
+      }
     };
     if(device.CreateImageView(device.device, &view_info, nullptr, &frame.view) != VK_SUCCESS)
       {
@@ -395,14 +394,14 @@ auto ensure_resources(swapchain_data_t & data, VkQueue queue) -> bool
       return false;
       }
 
-    VkFenceCreateInfo const fence_info{
-      .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, .pNext = nullptr, .flags = 0u
-    };
+    VkFenceCreateInfo const fence_info{.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, .pNext = nullptr, .flags = 0u};
     VkSemaphoreCreateInfo const semaphore_info{
       .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO, .pNext = nullptr, .flags = 0u
     };
-    if(device.CreateFence(device.device, &fence_info, nullptr, &frame.fence) != VK_SUCCESS
-       or device.CreateSemaphore(device.device, &semaphore_info, nullptr, &frame.semaphore) != VK_SUCCESS)
+    if(
+      device.CreateFence(device.device, &fence_info, nullptr, &frame.fence) != VK_SUCCESS
+      or device.CreateSemaphore(device.device, &semaphore_info, nullptr, &frame.semaphore) != VK_SUCCESS
+    )
       {
       log("synchronisation object creation failed");
       destroy_resources(data);
@@ -429,9 +428,7 @@ auto ensure_resources(swapchain_data_t & data, VkQueue queue) -> bool
 
   ImGui::StyleColorsDark();
 
-  if(not ImGui_ImplVulkan_LoadFunctions(
-       device.instance->api_version, &vulkan_loader, static_cast<void *>(data.device)
-     ))
+  if(not ImGui_ImplVulkan_LoadFunctions(device.instance->api_version, &vulkan_loader, static_cast<void *>(data.device)))
     {
     log("imgui could not resolve vulkan functions");
     destroy_resources(data);

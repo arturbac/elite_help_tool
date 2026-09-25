@@ -42,8 +42,10 @@ auto main(int argc, char ** argv) -> int
   // zero nadpisuje tylko gdy zmiennej nie ma - swiadome wylaczenie zostaje uszanowane
   ::setenv("ENABLE_EHT_OVERLAY", "1", 0);
 
-  if(char const * const manifest_dir{std::getenv("EHT_OVERLAY_MANIFEST_DIR")};
-     manifest_dir != nullptr and *manifest_dir != '\0')
+  if(
+    char const * const manifest_dir{std::getenv("EHT_OVERLAY_MANIFEST_DIR")};
+    manifest_dir != nullptr and *manifest_dir != '\0'
+  )
     prepend_path("VK_ADD_IMPLICIT_LAYER_PATH", manifest_dir);
 
   // katalog gniazda ma istniec zanim gra sprobuje sie polaczyc; brak katalogu to nie powod do przerwania

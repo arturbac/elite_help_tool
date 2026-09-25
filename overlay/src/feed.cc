@@ -29,20 +29,19 @@ auto main() -> int
 
     overlay::frame_t frame{
       .seq = sequence,
-      .blocks
-      = {overlay::block_t{
-           .corner = overlay::corner_e::top_left,
-           .ttl_ms = 5000u,
-           .lines
-           = {overlay::line_t{.text = "EHT test feed", .color = 0x9ad1ffu},
-              overlay::line_t{.text = std::format("{:%H:%M:%S} UTC", now), .color = 0xffffffu},
-              overlay::line_t{.text = std::format("ramka {}", sequence), .color = 0x86d986u}}
-         },
-         overlay::block_t{
-           .corner = overlay::corner_e::bottom_left,
-           .ttl_ms = 5000u,
-           .lines = {overlay::line_t{.text = "lewy dolny naroznik", .color = 0xd9a34au}}
-         }}
+      .blocks = {
+        overlay::block_t{
+          .corner = overlay::corner_e::top_left,
+          .ttl_ms = 5000u,
+          .lines
+          = {overlay::line_t{.text = "EHT test feed", .color = 0x9ad1ffu}, overlay::line_t{.text = std::format("{:%H:%M:%S} UTC", now), .color = 0xffffffu}, overlay::line_t{.text = std::format("ramka {}", sequence), .color = 0x86d986u}}
+        },
+        overlay::block_t{
+          .corner = overlay::corner_e::bottom_left,
+          .ttl_ms = 5000u,
+          .lines = {overlay::line_t{.text = "lewy dolny naroznik", .color = 0xd9a34au}}
+        }
+      }
     };
 
     server.publish(frame);

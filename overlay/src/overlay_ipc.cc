@@ -75,13 +75,15 @@ namespace
   auto signal(int fd) -> void
     {
     uint64_t const one{1u};
-    [[maybe_unused]] auto const ignored{::write(fd, &one, sizeof(one))};
+    [[maybe_unused]]
+    auto const ignored{::write(fd, &one, sizeof(one))};
     }
 
   auto drain(int fd) -> void
     {
     uint64_t value{};
-    [[maybe_unused]] auto const ignored{::read(fd, &value, sizeof(value))};
+    [[maybe_unused]]
+    auto const ignored{::read(fd, &value, sizeof(value))};
     }
 
   auto ensure_parent_directory(std::string const & path) -> void
@@ -109,21 +111,15 @@ client_t::~client_t()
 
 [[nodiscard]]
 auto client_t::snapshot() const -> std::shared_ptr<received_frame_t const>
-  {
-  return latest_.load(std::memory_order_acquire);
-  }
+  { return latest_.load(std::memory_order_acquire); }
 
 [[nodiscard]]
 auto client_t::connected() const noexcept -> bool
-  {
-  return connected_.load(std::memory_order_relaxed);
-  }
+  { return connected_.load(std::memory_order_relaxed); }
 
 [[nodiscard]]
 auto client_t::received() const noexcept -> uint64_t
-  {
-  return received_.load(std::memory_order_relaxed);
-  }
+  { return received_.load(std::memory_order_relaxed); }
 
 auto client_t::run() -> void
   {
@@ -160,8 +156,7 @@ auto client_t::run() -> void
       while(not stop)
         {
         std::array<pollfd, 2> fds{
-          pollfd{.fd = fd, .events = POLLIN, .revents = 0},
-          pollfd{.fd = wakeup_fd_, .events = POLLIN, .revents = 0}
+          pollfd{.fd = fd, .events = POLLIN, .revents = 0}, pollfd{.fd = wakeup_fd_, .events = POLLIN, .revents = 0}
         };
 
         if(::poll(fds.data(), fds.size(), -1) < 0)
@@ -235,8 +230,10 @@ server_t::server_t(std::string socket_path) : socket_path_{std::move(socket_path
     {
     // zostawiony plik po ubitym procesie nie moze blokowac startu
     ::unlink(socket_path_.c_str());
-    if(::bind(listen_fd_, reinterpret_cast<sockaddr const *>(&address), sizeof(address)) != 0
-       or ::listen(listen_fd_, 4) != 0)
+    if(
+      ::bind(listen_fd_, reinterpret_cast<sockaddr const *>(&address), sizeof(address)) != 0
+      or ::listen(listen_fd_, 4) != 0
+    )
       {
       ::close(listen_fd_);
       listen_fd_ = -1;
@@ -263,7 +260,7 @@ server_t::~server_t()
   if(worker_.joinable())
     worker_.join();
 
-  // bez tego gra po drugiej stronie nie zobaczy konca strumienia i bedzie czekac na ramki w nieskonczonosc
+    // bez tego gra po drugiej stronie nie zobaczy konca strumienia i bedzie czekac na ramki w nieskonczonosc
     {
     std::lock_guard const lock{peers_mutex_};
     for(peer_t const & peer: peers_)
@@ -283,15 +280,11 @@ server_t::~server_t()
 
 [[nodiscard]]
 auto server_t::listening() const noexcept -> bool
-  {
-  return listen_fd_ >= 0;
-  }
+  { return listen_fd_ >= 0; }
 
 [[nodiscard]]
 auto server_t::clients() const noexcept -> unsigned
-  {
-  return client_count_.load(std::memory_order_relaxed);
-  }
+  { return client_count_.load(std::memory_order_relaxed); }
 
 auto server_t::publish(frame_t const & frame) -> void
   {
@@ -331,9 +324,13 @@ auto server_t::run() -> void
       {
       std::lock_guard const lock{peers_mutex_};
       for(peer_t const & peer: peers_)
-        fds.push_back(pollfd{
-          .fd = peer.fd, .events = static_cast<short>(POLLIN | (peer.sent < peer.outbox.size() ? POLLOUT : 0)), .revents = 0
-        });
+        fds.push_back(
+          pollfd{
+            .fd = peer.fd,
+            .events = static_cast<short>(POLLIN | (peer.sent < peer.outbox.size() ? POLLOUT : 0)),
+            .revents = 0
+          }
+        );
       }
 
     if(::poll(fds.data(), fds.size(), -1) < 0)
@@ -414,9 +411,7 @@ auto server_t::run() -> void
           ::close(fd);
 
         std::erase_if(
-          peers_,
-          [&dropped](peer_t const & peer)
-          { return std::ranges::find(dropped, peer.fd) != dropped.end(); }
+          peers_, [&dropped](peer_t const & peer) { return std::ranges::find(dropped, peer.fd) != dropped.end(); }
         );
         client_count_.store(static_cast<unsigned>(peers_.size()), std::memory_order_relaxed);
         }
