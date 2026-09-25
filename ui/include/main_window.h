@@ -7,6 +7,7 @@
 #include <route_window.h>
 #include <faction_window.h>
 #include <faction_state_window.h>
+#include <micro_resource_window.h>
 
 #include <simple_enum/simple_enum.hpp>
 #include <qmainwindow.h>
@@ -26,13 +27,14 @@ enum struct window_type_e
   route,
   ship,
   faction,
-  faction_state
+  faction_state,
+  micro_resource
   };
 
 consteval auto adl_enum_bounds(window_type_e)
   {
   using enum window_type_e;
-  return simple_enum::adl_info{none, faction_state};
+  return simple_enum::adl_info{none, micro_resource};
   }
 
 class main_window_t : public QMainWindow
@@ -49,6 +51,7 @@ public:
   QPointer<route_window_t> route_view_;
   QPointer<faction_window_t> faction_view_;
   QPointer<faction_state_window_t> faction_state_view_;
+  QPointer<micro_resource_window_t> micro_resource_view_;
   
   fs::path file_to_monitor{};
 

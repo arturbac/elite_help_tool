@@ -92,6 +92,9 @@ auto main_window_t::setup_ui() -> void
 
   faction_state_view_ = new faction_state_window_t{state_, db_path_};
   add_tool_window(faction_state_view_, window_type_e::faction_state);
+
+  micro_resource_view_ = new micro_resource_window_t{db_path_};
+  add_tool_window(micro_resource_view_, window_type_e::micro_resource);
   }
 
 auto main_window_t::add_tool_window(QMdiSubWindow * sub, window_type_e type) -> void
@@ -116,6 +119,7 @@ auto main_window_t::subwindow_for(window_type_e type) const -> QMdiSubWindow *
     case window_type_e::route:         return route_view_;
     case window_type_e::faction:       return faction_view_;
     case window_type_e::faction_state: return faction_state_view_;
+    case window_type_e::micro_resource: return micro_resource_view_;
     case window_type_e::journal_log:   return jlw_;
     case window_type_e::none:          break;
     }
@@ -161,6 +165,7 @@ auto main_window_t::setup_toolbox() -> void
     {window_type_e::mission, "Missions"},
     {window_type_e::route, "Route"},
     {window_type_e::ship, "Ship"},
+    {window_type_e::micro_resource, "Data"},
     {window_type_e::journal_log, "Log"}
   };
 

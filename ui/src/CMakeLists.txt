@@ -10,4 +10,5 @@ target_sources(elite_help_tool
   route_window.cc
   faction_window.cc
   faction_state_window.cc
+  micro_resource_window.cc
   )

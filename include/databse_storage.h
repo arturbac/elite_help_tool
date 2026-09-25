@@ -84,6 +84,19 @@ struct database_storage_t
   ///\brief zapisuje zdobyty mikrozasob, pomijajac juz znane
   [[nodiscard]]
   auto store(info::micro_acquisition_t const & value) -> expected_ec<void>;
+
+  ///\brief stan polki bartendera z ostatniego odczytu, wraz z jego czasem
+  [[nodiscard]]
+  auto load_carrier_stock(std::string_view carrier_id) -> expected_ec<std::vector<info::carrier_stock_t>>;
+
+  ///\brief flotowce ktore widzielismy, wlasny pierwszy
+  [[nodiscard]]
+  auto load_carriers() -> expected_ec<std::vector<info::carrier_t>>;
+
+  ///\brief zdobycze zsumowane per material, z podzialem na sposob pozyskania
+  [[nodiscard]]
+  auto load_acquisition_summary(std::chrono::sys_seconds since)
+    -> expected_ec<std::vector<info::acquisition_summary_t>>;
   
   [[nodiscard]]
   auto store(info::fcmaterial_t const & value) -> expected_ec<void>;

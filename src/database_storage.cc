@@ -1543,6 +1543,65 @@ auto database_storage_t::store(info::station_t const & value) -> expected_ec<voi
   return sqlite::update_pk(db_->db, "market_id"sv, sql_iface::tables::station, merged, merged.market_id);
   }
 
+auto database_storage_t::load_carriers() -> expected_ec<std::vector<info::carrier_t>>
+  {
+  // wlasny flotowiec na gorze, reszta to tlo z odwiedzin
+  return sqlite::select_from<info::carrier_t>(
+    db_->db, sql_iface::tables::carrier, " ORDER BY tracked DESC, carrier_name"
+  );
+  }
+
+auto database_storage_t::load_carrier_stock(std::string_view carrier_id)
+  -> expected_ec<std::vector<info::carrier_stock_t>>
+  {
+  // liczy sie ostatni odczyt, wczesniejsze sa historia sprzedazy
+  std::string const where{std::format(
+    " WHERE c.carrier_id = '{}' AND m.timestamp = (SELECT max(timestamp) FROM {} WHERE carrier_id = c.oid)"
+    " ORDER BY r.category, r.localised",
+    sqlite::escape_sql_quotes(carrier_id),
+    sql_iface::tables::carrier_materials
+  )};
+
+  return sqlite::select_from<info::carrier_stock_t>(
+    db_->db,
+    std::format(
+      "{} m JOIN {} c ON c.oid = m.carrier_id LEFT JOIN {} r ON r.id = m.material_id",
+      sql_iface::tables::carrier_materials,
+      sql_iface::tables::carrier,
+      sql_iface::tables::micro_resource
+    ),
+    where
+  );
+  }
+
+auto database_storage_t::load_acquisition_summary(std::chrono::sys_seconds since)
+  -> expected_ec<std::vector<info::acquisition_summary_t>>
+  {
+  // ekonomia miejsca przychodzi ze stacji, wiec pojedyncze zdobycze zyskuja ja wstecz
+  std::string const query{std::format(
+    " WHERE a.timestamp >= '{:%Y-%m-%dT%H:%M:%SZ}' GROUP BY a.name ORDER BY collected + from_missions DESC",
+    since
+  )};
+
+  return sqlite::select_from<info::acquisition_summary_t>(
+    db_->db,
+    std::format(
+      "(SELECT a.name AS name, r.localised AS localised, r.category AS category,"
+      " sum(CASE WHEN a.source = 'collected' THEN a.count ELSE 0 END) AS collected,"
+      " sum(CASE WHEN a.source = 'mission_reward' THEN a.count ELSE 0 END) AS from_missions,"
+      " (SELECT coalesce(nullif(st.economy, ''), '?') FROM {} b LEFT JOIN {} st ON st.market_id = b.market_id"
+      "  WHERE b.name = a.name GROUP BY st.economy ORDER BY sum(b.count) DESC LIMIT 1) AS top_economy,"
+      " max(a.timestamp) AS last_seen"
+      " FROM {} a LEFT JOIN {} r ON r.name = a.name",
+      sql_iface::tables::micro_acquisition,
+      sql_iface::tables::station,
+      sql_iface::tables::micro_acquisition,
+      sql_iface::tables::micro_resource
+    ) + query + ")",
+    ""
+  );
+  }
+
 auto database_storage_t::store(info::micro_acquisition_t const & value) -> expected_ec<void>
   {
   // odtwarzanie journala powtarza zdobycze, rozroznia je czas, miejsce i material

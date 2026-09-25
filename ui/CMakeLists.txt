@@ -26,5 +26,6 @@ target_sources(elite_help_tool
             include/route_window.h
             include/faction_window.h
             include/faction_state_window.h
+            include/micro_resource_window.h
 )
 add_subdirectory(src)

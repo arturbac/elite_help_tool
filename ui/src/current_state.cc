@@ -963,6 +963,8 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
             target->faction_view_->refresh_ui();
           if(target->faction_state_view_)
             target->faction_state_view_->refresh_ui();
+          if(target->micro_resource_view_)
+            target->micro_resource_view_->refresh_ui();
         },
         Qt::QueuedConnection
       );

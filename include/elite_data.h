@@ -324,6 +324,30 @@ struct micro_acquisition_t
   acquisition_source_e source;
 };
 
+///\brief pozycja polki bartendera po zlaczeniu ze slownikiem
+struct carrier_stock_t
+{
+  std::string name;
+  std::string localised;
+  std::string category;
+  uint32_t price;
+  uint32_t stock;
+  uint32_t demand;
+  std::chrono::sys_seconds timestamp;
+};
+
+///\brief zdobycze jednego materialu, z podzialem na sposob i miejsce
+struct acquisition_summary_t
+{
+  std::string name;
+  std::string localised;
+  std::string category;
+  uint32_t collected;
+  uint32_t from_missions;
+  std::string top_economy;
+  std::chrono::sys_seconds last_seen;
+};
+
 ///\brief pozycja transakcji, laczy sie ze slownikiem przez nazwe wewnetrzna
 struct micro_sale_item_t
 {
