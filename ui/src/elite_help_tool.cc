@@ -1,4 +1,5 @@
 #include <main_window.h>
+#include <spdlog/spdlog.h>
 
 #include <qapplication.h>
 #include <qmdisubwindow.h>
@@ -29,7 +30,11 @@ main_window_t::main_window_t(std::string db_path, std::string journal_path, QWid
   {
   setup_ui();
   load_settings();
+  }
 
+auto main_window_t::start_monitoring() -> void
+  {
+  // watek dotyka db_, wiec startuje dopiero po jej otwarciu
   worker_thread_ = std::jthread([this](std::stop_token stoken) { background_worker(stoken); });
   }
 
@@ -191,8 +196,6 @@ auto main_window_t::load_settings() -> void
 
 auto main_window_t::background_worker(std::stop_token stoken) -> void
   {
-  file_to_monitor = *find_latest_journal("journal-dir");
-
   // pierwsze wypełnienie listy frakcji - db_ dotykane wyłącznie z tego wątku
   state_.load_factions();
   QMetaObject::invokeMethod(
@@ -205,7 +208,19 @@ auto main_window_t::background_worker(std::stop_token stoken) -> void
     Qt::QueuedConnection
   );
 
-  tail_file(file_to_monitor, std::bind_front(&generic_state_t::discovery, &state_), stoken);
+  // restart gry tworzy nowy journal, sledzenie przelacza sie na niego samo
+  tail_journal_dir(
+    state_.journal_dir_path_,
+    std::bind_front(&generic_state_t::discovery, &state_),
+    stoken,
+    [this](fs::path const & path)
+    {
+      spdlog::info("monitoring journal {}", path.string());
+      QMetaObject::invokeMethod(
+        this, [this, path]() { file_to_monitor = path; }, Qt::QueuedConnection
+      );
+    }
+  );
   }
 
 auto main(int argc, char * argv[]) -> int
@@ -216,6 +231,7 @@ auto main(int argc, char * argv[]) -> int
   if(not window.state_.db_.open())
     return EXIT_FAILURE;
 
+  window.start_monitoring();
   window.show();
   return app.exec();
   }

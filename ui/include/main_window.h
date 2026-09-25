@@ -53,6 +53,9 @@ public:
   [[nodiscard]]
   explicit main_window_t(std::string db_path, std::string journal_path, QWidget * parent = nullptr);
 
+  ///\brief startuje watek sledzacy journal, wolane po otwarciu bazy
+  auto start_monitoring() -> void;
+
   auto closeEvent(QCloseEvent * event) -> void override;
 
 private:
