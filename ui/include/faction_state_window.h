@@ -126,6 +126,7 @@ public:
 
   QCheckBox * follow_current_{};
   QComboBox * system_combo_{};
+  QComboBox * range_combo_{};
 
   QLabel * economy_label_{};
   QLabel * government_label_{};
@@ -157,10 +158,15 @@ private:
   auto reload_system_list() -> void;
   auto show_system(uint64_t system_address) -> void;
   auto update_system_info(uint64_t system_address) -> void;
-  auto update_chart(std::vector<info::faction_influence_t> const & history) -> void;
+
+  ///\brief jeden punkt na dobe, ostatni pomiar dnia, ograniczone do wybranego zakresu
+  auto update_chart() -> void;
 
   [[nodiscard]]
   auto faction_name(int64_t faction_oid) const -> std::string;
 
   uint64_t shown_system_{};
+
+  /// trzymana zeby zmiana zakresu nie wymagala ponownego zapytania do bazy
+  std::vector<info::faction_influence_t> history_{};
   };

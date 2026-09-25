@@ -199,8 +199,15 @@ auto faction_state_window_t::setup_ui() -> void
   system_combo_->completer()->setCaseSensitivity(Qt::CaseInsensitive);
   system_combo_->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
 
+  range_combo_ = new QComboBox(central_widget);
+  range_combo_->addItem("Last 30 days", 30);
+  range_combo_->addItem("Last 90 days", 90);
+  range_combo_->addItem("All", 0);
+
   selector_layout->addWidget(follow_current_);
   selector_layout->addWidget(system_combo_, 1);
+  selector_layout->addWidget(new QLabel("Range:", central_widget));
+  selector_layout->addWidget(range_combo_);
   layout->addLayout(selector_layout);
 
   // --- informacje o systemie ---
@@ -295,6 +302,8 @@ auto faction_state_window_t::setup_ui() -> void
 
   connect(system_combo_, &QComboBox::activated, this, select_index);
 
+  connect(range_combo_, &QComboBox::activated, this, [this](int) { update_chart(); });
+
   // wpisanie nazwy i enter nie emituje activated, trzeba samemu odnalezc pozycje
   connect(
     system_combo_->lineEdit(),
@@ -376,11 +385,11 @@ auto faction_state_window_t::show_system(uint64_t system_address) -> void
     return;
     }
 
-  auto const & history{*res};
+  history_ = std::move(*res);
 
   // ostatni wpis kazdej frakcji to jej obecny stan w systemie
   std::map<int64_t, info::faction_influence_t const *> latest;
-  for(info::faction_influence_t const & entry: history)
+  for(info::faction_influence_t const & entry: history_)
     latest[entry.faction_oid] = &entry;
 
   std::vector<faction_presence_t> presence;
@@ -417,7 +426,7 @@ auto faction_state_window_t::show_system(uint64_t system_address) -> void
   // Conflicts z journala nie sa jeszcze parsowane
   conflicts_model_->update_data({});
 
-  update_chart(history);
+  update_chart();
   }
 
 auto faction_state_window_t::update_system_info(uint64_t system_address) -> void
@@ -450,53 +459,72 @@ auto faction_state_window_t::update_system_info(uint64_t system_address) -> void
   );
   }
 
-auto faction_state_window_t::update_chart(std::vector<info::faction_influence_t> const & history) -> void
+auto faction_state_window_t::update_chart() -> void
   {
   chart_->removeAllSeries();
   for(QAbstractAxis * axis: chart_->axes())
     chart_->removeAxis(axis);
 
-  if(history.empty())
+  if(history_.empty())
     return;
 
-  std::map<int64_t, QLineSeries *> series_by_faction;
-  double max_influence{};
-  qint64 min_time{std::numeric_limits<qint64>::max()};
-  qint64 max_time{std::numeric_limits<qint64>::min()};
+  using days_t = std::chrono::sys_days;
 
-  for(info::faction_influence_t const & entry: history)
+  // influence zmienia sie raz na tick, wiec z doby zostaje ostatni pomiar
+  std::map<int64_t, std::map<days_t, double>> daily;
+  days_t newest{};
+  for(info::faction_influence_t const & entry: history_)
     {
-    auto it{series_by_faction.find(entry.faction_oid)};
-    if(it == series_by_faction.end())
-      {
-      auto * series = new QLineSeries(chart_);
-      series->setName(QString::fromStdString(faction_name(entry.faction_oid)));
-      // serie bywaja jednopunktowe, sama linia nic by wtedy nie narysowala
-      series->setPointsVisible(true);
-      it = series_by_faction.emplace(entry.faction_oid, series).first;
-      }
-    auto const time_ms{to_msecs(entry.timestamp)};
-    it->second->append(static_cast<qreal>(time_ms), entry.influence * 100.);
-    max_influence = std::max(max_influence, entry.influence * 100.);
-    min_time = std::min(min_time, time_ms);
-    max_time = std::max(max_time, time_ms);
+    auto const day{std::chrono::floor<std::chrono::days>(entry.timestamp)};
+    daily[entry.faction_oid][day] = entry.influence * 100.;
+    newest = std::max(newest, day);
     }
 
-  for(auto const & [oid, series]: series_by_faction)
+  auto const range_days{range_combo_->currentData().toInt()};
+  days_t const first_day{range_days > 0 ? newest - std::chrono::days{range_days - 1} : days_t{}};
+
+  double max_influence{};
+  std::vector<QLineSeries *> series_list;
+
+  for(auto const & [oid, by_day]: daily)
+    {
+    auto * series = new QLineSeries(chart_);
+    series->setName(QString::fromStdString(faction_name(oid)));
+    series->setPointsVisible(true);
+
+    for(auto const & [day, influence]: by_day)
+      {
+      if(day < first_day)
+        continue;
+      series->append(static_cast<qreal>(to_msecs(day)), influence);
+      max_influence = std::max(max_influence, influence);
+      }
+
+    // frakcja bez pomiaru w zakresie nie trafia na wykres
+    if(series->count() == 0)
+      {
+      delete series;
+      continue;
+      }
+    series_list.push_back(series);
     chart_->addSeries(series);
+    }
+
+  if(series_list.empty())
+    return;
 
   auto * axis_x = new QDateTimeAxis(chart_);
-  axis_x->setFormat("dd.MM.yy");
+  axis_x->setFormat("dd.MM");
   axis_x->setTitleText("Date");
-  axis_x->setTickCount(8);
+  axis_x->setTickCount(std::min(12, std::max(2, range_days > 0 ? range_days : 12)));
   // osie dodane recznie nie dostaja zakresu same, bez tego punkty leza poza wykresem
-  constexpr qint64 day_ms{24 * 60 * 60 * 1000};
-  if(min_time == max_time)
-    {
-    min_time -= day_ms;
-    max_time += day_ms;
-    }
-  axis_x->setRange(QDateTime::fromMSecsSinceEpoch(min_time), QDateTime::fromMSecsSinceEpoch(max_time));
+  auto const first_shown{
+    range_days > 0 ? first_day : std::chrono::floor<std::chrono::days>(history_.front().timestamp)
+  };
+  auto const last_shown{newest + std::chrono::days{1}};
+  axis_x->setRange(
+    QDateTime::fromMSecsSinceEpoch(to_msecs(first_shown)), QDateTime::fromMSecsSinceEpoch(to_msecs(last_shown))
+  );
   chart_->addAxis(axis_x, Qt::AlignBottom);
 
   auto * axis_y = new QValueAxis(chart_);
@@ -504,7 +532,7 @@ auto faction_state_window_t::update_chart(std::vector<info::faction_influence_t>
   axis_y->setRange(0., std::max(10., std::ceil(max_influence / 10.) * 10.));
   chart_->addAxis(axis_y, Qt::AlignLeft);
 
-  for(auto const & [oid, series]: series_by_faction)
+  for(QLineSeries * series: series_list)
     {
     series->attachAxis(axis_x);
     series->attachAxis(axis_y);
