@@ -344,6 +344,13 @@ struct star_system_t
   double loc_y;
   double loc_z;
   bool fss_complete;
+  std::string economy;
+  std::string second_economy;
+  std::string government;
+  std::string allegiance;
+  std::string security;
+  std::string controlling_faction;
+  uint64_t population;
   };
 
 [[nodiscard]]
@@ -356,7 +363,14 @@ auto to_db_fromat(::star_system_t const & system) noexcept -> sql_iface::star_sy
     .loc_x = system.system_location[0],
     .loc_y = system.system_location[1],
     .loc_z = system.system_location[2],
-    .fss_complete = system.fss_complete
+    .fss_complete = system.fss_complete,
+    .economy = system.economy,
+    .second_economy = system.second_economy,
+    .government = system.government,
+    .allegiance = system.allegiance,
+    .security = system.security,
+    .controlling_faction = system.controlling_faction,
+    .population = system.population
   };
   }
 
@@ -368,7 +382,14 @@ auto to_native_fromat(sql_iface::star_system_t && system) noexcept -> ::star_sys
     .name = std::move(system.name),
     .star_type = std::move(system.star_type),
     .system_location = std::array{system.loc_x, system.loc_y, system.loc_z},
-    .fss_complete = system.fss_complete
+    .fss_complete = system.fss_complete,
+    .economy = std::move(system.economy),
+    .second_economy = std::move(system.second_economy),
+    .government = std::move(system.government),
+    .allegiance = std::move(system.allegiance),
+    .security = std::move(system.security),
+    .controlling_faction = std::move(system.controlling_faction),
+    .population = system.population
   };
   }
 
@@ -1266,6 +1287,24 @@ auto database_storage_t::last_influence(int64_t faction_oid, uint64_t system_add
     return std::optional<info::faction_influence_t>{};
 
   return std::optional<info::faction_influence_t>{std::move((*res)[0])};
+  }
+
+auto database_storage_t::update_system_info(star_system_t const & system) -> expected_ec<void>
+  {
+  std::string query{std::format(
+    "UPDATE {} SET economy='{}', second_economy='{}', government='{}', allegiance='{}', security='{}', "
+    "controlling_faction='{}', population={} WHERE system_address={}",
+    sql_iface::tables::star_system,
+    sqlite::escape_sql_quotes(system.economy),
+    sqlite::escape_sql_quotes(system.second_economy),
+    sqlite::escape_sql_quotes(system.government),
+    sqlite::escape_sql_quotes(system.allegiance),
+    sqlite::escape_sql_quotes(system.security),
+    sqlite::escape_sql_quotes(system.controlling_faction),
+    system.population,
+    system.system_address
+  )};
+  return sqlite::execute_query_no_result(db_->db, query);
   }
 
 auto database_storage_t::store(info::conflict_t const & value) -> expected_ec<void>

@@ -10,6 +10,7 @@
 #include <qcompleter.h>
 #include <qdatetime.h>
 #include <qlineedit.h>
+#include <qlocale.h>
 #include <simple_enum/simple_enum.hpp>
 #include <spdlog/spdlog.h>
 #include <algorithm>
@@ -528,7 +529,6 @@ auto faction_state_window_t::update_system_info(uint64_t system_address) -> void
   {
   auto const empty{QString::fromUtf8(no_data.data())};
 
-  // te pola sa w evencie Location/FSDJump, ale nie sa jeszcze zapisywane w bazie
   economy_label_->setText(empty);
   government_label_->setText(empty);
   allegiance_label_->setText(empty);
@@ -545,6 +545,27 @@ auto faction_state_window_t::update_system_info(uint64_t system_address) -> void
 
   star_system_t const & system{**res};
   setWindowTitle(qformat("System factions - {}", system.name));
+
+  auto const set_text = [&empty](QLabel * label, std::string const & value) -> void
+  { label->setText(value.empty() ? empty : QString::fromStdString(value)); };
+
+  // gra podaje "None" dla systemow bez ekonomii czy rzadu
+  auto const meaningful = [](std::string const & value) -> std::string
+  { return value == "None" ? std::string{} : value; };
+
+  // druga ekonomia pokazywana jak na inarze, po ukosniku
+  std::string economy{meaningful(system.economy)};
+  if(auto second{meaningful(system.second_economy)}; not second.empty())
+    economy = economy.empty() ? second : economy + " / " + second;
+
+  set_text(economy_label_, economy);
+  set_text(government_label_, meaningful(system.government));
+  set_text(allegiance_label_, meaningful(system.allegiance));
+  set_text(security_label_, meaningful(system.security));
+  set_text(controlling_label_, system.controlling_faction);
+
+  if(system.population != 0)
+    population_label_->setText(QLocale{}.toString(qulonglong{system.population}));
 
   if(not system.star_type.empty())
     star_type_label_->setText(QString::fromStdString(system.star_type));

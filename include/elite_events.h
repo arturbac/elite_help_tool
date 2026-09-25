@@ -585,6 +585,7 @@ struct fsd_jump_t
  */
 struct location_t
   {
+  system_faction_t SystemFaction;
   bool Docked;
   bool Taxi;
   bool Multicrew;
@@ -1050,6 +1051,15 @@ struct star_system_t
   std::vector<ring_t> rings;
   bool fss_complete;
 
+  // opis systemu z eventu Location/FSDJump
+  std::string economy;
+  std::string second_economy;
+  std::string government;
+  std::string allegiance;
+  std::string security;
+  std::string controlling_faction;
+  uint64_t population;
+
   [[nodiscard]]
   auto body_by_id(this auto && self, events::body_id_t const body_id) noexcept
     { return std::ranges::find(self.bodies, body_id, body_body_id_proj); }
@@ -1074,6 +1084,30 @@ struct generic_state_t
   auto discovery(std::string_view input) -> void;
   virtual auto handle(std::chrono::sys_seconds timestamp, events::event_holder_t && event) -> void = 0;
   };
+
+///\brief przepisuje opis systemu z eventu Location/FSDJump
+///\returns true gdy ktores z pol sie zmienilo
+template<typename event_t>
+[[nodiscard]]
+auto apply_system_info(star_system_t & system, event_t const & event) -> bool
+  {
+  auto const assign = [](auto & target, auto && value) -> bool
+  {
+    if(target == value)
+      return false;
+    target = value;
+    return true;
+    };
+
+  bool changed{assign(system.economy, event.SystemEconomy_Localised)};
+  changed = assign(system.second_economy, event.SystemSecondEconomy_Localised) or changed;
+  changed = assign(system.government, event.SystemGovernment_Localised) or changed;
+  changed = assign(system.allegiance, event.SystemAllegiance) or changed;
+  changed = assign(system.security, event.SystemSecurity_Localised) or changed;
+  changed = assign(system.controlling_faction, event.SystemFaction.Name) or changed;
+  changed = assign(system.population, event.Population) or changed;
+  return changed;
+  }
 
 struct planet_value_info_t
   {

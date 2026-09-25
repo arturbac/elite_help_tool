@@ -217,6 +217,13 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
             process_conflicts(db_, timestamp, event.SystemAddress, event.Conflicts);
             update_factions = true;
             }
+          // opis systemu przychodzi tylko z tych dwoch eventow
+          if(apply_system_info(system, event))
+            {
+            if(auto res{db_.update_system_info(system)}; not res)
+              spdlog::error("failed to store system info {}", event.SystemAddress);
+            update_factions = true;
+            }
           f_route_progress(event.SystemAddress);
           update_system = true;
           }
@@ -241,6 +248,13 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           if(not event.Conflicts.empty())
             {
             process_conflicts(db_, timestamp, event.SystemAddress, event.Conflicts);
+            update_factions = true;
+            }
+          // opis systemu przychodzi tylko z tych dwoch eventow
+          if(apply_system_info(system, event))
+            {
+            if(auto res{db_.update_system_info(system)}; not res)
+              spdlog::error("failed to store system info {}", event.SystemAddress);
             update_factions = true;
             }
 

@@ -59,6 +59,10 @@ struct database_storage_t
   [[nodiscard]]
   auto store_system_location(uint64_t system_address, std::array<double, 3> const & loc) -> expected_ec<void>;
 
+  /// opis systemu - ekonomia, rzad, przynaleznosc, bezpieczenstwo, populacja, frakcja kontrolujaca
+  [[nodiscard]]
+  auto update_system_info(star_system_t const & system) -> expected_ec<void>;
+
   [[nodiscard]]
   auto store(uint64_t system_address, bary_centre_t const & value) -> expected_ec<void>;
 

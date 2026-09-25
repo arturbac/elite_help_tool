@@ -176,6 +176,11 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
           if(auto res2{state.db_.store(state.system)}; not res2) [[unlikely]]
             critical_abort("error string system {} {}", event.SystemAddress, event.StarSystem);
           }
+        // opis systemu przychodzi tylko z tych dwoch eventow
+        if(apply_system_info(state.system, event))
+          if(auto res{state.db_.update_system_info(state.system)}; not res)
+            critical_abort("failed to store system info {}", event.SystemAddress);
+
         // add/update factions database
         if(not event.Factions.empty())
           process_factions(state.db_, timestamp, event.SystemAddress, event.Factions);
@@ -195,6 +200,11 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
           )
             critical_abort("failed to store system location {}", state.system.system_address);
           }
+        // opis systemu przychodzi tylko z tych dwoch eventow
+        if(apply_system_info(state.system, event))
+          if(auto res{state.db_.update_system_info(state.system)}; not res)
+            critical_abort("failed to store system info {}", event.SystemAddress);
+
         // add/update factions database
         if(not event.Factions.empty())
           process_factions(state.db_, timestamp, event.SystemAddress, event.Factions);
