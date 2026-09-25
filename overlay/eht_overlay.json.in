@@ -1,0 +1,21 @@
+{
+  "file_format_version": "1.2.0",
+  "layer": {
+    "name": "VK_LAYER_EHT_overlay",
+    "type": "GLOBAL",
+    "library_path": "@EHT_OVERLAY_LIBRARY_PATH@",
+    "api_version": "1.3.0",
+    "implementation_version": "1",
+    "description": "Elite Help Tool in-game overlay",
+    "functions": {
+      "vkGetInstanceProcAddr": "eht_overlay_GetInstanceProcAddr",
+      "vkGetDeviceProcAddr": "eht_overlay_GetDeviceProcAddr"
+    },
+    "enable_environment": {
+      "ENABLE_EHT_OVERLAY": "1"
+    },
+    "disable_environment": {
+      "DISABLE_EHT_OVERLAY": "1"
+    }
+  }
+}

@@ -1,0 +1,11 @@
+/* proces gry ma widziec wylacznie punkty wejscia warstwy - reszta, razem ze
+   statycznie wlinkowana biblioteka standardowa, zostaje schowana */
+EHT_OVERLAY_1.0
+  {
+  global:
+    vkNegotiateLoaderLayerInterfaceVersion;
+    eht_overlay_GetInstanceProcAddr;
+    eht_overlay_GetDeviceProcAddr;
+  local:
+    *;
+  };

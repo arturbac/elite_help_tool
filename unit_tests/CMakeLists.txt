@@ -22,3 +22,9 @@ endfunction()
 
 add_ut_test(value_calculation_ut.cc)
 add_ut_test(db_ut.cc)
+
+# ipc overlaya nie zalezy od eht, wiec ma wlasny cel zamiast add_ut_test
+add_executable(overlay_ipc_ut overlay_ipc_ut.cc)
+target_link_libraries(overlay_ipc_ut PRIVATE eht_overlay_ipc Boost::ut)
+target_compile_options(overlay_ipc_ut PUBLIC -Wno-global-constructors)
+add_test(NAME "overlay_ipc_ut" COMMAND overlay_ipc_ut)

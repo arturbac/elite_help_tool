@@ -638,6 +638,7 @@ auto faction_state_window_t::setup_ui() -> void
 
   market_layout->addWidget(market_splitter, 1);
   tabs->addTab(market_page, "Market");
+  market_page_ = market_page;
 
   tabs_ = tabs;
 
@@ -932,7 +933,8 @@ auto faction_state_window_t::show_market(std::string_view station_name) -> void
   {
   market_sells_model_->update_data({});
   market_buys_model_->update_data({});
-  tabs_->setCurrentIndex(tabs_->count() - 1);
+  if(auto const index{tabs_->indexOf(market_page_)}; index >= 0)
+    tabs_->setCurrentIndex(index);
 
   auto station{db_.load_station(shown_system_, station_name)};
   if(not station)

@@ -257,6 +257,8 @@ public:
   QTableView * mission_view_{};
 
   QTabWidget * tabs_{};
+  ///\brief zakladka marketu po indeksie sie nie da - dochodza nowe i numery sie przesuwaja
+  QWidget * market_page_{};
   QLabel * market_header_{};
   market_model_t * market_sells_model_{};
   market_model_t * market_buys_model_{};

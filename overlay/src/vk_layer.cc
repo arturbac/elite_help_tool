@@ -1,0 +1,607 @@
+#include "vk_dispatch.h"
+#include "vk_draw.h"
+
+#include <array>
+#include <cstdio>
+#include <cstring>
+
+namespace eht_overlay
+  {
+namespace
+  {
+  constexpr char layer_name[]{"VK_LAYER_EHT_overlay"};
+  ///\brief present na wiecej lancuchow naraz to rzecz z innej bajki - po prostu ich nie rysujemy
+  constexpr uint32_t max_swapchains_per_present{8u};
+
+  [[nodiscard]]
+  auto instance_chain(VkInstanceCreateInfo const * info, VkLayerFunction function) -> VkLayerInstanceCreateInfo *
+    {
+    for(auto const * item{static_cast<VkBaseInStructure const *>(info->pNext)}; item != nullptr; item = item->pNext)
+      if(item->sType == VK_STRUCTURE_TYPE_LOADER_INSTANCE_CREATE_INFO)
+        {
+        auto * const chain{reinterpret_cast<VkLayerInstanceCreateInfo *>(const_cast<VkBaseInStructure *>(item))};
+        if(chain->function == function)
+          return chain;
+        }
+    return nullptr;
+    }
+
+  [[nodiscard]]
+  auto device_chain(VkDeviceCreateInfo const * info, VkLayerFunction function) -> VkLayerDeviceCreateInfo *
+    {
+    for(auto const * item{static_cast<VkBaseInStructure const *>(info->pNext)}; item != nullptr; item = item->pNext)
+      if(item->sType == VK_STRUCTURE_TYPE_LOADER_DEVICE_CREATE_INFO)
+        {
+        auto * const chain{reinterpret_cast<VkLayerDeviceCreateInfo *>(const_cast<VkBaseInStructure *>(item))};
+        if(chain->function == function)
+          return chain;
+        }
+    return nullptr;
+    }
+
+  [[nodiscard]]
+  auto find_instance(void * key) -> instance_data_t *
+    {
+    std::shared_lock const lock{registry().mutex};
+    auto const it{registry().instances.find(key)};
+    return it != registry().instances.end() ? it->second.get() : nullptr;
+    }
+
+  [[nodiscard]]
+  auto find_device(void * key) -> device_data_t *
+    {
+    std::shared_lock const lock{registry().mutex};
+    auto const it{registry().devices.find(key)};
+    return it != registry().devices.end() ? it->second.get() : nullptr;
+    }
+
+  [[nodiscard]]
+  auto find_swapchain(VkSwapchainKHR handle) -> swapchain_data_t *
+    {
+    std::shared_lock const lock{registry().mutex};
+    auto const it{registry().swapchains.find(handle)};
+    return it != registry().swapchains.end() ? it->second.get() : nullptr;
+    }
+  }  // namespace
+
+auto debug_enabled() noexcept -> bool
+  {
+  static bool const enabled{[]
+                            {
+                            char const * const value{std::getenv("EHT_OVERLAY_DEBUG")};
+                            return value != nullptr and *value != '\0' and *value != '0';
+                            }()};
+  return enabled;
+  }
+
+auto log_line(std::string_view text) -> void
+  {
+  std::fprintf(stderr, "[eht-overlay] %.*s\n", static_cast<int>(text.size()), text.data());
+  std::fflush(stderr);
+  }
+
+auto registry() -> registry_t &
+  {
+  // celowo nigdy nie kasowany - sprzatanie globali w trakcie wygaszania procesu gry to proszenie sie o klopoty
+  static registry_t * const instance{new registry_t{}};
+  return *instance;
+  }
+
+auto ipc_client() -> overlay::client_t &
+  {
+  // jak wyzej, a dodatkowo nie chcemy dolaczac watku io gdy gra juz sie zwija
+  static overlay::client_t * const client{new overlay::client_t{overlay::default_socket_path()}};
+  return *client;
+  }
+
+auto device_data_t::family_of(VkQueue queue) -> uint32_t
+  {
+  std::lock_guard const lock{queues_mutex};
+  auto const it{queue_family_of.find(static_cast<void *>(queue))};
+  return it != queue_family_of.end() ? it->second : VK_QUEUE_FAMILY_IGNORED;
+  }
+
+namespace
+  {
+  VKAPI_ATTR auto VKAPI_CALL overlay_CreateInstance(
+    VkInstanceCreateInfo const * create_info, VkAllocationCallbacks const * allocator, VkInstance * instance
+  ) -> VkResult
+    {
+    VkLayerInstanceCreateInfo * const chain{instance_chain(create_info, VK_LAYER_LINK_INFO)};
+    if(chain == nullptr or chain->u.pLayerInfo == nullptr)
+      return VK_ERROR_INITIALIZATION_FAILED;
+
+    auto const next_gipa{chain->u.pLayerInfo->pfnNextGetInstanceProcAddr};
+    chain->u.pLayerInfo = chain->u.pLayerInfo->pNext;
+
+    auto const create{reinterpret_cast<PFN_vkCreateInstance>(next_gipa(nullptr, "vkCreateInstance"))};
+    if(create == nullptr)
+      return VK_ERROR_INITIALIZATION_FAILED;
+
+    VkResult const result{create(create_info, allocator, instance)};
+    if(result != VK_SUCCESS)
+      return result;
+
+    auto data{std::make_unique<instance_data_t>()};
+    data->instance = *instance;
+    data->next_gipa = next_gipa;
+    data->DestroyInstance = reinterpret_cast<PFN_vkDestroyInstance>(next_gipa(*instance, "vkDestroyInstance"));
+    data->GetPhysicalDeviceQueueFamilyProperties = reinterpret_cast<PFN_vkGetPhysicalDeviceQueueFamilyProperties>(
+      next_gipa(*instance, "vkGetPhysicalDeviceQueueFamilyProperties")
+    );
+    data->api_version = create_info->pApplicationInfo != nullptr and create_info->pApplicationInfo->apiVersion != 0u
+                          ? create_info->pApplicationInfo->apiVersion
+                          : VK_API_VERSION_1_0;
+
+    log("instance created, api {}.{}", VK_API_VERSION_MAJOR(data->api_version),
+        VK_API_VERSION_MINOR(data->api_version));
+
+      {
+      std::unique_lock const lock{registry().mutex};
+      registry().instances[dispatch_key(*instance)] = std::move(data);
+      }
+    return VK_SUCCESS;
+    }
+
+  VKAPI_ATTR auto VKAPI_CALL
+    overlay_DestroyInstance(VkInstance instance, VkAllocationCallbacks const * allocator) -> void
+    {
+    if(instance == VK_NULL_HANDLE)
+      return;
+
+    void * const key{dispatch_key(instance)};
+    PFN_vkDestroyInstance destroy{};
+      {
+      std::unique_lock const lock{registry().mutex};
+      if(auto const it{registry().instances.find(key)}; it != registry().instances.end())
+        {
+        destroy = it->second->DestroyInstance;
+        registry().instances.erase(it);
+        }
+      }
+
+    if(destroy != nullptr)
+      destroy(instance, allocator);
+    }
+
+  VKAPI_ATTR auto VKAPI_CALL overlay_CreateDevice(
+    VkPhysicalDevice physical_device,
+    VkDeviceCreateInfo const * create_info,
+    VkAllocationCallbacks const * allocator,
+    VkDevice * device
+  ) -> VkResult
+    {
+    instance_data_t * const instance{find_instance(dispatch_key(physical_device))};
+    VkLayerDeviceCreateInfo * const chain{device_chain(create_info, VK_LAYER_LINK_INFO)};
+    if(instance == nullptr or chain == nullptr or chain->u.pLayerInfo == nullptr)
+      return VK_ERROR_INITIALIZATION_FAILED;
+
+    auto const next_gipa{chain->u.pLayerInfo->pfnNextGetInstanceProcAddr};
+    auto const next_gdpa{chain->u.pLayerInfo->pfnNextGetDeviceProcAddr};
+    chain->u.pLayerInfo = chain->u.pLayerInfo->pNext;
+
+    auto const create{reinterpret_cast<PFN_vkCreateDevice>(next_gipa(instance->instance, "vkCreateDevice"))};
+    if(create == nullptr)
+      return VK_ERROR_INITIALIZATION_FAILED;
+
+    VkResult const result{create(physical_device, create_info, allocator, device)};
+    if(result != VK_SUCCESS)
+      return result;
+
+    auto data{std::make_unique<device_data_t>()};
+    data->instance = instance;
+    data->physical_device = physical_device;
+    data->device = *device;
+    data->next_gdpa = next_gdpa;
+
+    if(VkLayerDeviceCreateInfo const * const callback{device_chain(create_info, VK_LOADER_DATA_CALLBACK)};
+       callback != nullptr)
+      data->set_device_loader_data = callback->u.pfnSetDeviceLoaderData;
+
+#define EHT_LOAD(name) data->name = reinterpret_cast<PFN_vk##name>(next_gdpa(*device, "vk" #name))
+    EHT_LOAD(DestroyDevice);
+    EHT_LOAD(GetDeviceQueue);
+    EHT_LOAD(GetDeviceQueue2);
+    EHT_LOAD(CreateSwapchainKHR);
+    EHT_LOAD(DestroySwapchainKHR);
+    EHT_LOAD(GetSwapchainImagesKHR);
+    EHT_LOAD(QueuePresentKHR);
+    EHT_LOAD(QueueSubmit);
+    EHT_LOAD(QueueWaitIdle);
+    EHT_LOAD(DeviceWaitIdle);
+    EHT_LOAD(CreateImageView);
+    EHT_LOAD(DestroyImageView);
+    EHT_LOAD(CreateFramebuffer);
+    EHT_LOAD(DestroyFramebuffer);
+    EHT_LOAD(CreateRenderPass);
+    EHT_LOAD(DestroyRenderPass);
+    EHT_LOAD(CreateCommandPool);
+    EHT_LOAD(DestroyCommandPool);
+    EHT_LOAD(AllocateCommandBuffers);
+    EHT_LOAD(BeginCommandBuffer);
+    EHT_LOAD(EndCommandBuffer);
+    EHT_LOAD(ResetCommandBuffer);
+    EHT_LOAD(CreateFence);
+    EHT_LOAD(DestroyFence);
+    EHT_LOAD(WaitForFences);
+    EHT_LOAD(ResetFences);
+    EHT_LOAD(CreateSemaphore);
+    EHT_LOAD(DestroySemaphore);
+    EHT_LOAD(CreateDescriptorPool);
+    EHT_LOAD(DestroyDescriptorPool);
+    EHT_LOAD(CmdBeginRenderPass);
+    EHT_LOAD(CmdEndRenderPass);
+#undef EHT_LOAD
+
+    if(instance->GetPhysicalDeviceQueueFamilyProperties != nullptr)
+      {
+      uint32_t count{};
+      instance->GetPhysicalDeviceQueueFamilyProperties(physical_device, &count, nullptr);
+      data->queue_families.resize(count);
+      instance->GetPhysicalDeviceQueueFamilyProperties(physical_device, &count, data->queue_families.data());
+      }
+
+    log("device created, {} queue families", data->queue_families.size());
+
+      {
+      std::unique_lock const lock{registry().mutex};
+      registry().devices[dispatch_key(*device)] = std::move(data);
+      }
+    return VK_SUCCESS;
+    }
+
+  VKAPI_ATTR auto VKAPI_CALL overlay_DestroyDevice(VkDevice device, VkAllocationCallbacks const * allocator) -> void
+    {
+    if(device == VK_NULL_HANDLE)
+      return;
+
+    void * const key{dispatch_key(device)};
+    PFN_vkDestroyDevice destroy{};
+    std::vector<std::unique_ptr<swapchain_data_t>> orphans;
+    device_data_t * data{};
+
+      {
+      std::unique_lock const lock{registry().mutex};
+      if(auto const it{registry().devices.find(key)}; it != registry().devices.end())
+        {
+        data = it->second.get();
+        destroy = data->DestroyDevice;
+        }
+
+      for(auto it{registry().swapchains.begin()}; it != registry().swapchains.end();)
+        if(it->second->device == data)
+          {
+          orphans.push_back(std::move(it->second));
+          it = registry().swapchains.erase(it);
+          }
+        else
+          ++it;
+      }
+
+    // zasoby overlaya musza zniknac zanim zniknie urzadzenie, inaczej sterownik zglosi wyciek
+    if(data != nullptr and data->DeviceWaitIdle != nullptr and not orphans.empty())
+      data->DeviceWaitIdle(device);
+    for(auto & orphan: orphans)
+      destroy_resources(*orphan);
+    orphans.clear();
+
+      {
+      std::unique_lock const lock{registry().mutex};
+      registry().devices.erase(key);
+      }
+
+    if(destroy != nullptr)
+      destroy(device, allocator);
+    }
+
+  VKAPI_ATTR auto VKAPI_CALL
+    overlay_GetDeviceQueue(VkDevice device, uint32_t family, uint32_t index, VkQueue * queue) -> void
+    {
+    device_data_t * const data{find_device(dispatch_key(device))};
+    if(data == nullptr or data->GetDeviceQueue == nullptr)
+      return;
+
+    data->GetDeviceQueue(device, family, index, queue);
+    if(queue != nullptr and *queue != VK_NULL_HANDLE)
+      {
+      std::lock_guard const lock{data->queues_mutex};
+      data->queue_family_of[static_cast<void *>(*queue)] = family;
+      }
+    }
+
+  VKAPI_ATTR auto VKAPI_CALL
+    overlay_GetDeviceQueue2(VkDevice device, VkDeviceQueueInfo2 const * info, VkQueue * queue) -> void
+    {
+    device_data_t * const data{find_device(dispatch_key(device))};
+    if(data == nullptr or data->GetDeviceQueue2 == nullptr)
+      return;
+
+    data->GetDeviceQueue2(device, info, queue);
+    if(queue != nullptr and *queue != VK_NULL_HANDLE and info != nullptr)
+      {
+      std::lock_guard const lock{data->queues_mutex};
+      data->queue_family_of[static_cast<void *>(*queue)] = info->queueFamilyIndex;
+      }
+    }
+
+  VKAPI_ATTR auto VKAPI_CALL overlay_CreateSwapchainKHR(
+    VkDevice device,
+    VkSwapchainCreateInfoKHR const * create_info,
+    VkAllocationCallbacks const * allocator,
+    VkSwapchainKHR * swapchain
+  ) -> VkResult
+    {
+    device_data_t * const data{find_device(dispatch_key(device))};
+    if(data == nullptr or data->CreateSwapchainKHR == nullptr)
+      return VK_ERROR_INITIALIZATION_FAILED;
+
+    // rysujemy do obrazow lancucha, wiec musza byc uzywalne jako attachment
+    VkSwapchainCreateInfoKHR patched{*create_info};
+    patched.imageUsage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+
+    VkResult result{data->CreateSwapchainKHR(device, &patched, allocator, swapchain)};
+    if(result != VK_SUCCESS and patched.imageUsage != create_info->imageUsage)
+      {
+      // gra jest wazniejsza niz overlay - gdy sterownik nie chce dolozonego uzycia, wracamy do oryginalu
+      log("swapchain rejected extra usage, falling back without overlay");
+      return data->CreateSwapchainKHR(device, create_info, allocator, swapchain);
+      }
+    if(result != VK_SUCCESS)
+      return result;
+
+    auto entry{std::make_unique<swapchain_data_t>()};
+    entry->device = data;
+    entry->swapchain = *swapchain;
+    entry->format = create_info->imageFormat;
+    entry->extent = create_info->imageExtent;
+
+    if(data->GetSwapchainImagesKHR != nullptr)
+      {
+      uint32_t count{};
+      data->GetSwapchainImagesKHR(device, *swapchain, &count, nullptr);
+      entry->images.resize(count);
+      if(count != 0u)
+        data->GetSwapchainImagesKHR(device, *swapchain, &count, entry->images.data());
+      }
+
+    if(entry->images.empty())
+      entry->broken = true;
+
+    log("swapchain {}x{} with {} images", entry->extent.width, entry->extent.height, entry->images.size());
+
+    // klient ipc powstaje dopiero teraz - proces bez lancucha wymiany, np launcher gry, nie placi za nic
+    (void)ipc_client();
+
+      {
+      std::unique_lock const lock{registry().mutex};
+      registry().swapchains[*swapchain] = std::move(entry);
+      }
+    return VK_SUCCESS;
+    }
+
+  VKAPI_ATTR auto VKAPI_CALL overlay_DestroySwapchainKHR(
+    VkDevice device, VkSwapchainKHR swapchain, VkAllocationCallbacks const * allocator
+  ) -> void
+    {
+    device_data_t * const data{find_device(dispatch_key(device))};
+    if(data == nullptr or data->DestroySwapchainKHR == nullptr)
+      return;
+
+    std::unique_ptr<swapchain_data_t> entry;
+      {
+      std::unique_lock const lock{registry().mutex};
+      if(auto const it{registry().swapchains.find(swapchain)}; it != registry().swapchains.end())
+        {
+        entry = std::move(it->second);
+        registry().swapchains.erase(it);
+        }
+      }
+
+    if(entry and entry->ready)
+      {
+      if(data->DeviceWaitIdle != nullptr)
+        data->DeviceWaitIdle(device);
+      destroy_resources(*entry);
+      }
+    entry.reset();
+
+    data->DestroySwapchainKHR(device, swapchain, allocator);
+    }
+
+  VKAPI_ATTR auto VKAPI_CALL
+    overlay_QueuePresentKHR(VkQueue queue, VkPresentInfoKHR const * present_info) -> VkResult
+    {
+    device_data_t * const data{find_device(dispatch_key(queue))};
+    if(data == nullptr or data->QueuePresentKHR == nullptr)
+      return VK_ERROR_INITIALIZATION_FAILED;
+
+    if(present_info == nullptr or present_info->swapchainCount == 0u)
+      return data->QueuePresentKHR(queue, present_info);
+
+    std::array<VkSemaphore, max_swapchains_per_present> signalled{};
+    uint32_t signalled_count{};
+
+    VkSemaphore const * wait{present_info->pWaitSemaphores};
+    uint32_t wait_count{present_info->waitSemaphoreCount};
+
+    uint32_t const count{std::min(present_info->swapchainCount, max_swapchains_per_present)};
+    for(uint32_t index{}; index != count; ++index)
+      {
+      swapchain_data_t * const entry{find_swapchain(present_info->pSwapchains[index])};
+      if(entry == nullptr or entry->broken)
+        continue;
+
+      VkSemaphore const semaphore{draw_overlay(*entry, queue, present_info->pImageIndices[index], wait, wait_count)};
+      if(semaphore == VK_NULL_HANDLE)
+        continue;
+
+      signalled[signalled_count] = semaphore;
+      ++signalled_count;
+      // oryginalne semafory konsumuje pierwsze nasze zgloszenie, kolejne nie maja juz na co czekac
+      wait = nullptr;
+      wait_count = 0u;
+      }
+
+    if(signalled_count == 0u)
+      return data->QueuePresentKHR(queue, present_info);
+
+    VkPresentInfoKHR patched{*present_info};
+    patched.waitSemaphoreCount = signalled_count;
+    patched.pWaitSemaphores = signalled.data();
+    return data->QueuePresentKHR(queue, &patched);
+    }
+
+  VKAPI_ATTR auto VKAPI_CALL overlay_EnumerateInstanceLayerProperties(
+    uint32_t * count, VkLayerProperties * properties
+  ) -> VkResult
+    {
+    if(properties == nullptr)
+      {
+      *count = 1u;
+      return VK_SUCCESS;
+      }
+    if(*count == 0u)
+      return VK_INCOMPLETE;
+
+    *count = 1u;
+    *properties = VkLayerProperties{};
+    std::strncpy(properties->layerName, layer_name, sizeof(properties->layerName) - 1u);
+    std::strncpy(properties->description, "Elite Help Tool in-game overlay", sizeof(properties->description) - 1u);
+    properties->implementationVersion = 1u;
+    properties->specVersion = VK_API_VERSION_1_3;
+    return VK_SUCCESS;
+    }
+
+  VKAPI_ATTR auto VKAPI_CALL overlay_EnumerateDeviceLayerProperties(
+    VkPhysicalDevice, uint32_t * count, VkLayerProperties * properties
+  ) -> VkResult
+    {
+    return overlay_EnumerateInstanceLayerProperties(count, properties);
+    }
+
+  VKAPI_ATTR auto VKAPI_CALL overlay_EnumerateInstanceExtensionProperties(
+    char const * layer, uint32_t * count, VkExtensionProperties *
+  ) -> VkResult
+    {
+    if(layer == nullptr or std::strcmp(layer, layer_name) != 0)
+      return VK_ERROR_LAYER_NOT_PRESENT;
+
+    *count = 0u;
+    return VK_SUCCESS;
+    }
+
+  VKAPI_ATTR auto VKAPI_CALL overlay_EnumerateDeviceExtensionProperties(
+    VkPhysicalDevice physical_device, char const * layer, uint32_t * count, VkExtensionProperties * properties
+  ) -> VkResult
+    {
+    // warstwa nie wnosi zadnych rozszerzen, pytanie o nasza nazwe zbywamy pusta lista
+    if(layer != nullptr and std::strcmp(layer, layer_name) == 0)
+      {
+      *count = 0u;
+      return VK_SUCCESS;
+      }
+
+    instance_data_t * const instance{find_instance(dispatch_key(physical_device))};
+    if(instance == nullptr)
+      return VK_ERROR_INITIALIZATION_FAILED;
+
+    auto const next{reinterpret_cast<PFN_vkEnumerateDeviceExtensionProperties>(
+      instance->next_gipa(instance->instance, "vkEnumerateDeviceExtensionProperties")
+    )};
+    if(next == nullptr)
+      return VK_ERROR_INITIALIZATION_FAILED;
+
+    return next(physical_device, layer, count, properties);
+    }
+  }  // namespace
+
+[[nodiscard]]
+auto lookup_hook(char const * name) -> PFN_vkVoidFunction
+  {
+#define EHT_HOOK(entry)                                     \
+  if(std::strcmp(name, "vk" #entry) == 0)                   \
+    return reinterpret_cast<PFN_vkVoidFunction>(&overlay_##entry)
+
+  EHT_HOOK(CreateInstance);
+  EHT_HOOK(DestroyInstance);
+  EHT_HOOK(CreateDevice);
+  EHT_HOOK(DestroyDevice);
+  EHT_HOOK(GetDeviceQueue);
+  EHT_HOOK(GetDeviceQueue2);
+  EHT_HOOK(CreateSwapchainKHR);
+  EHT_HOOK(DestroySwapchainKHR);
+  EHT_HOOK(QueuePresentKHR);
+  EHT_HOOK(EnumerateInstanceLayerProperties);
+  EHT_HOOK(EnumerateDeviceLayerProperties);
+  EHT_HOOK(EnumerateInstanceExtensionProperties);
+  EHT_HOOK(EnumerateDeviceExtensionProperties);
+#undef EHT_HOOK
+  return nullptr;
+  }
+  }  // namespace eht_overlay
+
+extern "C"
+  {
+VK_LAYER_EXPORT VKAPI_ATTR auto VKAPI_CALL
+  eht_overlay_GetInstanceProcAddr(VkInstance instance, char const * name) -> PFN_vkVoidFunction
+  {
+  if(std::strcmp(name, "vkGetInstanceProcAddr") == 0)
+    return reinterpret_cast<PFN_vkVoidFunction>(&eht_overlay_GetInstanceProcAddr);
+
+  if(auto const hook{eht_overlay::lookup_hook(name)}; hook != nullptr)
+    return hook;
+
+  if(instance == VK_NULL_HANDLE)
+    return nullptr;
+
+  eht_overlay::instance_data_t const * const data{
+    [instance]() -> eht_overlay::instance_data_t const *
+    {
+    std::shared_lock const lock{eht_overlay::registry().mutex};
+    auto const it{eht_overlay::registry().instances.find(eht_overlay::dispatch_key(instance))};
+    return it != eht_overlay::registry().instances.end() ? it->second.get() : nullptr;
+    }()
+  };
+
+  return data != nullptr ? data->next_gipa(instance, name) : nullptr;
+  }
+
+VK_LAYER_EXPORT VKAPI_ATTR auto VKAPI_CALL
+  eht_overlay_GetDeviceProcAddr(VkDevice device, char const * name) -> PFN_vkVoidFunction
+  {
+  if(std::strcmp(name, "vkGetDeviceProcAddr") == 0)
+    return reinterpret_cast<PFN_vkVoidFunction>(&eht_overlay_GetDeviceProcAddr);
+
+  if(auto const hook{eht_overlay::lookup_hook(name)}; hook != nullptr)
+    return hook;
+
+  if(device == VK_NULL_HANDLE)
+    return nullptr;
+
+  eht_overlay::device_data_t const * const data{
+    [device]() -> eht_overlay::device_data_t const *
+    {
+    std::shared_lock const lock{eht_overlay::registry().mutex};
+    auto const it{eht_overlay::registry().devices.find(eht_overlay::dispatch_key(device))};
+    return it != eht_overlay::registry().devices.end() ? it->second.get() : nullptr;
+    }()
+  };
+
+  return data != nullptr ? data->next_gdpa(device, name) : nullptr;
+  }
+
+VK_LAYER_EXPORT VKAPI_ATTR auto VKAPI_CALL
+  vkNegotiateLoaderLayerInterfaceVersion(VkNegotiateLayerInterface * version) -> VkResult
+  {
+  if(version == nullptr or version->sType != LAYER_NEGOTIATE_INTERFACE_STRUCT)
+    return VK_ERROR_INITIALIZATION_FAILED;
+
+  if(version->loaderLayerInterfaceVersion > 2u)
+    version->loaderLayerInterfaceVersion = 2u;
+
+  version->pfnGetInstanceProcAddr = &eht_overlay_GetInstanceProcAddr;
+  version->pfnGetDeviceProcAddr = &eht_overlay_GetDeviceProcAddr;
+  version->pfnGetPhysicalDeviceProcAddr = nullptr;
+  return VK_SUCCESS;
+  }
+  }
