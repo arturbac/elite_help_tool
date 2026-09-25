@@ -1501,7 +1501,17 @@ auto database_storage_t::store(system_signal_t const & value) -> expected_ec<voi
     return cxx23::unexpected{known.error()};
 
   if(*known and **known != 0)
-    return {};
+    {
+    // sygnal juz znamy, liczy sie kiedy ostatnio zostal zgloszony
+    std::string update{std::format(
+      "UPDATE {} SET last_seen='{:%Y-%m-%dT%H:%M:%SZ}' WHERE system_address={} AND name='{}'",
+      sql_iface::tables::system_signal,
+      value.last_seen,
+      value.system_address,
+      sqlite::escape_sql_quotes(value.name)
+    )};
+    return sqlite::execute_query_no_result(db_->db, update);
+    }
 
   return sqlite::insert_into(db_->db, "oid"sv, sql_iface::tables::system_signal, value);
   }
@@ -1509,9 +1519,14 @@ auto database_storage_t::store(system_signal_t const & value) -> expected_ec<voi
 auto database_storage_t::load_system_signals(uint64_t system_address)
   -> expected_ec<std::vector<system_signal_t>>
   {
-  return sqlite::select_from<system_signal_t>(
+  auto res{sqlite::select_from<system_signal_t>(
     db_->db, sql_iface::tables::system_signal, std::format(" WHERE system_address={} ORDER BY name", system_address)
-  );
+  )};
+  if(not res) [[unlikely]]
+    return res;
+
+  // plac budowy czy compromised nav beacon znikaja z systemu, ale wpis po nich zostaje
+  return filter_current_visit(std::move(*res));
   }
 
 auto database_storage_t::store(info::conflict_t const & value) -> expected_ec<void>

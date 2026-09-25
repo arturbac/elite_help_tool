@@ -513,15 +513,41 @@ auto value_class(uint32_t const sv) noexcept -> planet_value_e
   return planet_value_e::low;
   }
 
-auto to_system_signal(events::fss_signal_discovered_t const & signal) -> system_signal_t
+auto to_system_signal(events::fss_signal_discovered_t const & signal, std::chrono::sys_seconds seen)
+  -> system_signal_t
   {
   return system_signal_t{
     .system_address = signal.SystemAddress,
     // nazwy stacji przychodza wprost, reszta ma postac identyfikatora z tlumaczeniem obok
     .name = signal.SignalName_Localised.empty() ? signal.SignalName : signal.SignalName_Localised,
     .signal_type = signal.SignalType,
-    .is_station = signal.IsStation
+    .is_station = signal.IsStation,
+    .last_seen = seen
   };
+  }
+
+auto filter_current_visit(std::vector<system_signal_t> signals) -> std::vector<system_signal_t>
+  {
+  if(signals.empty())
+    return signals;
+
+  // przerwa dluzsza niz to oddziela wizyty, krotsza to kolejne partie tego samego pobytu
+  constexpr auto visit_gap{std::chrono::hours{2}};
+
+  std::ranges::sort(signals, std::ranges::greater{}, &system_signal_t::last_seen);
+
+  auto cutoff{signals.front().last_seen};
+  for(system_signal_t const & signal: signals)
+    {
+    if(cutoff - signal.last_seen > visit_gap)
+      break;
+    cutoff = signal.last_seen;
+    }
+
+  auto const stale{std::ranges::remove_if(signals, [cutoff](system_signal_t const & signal)
+                                          { return signal.last_seen < cutoff; })};
+  signals.erase(stale.begin(), stale.end());
+  return signals;
   }
 
 auto classify_signal(std::string_view signal_type) noexcept -> signal_class_e

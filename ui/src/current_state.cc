@@ -412,11 +412,14 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           if(event.TimeRemaining)
             return;
 
-          auto signal{to_system_signal(event)};
+          auto signal{to_system_signal(event, timestamp)};
           if(auto res{db_.store(signal)}; not res)
             spdlog::error("failed to store signal for {}", event.SystemAddress);
 
-          if(std::ranges::find(system.system_signals, signal.name, &system_signal_t::name) == system.system_signals.end())
+          if(auto it{std::ranges::find(system.system_signals, signal.name, &system_signal_t::name)};
+             it != system.system_signals.end())
+            it->last_seen = signal.last_seen;
+          else
             system.system_signals.emplace_back(std::move(signal));
 
           update_system = true;

@@ -1116,10 +1116,19 @@ struct system_signal_t
   std::string name;
   std::string signal_type;
   bool is_station;
+  ///\brief ostatnie zgloszenie przez skan - place budowy i sygnaly tymczasowe przestaja wracac
+  std::chrono::sys_seconds last_seen;
   };
 
+///\brief zostawia sygnaly widziane podczas ostatniej wizyty w systemie
+///\detail gra zglasza sygnaly partiami, ktore bywaja niepelne - ta sama stacja potrafi wypasc
+/// z jednej partii i wrocic w nastepnej - wiec wizyta to suma partii, a nie pojedyncza partia
 [[nodiscard]]
-auto to_system_signal(events::fss_signal_discovered_t const & signal) -> system_signal_t;
+auto filter_current_visit(std::vector<system_signal_t> signals) -> std::vector<system_signal_t>;
+
+[[nodiscard]]
+auto to_system_signal(events::fss_signal_discovered_t const & signal, std::chrono::sys_seconds seen)
+  -> system_signal_t;
 
 ///\brief do ktorego okna nalezy sygnal
 enum struct signal_class_e : uint8_t
