@@ -121,6 +121,14 @@ struct database_storage_t
   auto last_influence(int64_t faction_oid, uint64_t system_address)
     -> expected_ec<std::optional<info::faction_influence_t>>;
 
+  /// cala historia influence w systemie, wszystkie frakcje, rosnaco wg czasu
+  [[nodiscard]]
+  auto load_influence_history(uint64_t system_address) -> expected_ec<std::vector<info::faction_influence_t>>;
+
+  /// systemy dla ktorych mamy zarejestrowana historie influence
+  [[nodiscard]]
+  auto load_systems_with_influence() -> expected_ec<std::vector<info::system_ref_t>>;
+
   [[nodiscard]]
   auto load_system(uint64_t system_address) -> expected_ec<std::optional<star_system_t>>;
   auto close() -> void;

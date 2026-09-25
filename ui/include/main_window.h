@@ -6,6 +6,7 @@
 #include <mission_window.h>
 #include <route_window.h>
 #include <faction_window.h>
+#include <faction_state_window.h>
 
 #include <simple_enum/simple_enum.hpp>
 #include <qmainwindow.h>
@@ -23,13 +24,14 @@ enum struct window_type_e
   mission,
   route,
   ship,
-  faction
+  faction,
+  faction_state
   };
 
 consteval auto adl_enum_bounds(window_type_e)
   {
   using enum window_type_e;
-  return simple_enum::adl_info{none, faction};
+  return simple_enum::adl_info{none, faction_state};
   }
 
 class main_window_t : public QMainWindow
@@ -45,6 +47,7 @@ public:
   QPointer<mission_window_t> mission_view_;
   QPointer<route_window_t> route_view_;
   QPointer<faction_window_t> faction_view_;
+  QPointer<faction_state_window_t> faction_state_view_;
   
   fs::path file_to_monitor{};
 
@@ -52,6 +55,8 @@ public:
 
   [[nodiscard]]
   explicit main_window_t(std::string db_path, std::string journal_path, QWidget * parent = nullptr);
+
+  std::string db_path_;
 
   ///\brief startuje watek sledzacy journal, wolane po otwarciu bazy
   auto start_monitoring() -> void;

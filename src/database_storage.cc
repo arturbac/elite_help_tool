@@ -853,6 +853,9 @@ auto database_storage_t::open() -> expected_ec<void>
   if(rc != SQLITE_OK)
     return cxx23::unexpected(std::make_error_code(std::errc::io_error));
 
+  // czytanie z gui i zapis z watku sledzacego to osobne polaczenia, czekamy zamiast dostac SQLITE_BUSY
+  sqlite3_busy_timeout(db_->db, 3000);
+
   // wszystkie CREATE sa IF NOT EXISTS, wiec istniejaca baza dostaje brakujace tabele i indeksy
   return create_database();
   }
@@ -1246,6 +1249,28 @@ auto database_storage_t::last_influence(int64_t faction_oid, uint64_t system_add
     return std::optional<info::faction_influence_t>{};
 
   return std::optional<info::faction_influence_t>{std::move((*res)[0])};
+  }
+
+auto database_storage_t::load_influence_history(uint64_t system_address)
+  -> expected_ec<std::vector<info::faction_influence_t>>
+  {
+  return sqlite::select_from<info::faction_influence_t>(
+    db_->db,
+    sql_iface::tables::faction_influence,
+    std::format(" WHERE system_address={} ORDER BY timestamp", system_address)
+  );
+  }
+
+auto database_storage_t::load_systems_with_influence() -> expected_ec<std::vector<info::system_ref_t>>
+  {
+  return sqlite::select_from<info::system_ref_t>(
+    db_->db,
+    sql_iface::tables::star_system,
+    std::format(
+      " WHERE system_address IN (SELECT DISTINCT system_address FROM {}) ORDER BY name",
+      sql_iface::tables::faction_influence
+    )
+  );
   }
 
 auto database_storage_t::load_factions() -> expected_ec<std::vector<info::faction_info_t>>

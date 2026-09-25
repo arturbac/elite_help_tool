@@ -1,4 +1,4 @@
-find_package(Qt6 REQUIRED COMPONENTS Widgets #[[Sql]])
+find_package(Qt6 REQUIRED COMPONENTS Widgets Charts #[[Sql]])
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
@@ -8,6 +8,7 @@ add_executable(elite_help_tool)
 target_link_libraries(elite_help_tool PRIVATE
   eht
   Qt6::Widgets 
+  Qt6::Charts
   # Qt6::Sql
   )
 target_sources(elite_help_tool
@@ -24,5 +25,6 @@ target_sources(elite_help_tool
             include/mission_window.h
             include/route_window.h
             include/faction_window.h
+            include/faction_state_window.h
 )
 add_subdirectory(src)

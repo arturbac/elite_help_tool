@@ -26,6 +26,7 @@ Q_DECLARE_METATYPE(window_type_e)
 
 main_window_t::main_window_t(std::string db_path, std::string journal_path, QWidget * parent) :
     QMainWindow(parent),
+    db_path_{db_path},
     state_{this, db_path, journal_path}
   {
   setup_ui();
@@ -79,6 +80,11 @@ auto main_window_t::setup_ui() -> void
   mdi_area_->addSubWindow(faction_view_);
   faction_view_->setProperty("window_type", QVariant::fromValue(window_type_e::faction));
   faction_view_->show();
+
+  faction_state_view_ = new faction_state_window_t{state_, db_path_};
+  mdi_area_->addSubWindow(faction_state_view_);
+  faction_state_view_->setProperty("window_type", QVariant::fromValue(window_type_e::faction_state));
+  faction_state_view_->show();
   }
 
 auto main_window_t::setup_toolbox() -> void
@@ -173,6 +179,7 @@ auto main_window_t::load_settings() -> void
       case window_type_e::mission:     sub = mission_view_; break;
       case window_type_e::route:     sub = route_view_; break;
       case window_type_e::faction:     sub = faction_view_; break;
+      case window_type_e::faction_state: sub = faction_state_view_; break;
       case window_type_e::journal_log: sub = jlw_; break;
       }
     if(sub) [[likely]]
@@ -204,6 +211,8 @@ auto main_window_t::background_worker(std::stop_token stoken) -> void
     {
       if(faction_view_)
         faction_view_->refresh_ui();
+      if(faction_state_view_)
+        faction_state_view_->refresh_ui();
     },
     Qt::QueuedConnection
   );

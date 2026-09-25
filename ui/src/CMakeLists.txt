@@ -9,4 +9,5 @@ target_sources(elite_help_tool
   current_state.cc
   route_window.cc
   faction_window.cc
+  faction_state_window.cc
   )

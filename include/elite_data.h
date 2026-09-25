@@ -86,6 +86,13 @@ struct faction_influence_t
   std::string faction_state;
   };
 
+///\brief lekka projekcja star_system do list wyboru, nazwy pol musza zgadzac sie z kolumnami
+struct system_ref_t
+  {
+  uint64_t system_address;
+  std::string name;
+  };
+
 [[nodiscard]]
 auto to_influence(
   int64_t faction_oid,
