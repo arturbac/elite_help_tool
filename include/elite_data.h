@@ -117,6 +117,39 @@ auto to_conflict(uint64_t system_address, std::chrono::sys_seconds timestamp, ev
 [[nodiscard]]
 auto join_states(std::span<events::faction_state_entry_t const> states) -> std::string;
 
+///\brief stacja z rynkiem, jeden wpis na MarketID
+///\detail zawartosc rynku znamy tylko z Market.json czyli wylacznie na zywo, wiec import zaklada
+/// wpis pusty - z market_updated w zerze - do wypelnienia przy nastepnym zadokowaniu
+struct station_t
+  {
+  uint64_t market_id;
+  uint64_t system_address;
+  std::string name;
+  std::string station_type;
+  std::chrono::sys_seconds market_updated;
+  };
+
+///\brief slownik towarow, mean_price to srednia galaktyczna czyli stala towaru
+struct commodity_t
+  {
+  uint64_t id;
+  std::string name;
+  std::string category;
+  uint32_t mean_price;
+  };
+
+///\brief najswiezszy odczyt rynku, jeden wiersz na towar
+struct market_item_t
+  {
+  int64_t oid{-1};
+  uint64_t market_id;
+  uint64_t commodity_id;
+  uint32_t buy_price;
+  uint32_t sell_price;
+  uint32_t stock;
+  uint32_t demand;
+  };
+
 ///\brief lekka projekcja star_system do list wyboru, nazwy pol musza zgadzac sie z kolumnami
 struct system_ref_t
   {

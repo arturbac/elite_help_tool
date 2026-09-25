@@ -6,6 +6,7 @@
 #include <elite_events.h>
 #include <elite_data.h>
 #include <array>
+#include <span>
 
 struct sqlite3_handle_t;
 
@@ -164,6 +165,22 @@ struct database_storage_t
 
   [[nodiscard]]
   auto load_system_signals(uint64_t system_address) -> expected_ec<std::vector<system_signal_t>>;
+
+  ///\brief stacja z rynkiem, wpis zakladany przy pierwszym spotkaniu i potem aktualizowany
+  [[nodiscard]]
+  auto store(info::station_t const & value) -> expected_ec<void>;
+
+  [[nodiscard]]
+  auto load_station(uint64_t market_id) -> expected_ec<std::optional<info::station_t>>;
+
+  ///\brief podmienia cala zawartosc rynku na swiezy odczyt i znaczy czas aktualizacji
+  [[nodiscard]]
+  auto replace_market(
+    uint64_t market_id,
+    std::chrono::sys_seconds updated,
+    std::span<info::commodity_t const> commodities,
+    std::span<info::market_item_t const> items
+  ) -> expected_ec<void>;
 
   [[nodiscard]]
   auto store(info::conflict_t const & value) -> expected_ec<void>;

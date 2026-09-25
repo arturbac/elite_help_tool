@@ -412,6 +412,26 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
         ) [[unlikely]]
           critical_abort("failed to store species for {}:{}", event.SystemAddress, event.Body);
         }
+      else if constexpr(std::same_as<T, events::market_t>)
+        {
+        // Market.json jest nadpisywany przy kazdym dokowaniu, wiec wstecz nie da sie go odtworzyc
+        // - import zaklada sam wpis stacji, zawartosc dojdzie przy nastepnej wizycie na zywo
+        if(auto known{state.db_.load_station(event.MarketID)}; known and *known)
+          return;
+        else if(not known) [[unlikely]]
+          critical_abort("failed to load station {}", event.MarketID);
+
+        info::station_t station{
+          .market_id = event.MarketID,
+          .system_address = state.system.system_address,
+          .name = event.StationName,
+          .station_type = event.StationType,
+          .market_updated = {}
+        };
+
+        if(auto res{state.db_.store(station)}; not res) [[unlikely]]
+          critical_abort("failed to store station {}", event.MarketID);
+        }
       else if constexpr(std::same_as<T, events::fss_signal_discovered_t>)
         {
         // USS wygasa po kilku minutach, w bazie bylby tylko smieciem

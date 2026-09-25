@@ -435,6 +435,9 @@ namespace tables
   inline constexpr std::string_view faction_influence{"faction_influence"};
   inline constexpr std::string_view system_conflict{"system_conflict"};
   inline constexpr std::string_view system_signal{"system_signal"};
+  inline constexpr std::string_view station{"station"};
+  inline constexpr std::string_view commodity{"commodity"};
+  inline constexpr std::string_view market_item{"market_item"};
   inline constexpr std::string_view mission{"mission"};
   inline constexpr std::string_view carrier{"carrier"};
   inline constexpr std::string_view carrier_materials{"carrier_materials"};
@@ -959,6 +962,18 @@ auto database_storage_t::create_database() -> expected_ec<void>
     [[unlikely]]
     return res;
 
+  if(auto res{sqlite::create_table<info::station_t>(db_->db, "market_id"sv, sql_iface::tables::station)}; not res)
+    [[unlikely]]
+    return res;
+
+  if(auto res{sqlite::create_table<info::commodity_t>(db_->db, "id"sv, sql_iface::tables::commodity)}; not res)
+    [[unlikely]]
+    return res;
+
+  if(auto res{sqlite::create_table<info::market_item_t>(db_->db, "oid"sv, sql_iface::tables::market_item)}; not res)
+    [[unlikely]]
+    return res;
+
   if(auto res{sqlite::create_table<info::mission_t>(db_->db, "mission_id"sv, sql_iface::tables::mission)}; not res)
     [[unlikely]]
     return res;
@@ -1011,6 +1026,15 @@ auto database_storage_t::create_database() -> expected_ec<void>
       std::format(
         "CREATE INDEX IF NOT EXISTS {0}_key ON {0} (system_address, name);", sql_iface::tables::system_signal
       )
+    )};
+    not res
+  ) [[unlikely]]
+    return res;
+
+  if(
+    auto res{sqlite::execute_query_no_result(
+      db_->db,
+      std::format("CREATE INDEX IF NOT EXISTS {0}_key ON {0} (market_id);", sql_iface::tables::market_item)
     )};
     not res
   ) [[unlikely]]
@@ -1359,6 +1383,78 @@ auto database_storage_t::update_system_info(star_system_t const & system) -> exp
     sqlite::escape_sql_quotes(system.controlling_faction),
     system.population,
     system.system_address
+  )};
+  return sqlite::execute_query_no_result(db_->db, query);
+  }
+
+auto database_storage_t::store(info::station_t const & value) -> expected_ec<void>
+  {
+  auto known{load_station(value.market_id)};
+  if(not known) [[unlikely]]
+    return cxx23::unexpected{known.error()};
+
+  if(*known)
+    return sqlite::update_pk(db_->db, "market_id"sv, sql_iface::tables::station, value, value.market_id);
+
+  return sqlite::insert_into<info::station_t, true>(db_->db, "market_id"sv, sql_iface::tables::station, value);
+  }
+
+auto database_storage_t::load_station(uint64_t market_id) -> expected_ec<std::optional<info::station_t>>
+  {
+  auto res{sqlite::select_from<info::station_t>(
+    db_->db, sql_iface::tables::station, std::format(" WHERE market_id={}", market_id)
+  )};
+  if(not res) [[unlikely]]
+    return cxx23::unexpected{res.error()};
+
+  if(res->empty())
+    return std::optional<info::station_t>{};
+
+  return std::optional<info::station_t>{std::move((*res)[0])};
+  }
+
+auto database_storage_t::replace_market(
+  uint64_t market_id,
+  std::chrono::sys_seconds updated,
+  std::span<info::commodity_t const> commodities,
+  std::span<info::market_item_t const> items
+) -> expected_ec<void>
+  {
+  // slownik towarow jest wspolny dla wszystkich rynkow, dopisujemy tylko nieznane
+  for(info::commodity_t const & value: commodities)
+    {
+    auto known{sqlite::select_signle_from<uint64_t>(
+      db_->db, std::format("SELECT count(*) FROM {} WHERE id={}", sql_iface::tables::commodity, value.id)
+    )};
+    if(not known) [[unlikely]]
+      return cxx23::unexpected{known.error()};
+
+    if(*known and **known != 0)
+      continue;
+
+    if(auto res{sqlite::insert_into<info::commodity_t, true>(db_->db, "id"sv, sql_iface::tables::commodity, value)};
+       not res) [[unlikely]]
+      return res;
+    }
+
+  // rynek zmienia sie ciagle, trzymamy tylko ostatni odczyt
+  if(
+    auto res{sqlite::execute_query_no_result(
+      db_->db, std::format("DELETE FROM {} WHERE market_id={}", sql_iface::tables::market_item, market_id)
+    )};
+    not res
+  ) [[unlikely]]
+    return res;
+
+  for(info::market_item_t const & item: items)
+    if(auto res{sqlite::insert_into(db_->db, "oid"sv, sql_iface::tables::market_item, item)}; not res) [[unlikely]]
+      return res;
+
+  std::string query{std::format(
+    "UPDATE {} SET market_updated='{:%Y-%m-%dT%H:%M:%SZ}' WHERE market_id={}",
+    sql_iface::tables::station,
+    updated,
+    market_id
   )};
   return sqlite::execute_query_no_result(db_->db, query);
   }

@@ -348,6 +348,64 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
 
           update_system = true;
           }
+        else if constexpr(std::same_as<T, events::market_t>)
+          {
+          info::station_t station{
+            .market_id = event.MarketID,
+            .system_address = system.system_address,
+            .name = event.StationName,
+            .station_type = event.StationType,
+            .market_updated = {}
+          };
+
+          // zawartosc rynku istnieje tylko w Market.json obok journali i tylko na zywo
+          auto market{load_market(journal_dir_path_)};
+          if(not market or market->MarketID != event.MarketID)
+            {
+            if(auto res{db_.store(station)}; not res)
+              spdlog::error("failed to store station {}", event.MarketID);
+            return;
+            }
+
+          station.market_updated = market->timestamp;
+          if(auto res{db_.store(station)}; not res)
+            {
+            spdlog::error("failed to store station {}", event.MarketID);
+            return;
+            }
+
+          std::vector<info::commodity_t> commodities;
+          std::vector<info::market_item_t> items;
+          commodities.reserve(market->Items.size());
+          items.reserve(market->Items.size());
+
+          for(events::market_commodity_t const & entry: market->Items)
+            {
+            commodities.emplace_back(
+              info::commodity_t{
+                .id = entry.id,
+                .name = entry.Name_Localised,
+                .category = entry.Category_Localised,
+                .mean_price = entry.MeanPrice
+              }
+            );
+            items.emplace_back(
+              info::market_item_t{
+                .market_id = event.MarketID,
+                .commodity_id = entry.id,
+                .buy_price = entry.BuyPrice,
+                .sell_price = entry.SellPrice,
+                .stock = entry.Stock,
+                .demand = entry.Demand
+              }
+            );
+            }
+
+          if(auto res{db_.replace_market(event.MarketID, market->timestamp, commodities, items)}; not res)
+            spdlog::error("failed to store market {}", event.MarketID);
+          else
+            spdlog::info("market {} at {}: {} items", event.MarketID, event.StationName, items.size());
+          }
         else if constexpr(std::same_as<T, events::fss_signal_discovered_t>)
           {
           // USS wygasa po kilku minutach, w bazie bylby tylko smieciem

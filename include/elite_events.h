@@ -855,6 +855,40 @@ struct scan_organic_t
   };
 
 ///\brief sygnal wykryty skanem FSS - stacja, instalacja, POI, zjawisko
+///\brief event Market z journala - niesie tylko naglowek, zawartosc idzie do Market.json
+struct market_t
+  {
+  uint64_t MarketID;
+  std::string StationName;
+  std::string StationType;
+  std::string StarSystem;
+  };
+
+///\brief pozycja rynku z Market.json
+struct market_commodity_t
+  {
+  uint64_t id;
+  std::string Name_Localised;
+  std::string Category_Localised;
+  uint32_t BuyPrice;
+  uint32_t SellPrice;
+  ///\brief srednia galaktyczna, stala dla towaru - punkt odniesienia dla ceny
+  uint32_t MeanPrice;
+  uint32_t Stock;
+  uint32_t Demand;
+  };
+
+///\brief zawartosc Market.json, plik nadpisywany przy kazdym dokowaniu
+struct market_file_t
+  {
+  std::chrono::sys_seconds timestamp;
+  uint64_t MarketID;
+  std::string StationName;
+  std::string StationType;
+  std::string StarSystem;
+  std::vector<market_commodity_t> Items;
+  };
+
 struct fss_signal_discovered_t
   {
   uint64_t SystemAddress;
@@ -901,6 +935,7 @@ using event_holder_t = std::variant<
   fss_discovery_scan_t,
   fss_body_signals_t,
   fss_signal_discovered_t,
+  market_t,
   fss_all_bodies_found_t,
   scan_bary_centre_t,
   scan_detailed_scan_t,
@@ -1302,6 +1337,10 @@ static constexpr std::array<organic_value_t, 96> organic_values{
 /// "Luteolum Anemone" kontra "Anemone" - wiec dopasowanie schodzi po kolejnych regulach.
 [[nodiscard]]
 auto organic_value_range(std::string_view name) noexcept -> std::optional<std::pair<uint32_t, uint32_t>>;
+
+///\brief wczytuje Market.json lezacy obok journali
+[[nodiscard]]
+auto load_market(std::string journal_dir_path) -> cxx23::expected<events::market_file_t, std::error_code>;
 
 [[nodiscard]]
 auto body_short_name(std::string_view system, std::string_view name) -> std::string_view;

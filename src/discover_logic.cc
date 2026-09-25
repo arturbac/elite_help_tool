@@ -655,6 +655,22 @@ auto load_nav_route(std::string journal_dir_path) -> cxx23::expected<events::nav
   }
   }  // namespace
 
+auto load_market(std::string journal_dir_path) -> cxx23::expected<events::market_file_t, std::error_code>
+  {
+  events::market_file_t result;
+  std::string buffer;
+  std::filesystem::path market_json{journal_dir_path};
+  market_json /= "Market.json";
+
+  if(
+    auto res{glz::read_file_json<glz::opts{.error_on_unknown_keys = false}>(result, market_json.string(), buffer)};
+    res
+  ) [[unlikely]]
+    return cxx23::unexpected(std::make_error_code(std::errc::resource_unavailable_try_again));
+
+  return result;
+  }
+
 auto generic_state_t::discovery(std::string_view input) -> void
   {
   std::string buffer{input};
@@ -697,6 +713,7 @@ auto generic_state_t::discovery(std::string_view input) -> void
 
     case FSSDiscoveryScan:  parse_and_handle.template operator()<events::fss_discovery_scan_t>(); break;
     case FSSBodySignals:    parse_and_handle.template operator()<events::fss_body_signals_t>(); break;
+    case Market:            parse_and_handle.template operator()<events::market_t>(); break;
     case FSSSignalDiscovered:
       parse_and_handle.template operator()<events::fss_signal_discovered_t>();
       break;
