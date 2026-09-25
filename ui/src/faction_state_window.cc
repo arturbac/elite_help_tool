@@ -34,6 +34,24 @@ auto to_msecs(std::chrono::sys_seconds timestamp) -> qint64
   { return std::chrono::duration_cast<std::chrono::milliseconds>(timestamp.time_since_epoch()).count(); }
   }  // namespace
 
+///\brief poczatek trwajacego epizodu konfliktu tej pary frakcji, zaokraglony do doby
+///\detail ta sama para moze walczyc wielokrotnie, epizod liczy sie od wpisu po ostatnim zakonczeniu,
+/// a zegar 7 dni rusza dopiero gdy konflikt staje sie aktywny - pending jeszcze nie trwa
+[[nodiscard]]
+auto conflict_deadline(std::vector<info::conflict_t const *> const & rows) -> std::chrono::sys_days
+  {
+  std::size_t episode_start{};
+  for(std::size_t ix{}; ix != rows.size(); ++ix)
+    if(rows[ix]->status.empty())
+      episode_start = ix + 1;
+
+  for(std::size_t ix{episode_start}; ix != rows.size(); ++ix)
+    if(rows[ix]->status == "active")
+      return std::chrono::floor<std::chrono::days>(rows[ix]->timestamp);
+
+  return std::chrono::floor<std::chrono::days>(rows[std::min(episode_start, rows.size() - 1)]->timestamp);
+  }
+
 faction_presence_model_t::faction_presence_model_t(QObject * parent) : QAbstractTableModel(parent) {}
 
 [[nodiscard]]
@@ -463,24 +481,34 @@ auto faction_state_window_t::update_conflicts(uint64_t system_address) -> void
     return;
     }
 
-  // zapisujemy dopiero przy zmianie stanu, wiec liczy sie ostatni wpis kazdej pary frakcji
-  std::map<std::pair<std::string, std::string>, info::conflict_t const *> latest;
+  // zapisujemy dopiero przy zmianie stanu, wiec para frakcji ma tu caly swoj przebieg
+  std::map<std::pair<std::string, std::string>, std::vector<info::conflict_t const *>> by_pair;
   for(info::conflict_t const & conflict: *res)
-    latest[{conflict.faction1, conflict.faction2}] = &conflict;
+    by_pair[{conflict.faction1, conflict.faction2}].push_back(&conflict);
 
   // zakonczony konflikt zostaje w widoku tylko dobe od chwili gdy zobaczylismy jego koniec
   constexpr auto keep_finished{std::chrono::hours{24}};
+  // konflikt trwa najwyzej 7 dni od dnia rozpoczecia, po tym czasie jest po nim
+  // niezaleznie od tego czy zdazylismy zobaczyc jego koniec
+  constexpr auto max_duration{std::chrono::days{7}};
   auto const now{std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())};
 
   std::vector<info::conflict_t> current;
   std::chrono::sys_seconds newest{};
-  for(auto const & [pair, conflict]: latest)
+  for(auto const & [pair, rows]: by_pair)
     {
-    if(conflict->status.empty() and now - conflict->timestamp > keep_finished)
+    info::conflict_t const & last{*rows.back()};
+
+    if(last.status.empty())
+      {
+      if(now - last.timestamp > keep_finished)
+        continue;
+      }
+    else if(now > conflict_deadline(rows) + max_duration)
       continue;
 
-    current.push_back(*conflict);
-    newest = std::max(newest, conflict->timestamp);
+    current.push_back(last);
+    newest = std::max(newest, last.timestamp);
     }
 
   if(current.empty())
