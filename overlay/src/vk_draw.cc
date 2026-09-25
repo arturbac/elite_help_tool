@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <chrono>
 #include <cstdlib>
 
@@ -464,8 +465,16 @@ auto ensure_resources(swapchain_data_t & data, VkQueue queue) -> bool
   io.IniFilename = nullptr;
   io.LogFilename = nullptr;
   io.DisplaySize = ImVec2{static_cast<float>(data.extent.width), static_cast<float>(data.extent.height)};
-  io.FontGlobalScale
-    = scale_override() > 0.f ? scale_override() : std::max(1.f, static_cast<float>(data.extent.height) / 1080.f);
+  // celem jest staly udzial w wysokosci ekranu, zeby napis byl tak samo czytelny na 1080 i na 4k.
+  // font rasteryzujemy w docelowym rozmiarze, bo rozciaganie gotowej bitmapy daje papke
+  float const scale{
+    scale_override() > 0.f ? scale_override() : std::max(1.f, static_cast<float>(data.extent.height) / 780.f)
+  };
+  ImFontConfig font_config{};
+  font_config.SizePixels = std::round(13.f * scale);
+  io.Fonts->AddFontDefault(&font_config);
+
+  ImGui::GetStyle().ScaleAllSizes(scale);
 
   ImGui::StyleColorsDark();
 

@@ -8,7 +8,53 @@
 ///\brief zrodlo testowe - dowodzi ze gniazdo przechodzi przez granice kontenera pressure-vessel
 ///
 /// docelowo te ramki wysyla elite_help_tool; to narzedzie istnieje po to, zeby dalo sie sprawdzic
-/// sama droge, bez wciagania w test calej aplikacji i bazy
+/// sama droge i uklad napisow, bez wciagania w test calej aplikacji, bazy i gry. tresc jest
+/// celowo taka sama jak prawdziwa, razem z dluga linia sprawdzajaca zawijanie w pasie bocznym
+namespace
+  {
+constexpr uint32_t colour_heading{0x9ad1ffu};
+constexpr uint32_t colour_plain{0xddddddu};
+constexpr uint32_t colour_alert{0xd9a34au};
+constexpr uint32_t colour_first{0x3cb371u};
+constexpr uint32_t sample_ttl_ms{5000u};
+
+[[nodiscard]]
+auto sample_frame(uint64_t sequence) -> overlay::frame_t
+  {
+  auto const now{std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())};
+
+  return overlay::frame_t{
+    .seq = sequence,
+    .blocks = {
+      overlay::block_t{
+        .corner = overlay::corner_e::top_left, .ttl_ms = sample_ttl_ms, .lines = {overlay::line_t{.text = "Bleia Eohn QT-O d7-43", .color = colour_heading}, overlay::line_t{.text = "Camorra of Purui", .color = colour_plain}, overlay::line_t{.text = "Industrial / Anarchy", .color = colour_plain}, overlay::line_t{.text = "security: Anarchy", .color = colour_plain}, overlay::line_t{.text = "FSS incomplete, 14 bodies known", .color = colour_alert}, overlay::line_t{.text = std::format("feed {:%H:%M:%S} UTC, ramka {}", now, sequence), .color = colour_plain}}
+      },
+      overlay::
+        block_t{
+          .corner = overlay::corner_e::bottom_right,
+          .ttl_ms = sample_ttl_ms,
+          .lines
+          = {overlay::line_t{.text = "worth mapping: 4 bodies, 2'913'400 Cr", .color = colour_heading}, overlay::line_t{.text = "2  1'204'800 Cr  512 ls", .color = colour_first}, overlay::line_t{.text = "3 a  879'100 Cr  1'204 ls  landable", .color = colour_first}, overlay::line_t{.text = "5  521'000 Cr  3'880 ls", .color = colour_plain}, overlay::line_t{.text = "7 c  308'500 Cr  14'902 ls  landable", .color = colour_plain}}
+        },
+      overlay::block_t{
+        .corner = overlay::corner_e::bottom_left,
+        .ttl_ms = sample_ttl_ms,
+        .lines = {overlay::line_t{.text = "next: Bleia Eohn WO-A d13-24 (M)", .color = colour_plain}}
+      },
+      overlay::block_t{
+        .corner = overlay::corner_e::top_right,
+        .ttl_ms = sample_ttl_ms,
+        .lines = {overlay::line_t{
+          .text = "bardzo dluga linia testowa ktora musi sie zawinac wewnatrz pasa bocznego "
+                  "zamiast wjezdzac na srodek ekranu zajmowany przez gre",
+          .color = colour_plain
+        }}
+      }
+    }
+  };
+  }
+  }  // namespace
+
 auto main() -> int
   {
   std::string const path{overlay::default_socket_path()};
@@ -25,36 +71,7 @@ auto main() -> int
 
   for(uint64_t sequence{1u};; ++sequence)
     {
-    auto const now{std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())};
-
-    overlay::frame_t frame{
-      .seq = sequence,
-      .blocks = {
-        overlay::block_t{
-          .corner = overlay::corner_e::top_left,
-          .ttl_ms = 5000u,
-          .lines
-          = {overlay::line_t{.text = "EHT test feed", .color = 0x9ad1ffu}, overlay::line_t{.text = std::format("{:%H:%M:%S} UTC", now), .color = 0xffffffu}, overlay::line_t{.text = std::format("ramka {}", sequence), .color = 0x86d986u}}
-        },
-        overlay::block_t{
-          .corner = overlay::corner_e::bottom_left,
-          .ttl_ms = 5000u,
-          .lines = {overlay::line_t{.text = "lewy dolny naroznik", .color = 0xd9a34au}}
-        },
-        // celowo dlugie, zeby bylo widac czy tekst zawija sie w pasie bocznym
-        overlay::block_t{
-          .corner = overlay::corner_e::top_right,
-          .ttl_ms = 5000u,
-          .lines = {overlay::line_t{
-            .text = "bardzo dluga linia testowa ktora musi sie zawinac wewnatrz pasa bocznego "
-                    "zamiast wjezdzac na srodek ekranu zajmowany przez gre",
-            .color = 0xffffffu
-          }}
-        }
-      }
-    };
-
-    server.publish(frame);
+    server.publish(sample_frame(sequence));
 
     if(sequence % 20u == 0u)
       {

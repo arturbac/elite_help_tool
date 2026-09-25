@@ -3,18 +3,27 @@
 
 #include <spdlog/spdlog.h>
 
+#include <algorithm>
 #include <format>
+#include <ranges>
 
 namespace
   {
 constexpr uint32_t colour_heading{0x9ad1ffu};
 constexpr uint32_t colour_plain{0xddddddu};
 constexpr uint32_t colour_alert{0xd9a34au};
+///\brief nieodkryte przez nikogo - to jest ten przypadek, dla ktorego warto sie zatrzymac
+constexpr uint32_t colour_first{0x3cb371u};
 
 ///\brief bloki gasna gdy narzedzie zamilknie - lepiej brak napisu niz napis sprzed godziny
 constexpr uint32_t block_ttl_ms{10000u};
 ///\brief niezmieniony obraz i tak trzeba powtarzac, inaczej wygasnie graczowi stojacemu w miejscu
 constexpr std::chrono::seconds heartbeat{3};
+
+///\brief ponizej tego progu schodzenie do ciala nie zwraca sie czasowo
+constexpr uint32_t minimum_body_value{300000u};
+///\brief pas boczny ma swoje granice, dluga lista i tak nie zostanie przeczytana w locie
+constexpr size_t listed_bodies{5u};
 
 [[nodiscard]]
 auto same_content(overlay::frame_t const & left, overlay::frame_t const & right) -> bool
@@ -35,6 +44,74 @@ auto same_content(overlay::frame_t const & left, overlay::frame_t const & right)
         return false;
     }
   return true;
+  }
+
+///\brief w nazwie ciala gra powtarza nazwe systemu - na pasie bocznym to sama strata miejsca
+[[nodiscard]]
+auto short_body_name(std::string const & system_name, std::string const & body_name) -> std::string
+  {
+  if(body_name.size() > system_name.size() + 1u and body_name.starts_with(system_name))
+    return body_name.substr(system_name.size() + 1u);
+  return body_name;
+  }
+
+///\brief warto zejsc tylko po to, czego jeszcze nie zmapowalismy i co cos daje
+[[nodiscard]]
+auto worth_mapping(body_t const & body) -> bool
+  {
+  auto const * const planet{std::get_if<planet_details_t>(&body.details)};
+  return planet != nullptr and not planet->mapped and body.value >= minimum_body_value;
+  }
+
+[[nodiscard]]
+auto describe_exploration(star_system_t const & system) -> std::vector<overlay::line_t>
+  {
+  std::vector<body_t const *> candidates;
+  for(body_t const & body: system.bodies)
+    if(worth_mapping(body))
+      candidates.push_back(&body);
+
+  if(candidates.empty())
+    return {};
+
+  std::ranges::sort(candidates, std::ranges::greater{}, [](body_t const * body) { return body->value; });
+
+  uint64_t total{};
+  for(body_t const * body: candidates)
+    total += body->value;
+
+  std::vector<overlay::line_t> lines;
+  lines.push_back(
+    overlay::line_t{
+      .text = std::format("worth mapping: {} bodies, {} Cr", candidates.size(), format_credits_value(uint32_t(total))),
+      .color = colour_heading
+    }
+  );
+
+  for(body_t const * body: candidates | std::views::take(listed_bodies))
+    {
+    auto const * const planet{std::get_if<planet_details_t>(&body->details)};
+    lines.push_back(
+      overlay::line_t{
+        .text = std::format(
+          "{}  {} Cr  {:.0f} ls{}",
+          short_body_name(system.name, body->name),
+          format_credits_value(body->value),
+          body->distance_from_arrival_ls,
+          planet != nullptr and planet->landable ? "  landable" : ""
+        ),
+        // pierwsze odkrycie to premia, ktorej nie da sie odzyskac pozniej
+        .color = body->was_discovered ? colour_plain : colour_first
+      }
+    );
+    }
+
+  if(candidates.size() > listed_bodies)
+    lines.push_back(
+      overlay::line_t{.text = std::format("... and {} more", candidates.size() - listed_bodies), .color = colour_plain}
+    );
+
+  return lines;
   }
 
 [[nodiscard]]
@@ -99,6 +176,13 @@ auto overlay_feed_t::publish(current_state_t const & state) -> void
     frame.blocks.push_back(
       overlay::block_t{
         .corner = overlay::corner_e::top_left, .ttl_ms = block_ttl_ms, .lines = describe_system(state.system)
+      }
+    );
+
+  if(auto exploration{describe_exploration(state.system)}; not exploration.empty())
+    frame.blocks.push_back(
+      overlay::block_t{
+        .corner = overlay::corner_e::bottom_right, .ttl_ms = block_ttl_ms, .lines = std::move(exploration)
       }
     );
 
