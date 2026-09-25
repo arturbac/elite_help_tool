@@ -267,13 +267,36 @@ struct carrier_t
   bool tracked;
 };
 
-///\brief slownik micro resources bartendera, nazwy powtarzaja sie w kazdym odczycie
-///\detail kategoria (assets albo data) nie przychodzi w FCMaterials.json, dochodzi z ShipLocker
+///\brief slownik mikrozasobow, sklejany z dwoch zrodel o roznej wiedzy
+///\detail FCMaterials.json podaje numeryczne id i nazwe czytelna, SellMicroResources kategorie,
+/// a wspolnym kluczem jest nazwa wewnetrzna - "$weaponschematic_name;" i "weaponschematic" to ten
+/// sam material
 struct micro_resource_t
 {
-  uint64_t id;
   std::string name;
+  uint64_t id;
+  std::string localised;
   std::string category;
+};
+
+///\brief sprzedaz mikrozasobow - zrzut u bartendera na stacji albo dostawa na flotowiec gracza
+///\detail zdarzenie journala, wiec odtwarzalne wstecz; o ktory przypadek chodzi mowi typ stacji
+struct micro_sale_t
+{
+  int64_t oid{-1};
+  std::chrono::sys_seconds timestamp;
+  uint64_t market_id;
+  uint64_t price;
+  uint32_t total_count;
+};
+
+///\brief pozycja transakcji, laczy sie ze slownikiem przez nazwe wewnetrzna
+struct micro_sale_item_t
+{
+  int64_t oid{-1};
+  int64_t sale_oid;
+  std::string name;
+  uint32_t count;
 };
 
 constexpr double light_speed_mps = 299'792'458.0;

@@ -412,6 +412,33 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
         ) [[unlikely]]
           critical_abort("failed to store species for {}:{}", event.SystemAddress, event.Body);
         }
+      else if constexpr(std::same_as<T, events::sell_micro_resources_t>)
+        {
+        info::micro_sale_t sale{
+          .timestamp = timestamp,
+          .market_id = event.MarketID,
+          .price = event.Price,
+          .total_count = event.TotalCount
+        };
+
+        std::vector<info::micro_sale_item_t> items;
+        items.reserve(event.MicroResources.size());
+        for(events::sold_micro_resource_t const & sold: event.MicroResources)
+          {
+          auto key{micro_resource_key(sold.Name)};
+          // kategoria przychodzi tylko tutaj, id i nazwa czytelna od bartendera
+          if(auto res{state.db_.store(info::micro_resource_t{
+               .name = key, .id = {}, .localised = sold.Name_Localised, .category = sold.Category
+             })};
+             not res)
+            spdlog::error("failed to store micro resource {}", sold.Name);
+
+          items.emplace_back(info::micro_sale_item_t{.name = std::move(key), .count = sold.Count});
+          }
+
+        if(auto res{state.db_.store(sale, items)}; not res)
+          critical_abort("failed to store micro resource sale at {}", event.MarketID);
+        }
       else if constexpr(std::same_as<T, events::docked_t>)
         {
         // tozsamosc stacji odtwarzamy z journali - typ rozroznia flotowiec od stacji

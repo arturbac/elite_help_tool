@@ -348,6 +348,33 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
 
           update_system = true;
           }
+      else if constexpr(std::same_as<T, events::sell_micro_resources_t>)
+          {
+          info::micro_sale_t sale{
+            .timestamp = timestamp,
+            .market_id = event.MarketID,
+            .price = event.Price,
+            .total_count = event.TotalCount
+          };
+
+          std::vector<info::micro_sale_item_t> items;
+          items.reserve(event.MicroResources.size());
+          for(events::sold_micro_resource_t const & sold: event.MicroResources)
+            {
+            auto key{micro_resource_key(sold.Name)};
+            // kategoria przychodzi tylko tutaj, id i nazwa czytelna od bartendera
+            if(auto res{db_.store(info::micro_resource_t{
+                 .name = key, .id = {}, .localised = sold.Name_Localised, .category = sold.Category
+               })};
+               not res)
+              spdlog::error("failed to store micro resource {}", sold.Name);
+
+            items.emplace_back(info::micro_sale_item_t{.name = std::move(key), .count = sold.Count});
+            }
+
+          if(auto res{db_.store(sale, items)}; not res)
+            spdlog::error("failed to store micro resource sale at {}", event.MarketID);
+          }
         else if constexpr(std::same_as<T, events::docked_t>)
           {
           // tozsamosc stacji odtwarzamy z journali - typ rozroznia flotowiec od stacji
@@ -743,7 +770,12 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
                 for(events::fcmaterial_t const & fmat: fcmat.Items)
                   {
                   // nazwy powtarzaja sie w kazdym odczycie, wiec ida do slownika a nie do wierszy
-                  if(auto res{db_.store(info::micro_resource_t{.id = fmat.id, .name = fmat.Name_Localised})}; not res)
+                  if(auto res{db_.store(
+                       info::micro_resource_t{
+                         .name = micro_resource_key(fmat.Name), .id = fmat.id, .localised = fmat.Name_Localised
+                       }
+                     )};
+                     not res)
                     spdlog::error("failed to store micro resource {}", fmat.id);
 
                   info::fcmaterial_t mat{

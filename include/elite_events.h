@@ -263,6 +263,8 @@ struct carrier_stats_t
 struct fcmaterial_t
 {
   uint64_t id;
+  ///\brief nazwa wewnetrzna, wspolny klucz ze sprzedaza mikrozasobow
+  std::string Name;
   std::string Name_Localised;
   uint32_t Price;
   uint32_t Stock;
@@ -855,6 +857,24 @@ struct scan_organic_t
   };
 
 ///\brief sygnal wykryty skanem FSS - stacja, instalacja, POI, zjawisko
+///\brief pozycja sprzedazy mikrozasobow
+struct sold_micro_resource_t
+  {
+  std::string Name;
+  std::string Name_Localised;
+  std::string Category;
+  uint32_t Count;
+  };
+
+///\brief sprzedaz mikrozasobow bartenderowi - na stacji albo na flotowcu gracza
+struct sell_micro_resources_t
+  {
+  uint64_t MarketID;
+  uint64_t Price;
+  uint32_t TotalCount;
+  std::vector<sold_micro_resource_t> MicroResources;
+  };
+
 ///\brief zadokowanie - stad bierze sie tozsamosc stacji, wraz z typem
 ///\detail StationType rozroznia flotowiec gracza od zwyklej stacji, co odroznia sprzedaz
 /// mikrozasobow graczom od zrzutu na stacji
@@ -949,6 +969,7 @@ using event_holder_t = std::variant<
   fss_signal_discovered_t,
   market_t,
   docked_t,
+  sell_micro_resources_t,
   fss_all_bodies_found_t,
   scan_bary_centre_t,
   scan_detailed_scan_t,
@@ -1359,6 +1380,11 @@ static constexpr std::array<organic_value_t, 96> organic_values{
 /// "Luteolum Anemone" kontra "Anemone" - wiec dopasowanie schodzi po kolejnych regulach.
 [[nodiscard]]
 auto organic_value_range(std::string_view name) noexcept -> std::optional<std::pair<uint32_t, uint32_t>>;
+
+///\brief nazwa wewnetrzna mikrozasobu, wspolny klucz obu zrodel
+///\detail "$weaponschematic_name;" i "weaponschematic" to ten sam material
+[[nodiscard]]
+auto micro_resource_key(std::string_view name) -> std::string;
 
 ///\brief wczytuje Market.json lezacy obok journali
 [[nodiscard]]

@@ -71,9 +71,13 @@ struct database_storage_t
   [[nodiscard]]
   auto update_carrier(info::carrier_t const & value) -> expected_ec<void>;
 
-  ///\brief dopisuje nieznany material bartendera do slownika
+  ///\brief uzupelnia slownik mikrozasobow - kazde zrodlo wnosi inna czesc wiedzy
   [[nodiscard]]
   auto store(info::micro_resource_t const & value) -> expected_ec<void>;
+
+  ///\brief zapisuje transakcje sprzedazy mikrozasobow, pomijajac juz znane
+  [[nodiscard]]
+  auto store(info::micro_sale_t const & sale, std::span<info::micro_sale_item_t const> items) -> expected_ec<void>;
   
   [[nodiscard]]
   auto store(info::fcmaterial_t const & value) -> expected_ec<void>;

@@ -443,6 +443,9 @@ namespace tables
   inline constexpr std::string_view market_item{"live.market_item"};
   inline constexpr std::string_view mission{"mission"};
   inline constexpr std::string_view micro_resource{"live.micro_resource"};
+  // sprzedaz mikrozasobow to zdarzenie journala, wiec odtwarzalna
+  inline constexpr std::string_view micro_sale{"micro_sale"};
+  inline constexpr std::string_view micro_sale_item{"micro_sale_item"};
   inline constexpr std::string_view carrier{"live.carrier"};
   inline constexpr std::string_view carrier_materials{"live.carrier_materials"};
   }  // namespace tables
@@ -566,6 +569,65 @@ constexpr auto serialize(T const & value) -> std::string
     static_assert(false);
   }
 
+///\brief nazwy kolumn w jednej linii, do komunikatu bledu
+[[nodiscard]]
+static auto fmt_join(std::vector<std::string> const & values) -> std::string
+  {
+  std::string result;
+  for(std::string const & value: values)
+    {
+    if(not result.empty())
+      result.append(", ");
+    result.append(value);
+    }
+  return result;
+  }
+
+static int collect_column_names(void * d, int argc, char ** argv, char **)
+  {
+  // PRAGMA table_info zwraca kolumny opisu, nazwa stoi na drugiej pozycji
+  if(argc > 1 and argv[1] != nullptr)
+    static_cast<std::vector<std::string> *>(d)->emplace_back(argv[1]);
+  return 0;
+  }
+
+///\brief sprawdza czy istniejaca tabela ma ksztalt jakiego oczekuje kod
+///\detail CREATE TABLE IF NOT EXISTS milczy gdy tabela istnieje w innym ksztalcie, a baza zbierana
+/// na zywo nigdy nie jest kasowana - bez tej kontroli kazdy zapis sypalby sie osobno w trakcie pracy
+template<typename table_type>
+static auto verify_table(sqlite3 * db, std::string_view name) -> expected_ec<void>
+  {
+  std::string pragma;
+  if(auto const dot{name.find('.')}; dot != std::string_view::npos)
+    pragma = std::format("PRAGMA {}.table_info({});", name.substr(0, dot), name.substr(dot + 1));
+  else
+    pragma = std::format("PRAGMA table_info({});", name);
+
+  std::vector<std::string> columns;
+  if(sqlite3_exec(db, pragma.c_str(), &collect_column_names, &columns, nullptr) != SQLITE_OK) [[unlikely]]
+    return cxx23::unexpected(std::make_error_code(std::errc::bad_message));
+
+  uint32_t ix{};
+  bool matches{columns.size() == glz::reflect<table_type>::keys.size()};
+  glz::for_each_field(
+    table_type{},
+    [&columns, &ix, &matches]<typename T>(T &)
+    {
+      auto const key{glz::reflect<table_type>::keys[ix]};
+      if(std::ranges::find(columns, key) == columns.end())
+        matches = false;
+      ++ix;
+    }
+  );
+
+  if(matches)
+    return {};
+
+  spdlog::error("[sql] table {} has a different shape than the code expects - columns in file: {}", name,
+                fmt_join(columns));
+  return cxx23::unexpected(std::make_error_code(std::errc::bad_message));
+  }
+
 template<typename table_type>
 static auto create_table(sqlite3 * db, std::string_view const pk, std::string_view name) -> expected_ec<void>
   {
@@ -597,7 +659,7 @@ static auto create_table(sqlite3 * db, std::string_view const pk, std::string_vi
     return cxx23::unexpected(std::make_error_code(std::errc::bad_message));
     }
   spdlog::debug("[sql] {}", query);
-  return {};
+  return verify_table<table_type>(db, name);
   }
 
 template<typename table_type, bool with_pk_store = false>
@@ -999,7 +1061,15 @@ auto database_storage_t::create_database() -> expected_ec<void>
     [[unlikely]]
     return res;
     
-  if(auto res{sqlite::create_table<info::micro_resource_t>(db_->db, "id"sv, sql_iface::tables::micro_resource)};
+  if(auto res{sqlite::create_table<info::micro_resource_t>(db_->db, "name"sv, sql_iface::tables::micro_resource)};
+     not res) [[unlikely]]
+    return res;
+
+  if(auto res{sqlite::create_table<info::micro_sale_t>(db_->db, "oid"sv, sql_iface::tables::micro_sale)}; not res)
+    [[unlikely]]
+    return res;
+
+  if(auto res{sqlite::create_table<info::micro_sale_item_t>(db_->db, "oid"sv, sql_iface::tables::micro_sale_item)};
      not res) [[unlikely]]
     return res;
 
@@ -1671,18 +1741,87 @@ auto database_storage_t::load_carrier(std::string_view carrier_id) -> expected_e
 
 auto database_storage_t::store(info::micro_resource_t const & value) -> expected_ec<void>
   {
-  auto known{sqlite::select_signle_from<uint64_t>(
-    db_->db, std::format("SELECT count(*) FROM {} WHERE id={}", sql_iface::tables::micro_resource, value.id)
+  auto known{sqlite::select_from<info::micro_resource_t>(
+    db_->db,
+    sql_iface::tables::micro_resource,
+    std::format(" WHERE name='{}'", sqlite::escape_sql_quotes(value.name))
   )};
+  if(not known) [[unlikely]]
+    return cxx23::unexpected{known.error()};
+
+  if(known->empty())
+    return sqlite::insert_into<info::micro_resource_t, true>(
+      db_->db, "name"sv, sql_iface::tables::micro_resource, value
+    );
+
+  // kazde zrodlo zna inna czesc - id i nazwe czytelna bartender, kategorie sprzedaz
+  info::micro_resource_t merged{std::move((*known)[0])};
+  bool changed{};
+  if(merged.id == 0 and value.id != 0)
+    {
+    merged.id = value.id;
+    changed = true;
+    }
+  if(merged.localised.empty() and not value.localised.empty())
+    {
+    merged.localised = value.localised;
+    changed = true;
+    }
+  if(merged.category.empty() and not value.category.empty())
+    {
+    merged.category = value.category;
+    changed = true;
+    }
+
+  if(not changed)
+    return {};
+
+  std::string query{std::format(
+    "UPDATE {} SET id={}, localised='{}', category='{}' WHERE name='{}'",
+    sql_iface::tables::micro_resource,
+    merged.id,
+    sqlite::escape_sql_quotes(merged.localised),
+    sqlite::escape_sql_quotes(merged.category),
+    sqlite::escape_sql_quotes(merged.name)
+  )};
+  return sqlite::execute_query_no_result(db_->db, query);
+  }
+
+auto database_storage_t::store(info::micro_sale_t const & sale, std::span<info::micro_sale_item_t const> items)
+  -> expected_ec<void>
+  {
+  // odtwarzanie journala powtarza te same transakcje, para czas i rynek je rozroznia
+  std::string known_query{std::format(
+    "SELECT count(*) FROM {} WHERE market_id={} AND timestamp='{:%Y-%m-%dT%H:%M:%SZ}'",
+    sql_iface::tables::micro_sale,
+    sale.market_id,
+    sale.timestamp
+  )};
+  auto known{sqlite::select_signle_from<uint64_t>(db_->db, known_query)};
   if(not known) [[unlikely]]
     return cxx23::unexpected{known.error()};
 
   if(*known and **known != 0)
     return {};
 
-  return sqlite::insert_into<info::micro_resource_t, true>(
-    db_->db, "id"sv, sql_iface::tables::micro_resource, value
-  );
+  if(auto res{sqlite::insert_into(db_->db, "oid"sv, sql_iface::tables::micro_sale, sale)}; not res) [[unlikely]]
+    return res;
+
+  auto sale_oid{sqlite::select_signle_from<int64_t>(
+    db_->db, std::format("SELECT max(oid) FROM {}", sql_iface::tables::micro_sale)
+  )};
+  if(not sale_oid or not *sale_oid) [[unlikely]]
+    return cxx23::unexpected(std::make_error_code(std::errc::bad_message));
+
+  for(info::micro_sale_item_t const & item: items)
+    {
+    info::micro_sale_item_t row{item};
+    row.sale_oid = **sale_oid;
+    if(auto res{sqlite::insert_into(db_->db, "oid"sv, sql_iface::tables::micro_sale_item, row)}; not res) [[unlikely]]
+      return res;
+    }
+
+  return {};
   }
 
 auto database_storage_t::carrier_oid( std::string_view name ) -> expected_ec<std::optional<int64_t>>

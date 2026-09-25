@@ -513,6 +513,21 @@ auto value_class(uint32_t const sv) noexcept -> planet_value_e
   return planet_value_e::low;
   }
 
+auto micro_resource_key(std::string_view name) -> std::string
+  {
+  std::string_view key{name};
+  if(key.starts_with('$'))
+    key.remove_prefix(1);
+  if(key.ends_with("_name;"sv))
+    key.remove_suffix(6);
+
+  std::string result;
+  result.reserve(key.size());
+  for(char const c: key)
+    result.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
+  return result;
+  }
+
 auto to_system_signal(events::fss_signal_discovered_t const & signal, std::chrono::sys_seconds seen)
   -> system_signal_t
   {
@@ -741,6 +756,9 @@ auto generic_state_t::discovery(std::string_view input) -> void
     case FSSBodySignals:    parse_and_handle.template operator()<events::fss_body_signals_t>(); break;
     case Market:            parse_and_handle.template operator()<events::market_t>(); break;
     case Docked:            parse_and_handle.template operator()<events::docked_t>(); break;
+    case SellMicroResources:
+      parse_and_handle.template operator()<events::sell_micro_resources_t>();
+      break;
     case FSSSignalDiscovered:
       parse_and_handle.template operator()<events::fss_signal_discovered_t>();
       break;
