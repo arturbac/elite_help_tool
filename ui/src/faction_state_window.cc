@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <map>
 #include <limits>
+#include <cmath>
 
 namespace
   {
@@ -204,10 +205,17 @@ auto faction_state_window_t::setup_ui() -> void
   range_combo_->addItem("Last 90 days", 90);
   range_combo_->addItem("All", 0);
 
+  // skala logarytmiczna pokazuje skoki frakcji o niskim influence, na liniowej gina przy dnie
+  scale_combo_ = new QComboBox(central_widget);
+  scale_combo_->addItem("Linear", false);
+  scale_combo_->addItem("Logarithmic", true);
+
   selector_layout->addWidget(follow_current_);
   selector_layout->addWidget(system_combo_, 1);
   selector_layout->addWidget(new QLabel("Range:", central_widget));
   selector_layout->addWidget(range_combo_);
+  selector_layout->addWidget(new QLabel("Scale:", central_widget));
+  selector_layout->addWidget(scale_combo_);
   layout->addLayout(selector_layout);
 
   // --- informacje o systemie ---
@@ -303,6 +311,8 @@ auto faction_state_window_t::setup_ui() -> void
   connect(system_combo_, &QComboBox::activated, this, select_index);
 
   connect(range_combo_, &QComboBox::activated, this, [this](int) { update_chart(); });
+
+  connect(scale_combo_, &QComboBox::activated, this, [this](int) { update_chart(); });
 
   // wpisanie nazwy i enter nie emituje activated, trzeba samemu odnalezc pozycje
   connect(
@@ -484,6 +494,7 @@ auto faction_state_window_t::update_chart() -> void
   days_t const first_day{range_days > 0 ? newest - std::chrono::days{range_days - 1} : days_t{}};
 
   double max_influence{};
+  double min_positive{std::numeric_limits<double>::max()};
   std::vector<QLineSeries *> series_list;
 
   for(auto const & [oid, by_day]: daily)
@@ -498,6 +509,8 @@ auto faction_state_window_t::update_chart() -> void
         continue;
       series->append(static_cast<qreal>(to_msecs(day)), influence);
       max_influence = std::max(max_influence, influence);
+      if(influence > 0.)
+        min_positive = std::min(min_positive, influence);
       }
 
     // frakcja bez pomiaru w zakresie nie trafia na wykres
@@ -527,9 +540,29 @@ auto faction_state_window_t::update_chart() -> void
   );
   chart_->addAxis(axis_x, Qt::AlignBottom);
 
-  auto * axis_y = new QValueAxis(chart_);
-  axis_y->setTitleText("Influence [%]");
-  axis_y->setRange(0., std::max(10., std::ceil(max_influence / 10.) * 10.));
+  bool const log_scale{scale_combo_->currentData().toBool() and min_positive <= max_influence};
+
+  QAbstractAxis * axis_y{};
+  if(log_scale)
+    {
+    // pelne dekady daja czytelna siatke, wartosci zerowe nie maja reprezentacji w logarytmie
+    auto const low{std::max(0.01, std::pow(10., std::floor(std::log10(min_positive))))};
+    auto const high{std::max(low * 10., std::pow(10., std::ceil(std::log10(max_influence))))};
+
+    auto * log_axis = new QLogValueAxis(chart_);
+    log_axis->setBase(10.);
+    log_axis->setLabelFormat("%g");
+    log_axis->setTitleText("Influence [%] log");
+    log_axis->setRange(low, high);
+    axis_y = log_axis;
+    }
+  else
+    {
+    auto * value_axis = new QValueAxis(chart_);
+    value_axis->setTitleText("Influence [%]");
+    value_axis->setRange(0., std::max(10., std::ceil(max_influence / 10.) * 10.));
+    axis_y = value_axis;
+    }
   chart_->addAxis(axis_y, Qt::AlignLeft);
 
   for(QLineSeries * series: series_list)

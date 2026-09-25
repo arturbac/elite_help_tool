@@ -12,6 +12,7 @@
 #include <QtCharts/qlineseries.h>
 #include <QtCharts/qdatetimeaxis.h>
 #include <QtCharts/qvalueaxis.h>
+#include <QtCharts/qlogvalueaxis.h>
 
 ///\brief stan frakcji w jednym systemie, ostatni znany wpis kazdej z nich
 struct faction_presence_t
@@ -127,6 +128,7 @@ public:
   QCheckBox * follow_current_{};
   QComboBox * system_combo_{};
   QComboBox * range_combo_{};
+  QComboBox * scale_combo_{};
 
   QLabel * economy_label_{};
   QLabel * government_label_{};
