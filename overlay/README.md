@@ -70,6 +70,23 @@ ENABLE_EHT_OVERLAY=1 eht-overlay-headless-check /tmp/check.ppm 8000 1440
 `VK_EXT_headless_surface` daje łańcuch wymiany, którego nikt nie ogląda — warstwa rysuje tak samo
 jak w prawdziwym oknie, a obraz wraca do pliku. Nie potrzeba pulpitu ani gry.
 
+## Zmierzone
+
+Na RX 7900 XTX, 3000 klatek, RADV:
+
+| pomiar | wynik |
+|---|---|
+| koszt na klatkę | 0,018 ms (0,040 → 0,058) — ok. 0,1% budżetu przy 60 fps |
+| utworzenie zasobów warstwy | 0,2 ms |
+| zwolnienie zasobów | 0,2 ms |
+| 2000 odtworzeń łańcucha wymiany | bez awarii, przyrost pamięci 0,3 MB |
+
+Ostatni wiersz odpowiada alt-tabowaniu i zmianom rozdzielczości w grze.
+
+```
+ENABLE_EHT_OVERLAY=1 eht-overlay-headless-check /tmp/x.ppm 1920 1080 10 200
+```
+
 ## Czego overlay nie może zrobić
 
 Nic z tego nie ma prawa położyć gry:

@@ -61,6 +61,8 @@ auto main(int argc, char ** argv) -> int
     }
   if(argc > 4)
     frames = static_cast<uint32_t>(std::atoi(argv[4]));
+  // alt-tab i zmiana rozdzielczosci w grze to wlasnie to - lancuch wymiany ginie i powstaje od nowa
+  uint32_t const rounds{argc > 5 ? static_cast<uint32_t>(std::atoi(argv[5])) : 1u};
 
   VkApplicationInfo const application{
     .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
@@ -209,16 +211,6 @@ auto main(int argc, char ** argv) -> int
     .oldSwapchain = VK_NULL_HANDLE
   };
 
-  VkSwapchainKHR swapchain{};
-  if(auto const result{vkCreateSwapchainKHR(device, &swapchain_info, nullptr, &swapchain)}; result != VK_SUCCESS)
-    return fail("vkCreateSwapchainKHR", result);
-
-  uint32_t image_count{};
-  vkGetSwapchainImagesKHR(device, swapchain, &image_count, nullptr);
-  std::vector<VkImage> images(image_count);
-  vkGetSwapchainImagesKHR(device, swapchain, &image_count, images.data());
-  std::printf("lancuch wymiany: %ux%u, %u obrazow\n", width, height, image_count);
-
   VkCommandPoolCreateInfo const pool_info{
     .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
     .pNext = nullptr,
@@ -280,84 +272,112 @@ auto main(int argc, char ** argv) -> int
                        );
                      }};
 
+  VkSwapchainKHR swapchain{};
+  std::vector<VkImage> images;
   uint32_t last_index{};
   auto const loop_started{std::chrono::steady_clock::now()};
-  for(uint32_t frame{}; frame != frames; ++frame)
+
+  for(uint32_t round{}; round != rounds; ++round)
     {
-    uint32_t index{};
-    if(
-      auto const result{vkAcquireNextImageKHR(device, swapchain, UINT64_MAX, acquired, VK_NULL_HANDLE, &index)};
-      result != VK_SUCCESS and result != VK_SUBOPTIMAL_KHR
-    )
-      return fail("vkAcquireNextImageKHR", result);
-    last_index = index;
+    if(round != 0u)
+      {
+      vkDeviceWaitIdle(device);
+      vkDestroySwapchainKHR(device, swapchain, nullptr);
+      }
 
-    VkCommandBufferBeginInfo const begin{
-      .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-      .pNext = nullptr,
-      .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-      .pInheritanceInfo = nullptr
-    };
-    vkResetCommandBuffer(command, 0u);
-    vkBeginCommandBuffer(command, &begin);
+    if(auto const result{vkCreateSwapchainKHR(device, &swapchain_info, nullptr, &swapchain)}; result != VK_SUCCESS)
+      return fail("vkCreateSwapchainKHR", result);
 
-    barrier(
-      images[index], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 0u, VK_ACCESS_TRANSFER_WRITE_BIT
-    );
+    uint32_t image_count{};
+    vkGetSwapchainImagesKHR(device, swapchain, &image_count, nullptr);
+    images.assign(image_count, VkImage{});
+    vkGetSwapchainImagesKHR(device, swapchain, &image_count, images.data());
+    if(round == 0u)
+      std::printf("lancuch wymiany: %ux%u, %u obrazow\n", width, height, image_count);
 
-    // tlo w odcieniu ktory latwo odroznic od tego co rysuje overlay
-    VkClearColorValue const colour{.float32 = {0.06f, 0.10f, 0.18f, 1.f}};
-    VkImageSubresourceRange const range{
-      .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-      .baseMipLevel = 0u,
-      .levelCount = 1u,
-      .baseArrayLayer = 0u,
-      .layerCount = 1u
-    };
-    vkCmdClearColorImage(command, images[index], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &colour, 1u, &range);
+    for(uint32_t frame{}; frame != frames; ++frame)
+      {
+      uint32_t index{};
+      if(
+        auto const result{vkAcquireNextImageKHR(device, swapchain, UINT64_MAX, acquired, VK_NULL_HANDLE, &index)};
+        result != VK_SUCCESS and result != VK_SUBOPTIMAL_KHR
+      )
+        return fail("vkAcquireNextImageKHR", result);
+      last_index = index;
 
-    barrier(
-      images[index],
-      VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-      VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-      VK_ACCESS_TRANSFER_WRITE_BIT,
-      0u
-    );
+      VkCommandBufferBeginInfo const begin{
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .pNext = nullptr,
+        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+        .pInheritanceInfo = nullptr
+      };
+      vkResetCommandBuffer(command, 0u);
+      vkBeginCommandBuffer(command, &begin);
 
-    vkEndCommandBuffer(command);
+      barrier(
+        images[index], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 0u, VK_ACCESS_TRANSFER_WRITE_BIT
+      );
 
-    VkPipelineStageFlags const stage{VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
-    VkSubmitInfo const submit{
-      .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-      .pNext = nullptr,
-      .waitSemaphoreCount = 1u,
-      .pWaitSemaphores = &acquired,
-      .pWaitDstStageMask = &stage,
-      .commandBufferCount = 1u,
-      .pCommandBuffers = &command,
-      .signalSemaphoreCount = 1u,
-      .pSignalSemaphores = &rendered
-    };
-    vkQueueSubmit(queue, 1u, &submit, VK_NULL_HANDLE);
+      // tlo w odcieniu ktory latwo odroznic od tego co rysuje overlay
+      VkClearColorValue const colour{.float32 = {0.06f, 0.10f, 0.18f, 1.f}};
+      VkImageSubresourceRange const range{
+        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+        .baseMipLevel = 0u,
+        .levelCount = 1u,
+        .baseArrayLayer = 0u,
+        .layerCount = 1u
+      };
+      vkCmdClearColorImage(command, images[index], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &colour, 1u, &range);
 
-    VkPresentInfoKHR const present{
-      .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-      .pNext = nullptr,
-      .waitSemaphoreCount = 1u,
-      .pWaitSemaphores = &rendered,
-      .swapchainCount = 1u,
-      .pSwapchains = &swapchain,
-      .pImageIndices = &index,
-      .pResults = nullptr
-    };
-    vkQueuePresentKHR(queue, &present);
-    vkQueueWaitIdle(queue);
+      barrier(
+        images[index],
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+        VK_ACCESS_TRANSFER_WRITE_BIT,
+        0u
+      );
+
+      vkEndCommandBuffer(command);
+
+      VkPipelineStageFlags const stage{VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+      VkSubmitInfo const submit{
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .pNext = nullptr,
+        .waitSemaphoreCount = 1u,
+        .pWaitSemaphores = &acquired,
+        .pWaitDstStageMask = &stage,
+        .commandBufferCount = 1u,
+        .pCommandBuffers = &command,
+        .signalSemaphoreCount = 1u,
+        .pSignalSemaphores = &rendered
+      };
+      vkQueueSubmit(queue, 1u, &submit, VK_NULL_HANDLE);
+
+      VkPresentInfoKHR const present{
+        .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+        .pNext = nullptr,
+        .waitSemaphoreCount = 1u,
+        .pWaitSemaphores = &rendered,
+        .swapchainCount = 1u,
+        .pSwapchains = &swapchain,
+        .pImageIndices = &index,
+        .pResults = nullptr
+      };
+      vkQueuePresentKHR(queue, &present);
+      vkQueueWaitIdle(queue);
+      }
     }
 
   vkDeviceWaitIdle(device);
 
   auto const spent{std::chrono::duration<double>{std::chrono::steady_clock::now() - loop_started}.count()};
-  std::printf("%u klatek w %.3f s, srednio %.3f ms na klatke\n", frames, spent, 1000.0 * spent / double(frames));
+  std::printf(
+    "%u rund po %u klatek w %.3f s, srednio %.3f ms na klatke\n",
+    rounds,
+    frames,
+    spent,
+    1000.0 * spent / double(uint64_t{frames} * rounds)
+  );
 
   // odczyt tego co naprawde zostalo w obrazie po ostatnim present
   VkBufferCreateInfo const buffer_info{
