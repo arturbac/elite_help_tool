@@ -434,6 +434,7 @@ namespace tables
   inline constexpr std::string_view faction_info{"faction_info"};
   inline constexpr std::string_view faction_influence{"faction_influence"};
   inline constexpr std::string_view system_conflict{"system_conflict"};
+  inline constexpr std::string_view system_signal{"system_signal"};
   inline constexpr std::string_view mission{"mission"};
   inline constexpr std::string_view carrier{"carrier"};
   inline constexpr std::string_view carrier_materials{"carrier_materials"};
@@ -954,6 +955,10 @@ auto database_storage_t::create_database() -> expected_ec<void>
     [[unlikely]]
     return res;
 
+  if(auto res{sqlite::create_table<system_signal_t>(db_->db, "oid"sv, sql_iface::tables::system_signal)}; not res)
+    [[unlikely]]
+    return res;
+
   if(auto res{sqlite::create_table<info::mission_t>(db_->db, "mission_id"sv, sql_iface::tables::mission)}; not res)
     [[unlikely]]
     return res;
@@ -993,6 +998,18 @@ auto database_storage_t::create_database() -> expected_ec<void>
       std::format(
         "CREATE INDEX IF NOT EXISTS {0}_key ON {0} (system_address, faction1, faction2, timestamp);",
         sql_iface::tables::system_conflict
+      )
+    )};
+    not res
+  ) [[unlikely]]
+    return res;
+
+  // ten sam sygnal wraca przy kazdym skanie fss, wiec kazdy trafia najpierw w sprawdzenie
+  if(
+    auto res{sqlite::execute_query_no_result(
+      db_->db,
+      std::format(
+        "CREATE INDEX IF NOT EXISTS {0}_key ON {0} (system_address, name);", sql_iface::tables::system_signal
       )
     )};
     not res
@@ -1346,6 +1363,33 @@ auto database_storage_t::update_system_info(star_system_t const & system) -> exp
   return sqlite::execute_query_no_result(db_->db, query);
   }
 
+auto database_storage_t::store(system_signal_t const & value) -> expected_ec<void>
+  {
+  // ten sam sygnal wraca przy kazdym skanie fss systemu
+  std::string query{std::format(
+    "SELECT count(*) FROM {} WHERE system_address={} AND name='{}'",
+    sql_iface::tables::system_signal,
+    value.system_address,
+    sqlite::escape_sql_quotes(value.name)
+  )};
+  auto known{sqlite::select_signle_from<uint64_t>(db_->db, query)};
+  if(not known) [[unlikely]]
+    return cxx23::unexpected{known.error()};
+
+  if(*known and **known != 0)
+    return {};
+
+  return sqlite::insert_into(db_->db, "oid"sv, sql_iface::tables::system_signal, value);
+  }
+
+auto database_storage_t::load_system_signals(uint64_t system_address)
+  -> expected_ec<std::vector<system_signal_t>>
+  {
+  return sqlite::select_from<system_signal_t>(
+    db_->db, sql_iface::tables::system_signal, std::format(" WHERE system_address={} ORDER BY name", system_address)
+  );
+  }
+
 auto database_storage_t::store(info::conflict_t const & value) -> expected_ec<void>
   {
   return sqlite::insert_into(db_->db, "oid"sv, sql_iface::tables::system_conflict, value);
@@ -1469,6 +1513,11 @@ auto database_storage_t::load_system(uint64_t system_address)
     {
     assert(res->size() == 1);
     star_system_t system{to_native_fromat(std::move((*res)[0]))};
+
+    if(auto signals{load_system_signals(system_address)}; signals)
+      system.system_signals = std::move(*signals);
+    else [[unlikely]]
+      return cxx23::unexpected{signals.error()};
 
       {
       auto res2{sqlite::select_from<sql_iface::body_t>(

@@ -158,6 +158,13 @@ struct database_storage_t
   [[nodiscard]]
   auto load_systems_with_influence() -> expected_ec<std::vector<info::system_ref_t>>;
 
+  ///\brief sygnal systemu, pomija powtorzenia tej samej nazwy w tym samym systemie
+  [[nodiscard]]
+  auto store(system_signal_t const & value) -> expected_ec<void>;
+
+  [[nodiscard]]
+  auto load_system_signals(uint64_t system_address) -> expected_ec<std::vector<system_signal_t>>;
+
   [[nodiscard]]
   auto store(info::conflict_t const & value) -> expected_ec<void>;
 

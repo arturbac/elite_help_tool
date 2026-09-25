@@ -854,6 +854,18 @@ struct scan_organic_t
   body_id_t Body;
   };
 
+///\brief sygnal wykryty skanem FSS - stacja, instalacja, POI, zjawisko
+struct fss_signal_discovered_t
+  {
+  uint64_t SystemAddress;
+  std::string SignalName;
+  std::string SignalName_Localised;
+  std::string SignalType;
+  bool IsStation;
+  ///\brief obecne tylko przy USS, ktore wygasaja po kilku minutach
+  std::optional<double> TimeRemaining;
+  };
+
 struct fss_body_signals_t
   {
   std::string BodyName;
@@ -888,6 +900,7 @@ using event_holder_t = std::variant<
   start_jump_t,
   fss_discovery_scan_t,
   fss_body_signals_t,
+  fss_signal_discovered_t,
   fss_all_bodies_found_t,
   scan_bary_centre_t,
   scan_detailed_scan_t,
@@ -1060,6 +1073,39 @@ struct bary_centre_t
   double mean_anomaly;
   };
 
+///\brief trwaly sygnal w systemie, jeden wpis na nazwe
+struct system_signal_t
+  {
+  int64_t oid{-1};
+  uint64_t system_address;
+  std::string name;
+  std::string signal_type;
+  bool is_station;
+  };
+
+[[nodiscard]]
+auto to_system_signal(events::fss_signal_discovered_t const & signal) -> system_signal_t;
+
+///\brief do ktorego okna nalezy sygnal
+enum struct signal_class_e : uint8_t
+  {
+  ///\brief zjawiska i punkty orientacyjne - okno eksploracyjne
+  exploration,
+  ///\brief stacje, outposty, instalacje, flotowce - okno systemu zasiedlonego
+  station,
+  ///\brief strefy konfliktu i miejsca wydobycia, zapisywane ale jeszcze nie pokazywane
+  other
+  };
+
+consteval auto adl_enum_bounds(signal_class_e)
+  {
+  using enum signal_class_e;
+  return simple_enum::adl_info{exploration, other};
+  }
+
+[[nodiscard]]
+auto classify_signal(std::string_view signal_type) noexcept -> signal_class_e;
+
 struct star_system_t
   {
   uint64_t system_address;
@@ -1074,6 +1120,7 @@ struct star_system_t
   std::vector<body_t> bodies;
   std::vector<ring_t> rings;
   bool fss_complete;
+  std::vector<system_signal_t> system_signals;
 
   // opis systemu z eventu Location/FSDJump
   std::string economy;

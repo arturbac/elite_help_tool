@@ -412,6 +412,15 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
         ) [[unlikely]]
           critical_abort("failed to store species for {}:{}", event.SystemAddress, event.Body);
         }
+      else if constexpr(std::same_as<T, events::fss_signal_discovered_t>)
+        {
+        // USS wygasa po kilku minutach, w bazie bylby tylko smieciem
+        if(event.TimeRemaining)
+          return;
+
+        if(auto res{state.db_.store(to_system_signal(event))}; not res) [[unlikely]]
+          critical_abort("failed to store signal for {}", event.SystemAddress);
+        }
       else if constexpr(std::same_as<T, events::fss_all_bodies_found_t>)
         {
         spdlog::info("fss scan complete");

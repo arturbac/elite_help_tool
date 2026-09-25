@@ -513,6 +513,38 @@ auto value_class(uint32_t const sv) noexcept -> planet_value_e
   return planet_value_e::low;
   }
 
+auto to_system_signal(events::fss_signal_discovered_t const & signal) -> system_signal_t
+  {
+  return system_signal_t{
+    .system_address = signal.SystemAddress,
+    // nazwy stacji przychodza wprost, reszta ma postac identyfikatora z tlumaczeniem obok
+    .name = signal.SignalName_Localised.empty() ? signal.SignalName : signal.SignalName_Localised,
+    .signal_type = signal.SignalType,
+    .is_station = signal.IsStation
+  };
+  }
+
+auto classify_signal(std::string_view signal_type) noexcept -> signal_class_e
+  {
+  using enum signal_class_e;
+
+  // stacje przychodza jako StationCoriolis, StationONeilOrbis i podobne
+  if(signal_type.starts_with("Station"))
+    return station;
+
+  for(std::string_view type: {"Outpost"sv, "Installation"sv, "FleetCarrier"sv, "SquadronCarrier"sv, "Megaship"sv, "NavBeacon"sv})
+    if(signal_type == type)
+      return station;
+
+  // Generic zostaje poza eksploracja - siedza tam glownie sygnaly ulotne w rodzaju
+  // Pirate Activity Detected czy Debris field, a nie punkty orientacyjne
+  for(std::string_view type: {"Codex"sv, "TouristBeacon"sv, "Titan"sv})
+    if(signal_type == type)
+      return exploration;
+
+  return other;
+  }
+
 auto organic_value_range(std::string_view name) noexcept -> std::optional<std::pair<uint32_t, uint32_t>>
   {
   auto range_of = [](auto && matches) -> std::optional<std::pair<uint32_t, uint32_t>>
@@ -665,6 +697,9 @@ auto generic_state_t::discovery(std::string_view input) -> void
 
     case FSSDiscoveryScan:  parse_and_handle.template operator()<events::fss_discovery_scan_t>(); break;
     case FSSBodySignals:    parse_and_handle.template operator()<events::fss_body_signals_t>(); break;
+    case FSSSignalDiscovered:
+      parse_and_handle.template operator()<events::fss_signal_discovered_t>();
+      break;
     case FSSAllBodiesFound: parse_and_handle.template operator()<events::fss_all_bodies_found_t>(); break;
     case ScanBaryCentre:    parse_and_handle.template operator()<events::scan_bary_centre_t>(); break;
     case Scan:              parse_and_handle.template operator()<events::scan_detailed_scan_t>(); break;

@@ -348,6 +348,21 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
 
           update_system = true;
           }
+        else if constexpr(std::same_as<T, events::fss_signal_discovered_t>)
+          {
+          // USS wygasa po kilku minutach, w bazie bylby tylko smieciem
+          if(event.TimeRemaining)
+            return;
+
+          auto signal{to_system_signal(event)};
+          if(auto res{db_.store(signal)}; not res)
+            spdlog::error("failed to store signal for {}", event.SystemAddress);
+
+          if(std::ranges::find(system.system_signals, signal.name, &system_signal_t::name) == system.system_signals.end())
+            system.system_signals.emplace_back(std::move(signal));
+
+          update_system = true;
+          }
         else if constexpr(std::same_as<T, events::fss_all_bodies_found_t>)
           {
           system.fss_complete = true;
