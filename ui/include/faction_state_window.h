@@ -20,8 +20,8 @@ struct faction_presence_t
   std::string name;
   info::government_e government;
   info::allegiance_e allegiance;
-  std::string pending;  // PendingStates, jeszcze nie parsowane
-  std::string active;   // FactionState z ostatniego wpisu
+  std::string pending;  // PendingStates z ostatniego wpisu
+  std::string active;   // ActiveStates, a gdy puste to FactionState
   double influence;
   };
 
@@ -65,20 +65,7 @@ public:
   auto update_data(std::vector<faction_presence_t> && new_data) -> void;
   };
 
-///\brief konflikty w systemie - wojny i wybory
-///\detail Conflicts z Location/FSDJump nie jest jeszcze parsowane, model zostaje pusty
-struct system_conflict_t
-  {
-  std::string war_type;
-  std::string status;
-  std::string faction1;
-  std::string stake1;
-  uint32_t won_days1;
-  std::string faction2;
-  std::string stake2;
-  uint32_t won_days2;
-  };
-
+///\brief konflikty w systemie - wojny, wojny domowe i wybory
 class system_conflict_model_t final : public QAbstractTableModel
   {
   Q_OBJECT
@@ -97,7 +84,7 @@ class system_conflict_model_t final : public QAbstractTableModel
     };
 
 public:
-  std::vector<system_conflict_t> conflicts_{};
+  std::vector<info::conflict_t> conflicts_{};
 
   explicit system_conflict_model_t(QObject * parent);
 
@@ -113,7 +100,7 @@ public:
   [[nodiscard]]
   auto headerData(int section, Qt::Orientation orientation, int role) const -> QVariant override;
 
-  auto update_data(std::vector<system_conflict_t> && new_data) -> void;
+  auto update_data(std::vector<info::conflict_t> && new_data) -> void;
   };
 
 class faction_state_window_t final : public QMdiSubWindow
@@ -160,6 +147,7 @@ private:
   auto reload_system_list() -> void;
   auto show_system(uint64_t system_address) -> void;
   auto update_system_info(uint64_t system_address) -> void;
+  auto update_conflicts(uint64_t system_address) -> void;
 
   ///\brief jeden punkt na dobe, ostatni pomiar dnia, ograniczone do wybranego zakresu
   auto update_chart() -> void;

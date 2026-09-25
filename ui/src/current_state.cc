@@ -38,11 +38,42 @@ void store_influence(
     return;
     }
 
-  if(*last and (*last)->influence == event_faction.Influence and (*last)->faction_state == event_faction.FactionState)
+  auto record{info::to_influence(faction_oid, system_address, timestamp, event_faction)};
+  if(
+    *last and (*last)->influence == record.influence and (*last)->faction_state == record.faction_state
+    and (*last)->pending_states == record.pending_states and (*last)->active_states == record.active_states
+  )
     return;
 
-  if(auto res{db.store(info::to_influence(faction_oid, system_address, timestamp, event_faction))}; not res)
+  if(auto res{db.store(record)}; not res)
     spdlog::error("failed to store influence for {} in {}", event_faction.Name, system_address);
+  }
+
+///\brief rejestruje konflikty w systemie, tylko gdy ich stan sie zmienil
+void process_conflicts(
+  database_storage_t & db,
+  std::chrono::sys_seconds timestamp,
+  uint64_t system_address,
+  std::span<events::conflict_t const> conflicts
+)
+  {
+  for(events::conflict_t const & conflict: conflicts)
+    {
+    auto record{info::to_conflict(system_address, timestamp, conflict)};
+
+    auto last{db.last_conflict(system_address, record.faction1, record.faction2)};
+    if(not last)
+      {
+      spdlog::error("failed to load conflict {} vs {}", record.faction1, record.faction2);
+      continue;
+      }
+
+    if(*last and **last == record)
+      continue;
+
+    if(auto res{db.store(record)}; not res)
+      spdlog::error("failed to store conflict {} vs {}", record.faction1, record.faction2);
+    }
   }
 
 auto process_factions(
@@ -181,6 +212,11 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
             system_factions = process_factions(db_, timestamp, event.SystemAddress, event.Factions);
             update_factions = true;
             }
+          if(not event.Conflicts.empty())
+            {
+            process_conflicts(db_, timestamp, event.SystemAddress, event.Conflicts);
+            update_factions = true;
+            }
           f_route_progress(event.SystemAddress);
           update_system = true;
           }
@@ -200,6 +236,11 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           if(not event.Factions.empty())
             {
             system_factions = process_factions(db_, timestamp, event.SystemAddress, event.Factions);
+            update_factions = true;
+            }
+          if(not event.Conflicts.empty())
+            {
+            process_conflicts(db_, timestamp, event.SystemAddress, event.Conflicts);
             update_factions = true;
             }
 

@@ -408,6 +408,7 @@ namespace tables
   inline constexpr std::string_view planet_details{"planet_details"};
   inline constexpr std::string_view faction_info{"faction_info"};
   inline constexpr std::string_view faction_influence{"faction_influence"};
+  inline constexpr std::string_view system_conflict{"system_conflict"};
   inline constexpr std::string_view mission{"mission"};
   inline constexpr std::string_view carrier{"carrier"};
   inline constexpr std::string_view carrier_materials{"carrier_materials"};
@@ -913,6 +914,10 @@ auto database_storage_t::create_database() -> expected_ec<void>
   ) [[unlikely]]
     return res;
 
+  if(auto res{sqlite::create_table<info::conflict_t>(db_->db, "oid"sv, sql_iface::tables::system_conflict)}; not res)
+    [[unlikely]]
+    return res;
+
   if(auto res{sqlite::create_table<info::mission_t>(db_->db, "mission_id"sv, sql_iface::tables::mission)}; not res)
     [[unlikely]]
     return res;
@@ -940,6 +945,18 @@ auto database_storage_t::create_database() -> expected_ec<void>
       std::format(
         "CREATE INDEX IF NOT EXISTS {0}_key ON {0} (faction_oid, system_address, timestamp);",
         sql_iface::tables::faction_influence
+      )
+    )};
+    not res
+  ) [[unlikely]]
+    return res;
+
+  if(
+    auto res{sqlite::execute_query_no_result(
+      db_->db,
+      std::format(
+        "CREATE INDEX IF NOT EXISTS {0}_key ON {0} (system_address, faction1, faction2, timestamp);",
+        sql_iface::tables::system_conflict
       )
     )};
     not res
@@ -1249,6 +1266,42 @@ auto database_storage_t::last_influence(int64_t faction_oid, uint64_t system_add
     return std::optional<info::faction_influence_t>{};
 
   return std::optional<info::faction_influence_t>{std::move((*res)[0])};
+  }
+
+auto database_storage_t::store(info::conflict_t const & value) -> expected_ec<void>
+  {
+  return sqlite::insert_into(db_->db, "oid"sv, sql_iface::tables::system_conflict, value);
+  }
+
+auto database_storage_t::last_conflict(uint64_t system_address, std::string_view faction1, std::string_view faction2)
+  -> expected_ec<std::optional<info::conflict_t>>
+  {
+  auto res{sqlite::select_from<info::conflict_t>(
+    db_->db,
+    sql_iface::tables::system_conflict,
+    std::format(
+      " WHERE system_address={} AND faction1='{}' AND faction2='{}' ORDER BY timestamp DESC LIMIT 1",
+      system_address,
+      sqlite::escape_sql_quotes(faction1),
+      sqlite::escape_sql_quotes(faction2)
+    )
+  )};
+  if(not res) [[unlikely]]
+    return cxx23::unexpected{res.error()};
+
+  if(res->empty())
+    return std::optional<info::conflict_t>{};
+
+  return std::optional<info::conflict_t>{std::move((*res)[0])};
+  }
+
+auto database_storage_t::load_conflicts(uint64_t system_address) -> expected_ec<std::vector<info::conflict_t>>
+  {
+  return sqlite::select_from<info::conflict_t>(
+    db_->db,
+    sql_iface::tables::system_conflict,
+    std::format(" WHERE system_address={} ORDER BY timestamp", system_address)
+  );
   }
 
 auto database_storage_t::load_influence_history(uint64_t system_address)

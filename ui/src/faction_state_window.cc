@@ -162,7 +162,7 @@ auto system_conflict_model_t::headerData(int s, Qt::Orientation o, int r) const 
     }
   }
 
-auto system_conflict_model_t::update_data(std::vector<system_conflict_t> && new_data) -> void
+auto system_conflict_model_t::update_data(std::vector<info::conflict_t> && new_data) -> void
   {
   beginResetModel();
   conflicts_ = std::move(new_data);
@@ -276,7 +276,7 @@ auto faction_state_window_t::setup_ui() -> void
   conflicts_view_->horizontalHeader()->setStretchLastSection(true);
   conflicts_layout->addWidget(conflicts_view_);
 
-  conflicts_note_ = new QLabel("Conflicts from the journal are not parsed yet");
+  conflicts_note_ = new QLabel();
   conflicts_note_->setStyleSheet("color: gray; font-style: italic;");
   conflicts_layout->addWidget(conflicts_note_);
   splitter->addWidget(conflicts_container);
@@ -410,8 +410,11 @@ auto faction_state_window_t::show_system(uint64_t system_address) -> void
       .name = faction_name(oid),
       .government = info::government_e::unknown,
       .allegiance = info::allegiance_e::unknown,
-      .pending = {},  // PendingStates jeszcze nie parsowane
-      .active = entry->faction_state == "None" ? std::string{} : entry->faction_state,
+      .pending = entry->pending_states,
+      // ActiveStates jest pelna lista, FactionState tylko jednym stanem
+      .active = not entry->active_states.empty() ? entry->active_states
+                : entry->faction_state == "None" ? std::string{}
+                                                 : entry->faction_state,
       .influence = entry->influence
     };
 
@@ -433,10 +436,45 @@ auto faction_state_window_t::show_system(uint64_t system_address) -> void
   factions_model_->update_data(std::move(presence));
   factions_view_->resizeColumnsToContents();
 
-  // Conflicts z journala nie sa jeszcze parsowane
-  conflicts_model_->update_data({});
+  update_conflicts(system_address);
 
   update_chart();
+  }
+
+auto faction_state_window_t::update_conflicts(uint64_t system_address) -> void
+  {
+  conflicts_model_->update_data({});
+  conflicts_note_->clear();
+
+  auto res{db_.load_conflicts(system_address)};
+  if(not res)
+    {
+    spdlog::error("failed to load conflicts for {}", system_address);
+    return;
+    }
+
+  // zapisujemy dopiero przy zmianie stanu, wiec liczy sie ostatni wpis kazdej pary frakcji
+  std::map<std::pair<std::string, std::string>, info::conflict_t const *> latest;
+  for(info::conflict_t const & conflict: *res)
+    latest[{conflict.faction1, conflict.faction2}] = &conflict;
+
+  std::vector<info::conflict_t> current;
+  std::chrono::sys_seconds newest{};
+  for(auto const & [pair, conflict]: latest)
+    {
+    current.push_back(*conflict);
+    newest = std::max(newest, conflict->timestamp);
+    }
+
+  if(current.empty())
+    {
+    conflicts_note_->setText("No conflicts recorded in this system");
+    return;
+    }
+
+  conflicts_note_->setText(qformat("State as of {:%Y-%m-%d %H:%M}", newest));
+  conflicts_model_->update_data(std::move(current));
+  conflicts_view_->resizeColumnsToContents();
   }
 
 auto faction_state_window_t::update_system_info(uint64_t system_address) -> void

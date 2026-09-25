@@ -464,6 +464,13 @@ struct faction_state_trend_t
 // Neutral	-3 do +3
 // Unfriendly	-34 do -4
 // Hostile	-100 do -35
+///\brief wpis listy stanow frakcji, Trend wystepuje tylko przy czesci z nich
+struct faction_state_entry_t
+  {
+  std::string State;
+  int32_t Trend;
+  };
+
 struct faction_info_t
   {
   std::string Name;
@@ -473,6 +480,27 @@ struct faction_info_t
   std::string Happiness_Localised;
   double Influence;
   double MyReputation;
+
+  std::vector<faction_state_entry_t> PendingStates;
+  std::vector<faction_state_entry_t> ActiveStates;
+  std::vector<faction_state_entry_t> RecoveringStates;
+  };
+
+///\brief strona konfliktu w systemie
+struct conflict_faction_t
+  {
+  std::string Name;
+  std::string Stake;
+  uint32_t WonDays;
+  };
+
+///\brief wojna, wojna domowa lub wybory w systemie
+struct conflict_t
+  {
+  std::string WarType;
+  std::string Status;
+  conflict_faction_t Faction1;
+  conflict_faction_t Faction2;
   };
 
 struct system_faction_t
@@ -524,6 +552,7 @@ struct fsd_jump_t
 
   bool Wanted;
   std::vector<faction_info_t> Factions;
+  std::vector<conflict_t> Conflicts;
   };
 /*
 { 
@@ -573,6 +602,7 @@ struct location_t
   std::string BodyType;
 
   std::vector<faction_info_t> Factions;
+  std::vector<conflict_t> Conflicts;
   };
 
 struct fss_discovery_scan_t

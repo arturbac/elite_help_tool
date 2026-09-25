@@ -2,6 +2,7 @@
 #include <spdlog/spdlog.h>
 #include <simple_enum/std_format.hpp>
 #include <stralgo/stralgo.h>
+#include <span>
 using namespace std::string_view_literals;
 
 namespace
@@ -29,11 +30,39 @@ void store_influence(
   if(not last)
     critical_abort("failed to load influence for {} in {}", event_faction.Name, system_address);
 
-  if(*last and (*last)->influence == event_faction.Influence and (*last)->faction_state == event_faction.FactionState)
+  auto record{info::to_influence(faction_oid, system_address, timestamp, event_faction)};
+  if(
+    *last and (*last)->influence == record.influence and (*last)->faction_state == record.faction_state
+    and (*last)->pending_states == record.pending_states and (*last)->active_states == record.active_states
+  )
     return;
 
-  if(auto res{db.store(info::to_influence(faction_oid, system_address, timestamp, event_faction))}; not res)
+  if(auto res{db.store(record)}; not res)
     critical_abort("failed to store influence for {} in {}", event_faction.Name, system_address);
+  }
+
+///\brief rejestruje konflikty w systemie, tylko gdy ich stan sie zmienil
+void process_conflicts(
+  database_storage_t & db,
+  std::chrono::sys_seconds timestamp,
+  uint64_t system_address,
+  std::span<events::conflict_t const> conflicts
+)
+  {
+  for(events::conflict_t const & conflict: conflicts)
+    {
+    auto record{info::to_conflict(system_address, timestamp, conflict)};
+
+    auto last{db.last_conflict(system_address, record.faction1, record.faction2)};
+    if(not last)
+      critical_abort("failed to load conflict {} vs {}", record.faction1, record.faction2);
+
+    if(*last and **last == record)
+      continue;
+
+    if(auto res{db.store(record)}; not res)
+      critical_abort("failed to store conflict {} vs {}", record.faction1, record.faction2);
+    }
   }
 
 void process_factions(
@@ -150,6 +179,8 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
         // add/update factions database
         if(not event.Factions.empty())
           process_factions(state.db_, timestamp, event.SystemAddress, event.Factions);
+        if(not event.Conflicts.empty())
+          process_conflicts(state.db_, timestamp, event.SystemAddress, event.Conflicts);
         }
       else if constexpr(std::same_as<T, events::fsd_jump_t>)
         {
@@ -167,6 +198,8 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
         // add/update factions database
         if(not event.Factions.empty())
           process_factions(state.db_, timestamp, event.SystemAddress, event.Factions);
+        if(not event.Conflicts.empty())
+          process_conflicts(state.db_, timestamp, event.SystemAddress, event.Conflicts);
         }
       else if constexpr(std::same_as<T, events::fss_discovery_scan_t>)
         {

@@ -130,6 +130,18 @@ struct database_storage_t
   auto load_systems_with_influence() -> expected_ec<std::vector<info::system_ref_t>>;
 
   [[nodiscard]]
+  auto store(info::conflict_t const & value) -> expected_ec<void>;
+
+  /// ostatni zarejestrowany stan konfliktu tych dwoch frakcji w systemie
+  [[nodiscard]]
+  auto last_conflict(uint64_t system_address, std::string_view faction1, std::string_view faction2)
+    -> expected_ec<std::optional<info::conflict_t>>;
+
+  /// konflikty w systemie, rosnaco wg czasu
+  [[nodiscard]]
+  auto load_conflicts(uint64_t system_address) -> expected_ec<std::vector<info::conflict_t>>;
+
+  [[nodiscard]]
   auto load_system(uint64_t system_address) -> expected_ec<std::optional<star_system_t>>;
   auto close() -> void;
   };

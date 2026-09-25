@@ -1,4 +1,5 @@
 #include <elite_data.h>
+#include <span>
 #include <simple_enum/enum_cast.hpp>
 #include <stralgo/stralgo.h>
 
@@ -42,6 +43,42 @@ auto to_native(events::faction_info_t && faction) -> faction_info_t
   return result;
   }
 
+auto join_states(std::span<events::faction_state_entry_t const> states) -> std::string
+  {
+  std::string result;
+  for(events::faction_state_entry_t const & state: states)
+    {
+    if(not result.empty())
+      result.append(", ");
+    result.append(state.State);
+    }
+  return result;
+  }
+
+auto conflict_t::operator==(conflict_t const & rh) const noexcept -> bool
+  {
+  return system_address == rh.system_address and war_type == rh.war_type and status == rh.status
+         and faction1 == rh.faction1 and stake1 == rh.stake1 and won_days1 == rh.won_days1 and faction2 == rh.faction2
+         and stake2 == rh.stake2 and won_days2 == rh.won_days2;
+  }
+
+auto to_conflict(uint64_t system_address, std::chrono::sys_seconds timestamp, events::conflict_t const & conflict)
+  -> conflict_t
+  {
+  return conflict_t{
+    .system_address = system_address,
+    .timestamp = timestamp,
+    .war_type = conflict.WarType,
+    .status = conflict.Status,
+    .faction1 = conflict.Faction1.Name,
+    .stake1 = conflict.Faction1.Stake,
+    .won_days1 = conflict.Faction1.WonDays,
+    .faction2 = conflict.Faction2.Name,
+    .stake2 = conflict.Faction2.Stake,
+    .won_days2 = conflict.Faction2.WonDays
+  };
+  }
+
 auto to_influence(
   int64_t faction_oid,
   uint64_t system_address,
@@ -54,7 +91,9 @@ auto to_influence(
     .system_address = system_address,
     .timestamp = timestamp,
     .influence = faction.Influence,
-    .faction_state = faction.FactionState
+    .faction_state = faction.FactionState,
+    .pending_states = join_states(faction.PendingStates),
+    .active_states = join_states(faction.ActiveStates)
   };
   }
 

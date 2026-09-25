@@ -84,7 +84,37 @@ struct faction_influence_t
   std::chrono::sys_seconds timestamp;
   double influence;
   std::string faction_state;
+  std::string pending_states;
+  std::string active_states;
   };
+
+///\brief konflikt w systemie zarejestrowany w czasie wg daty eventu
+struct conflict_t
+  {
+  int64_t oid{-1};
+  uint64_t system_address;
+  std::chrono::sys_seconds timestamp;
+  std::string war_type;
+  std::string status;
+  std::string faction1;
+  std::string stake1;
+  uint32_t won_days1;
+  std::string faction2;
+  std::string stake2;
+  uint32_t won_days2;
+
+  ///\brief bez oid i czasu, do wykrycia czy stan konfliktu sie zmienil
+  [[nodiscard]]
+  auto operator==(conflict_t const &) const noexcept -> bool;
+  };
+
+[[nodiscard]]
+auto to_conflict(uint64_t system_address, std::chrono::sys_seconds timestamp, events::conflict_t const & conflict)
+  -> conflict_t;
+
+///\brief nazwy stanow sklejone przecinkiem, do zapisu i pokazania w tabeli
+[[nodiscard]]
+auto join_states(std::span<events::faction_state_entry_t const> states) -> std::string;
 
 ///\brief lekka projekcja star_system do list wyboru, nazwy pol musza zgadzac sie z kolumnami
 struct system_ref_t
