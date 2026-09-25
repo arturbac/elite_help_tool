@@ -143,6 +143,8 @@ public:
   QLabel * target_label_{};
   QLabel * system_label_{};
   QLabel * fss_label_{};
+  /// zjawiska i punkty orientacyjne z FSS, bez stacji - te sa w oknie systemu
+  QLabel * poi_label_{};
   QTreeView * tree_view{};
   QTreeView *signals_view{};
 

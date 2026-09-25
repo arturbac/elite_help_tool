@@ -105,6 +105,39 @@ public:
   auto update_data(std::vector<info::conflict_t> && new_data) -> void;
   };
 
+///\brief stacje, instalacje i flotowce w systemie
+class system_station_model_t final : public QAbstractTableModel
+  {
+  Q_OBJECT
+  enum struct column_e : int
+    {
+    signal_type,
+    name,
+    column_max
+    };
+
+public:
+  static constexpr int sort_role = Qt::UserRole + 1;
+
+  std::vector<system_signal_t> stations_{};
+
+  explicit system_station_model_t(QObject * parent);
+
+  [[nodiscard]]
+  auto rowCount(QModelIndex const & parent = QModelIndex()) const -> int override;
+
+  [[nodiscard]]
+  auto columnCount(QModelIndex const & = QModelIndex()) const -> int override;
+
+  [[nodiscard]]
+  auto data(QModelIndex const & index, int role = Qt::DisplayRole) const -> QVariant override;
+
+  [[nodiscard]]
+  auto headerData(int section, Qt::Orientation orientation, int role) const -> QVariant override;
+
+  auto update_data(std::vector<system_signal_t> && new_data) -> void;
+  };
+
 class faction_state_window_t final : public QMdiSubWindow
   {
   Q_OBJECT
@@ -138,6 +171,9 @@ public:
   QChartView * chart_view_{};
   QChart * chart_{};
 
+  system_station_model_t * stations_model_{};
+  QTableView * stations_view_{};
+
   explicit faction_state_window_t(current_state_t const & state, std::string db_path, QWidget * parent = nullptr);
 
   ///\brief wolane gdy stan gry sie zmienil - odswieza widok jesli sledzimy biezacy system
@@ -150,6 +186,7 @@ private:
   auto show_system(uint64_t system_address) -> void;
   auto update_system_info(uint64_t system_address) -> void;
   auto update_conflicts(uint64_t system_address) -> void;
+  auto update_stations(uint64_t system_address) -> void;
 
   ///\brief jeden punkt na dobe, ostatni pomiar dnia, ograniczone do wybranego zakresu
   auto update_chart() -> void;

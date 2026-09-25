@@ -155,8 +155,8 @@ auto main_window_t::setup_toolbox() -> void
     };
 
   std::vector<tool_button_t> const tools{
-    {window_type_e::system, "System"},
-    {window_type_e::faction_state, "Factions"},
+    {window_type_e::system, "Exploration"},
+    {window_type_e::faction_state, "System info"},
     {window_type_e::faction, "Reputation"},
     {window_type_e::mission, "Missions"},
     {window_type_e::route, "Route"},

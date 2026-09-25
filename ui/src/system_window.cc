@@ -474,6 +474,19 @@ auto system_window_t::update_labels() -> void
   set_label_color(system_label_, value);
 
   fss_label_->setText(state_.system.fss_complete ? "COMPLETE" : "INCOMPLETE");
+
+  // stacje i instalacje naleza do okna systemu, tu zostaja zjawiska i punkty orientacyjne
+  std::string points;
+  for(system_signal_t const & signal: state_.system.system_signals)
+    {
+    if(classify_signal(signal.signal_type) != signal_class_e::exploration)
+      continue;
+    if(not points.empty())
+      points.append(", ");
+    points.append(signal.name);
+    }
+
+  poi_label_->setText(points.empty() ? QString{"—"} : QString::fromStdString(points));
   }
 
 system_window_t::system_window_t(current_state_t const & state, QWidget * parent) : QMdiSubWindow(parent), state_(state)
@@ -516,7 +529,7 @@ auto system_window_t::refresh_ui() -> void
 
 auto system_window_t::setup_ui() -> void
   {
-  setWindowTitle("System");
+  setWindowTitle("Exploration");
   auto * central_widget = new QWidget();
   auto * main_layout = new QVBoxLayout(central_widget);
 
@@ -527,10 +540,13 @@ auto system_window_t::setup_ui() -> void
   target_label_ = new QLabel();
   system_label_ = new QLabel();
   fss_label_ = new QLabel();
+  poi_label_ = new QLabel();
+  poi_label_->setWordWrap(true);
 
   form->addRow("Next Target:", target_label_);
   form->addRow("Current System:", system_label_);
   form->addRow("FSS Status:", fss_label_);
+  form->addRow("Points of interest:", poi_label_);
   main_layout->addWidget(info_group);
 
   auto * splitter = new QSplitter(Qt::Vertical, central_widget);

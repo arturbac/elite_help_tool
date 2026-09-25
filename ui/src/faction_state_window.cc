@@ -7,6 +7,7 @@
 #include <qbrush.h>
 #include <qsortfilterproxymodel.h>
 #include <qsplitter.h>
+#include <qtabwidget.h>
 #include <qcompleter.h>
 #include <qdatetime.h>
 #include <qlineedit.h>
@@ -202,6 +203,82 @@ auto system_conflict_model_t::update_data(std::vector<info::conflict_t> && new_d
   endResetModel();
   }
 
+namespace
+  {
+///\brief kolejnosc w tabeli stacji - najpierw to gdzie zadokujesz, flotowce na koncu bo odlatuja
+[[nodiscard]]
+auto station_rank(std::string_view signal_type) noexcept -> int
+  {
+  if(signal_type.starts_with("Station") or signal_type == "Outpost")
+    return 0;
+  if(signal_type == "FleetCarrier" or signal_type == "SquadronCarrier")
+    return 2;
+  return 1;
+  }
+  }  // namespace
+
+system_station_model_t::system_station_model_t(QObject * parent) : QAbstractTableModel(parent) {}
+
+[[nodiscard]]
+auto system_station_model_t::rowCount(QModelIndex const &) const -> int
+  { return static_cast<int>(stations_.size()); }
+
+[[nodiscard]]
+auto system_station_model_t::columnCount(QModelIndex const &) const -> int
+  { return int(column_e::column_max); }
+
+[[nodiscard]]
+auto system_station_model_t::data(QModelIndex const & index, int role) const -> QVariant
+  {
+  if(not index.isValid() or index.row() >= static_cast<int>(stations_.size()))
+    return {};
+
+  auto const & item = stations_[static_cast<std::size_t>(index.row())];
+  auto const rank{station_rank(item.signal_type)};
+
+  // flotowiec sprzed tygodnia dawno odleciał, wiec nie rzuca sie w oczy jak stacja
+  if(role == Qt::ForegroundRole)
+    return rank == 2 ? QVariant{QBrush(Qt::gray)} : QVariant{};
+
+  if(role == system_station_model_t::sort_role)
+    switch(column_e(index.column()))
+      {
+      case column_e::signal_type: return rank * 1000 + int(column_e::signal_type);
+      case column_e::name:        return QString::fromStdString(item.name);
+      default:                    return {};
+      }
+
+  if(role != Qt::DisplayRole)
+    return {};
+
+  switch(column_e(index.column()))
+    {
+    case column_e::signal_type: return QString::fromStdString(item.signal_type);
+    case column_e::name:        return QString::fromStdString(item.name);
+    default:                    return {};
+    }
+  }
+
+[[nodiscard]]
+auto system_station_model_t::headerData(int s, Qt::Orientation o, int r) const -> QVariant
+  {
+  if(r != Qt::DisplayRole || o != Qt::Horizontal)
+    return {};
+  switch(column_e(s))
+    {
+    case column_e::signal_type: return "Type";
+    case column_e::name:        return "Name";
+    default:                    return {};
+    }
+  }
+
+auto system_station_model_t::update_data(std::vector<system_signal_t> && new_data) -> void
+  {
+  beginResetModel();
+  stations_ = std::move(new_data);
+  endResetModel();
+  }
+
 faction_state_window_t::faction_state_window_t(current_state_t const & state, std::string db_path, QWidget * parent) :
     QMdiSubWindow(parent),
     state_(state),
@@ -215,7 +292,7 @@ faction_state_window_t::faction_state_window_t(current_state_t const & state, st
 
 auto faction_state_window_t::setup_ui() -> void
   {
-  setWindowTitle("System factions");
+  setWindowTitle("System info");
   resize(980, 760);
 
   auto * central_widget = new QWidget(this);
@@ -251,8 +328,12 @@ auto faction_state_window_t::setup_ui() -> void
   selector_layout->addWidget(scale_combo_);
   layout->addLayout(selector_layout);
 
+  auto * tabs = new QTabWidget(central_widget);
+  auto * overview = new QWidget(tabs);
+  auto * overview_layout = new QVBoxLayout(overview);
+
   // --- informacje o systemie ---
-  auto * info_group = new QGroupBox("System", central_widget);
+  auto * info_group = new QGroupBox("System", overview);
   auto * info_layout = new QHBoxLayout(info_group);
   auto * form_left = new QFormLayout();
   auto * form_right = new QFormLayout();
@@ -275,10 +356,10 @@ auto faction_state_window_t::setup_ui() -> void
 
   info_layout->addLayout(form_left, 1);
   info_layout->addLayout(form_right, 1);
-  layout->addWidget(info_group);
+  overview_layout->addWidget(info_group);
 
   // --- tabele i wykres w splitterze ---
-  auto * splitter = new QSplitter(Qt::Vertical, central_widget);
+  auto * splitter = new QSplitter(Qt::Vertical, overview);
 
   auto * factions_container = new QWidget();
   auto * factions_layout = new QVBoxLayout(factions_container);
@@ -330,7 +411,29 @@ auto faction_state_window_t::setup_ui() -> void
   splitter->setStretchFactor(0, 2);
   splitter->setStretchFactor(1, 1);
   splitter->setStretchFactor(2, 3);
-  layout->addWidget(splitter, 1);
+  overview_layout->addWidget(splitter, 1);
+  tabs->addTab(overview, "Overview");
+
+  // --- zakladka ze stacjami ---
+  auto * stations_page = new QWidget(tabs);
+  auto * stations_layout = new QVBoxLayout(stations_page);
+
+  stations_model_ = new system_station_model_t(this);
+  auto * stations_proxy = new QSortFilterProxyModel(this);
+  stations_proxy->setSourceModel(stations_model_);
+  stations_proxy->setSortRole(system_station_model_t::sort_role);
+
+  stations_view_ = new QTableView();
+  stations_view_->setModel(stations_proxy);
+  stations_view_->setSortingEnabled(true);
+  stations_view_->sortByColumn(0, Qt::AscendingOrder);
+  stations_view_->setSelectionBehavior(QAbstractItemView::SelectRows);
+  stations_view_->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
+  stations_view_->horizontalHeader()->setStretchLastSection(true);
+  stations_layout->addWidget(stations_view_);
+  tabs->addTab(stations_page, "Stations");
+
+  layout->addWidget(tabs, 1);
 
   auto const select_index = [this](int index) -> void
   {
@@ -471,6 +574,7 @@ auto faction_state_window_t::show_system(uint64_t system_address) -> void
   factions_view_->resizeColumnsToContents();
 
   update_conflicts(system_address);
+  update_stations(system_address);
 
   update_chart();
   }
@@ -530,6 +634,24 @@ auto faction_state_window_t::update_conflicts(uint64_t system_address) -> void
   conflicts_view_->resizeColumnsToContents();
   }
 
+auto faction_state_window_t::update_stations(uint64_t system_address) -> void
+  {
+  auto res{db_.load_system_signals(system_address)};
+  if(not res)
+    {
+    spdlog::error("failed to load signals for {}", system_address);
+    return;
+    }
+
+  std::vector<system_signal_t> stations;
+  for(system_signal_t & signal: *res)
+    if(classify_signal(signal.signal_type) == signal_class_e::station)
+      stations.emplace_back(std::move(signal));
+
+  stations_model_->update_data(std::move(stations));
+  stations_view_->resizeColumnsToContents();
+  }
+
 auto faction_state_window_t::update_system_info(uint64_t system_address) -> void
   {
   auto const empty{QString::fromUtf8(no_data.data())};
@@ -549,7 +671,7 @@ auto faction_state_window_t::update_system_info(uint64_t system_address) -> void
     return;
 
   star_system_t const & system{**res};
-  setWindowTitle(qformat("System factions - {}", system.name));
+  setWindowTitle(qformat("System info - {}", system.name));
 
   auto const set_text = [&empty](QLabel * label, std::string const & value) -> void
   { label->setText(value.empty() ? empty : QString::fromStdString(value)); };
