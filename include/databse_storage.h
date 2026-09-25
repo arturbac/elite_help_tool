@@ -31,9 +31,11 @@ consteval auto adl_enum_bounds(storage_mode_e)
 struct database_storage_t
   {
   std::string db_path_;
-  ///\brief zawartosci rynkow nie da sie odtworzyc z journali, wiec mieszka w osobnym pliku
-  ///\detail przebudowa bazy glownej jej nie rusza - journal_tailer zaklada ja tylko gdy jej nie ma
-  std::string market_db_path_;
+  ///\brief dane zbierane wylacznie na zywo - rynki stacji i bartender flotowca
+  ///\detail ich zrodlem sa pliki Market.json i FCMaterials.json, nadpisywane przez gre, wiec z
+  /// journali nie da sie ich odtworzyc; przebudowa bazy glownej ich nie rusza, a journal_tailer
+  /// zaklada ten plik tylko gdy go nie ma
+  std::string live_db_path_;
   std::unique_ptr<sqlite3_handle_t> db_;
 
   explicit database_storage_t(std::string_view db_path);
@@ -64,7 +66,14 @@ struct database_storage_t
   auto carrier_oid( std::string_view name ) -> expected_ec<std::optional<int64_t>>;
   
   [[nodiscard]]
+  auto load_carrier(std::string_view carrier_id) -> expected_ec<std::optional<info::carrier_t>>;
+
+  [[nodiscard]]
   auto update_carrier(info::carrier_t const & value) -> expected_ec<void>;
+
+  ///\brief dopisuje nieznany material bartendera do slownika
+  [[nodiscard]]
+  auto store(info::micro_resource_t const & value) -> expected_ec<void>;
   
   [[nodiscard]]
   auto store(info::fcmaterial_t const & value) -> expected_ec<void>;

@@ -773,19 +773,33 @@ auto generic_state_t::discovery(std::string_view input) -> void
     case Missions:          parse_and_handle.template operator()<events::missions_t>(); break;
     case Cargo:             parse_and_handle.template operator()<events::cargo_t>(); break;  //
     case Shutdown:          break;
-    case CarrierStats:      
-      parse_and_handle.template operator()<events::carrier_stats_t>();
+    case CarrierStats:      parse_and_handle.template operator()<events::carrier_stats_t>(); break;
+    case FCMaterials:
         {
-        auto nr{load_fcmaterials(journal_dir_path_)};
-        if(not nr) [[unlikely]]
+        // gra zapisuje FCMaterials.json dokladnie przy otwarciu bartendera, czyli przy tym evencie
+        // - wczesniej odczyt wisial na CarrierStats i gubil co trzeci zestaw cen
+        events::fcmaterials_t evt{};
+        if(auto res{glz::read<glz::opts{.error_on_unknown_keys = false, .error_on_missing_keys = false}>(evt, buffer)};
+           res) [[unlikely]]
+          {
+          warn("failed to parse {}", input);
+          return;
+          }
+
+        auto file{load_fcmaterials(journal_dir_path_)};
+        if(not file) [[unlikely]]
           {
           warn("failed to parse fcmaterials");
           return;
           }
-        handle(gevt.timestamp, std::move(*nr));
+
+        // plik jest nadpisywany, wiec pasuje tylko do ostatniego otwarcia bartendera
+        if(file->MarketID != evt.MarketID)
+          return;
+
+        handle(gevt.timestamp, std::move(*file));
         }
-    break;
-    // case FCMaterials:      parse_and_handle.template operator()<events::fcmaterials_t>();break;
+      break;
     default:                break;
     }
   }

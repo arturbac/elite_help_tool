@@ -256,6 +256,17 @@ struct carrier_t
   uint64_t market_id;
   std::string carrier_name;
   std::string carrier_id;
+  ///\brief flotowiec ktory mnie interesuje - bartendera obcych tez widzimy, ale to tylko tlo
+  bool tracked;
+};
+
+///\brief slownik micro resources bartendera, nazwy powtarzaja sie w kazdym odczycie
+///\detail kategoria (assets albo data) nie przychodzi w FCMaterials.json, dochodzi z ShipLocker
+struct micro_resource_t
+{
+  uint64_t id;
+  std::string name;
+  std::string category;
 };
 
 constexpr double light_speed_mps = 299'792'458.0;

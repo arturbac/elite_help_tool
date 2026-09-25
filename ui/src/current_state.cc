@@ -701,11 +701,18 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           else
             {
             std::optional<int64_t> carrier_oid{*res};
+
+            // znacznik wlasnego flotowca ustawia uzytkownik, odczyt cen nie ma prawa go zdjac
+            bool tracked{};
+            if(auto known{db_.load_carrier(fcmat.CarrierID)}; known and *known)
+              tracked = (*known)->tracked;
+
             info::carrier_t carrier{
               .oid = carrier_oid.value_or(-1),
               .market_id = fcmat.MarketID,
               .carrier_name = fcmat.CarrierName,
-              .carrier_id = fcmat.CarrierID
+              .carrier_id = fcmat.CarrierID,
+              .tracked = tracked
             };
             if(auto res{db_.update_carrier(carrier)}; not res)
               spdlog::error("failed to update carrier info for {}", fcmat.CarrierID);
@@ -724,6 +731,10 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
                 {
                 for(events::fcmaterial_t const & fmat: fcmat.Items)
                   {
+                  // nazwy powtarzaja sie w kazdym odczycie, wiec ida do slownika a nie do wierszy
+                  if(auto res{db_.store(info::micro_resource_t{.id = fmat.id, .name = fmat.Name_Localised})}; not res)
+                    spdlog::error("failed to store micro resource {}", fmat.id);
+
                   info::fcmaterial_t mat{
                     .carrier_id = *carrier_oid,
                     .timestamp = fcmat.timestamp.time_since_epoch().count(),

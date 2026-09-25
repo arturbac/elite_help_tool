@@ -435,13 +435,14 @@ namespace tables
   inline constexpr std::string_view faction_influence{"faction_influence"};
   inline constexpr std::string_view system_conflict{"system_conflict"};
   inline constexpr std::string_view system_signal{"system_signal"};
-  // rynki siedza w osobnym pliku podpietym jako schemat market
-  inline constexpr std::string_view station{"market.station"};
-  inline constexpr std::string_view commodity{"market.commodity"};
-  inline constexpr std::string_view market_item{"market.market_item"};
+  // to czego nie da sie odtworzyc z journali siedzi w osobnym pliku podpietym jako schemat live
+  inline constexpr std::string_view station{"live.station"};
+  inline constexpr std::string_view commodity{"live.commodity"};
+  inline constexpr std::string_view market_item{"live.market_item"};
   inline constexpr std::string_view mission{"mission"};
-  inline constexpr std::string_view carrier{"carrier"};
-  inline constexpr std::string_view carrier_materials{"carrier_materials"};
+  inline constexpr std::string_view micro_resource{"live.micro_resource"};
+  inline constexpr std::string_view carrier{"live.carrier"};
+  inline constexpr std::string_view carrier_materials{"live.carrier_materials"};
   }  // namespace tables
   };  // namespace sql_iface
 
@@ -873,10 +874,10 @@ database_storage_t::database_storage_t(std::string_view db_path) :
     db_path_{db_path},
     db_{std::make_unique<sqlite3_handle_t>()}
   {
-  // plik rynkow lezy obok bazy glownej i zyje wlasnym zyciem
-  std::filesystem::path market_path{db_path};
-  market_path.replace_filename("market.sqlite");
-  market_db_path_ = market_path.string();
+  // plik z danymi zbieranymi na zywo lezy obok bazy glownej i zyje wlasnym zyciem
+  std::filesystem::path live_path{db_path};
+  live_path.replace_filename("live.sqlite");
+  live_db_path_ = live_path.string();
   }
 
 database_storage_t::~database_storage_t() { close(); }
@@ -891,11 +892,10 @@ auto database_storage_t::open(storage_mode_e mode) -> expected_ec<void>
   // czytanie z gui i zapis z watku sledzacego to osobne polaczenia, czekamy zamiast dostac SQLITE_BUSY
   sqlite3_busy_timeout(db_->db, 3000);
 
-  // rynki w osobnym pliku, podpietym jako schemat market - ATTACH zaklada go gdy nie istnieje
+  // dane zbierane na zywo w osobnym pliku - ATTACH zaklada go gdy nie istnieje
   if(
     auto res{sqlite::execute_query_no_result(
-      db_->db,
-      std::format("ATTACH DATABASE '{}' AS market;", sqlite::escape_sql_quotes(market_db_path_))
+      db_->db, std::format("ATTACH DATABASE '{}' AS live;", sqlite::escape_sql_quotes(live_db_path_))
     )};
     not res
   ) [[unlikely]]
@@ -993,6 +993,10 @@ auto database_storage_t::create_database() -> expected_ec<void>
     [[unlikely]]
     return res;
     
+  if(auto res{sqlite::create_table<info::micro_resource_t>(db_->db, "id"sv, sql_iface::tables::micro_resource)};
+     not res) [[unlikely]]
+    return res;
+
   if(auto res{sqlite::create_table<info::carrier_t>(db_->db, "oid"sv, sql_iface::tables::carrier)}; not res)
     [[unlikely]]
     return res;
@@ -1050,7 +1054,17 @@ auto database_storage_t::create_database() -> expected_ec<void>
     auto res{sqlite::execute_query_no_result(
       db_->db,
       // w CREATE INDEX schemat stoi przy nazwie indeksu, a nie przy tabeli
-      std::string{"CREATE INDEX IF NOT EXISTS market.market_item_key ON market_item (market_id);"}
+      std::string{"CREATE INDEX IF NOT EXISTS live.market_item_key ON market_item (market_id);"}
+    )};
+    not res
+  ) [[unlikely]]
+    return res;
+
+  if(
+    auto res{sqlite::execute_query_no_result(
+      db_->db,
+      std::string{"CREATE INDEX IF NOT EXISTS live.carrier_materials_key ON carrier_materials "
+                  "(carrier_id, material_id, timestamp);"}
     )};
     not res
   ) [[unlikely]]
@@ -1614,6 +1628,36 @@ auto database_storage_t::update_faction_info(info::faction_info_t const & factio
     return sqlite::update_pk(db_->db, "oid"sv, sql_iface::tables::faction_info, faction, faction.oid);
   else
     return sqlite::insert_into(db_->db, "oid"sv, sql_iface::tables::faction_info, faction);
+  }
+
+auto database_storage_t::load_carrier(std::string_view carrier_id) -> expected_ec<std::optional<info::carrier_t>>
+  {
+  auto res{sqlite::select_from<info::carrier_t>(
+    db_->db, sql_iface::tables::carrier, std::format(" WHERE carrier_id='{}'", sqlite::escape_sql_quotes(carrier_id))
+  )};
+  if(not res) [[unlikely]]
+    return cxx23::unexpected{res.error()};
+
+  if(res->empty())
+    return std::optional<info::carrier_t>{};
+
+  return std::optional<info::carrier_t>{std::move((*res)[0])};
+  }
+
+auto database_storage_t::store(info::micro_resource_t const & value) -> expected_ec<void>
+  {
+  auto known{sqlite::select_signle_from<uint64_t>(
+    db_->db, std::format("SELECT count(*) FROM {} WHERE id={}", sql_iface::tables::micro_resource, value.id)
+  )};
+  if(not known) [[unlikely]]
+    return cxx23::unexpected{known.error()};
+
+  if(*known and **known != 0)
+    return {};
+
+  return sqlite::insert_into<info::micro_resource_t, true>(
+    db_->db, "id"sv, sql_iface::tables::micro_resource, value
+  );
   }
 
 auto database_storage_t::carrier_oid( std::string_view name ) -> expected_ec<std::optional<int64_t>>
