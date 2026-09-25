@@ -3,6 +3,7 @@
 #include <backends/imgui_impl_vulkan.h>
 #include <imgui.h>
 
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <cstdlib>
@@ -31,6 +32,34 @@ namespace
     {
     static bool const enabled{env_flag("EHT_OVERLAY_STATS", true)};
     return enabled;
+    }
+
+  ///\brief na ekranach panoramicznych srodek nalezy do gry, overlay mieszka w bocznych pasach
+  [[nodiscard]]
+  auto side_band_override() noexcept -> float
+    {
+    static float const band{
+      []() -> float
+      {
+        char const * const value{std::getenv("EHT_OVERLAY_SIDE_WIDTH")};
+        if(value == nullptr or *value == '\0')
+          return 0.f;
+        return std::strtof(value, nullptr);
+      }()
+    };
+    return band;
+    }
+
+  ///\brief szerokosc pasa przy krawedzi ekranu na ktorym wolno rysowac
+  [[nodiscard]]
+  auto side_band_width(float display_width) noexcept -> float
+    {
+    if(side_band_override() > 0.f)
+      return side_band_override();
+
+    // jedna piata szerokosci pasuje i do 16:9 i do potrojnego monitora, gdzie wypada
+    // mniej wiecej tyle, ile zostaje poza czescia na ktora gracz naprawde patrzy
+    return std::clamp(display_width * 0.2f, 240.f, 1600.f);
     }
 
   [[nodiscard]]
@@ -100,6 +129,15 @@ namespace
     return "eht_unknown";
     }
 
+  ///\brief TextColored nie zawija wierszy, a w pasie bocznym zawijanie jest konieczne
+  template<typename... args_t>
+  auto coloured_text(uint32_t rgb, char const * format, args_t... args) -> void
+    {
+    ImGui::PushStyleColor(ImGuiCol_Text, to_color(rgb));
+    ImGui::TextWrapped(format, args...);
+    ImGui::PopStyleColor();
+    }
+
   [[nodiscard]]
   auto block_visible(overlay::block_t const & block, uint64_t age_ms) noexcept -> bool
     { return not block.lines.empty() and (block.ttl_ms == 0u or age_ms <= block.ttl_ms); }
@@ -120,6 +158,7 @@ namespace
     };
 
     ImVec2 const display{ImGui::GetIO().DisplaySize};
+    float const band{side_band_width(display.x)};
 
     for(auto const corner:
         {overlay::corner_e::top_left,
@@ -140,24 +179,22 @@ namespace
       auto const [position, pivot]{corner_position(corner, display)};
       ImGui::SetNextWindowBgAlpha(0.35f);
       ImGui::SetNextWindowPos(position, ImGuiCond_Always, pivot);
+      // dlugi tekst ma sie zawinac w pasie, a nie wjechac graczowi w pole widzenia
+      ImGui::SetNextWindowSizeConstraints(ImVec2{0.f, 0.f}, ImVec2{band, display.y});
 
       if(ImGui::Begin(window_name(corner), nullptr, flags))
         {
+        ImGui::PushTextWrapPos(band - 2.f * ImGui::GetStyle().WindowPadding.x);
         if(stats_here)
           {
-          ImGui::TextColored(
-            to_color(0x9ad1ff),
-            "EHT overlay  %.0f fps  frame %llu",
-            double{data.fps},
-            (unsigned long long)data.drawn_frames
+          coloured_text(
+            0x9ad1ffu, "EHT overlay  %.0f fps  frame %llu", double{data.fps}, (unsigned long long)data.drawn_frames
           );
           auto & client{ipc_client()};
           if(client.connected())
-            ImGui::TextColored(
-              to_color(0x86d986), "elite_help_tool: connected, %llu frames", (unsigned long long)client.received()
-            );
+            coloured_text(0x86d986u, "elite_help_tool: connected, %llu frames", (unsigned long long)client.received());
           else
-            ImGui::TextColored(to_color(0xd9a34a), "elite_help_tool: waiting for connection");
+            coloured_text(0xd9a34au, "elite_help_tool: waiting for connection");
           }
 
         if(snapshot)
@@ -170,8 +207,10 @@ namespace
               ImGui::Separator();
 
             for(overlay::line_t const & line: block.lines)
-              ImGui::TextColored(to_color(line.color), "%s", line.text.c_str());
+              coloured_text(line.color, "%s", line.text.c_str());
             }
+
+        ImGui::PopTextWrapPos();
         }
       ImGui::End();
       }

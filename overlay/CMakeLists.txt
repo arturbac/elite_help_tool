@@ -81,6 +81,10 @@ target_include_directories(eht-overlay-run PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/i
 # tylko dla default_socket_path z naglowka protokolu
 target_link_libraries(eht-overlay-run PRIVATE simple_enum::simple_enum glaze::glaze)
 
+# jedyny cel ktory naprawde linkuje loader - reszta overlaya go nie dotyka
+add_executable(eht-overlay-headless-check tools/headless_check.cc)
+target_link_libraries(eht-overlay-headless-check PRIVATE Vulkan::Vulkan)
+
 add_executable(eht-overlay-feed src/feed.cc)
 target_link_libraries(eht-overlay-feed PRIVATE eht_overlay_ipc)
 

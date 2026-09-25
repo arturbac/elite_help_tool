@@ -40,6 +40,16 @@ auto main() -> int
           .corner = overlay::corner_e::bottom_left,
           .ttl_ms = 5000u,
           .lines = {overlay::line_t{.text = "lewy dolny naroznik", .color = 0xd9a34au}}
+        },
+        // celowo dlugie, zeby bylo widac czy tekst zawija sie w pasie bocznym
+        overlay::block_t{
+          .corner = overlay::corner_e::top_right,
+          .ttl_ms = 5000u,
+          .lines = {overlay::line_t{
+            .text = "bardzo dluga linia testowa ktora musi sie zawinac wewnatrz pasa bocznego "
+                    "zamiast wjezdzac na srodek ekranu zajmowany przez gre",
+            .color = 0xffffffu
+          }}
         }
       }
     };
