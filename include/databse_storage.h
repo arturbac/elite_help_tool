@@ -96,7 +96,11 @@ struct database_storage_t
   /// gatunek dopisywany do rodzaju znanego z mapowania, po pobraniu probki
   [[nodiscard]]
   auto store_genus_species(
-    uint64_t system_address, events::body_id_t body_id, std::string_view genus, std::string_view species
+    uint64_t system_address,
+    events::body_id_t body_id,
+    std::string_view genus,
+    std::string_view species,
+    bool sampled
   ) -> expected_ec<void>;
 
   [[nodiscard]]

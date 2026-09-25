@@ -388,6 +388,9 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
         }
       else if constexpr(std::same_as<T, events::scan_organic_t>)
         {
+        // gra konczy pobranie probki typem Analyse, wczesniejsze Log i Sample tylko ja zapowiadaja
+        bool const analysed{event.ScanType == events::scan_type_e::Analyse};
+
         // mapowanie daje tylko rodzaj, probka dopowiada gatunek
         if(auto it{state.system.body_by_id(event.Body)}; it != state.system.bodies.end())
           if(std::holds_alternative<planet_details_t>(it->details))
@@ -395,12 +398,15 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
             planet_details_t & details{std::get<planet_details_t>(it->details)};
             auto genus{std::ranges::find(details.genuses_, event.Genus_Localised, &events::genus_t::Genus_Localised)};
             if(genus != details.genuses_.end())
+              {
               genus->Species_Localised = event.Species_Localised;
+              genus->Sampled = genus->Sampled or analysed;
+              }
             }
 
         if(
           auto res{state.db_.store_genus_species(
-            event.SystemAddress, event.Body, event.Genus_Localised, event.Species_Localised
+            event.SystemAddress, event.Body, event.Genus_Localised, event.Species_Localised, analysed
           )};
           not res
         ) [[unlikely]]

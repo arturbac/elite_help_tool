@@ -839,6 +839,8 @@ struct genus_t
   std::string Genus_Localised;
   ///\brief uzupelniane dopiero po probkowaniu, mapowanie podaje sam rodzaj
   std::string Species_Localised;
+  ///\brief probka kompletna - gra konczy sekwencje Log, Sample, Sample, Analyse wlasnie tym ostatnim
+  bool Sampled;
   };
 
 ///\brief pobranie probki organicznej, dopowiada gatunek do rodzaju znanego z mapowania

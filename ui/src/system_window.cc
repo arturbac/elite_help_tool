@@ -364,11 +364,22 @@ auto system_bodies_signals_model_t::parent(QModelIndex const & index) const -> Q
 [[nodiscard]]
 auto system_bodies_signals_model_t::data(QModelIndex const & index, int role) const -> QVariant
   {
-  if(!index.isValid() || role != Qt::DisplayRole)
+  if(!index.isValid())
     return {};
 
   auto const id = unpack_id(index.internalId());
   auto const & body = body_signals_[id.body_idx];
+
+  // ptaszek przy rodzaju mowi czy probka jest juz pobrana
+  if(role == Qt::CheckStateRole)
+    {
+    if(id.type != node_type_t::genus_item)
+      return {};
+    return body.genuses_[id.item_idx].Sampled ? Qt::Checked : Qt::Unchecked;
+    }
+
+  if(role != Qt::DisplayRole)
+    return {};
 
   switch(id.type)
     {
@@ -385,14 +396,12 @@ auto system_bodies_signals_model_t::data(QModelIndex const & index, int role) co
     case node_type_t::genus_item:
         {
         events::genus_t const & genus{body.genuses_[id.item_idx]};
-        // gatunek znamy dopiero po pobraniu probki, do tego czasu zostaje sam rodzaj
-        bool const sampled{not genus.Species_Localised.empty()};
-        std::string const name{
-          sampled ? std::format("{} - {}", genus.Genus_Localised, genus.Species_Localised) : genus.Genus_Localised
-        };
+        // nazwa gatunku zawiera juz rodzaj, wiec zastepuje go zamiast sie z nim dublowac
+        bool const known{not genus.Species_Localised.empty()};
+        std::string const & name{known ? genus.Species_Localised : genus.Genus_Localised};
 
         // po probce znamy dokladna cene, wczesniej tylko rozpietosc calej rodziny
-        auto const value{organic_value_range(sampled ? genus.Species_Localised : genus.Genus_Localised)};
+        auto const value{organic_value_range(name)};
         if(not value)
           return QString::fromStdString(name);
 
