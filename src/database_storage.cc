@@ -453,6 +453,13 @@ constexpr auto reflection_type_name() -> std::string_view
     static_assert(false);
   }
 
+///\brief sqlite nie zawsze ustawia opis bledu, formatowanie nullptr jako {} konczy sie strlen(nullptr)
+[[nodiscard]]
+auto sql_error_text(char const * err_msg) noexcept -> char const *
+  {
+  return err_msg != nullptr ? err_msg : "brak opisu bledu";
+  }
+
 [[nodiscard]]
 constexpr auto escape_sql_quotes(std::string_view const value) -> std::string
   {
@@ -551,7 +558,7 @@ static auto create_table(sqlite3 * db, std::string_view const pk, std::string_vi
 
   if(rc != SQLITE_OK)
     {
-    spdlog::error("[sql] {} {}", query, err_msg);
+    spdlog::error("[sql] {} {}", query, sql_error_text(err_msg));
     sqlite3_free(err_msg);
     return cxx23::unexpected(std::make_error_code(std::errc::bad_message));
     }
@@ -601,7 +608,7 @@ static auto insert_into(sqlite3 * db, std::string_view const pk, std::string_vie
 
   if(rc != SQLITE_OK)
     {
-    spdlog::error("[sql] {} {}", query, err_msg);
+    spdlog::error("[sql] {} {}", query, sql_error_text(err_msg));
     sqlite3_free(err_msg);
     return cxx23::unexpected(std::make_error_code(std::errc::bad_message));
     }
@@ -634,7 +641,7 @@ static auto update_pk(
 
   if(rc != SQLITE_OK)
     {
-    spdlog::error("[sql] {} {}", query, err_msg);
+    spdlog::error("[sql] {} {}", query, sql_error_text(err_msg));
     sqlite3_free(err_msg);
     return cxx23::unexpected(std::make_error_code(std::errc::bad_message));
     }
@@ -749,7 +756,7 @@ static auto select_from(sqlite3 * db, std::string_view name, std::string_view wh
 
   if(rc != SQLITE_OK)
     {
-    spdlog::error("[sql] {} {}", query, err_msg);
+    spdlog::error("[sql] {} {}", query, sql_error_text(err_msg));
     sqlite3_free(err_msg);
     return cxx23::unexpected(std::make_error_code(std::errc::bad_message));
     }
@@ -783,7 +790,7 @@ static auto select_signle_from(sqlite3 * db, std::string_view query)
 
   if(rc != SQLITE_OK)
     {
-    spdlog::error("[sql] {} {}", query, err_msg);
+    spdlog::error("[sql] {} {}", query, sql_error_text(err_msg));
     sqlite3_free(err_msg);
     return cxx23::unexpected(std::make_error_code(std::errc::bad_message));
     }
@@ -798,7 +805,7 @@ static auto execute_query_no_result(sqlite3 * db, std::string_view query) -> exp
 
   if(rc != SQLITE_OK)
     {
-    spdlog::error("[sql] {} {}", query, err_msg);
+    spdlog::error("[sql] {} {}", query, sql_error_text(err_msg));
     sqlite3_free(err_msg);
     return cxx23::unexpected(std::make_error_code(std::errc::bad_message));
     }
@@ -841,17 +848,13 @@ database_storage_t::~database_storage_t() { close(); }
 
 auto database_storage_t::open() -> expected_ec<void>
   {
-  bool const needs_init = !std::filesystem::exists(db_path_);
-
   int const rc = sqlite3_open(db_path_.c_str(), &db_->db);
 
   if(rc != SQLITE_OK)
     return cxx23::unexpected(std::make_error_code(std::errc::io_error));
 
-  if(needs_init)
-    return create_database();
-
-  return {};
+  // wszystkie CREATE sa IF NOT EXISTS, wiec istniejaca baza dostaje brakujace tabele i indeksy
+  return create_database();
   }
 
 auto database_storage_t::create_database() -> expected_ec<void>
