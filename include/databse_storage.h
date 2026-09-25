@@ -12,6 +12,21 @@ struct sqlite3_handle_t;
 template<typename T>
 using expected_ec = cxx23::expected<T, std::error_code>;
 
+///\brief tryb pracy bazy, decyduje o kompromisie trwalosc/szybkosc
+enum struct storage_mode_e : uint8_t
+  {
+  ///\brief praca na zywo - kazdy zapis we wlasnej transakcji, ustawienia domyslne sqlite
+  live,
+  ///\brief budowanie bazy od zera z calosci logow, przy awarii i tak powtarzamy import
+  bulk_import
+  };
+
+consteval auto adl_enum_bounds(storage_mode_e)
+  {
+  using enum storage_mode_e;
+  return simple_enum::adl_info{live, bulk_import};
+  }
+
 struct database_storage_t
   {
   std::string db_path_;
@@ -21,7 +36,7 @@ struct database_storage_t
   ~database_storage_t();
 
   [[nodiscard]]
-  auto open() -> expected_ec<void>;
+  auto open(storage_mode_e mode = storage_mode_e::live) -> expected_ec<void>;
 
   [[nodiscard]]
   auto create_database() -> expected_ec<void>;

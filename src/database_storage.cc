@@ -868,7 +868,7 @@ database_storage_t::database_storage_t(std::string_view db_path) :
 
 database_storage_t::~database_storage_t() { close(); }
 
-auto database_storage_t::open() -> expected_ec<void>
+auto database_storage_t::open(storage_mode_e mode) -> expected_ec<void>
   {
   int const rc = sqlite3_open(db_path_.c_str(), &db_->db);
 
@@ -877,6 +877,17 @@ auto database_storage_t::open() -> expected_ec<void>
 
   // czytanie z gui i zapis z watku sledzacego to osobne polaczenia, czekamy zamiast dostac SQLITE_BUSY
   sqlite3_busy_timeout(db_->db, 3000);
+
+  if(mode == storage_mode_e::bulk_import)
+    {
+    // kazdy insert to osobna transakcja, a przy imporcie calosci logow jest ich setki tysiecy
+    // - bez fsync na wiersz i z dziennikiem w pamieci import idzie wielokrotnie szybciej.
+    // Awaria konczy sie uszkodzona baza, ale import i tak buduje ja od zera.
+    for(std::string_view pragma:
+        {"PRAGMA synchronous = OFF;"sv, "PRAGMA journal_mode = MEMORY;"sv, "PRAGMA temp_store = MEMORY;"sv})
+      if(auto res{sqlite::execute_query_no_result(db_->db, pragma)}; not res) [[unlikely]]
+        return res;
+    }
 
   // wszystkie CREATE sa IF NOT EXISTS, wiec istniejaca baza dostaje brakujace tabele i indeksy
   return create_database();

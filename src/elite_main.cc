@@ -83,7 +83,7 @@ auto main(int argc, char ** argv) -> int
     fs::remove("ehtdb.sqlite");
   database_import_state_t dbimport{path.string()};
   database_import_state_t::state_t state{"ehtdb.sqlite"};
-  if(not state.db_.open())
+  if(not state.db_.open(storage_mode_e::bulk_import))
     return EXIT_FAILURE;
   dbimport.state = &state;
   std::vector<fs::path> journals{find_all_journals(path)};
