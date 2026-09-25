@@ -855,6 +855,18 @@ struct scan_organic_t
   };
 
 ///\brief sygnal wykryty skanem FSS - stacja, instalacja, POI, zjawisko
+///\brief zadokowanie - stad bierze sie tozsamosc stacji, wraz z typem
+///\detail StationType rozroznia flotowiec gracza od zwyklej stacji, co odroznia sprzedaz
+/// mikrozasobow graczom od zrzutu na stacji
+struct docked_t
+  {
+  uint64_t MarketID;
+  uint64_t SystemAddress;
+  std::string StationName;
+  std::string StationType;
+  std::string StarSystem;
+  };
+
 ///\brief event Market z journala - niesie tylko naglowek, zawartosc idzie do Market.json
 struct market_t
   {
@@ -936,6 +948,7 @@ using event_holder_t = std::variant<
   fss_body_signals_t,
   fss_signal_discovered_t,
   market_t,
+  docked_t,
   fss_all_bodies_found_t,
   scan_bary_centre_t,
   scan_detailed_scan_t,

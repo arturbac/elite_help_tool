@@ -851,9 +851,12 @@ auto faction_state_window_t::show_market(std::string_view station_name) -> void
     return;
     }
 
-  market_header_->setText(
-    qformat("{} - prices as of {:%Y-%m-%d %H:%M}", (*station)->name, (*station)->market_updated)
-  );
+  // czas odczytu mieszka przy rynku, bo sam odczyt jest nieodtwarzalny
+  auto reading{db_.load_market_info((*station)->market_id)};
+  if(reading and *reading)
+    market_header_->setText(qformat("{} - prices as of {:%Y-%m-%d %H:%M}", (*station)->name, (*reading)->updated));
+  else
+    market_header_->setText(QString::fromStdString((*station)->name));
 
   std::vector<info::market_entry_t> sells;
   std::vector<info::market_entry_t> buys;

@@ -178,9 +178,13 @@ struct database_storage_t
   [[nodiscard]]
   auto load_system_signals(uint64_t system_address) -> expected_ec<std::vector<system_signal_t>>;
 
-  ///\brief stacja z rynkiem, wpis zakladany przy pierwszym spotkaniu i potem aktualizowany
+  ///\brief tozsamosc stacji, odtwarzalna z journali
   [[nodiscard]]
   auto store(info::station_t const & value) -> expected_ec<void>;
+
+  ///\brief czas ostatniego odczytu rynku, z bazy zbieranej na zywo
+  [[nodiscard]]
+  auto load_market_info(uint64_t market_id) -> expected_ec<std::optional<info::market_info_t>>;
 
   [[nodiscard]]
   auto load_station(uint64_t market_id) -> expected_ec<std::optional<info::station_t>>;

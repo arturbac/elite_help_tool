@@ -117,16 +117,23 @@ auto to_conflict(uint64_t system_address, std::chrono::sys_seconds timestamp, ev
 [[nodiscard]]
 auto join_states(std::span<events::faction_state_entry_t const> states) -> std::string;
 
-///\brief stacja z rynkiem, jeden wpis na MarketID
-///\detail zawartosc rynku znamy tylko z Market.json czyli wylacznie na zywo, wiec import zaklada
-/// wpis pusty - z market_updated w zerze - do wypelnienia przy nastepnym zadokowaniu
+///\brief tozsamosc stacji, jeden wpis na MarketID
+///\detail odtwarzalna z journali - zdarzenia Docked i Market - wiec mieszka w bazie glownej
 struct station_t
   {
   uint64_t market_id;
   uint64_t system_address;
   std::string name;
   std::string station_type;
-  std::chrono::sys_seconds market_updated;
+  };
+
+///\brief kiedy ostatnio odczytalismy rynek tej stacji
+///\detail sama zawartosc pochodzi z Market.json, ktorego nie da sie odtworzyc, wiec i czas
+/// odczytu nalezy do bazy zbieranej na zywo
+struct market_info_t
+  {
+  uint64_t market_id;
+  std::chrono::sys_seconds updated;
   };
 
 ///\brief slownik towarow, mean_price to srednia galaktyczna czyli stala towaru

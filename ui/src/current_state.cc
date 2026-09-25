@@ -348,14 +348,26 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
 
           update_system = true;
           }
+        else if constexpr(std::same_as<T, events::docked_t>)
+          {
+          // tozsamosc stacji odtwarzamy z journali - typ rozroznia flotowiec od stacji
+          info::station_t station{
+            .market_id = event.MarketID,
+            .system_address = event.SystemAddress,
+            .name = event.StationName,
+            .station_type = event.StationType
+          };
+
+          if(auto res{db_.store(station)}; not res)
+            spdlog::error("failed to store station {}", event.MarketID);
+          }
         else if constexpr(std::same_as<T, events::market_t>)
           {
           info::station_t station{
             .market_id = event.MarketID,
             .system_address = system.system_address,
             .name = event.StationName,
-            .station_type = event.StationType,
-            .market_updated = {}
+            .station_type = event.StationType
           };
 
           // zawartosc rynku istnieje tylko w Market.json obok journali i tylko na zywo
@@ -367,7 +379,6 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
             return;
             }
 
-          station.market_updated = market->timestamp;
           if(auto res{db_.store(station)}; not res)
             {
             spdlog::error("failed to store station {}", event.MarketID);
