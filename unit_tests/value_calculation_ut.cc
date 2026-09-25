@@ -63,4 +63,40 @@ auto main() -> int
     auto const value {exploration::aprox_value(b)};
     expect(value > 1'000'000);
   };
+
+  "organic_values"_test = []
+  {
+    "gatunek trafia wprost w cennik"_test = []
+    {
+      auto const value{organic_value_range("Cactoida Cortexum")};
+      expect(value.has_value());
+      expect(value->first == 3'667'600_u and value->second == 3'667'600_u);
+    };
+
+    "rodzaj daje rozpietosc calej rodziny"_test = []
+    {
+      auto const value{organic_value_range("Bacterium")};
+      expect(value.has_value());
+      expect(value->first == 1'000'000_u and value->second == 8'418'000_u);
+    };
+
+    "liczba mnoga rodzaju z journala"_test = []
+    {
+      // journal podaje "Brain Trees", cennik zna "Brain Tree"
+      auto const value{organic_value_range("Brain Trees")};
+      expect(value.has_value());
+      expect(value->first == 1'593'700_u and value->second == 1'593'700_u);
+    };
+
+    "rodzaj z przedrostkiem wariantu"_test = []
+    {
+      // journal podaje "Luteolum Anemone", cennik zna sam "Anemone"
+      auto const value{organic_value_range("Luteolum Anemone")};
+      expect(value.has_value());
+      expect(value->first == 1'499'900_u);
+    };
+
+    "nazwa spoza cennika nie zwraca nic"_test = []
+    { expect(not organic_value_range("Nieistniejacy Gatunek").has_value()); };
+  };
   }

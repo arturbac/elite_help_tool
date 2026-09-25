@@ -386,9 +386,22 @@ auto system_bodies_signals_model_t::data(QModelIndex const & index, int role) co
         {
         events::genus_t const & genus{body.genuses_[id.item_idx]};
         // gatunek znamy dopiero po pobraniu probki, do tego czasu zostaje sam rodzaj
-        if(genus.Species_Localised.empty())
-          return QString::fromStdString(genus.Genus_Localised);
-        return qformat("{} - {}", genus.Genus_Localised, genus.Species_Localised);
+        bool const sampled{not genus.Species_Localised.empty()};
+        std::string const name{
+          sampled ? std::format("{} - {}", genus.Genus_Localised, genus.Species_Localised) : genus.Genus_Localised
+        };
+
+        // po probce znamy dokladna cene, wczesniej tylko rozpietosc calej rodziny
+        auto const value{organic_value_range(sampled ? genus.Species_Localised : genus.Genus_Localised)};
+        if(not value)
+          return QString::fromStdString(name);
+
+        if(value->first == value->second)
+          return qformat("{}   {} Cr", name, format_credits_value(value->first));
+
+        return qformat(
+          "{}   {} - {} Cr", name, format_credits_value(value->first), format_credits_value(value->second)
+        );
         }
     }
   return {};

@@ -513,6 +513,53 @@ auto value_class(uint32_t const sv) noexcept -> planet_value_e
   return planet_value_e::low;
   }
 
+auto organic_value_range(std::string_view name) noexcept -> std::optional<std::pair<uint32_t, uint32_t>>
+  {
+  auto range_of = [](auto && matches) -> std::optional<std::pair<uint32_t, uint32_t>>
+  {
+    std::optional<std::pair<uint32_t, uint32_t>> result;
+    for(organic_value_t const & entry: matches)
+      if(not result)
+        result = std::pair{entry.value, entry.value};
+      else
+        {
+        result->first = std::min(result->first, entry.value);
+        result->second = std::max(result->second, entry.value);
+        }
+    return result;
+  };
+
+  // gatunek po ScanOrganic trafia wprost w cennik
+  if(auto it{std::ranges::find(organic_values, name, &organic_value_t::species)}; it != organic_values.end())
+    return std::pair{it->value, it->value};
+
+  // sam rodzaj - cala rodzina, czyli wszystko co zaczyna sie od jego nazwy
+  if(auto res{range_of(
+       organic_values | std::views::filter([name](organic_value_t const & entry)
+                                           { return entry.species.starts_with(name) and entry.species != name; })
+     )};
+     res)
+    return res;
+
+  // "Brain Trees" w journalu, "Brain Tree" w cenniku
+  if(name.ends_with('s'))
+    {
+    auto const singular{name.substr(0, name.size() - 1)};
+    if(auto it{std::ranges::find(organic_values, singular, &organic_value_t::species)}; it != organic_values.end())
+      return std::pair{it->value, it->value};
+    }
+
+  // "Luteolum Anemone" w journalu, "Anemone" w cenniku
+  if(auto const space{name.rfind(' ')}; space != std::string_view::npos)
+    {
+    auto const last_word{name.substr(space + 1)};
+    if(auto it{std::ranges::find(organic_values, last_word, &organic_value_t::species)}; it != organic_values.end())
+      return std::pair{it->value, it->value};
+    }
+
+  return {};
+  }
+
 [[nodiscard]]
 auto format_credits_value(uint32_t value) -> std::string
   {
