@@ -18,6 +18,8 @@ namespace
   constexpr uint32_t max_wait_semaphores{16u};
   ///\brief nigdy nie czekamy bez konca - zawieszony overlay nie ma prawa zawiesic gry
   constexpr uint64_t fence_timeout_ns{1000000000ull};
+  ///\brief powyzej tego rysowanie zabiera klatke, wiec warto o tym wiedziec
+  constexpr double slow_draw_seconds{0.004};
 
   [[nodiscard]]
   auto env_flag(char const * name, bool fallback) noexcept -> bool
@@ -239,6 +241,8 @@ auto destroy_resources(swapchain_data_t & data) -> void
   if(data.device == nullptr)
     return;
 
+  auto const started{now_seconds()};
+  bool const was_ready{data.ready};
   device_data_t & device{*data.device};
 
   if(data.imgui != nullptr)
@@ -270,6 +274,9 @@ auto destroy_resources(swapchain_data_t & data) -> void
     }
 
   data.ready = false;
+
+  if(was_ready)
+    log("overlay resources released in {:.1f} ms", (now_seconds() - started) * 1000.0);
   }
 
 auto ensure_resources(swapchain_data_t & data, VkQueue queue) -> bool
@@ -277,6 +284,7 @@ auto ensure_resources(swapchain_data_t & data, VkQueue queue) -> bool
   if(data.ready)
     return true;
 
+  auto const started{now_seconds()};
   device_data_t & device{*data.device};
 
   uint32_t const family{device.family_of(queue)};
@@ -507,7 +515,13 @@ auto ensure_resources(swapchain_data_t & data, VkQueue queue) -> bool
 
   data.last_draw_seconds = now_seconds();
   data.ready = true;
-  log("overlay ready for swapchain {}x{}, {} images", data.extent.width, data.extent.height, data.images.size());
+  log(
+    "overlay ready for swapchain {}x{}, {} images, setup took {:.1f} ms",
+    data.extent.width,
+    data.extent.height,
+    data.images.size(),
+    (now_seconds() - started) * 1000.0
+  );
   return true;
   }
 
@@ -623,6 +637,10 @@ auto draw_overlay(
       }
 
     frame.submitted = true;
+
+    if(auto const spent{now_seconds() - now}; spent > slow_draw_seconds) [[unlikely]]
+      log("overlay draw took {:.1f} ms", spent * 1000.0);
+
     return frame.semaphore;
     }
   catch(...)

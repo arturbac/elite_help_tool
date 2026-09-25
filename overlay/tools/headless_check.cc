@@ -6,6 +6,7 @@
 #include <vulkan/vulkan.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -17,7 +18,7 @@ namespace
 uint32_t width{1280u};
 uint32_t height{720u};
 ///\brief kilka klatek, zeby kazdy obraz lancucha zdazyl przejsc przez present
-constexpr uint32_t frames{6u};
+uint32_t frames{6u};
 
 auto fail(char const * what, VkResult result = VK_SUCCESS) -> int
   {
@@ -58,6 +59,8 @@ auto main(int argc, char ** argv) -> int
     width = static_cast<uint32_t>(std::atoi(argv[2]));
     height = static_cast<uint32_t>(std::atoi(argv[3]));
     }
+  if(argc > 4)
+    frames = static_cast<uint32_t>(std::atoi(argv[4]));
 
   VkApplicationInfo const application{
     .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
@@ -278,6 +281,7 @@ auto main(int argc, char ** argv) -> int
                      }};
 
   uint32_t last_index{};
+  auto const loop_started{std::chrono::steady_clock::now()};
   for(uint32_t frame{}; frame != frames; ++frame)
     {
     uint32_t index{};
@@ -351,6 +355,9 @@ auto main(int argc, char ** argv) -> int
     }
 
   vkDeviceWaitIdle(device);
+
+  auto const spent{std::chrono::duration<double>{std::chrono::steady_clock::now() - loop_started}.count()};
+  std::printf("%u klatek w %.3f s, srednio %.3f ms na klatke\n", frames, spent, 1000.0 * spent / double(frames));
 
   // odczyt tego co naprawde zostalo w obrazie po ostatnim present
   VkBufferCreateInfo const buffer_info{

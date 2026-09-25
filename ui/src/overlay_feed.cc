@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <format>
+#include <map>
 #include <ranges>
 
 namespace
@@ -24,6 +25,23 @@ constexpr std::chrono::seconds heartbeat{3};
 constexpr uint32_t minimum_body_value{300000u};
 ///\brief pas boczny ma swoje granice, dluga lista i tak nie zostanie przeczytana w locie
 constexpr size_t listed_bodies{5u};
+constexpr size_t listed_factions{5u};
+///\brief influence aktualizuje sie raz na dobe, czesciej pytac nie ma po co
+constexpr std::chrono::seconds faction_refresh{60};
+
+///\brief te same barwy co w oknie reputacji - czerwony federacja, niebieski imperium, zielony alians
+[[nodiscard]]
+auto allegiance_colour(info::allegiance_e allegiance) -> uint32_t
+  {
+  using enum info::allegiance_e;
+  switch(allegiance)
+    {
+    case federation: return 0xd9534fu;
+    case empire:     return 0x4a90d9u;
+    case alliance:   return 0x3cb371u;
+    default:         return colour_plain;
+    }
+  }
 
 [[nodiscard]]
 auto same_content(overlay::frame_t const & left, overlay::frame_t const & right) -> bool
@@ -115,12 +133,13 @@ auto describe_exploration(star_system_t const & system) -> std::vector<overlay::
   }
 
 [[nodiscard]]
-auto describe_system(star_system_t const & system) -> std::vector<overlay::line_t>
+auto describe_system(star_system_t const & system, bool with_controlling) -> std::vector<overlay::line_t>
   {
   std::vector<overlay::line_t> lines;
   lines.push_back(overlay::line_t{.text = system.name, .color = colour_heading});
 
-  if(not system.controlling_faction.empty())
+  // gdy mamy influence, frakcja kontrolujaca jest tam oznaczona gwiazdka i nie ma po co jej powtarzac
+  if(with_controlling and not system.controlling_faction.empty())
     lines.push_back(overlay::line_t{.text = system.controlling_faction, .color = colour_plain});
 
   if(not system.economy.empty() or not system.government.empty())
@@ -148,9 +167,13 @@ auto describe_system(star_system_t const & system) -> std::vector<overlay::line_
   }
   }  // namespace
 
-overlay_feed_t::overlay_feed_t(std::string socket_path) :
-    server_{std::make_unique<overlay::server_t>(std::move(socket_path))}
+overlay_feed_t::overlay_feed_t(std::string socket_path, std::string db_path) :
+    server_{std::make_unique<overlay::server_t>(std::move(socket_path))},
+    db_{db_path}
   {
+  if(auto res{db_.open()}; not res)
+    spdlog::error("overlay feed: failed to open {}", db_path);
+
   if(server_->listening())
     spdlog::info("overlay feed listening");
   else
@@ -165,19 +188,104 @@ auto overlay_feed_t::listening() const noexcept -> bool
 auto overlay_feed_t::clients() const noexcept -> unsigned
   { return server_->clients(); }
 
+auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
+  {
+  auto const now{std::chrono::steady_clock::now()};
+  bool const same_system{state.current_system_address_ == factions_system_};
+
+  // influence rusza sie raz na dobe, wiec odpytywanie bazy co ramke byloby marnotrawstwem
+  if(same_system and now - factions_loaded_ < faction_refresh)
+    return;
+
+  factions_system_ = state.current_system_address_;
+  factions_loaded_ = now;
+  faction_lines_.clear();
+
+  if(factions_system_ == 0u)
+    return;
+
+  auto history{db_.load_influence_history(factions_system_)};
+  if(not history)
+    {
+    spdlog::error("overlay feed: failed to load influence for {}", factions_system_);
+    return;
+    }
+
+  // ostatni wpis kazdej frakcji to jej obecny stan w systemie
+  std::map<int64_t, info::faction_influence_t const *> latest;
+  for(info::faction_influence_t const & entry: *history)
+    latest[entry.faction_oid] = &entry;
+
+  struct presence_t
+    {
+    std::string name;
+    info::allegiance_e allegiance;
+    std::string active;
+    double influence;
+    };
+
+  std::vector<presence_t> presence;
+  presence.reserve(latest.size());
+  for(auto const & [oid, entry]: latest)
+    {
+    presence_t item{
+      .name = {},
+      .allegiance = info::allegiance_e::unknown,
+      .active = not entry->active_states.empty() ? entry->active_states
+                : entry->faction_state == "None" ? std::string{}
+                                                 : entry->faction_state,
+      .influence = entry->influence
+    };
+
+    if(
+      auto it{std::ranges::find(state.known_factions, oid, &info::faction_info_t::oid)};
+      it != state.known_factions.end()
+    )
+      {
+      item.name = it->name;
+      item.allegiance = it->allegiance;
+      }
+
+    if(not item.name.empty())
+      presence.emplace_back(std::move(item));
+    }
+
+  std::ranges::sort(presence, std::ranges::greater{}, &presence_t::influence);
+
+  for(presence_t const & item: presence | std::views::take(listed_factions))
+    faction_lines_.push_back(
+      overlay::line_t{
+        // gwiazdka wyroznia frakcje kontrolujaca, bo to ona decyduje o obliczu systemu
+        .text = std::format(
+          "{}{}  {:.1f}%{}{}",
+          item.name == state.system.controlling_faction ? "* " : "  ",
+          item.name,
+          item.influence * 100.0,
+          item.active.empty() ? "" : "  ",
+          item.active
+        ),
+        .color = allegiance_colour(item.allegiance)
+      }
+    );
+  }
+
 auto overlay_feed_t::publish(current_state_t const & state) -> void
   {
   if(not server_->listening())
     return;
 
+  refresh_factions(state);
+
   overlay::frame_t frame{};
 
   if(not state.system.name.empty())
+    {
+    auto lines{describe_system(state.system, faction_lines_.empty())};
+    lines.insert(lines.end(), faction_lines_.begin(), faction_lines_.end());
     frame.blocks.push_back(
-      overlay::block_t{
-        .corner = overlay::corner_e::top_left, .ttl_ms = block_ttl_ms, .lines = describe_system(state.system)
-      }
+      overlay::block_t{.corner = overlay::corner_e::top_left, .ttl_ms = block_ttl_ms, .lines = std::move(lines)}
     );
+    }
 
   if(auto exploration{describe_exploration(state.system)}; not exploration.empty())
     frame.blocks.push_back(
