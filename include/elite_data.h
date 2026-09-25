@@ -324,6 +324,16 @@ struct micro_acquisition_t
   acquisition_source_e source;
 };
 
+///\brief ile i jakich misji zrobilem dla frakcji w danym okresie
+struct mission_stat_t
+  {
+  std::string faction;
+  uint32_t missions;
+  uint64_t rewards;
+  ///\brief najczestszy rodzaj, np Mission_Massacre
+  std::string top_type;
+  };
+
 ///\brief pozycja polki bartendera po zlaczeniu ze slownikiem
 struct carrier_stock_t
 {

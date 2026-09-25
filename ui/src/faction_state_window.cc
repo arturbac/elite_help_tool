@@ -366,6 +366,74 @@ auto market_model_t::update_data(std::vector<info::market_entry_t> && new_data) 
   endResetModel();
   }
 
+mission_stat_model_t::mission_stat_model_t(QObject * parent) : QAbstractTableModel(parent) {}
+
+[[nodiscard]]
+auto mission_stat_model_t::rowCount(QModelIndex const &) const -> int
+  { return static_cast<int>(rows_.size()); }
+
+[[nodiscard]]
+auto mission_stat_model_t::columnCount(QModelIndex const &) const -> int
+  { return int(column_e::column_max); }
+
+[[nodiscard]]
+auto mission_stat_model_t::data(QModelIndex const & index, int role) const -> QVariant
+  {
+  if(not index.isValid() or index.row() >= static_cast<int>(rows_.size()))
+    return {};
+
+  auto const & item = rows_[static_cast<std::size_t>(index.row())];
+  auto const column{column_e(index.column())};
+
+  if(role == Qt::TextAlignmentRole and (column == column_e::missions or column == column_e::rewards))
+    return int(Qt::AlignRight | Qt::AlignVCenter);
+
+  if(role == sort_role)
+    switch(column)
+      {
+      case column_e::faction:  return QString::fromStdString(item.faction);
+      case column_e::missions: return item.missions;
+      case column_e::rewards:  return qulonglong{item.rewards};
+      case column_e::top_type: return QString::fromStdString(item.top_type);
+      default:                 return {};
+      }
+
+  if(role != Qt::DisplayRole)
+    return {};
+
+  switch(column)
+    {
+    case column_e::faction:  return QString::fromStdString(item.faction);
+    case column_e::missions: return item.missions;
+    case column_e::rewards:  return QString::fromStdString(format_credits_value(uint32_t(item.rewards / 1000)));
+    // nazwy typu wygladaja jak Mission_OnFoot_Salvage_MB, ten sam przeklad co w oknie misji
+    case column_e::top_type: return QString::fromStdString(info::transform_mission_name(item.top_type));
+    default:                 return {};
+    }
+  }
+
+[[nodiscard]]
+auto mission_stat_model_t::headerData(int s, Qt::Orientation o, int r) const -> QVariant
+  {
+  if(r != Qt::DisplayRole || o != Qt::Horizontal)
+    return {};
+  switch(column_e(s))
+    {
+    case column_e::faction:  return "Faction";
+    case column_e::missions: return "Missions";
+    case column_e::rewards:  return "Rewards [kCr]";
+    case column_e::top_type: return "Mostly";
+    default:                 return {};
+    }
+  }
+
+auto mission_stat_model_t::update_data(std::vector<info::mission_stat_t> && new_data) -> void
+  {
+  beginResetModel();
+  rows_ = std::move(new_data);
+  endResetModel();
+  }
+
 faction_state_window_t::faction_state_window_t(current_state_t const & state, std::string db_path, QWidget * parent) :
     QMdiSubWindow(parent),
     state_(state),
@@ -588,6 +656,47 @@ auto faction_state_window_t::setup_ui() -> void
     }
   );
 
+  // --- zakladka z misjami ---
+  auto * missions_page = new QWidget(tabs);
+  auto * missions_layout = new QVBoxLayout(missions_page);
+
+  auto * mission_filter = new QHBoxLayout();
+  mission_filter->addWidget(new QLabel("Period:", missions_page));
+  mission_period_combo_ = new QComboBox(missions_page);
+  mission_period_combo_->addItem("This week", 7);
+  mission_period_combo_->addItem("Last 4 weeks", 28);
+  mission_period_combo_->addItem("Last 3 months", 90);
+  mission_period_combo_->addItem("All", 0);
+  mission_period_combo_->setCurrentIndex(1);
+  mission_filter->addWidget(mission_period_combo_);
+
+  missions_this_system_ = new QCheckBox("Taken in this system", missions_page);
+  missions_this_system_->setChecked(true);
+  mission_filter->addWidget(missions_this_system_);
+  mission_filter->addStretch(1);
+  missions_layout->addLayout(mission_filter);
+
+  mission_header_ = new QLabel(missions_page);
+  missions_layout->addWidget(mission_header_);
+
+  mission_model_ = new mission_stat_model_t(this);
+  auto * mission_proxy = new QSortFilterProxyModel(this);
+  mission_proxy->setSourceModel(mission_model_);
+  mission_proxy->setSortRole(mission_stat_model_t::sort_role);
+
+  mission_view_ = new QTableView();
+  mission_view_->setModel(mission_proxy);
+  mission_view_->setSortingEnabled(true);
+  mission_view_->sortByColumn(1, Qt::DescendingOrder);
+  mission_view_->setSelectionBehavior(QAbstractItemView::SelectRows);
+  mission_view_->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
+  mission_view_->horizontalHeader()->setStretchLastSection(true);
+  missions_layout->addWidget(mission_view_, 1);
+  tabs->addTab(missions_page, "Missions");
+
+  connect(mission_period_combo_, &QComboBox::activated, this, [this](int) { update_missions(); });
+  connect(missions_this_system_, &QCheckBox::toggled, this, [this](bool) { update_missions(); });
+
   layout->addWidget(tabs, 1);
 
   auto const select_index = [this](int index) -> void
@@ -730,6 +839,7 @@ auto faction_state_window_t::show_system(uint64_t system_address) -> void
 
   update_conflicts(system_address);
   update_stations(system_address);
+  update_missions();
 
   update_chart();
   }
@@ -872,6 +982,40 @@ auto faction_state_window_t::show_market(std::string_view station_name) -> void
   market_buys_model_->update_data(std::move(buys));
   market_sells_view_->resizeColumnsToContents();
   market_buys_view_->resizeColumnsToContents();
+  }
+
+auto faction_state_window_t::update_missions() -> void
+  {
+  auto const days{mission_period_combo_->currentData().toInt()};
+  auto const now{std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())};
+  auto const since{days > 0 ? now - std::chrono::days{days} : std::chrono::sys_seconds{}};
+  auto const scope{missions_this_system_->isChecked() ? shown_system_ : uint64_t{}};
+
+  auto res{db_.load_mission_stats(since, scope)};
+  if(not res)
+    {
+    spdlog::error("failed to load mission stats");
+    return;
+    }
+
+  uint32_t missions{};
+  uint64_t rewards{};
+  for(info::mission_stat_t const & row: *res)
+    {
+    missions += row.missions;
+    rewards += row.rewards;
+    }
+
+  mission_header_->setText(
+    missions == 0
+      ? QString{"No missions completed in this period"}
+      : qformat(
+          "{} missions for {} factions, {} kCr", missions, res->size(), format_credits_value(uint32_t(rewards / 1000))
+        )
+  );
+
+  mission_model_->update_data(std::move(*res));
+  mission_view_->resizeColumnsToContents();
   }
 
 auto faction_state_window_t::update_system_info(uint64_t system_address) -> void

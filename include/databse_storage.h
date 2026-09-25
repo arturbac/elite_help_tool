@@ -93,6 +93,12 @@ struct database_storage_t
   [[nodiscard]]
   auto load_carriers() -> expected_ec<std::vector<info::carrier_t>>;
 
+  ///\brief ukonczone misje per frakcja od podanej chwili
+  ///\detail system_address rozne od zera zaweza do misji wzietych w tym systemie
+  [[nodiscard]]
+  auto load_mission_stats(std::chrono::sys_seconds since, uint64_t system_address)
+    -> expected_ec<std::vector<info::mission_stat_t>>;
+
   ///\brief zdobycze zsumowane per material, z podzialem na sposob pozyskania
   [[nodiscard]]
   auto load_acquisition_summary(std::chrono::sys_seconds since)

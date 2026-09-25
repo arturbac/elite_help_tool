@@ -176,6 +176,42 @@ public:
   auto update_data(std::vector<info::market_entry_t> && new_data) -> void;
   };
 
+///\brief ile i jakich misji zrobilem dla poszczegolnych frakcji
+class mission_stat_model_t final : public QAbstractTableModel
+  {
+  Q_OBJECT
+
+  enum struct column_e : int
+    {
+    faction,
+    missions,
+    rewards,
+    top_type,
+    column_max
+    };
+
+public:
+  static constexpr int sort_role = Qt::UserRole + 1;
+
+  std::vector<info::mission_stat_t> rows_{};
+
+  explicit mission_stat_model_t(QObject * parent);
+
+  [[nodiscard]]
+  auto rowCount(QModelIndex const & parent = QModelIndex()) const -> int override;
+
+  [[nodiscard]]
+  auto columnCount(QModelIndex const & = QModelIndex()) const -> int override;
+
+  [[nodiscard]]
+  auto data(QModelIndex const & index, int role = Qt::DisplayRole) const -> QVariant override;
+
+  [[nodiscard]]
+  auto headerData(int section, Qt::Orientation orientation, int role) const -> QVariant override;
+
+  auto update_data(std::vector<info::mission_stat_t> && new_data) -> void;
+  };
+
 class faction_state_window_t final : public QMdiSubWindow
   {
   Q_OBJECT
@@ -214,6 +250,12 @@ public:
   QCheckBox * hide_carriers_{};
   QCheckBox * hide_installations_{};
 
+  QComboBox * mission_period_combo_{};
+  QCheckBox * missions_this_system_{};
+  QLabel * mission_header_{};
+  mission_stat_model_t * mission_model_{};
+  QTableView * mission_view_{};
+
   QTabWidget * tabs_{};
   QLabel * market_header_{};
   market_model_t * market_sells_model_{};
@@ -237,6 +279,8 @@ private:
 
   ///\brief pokazuje rynek stacji klikietej na liscie i przelacza na jego zakladke
   auto show_market(std::string_view station_name) -> void;
+
+  auto update_missions() -> void;
 
   ///\brief jeden punkt na dobe, ostatni pomiar dnia, ograniczone do wybranego zakresu
   auto update_chart() -> void;

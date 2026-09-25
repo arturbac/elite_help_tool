@@ -1574,6 +1574,42 @@ auto database_storage_t::load_carrier_stock(std::string_view carrier_id)
   );
   }
 
+auto database_storage_t::load_mission_stats(std::chrono::sys_seconds since, uint64_t system_address)
+  -> expected_ec<std::vector<info::mission_stat_t>>
+  {
+  // zawezenie do systemu idzie przez stacje w ktorej misja zostala wzieta,
+  // kazde zrodlo ma wlasny alias stacji wiec warunek budujemy osobno dla kazdego
+  auto const scope_for{
+    [system_address](std::string_view alias) -> std::string
+    {
+      if(system_address == 0)
+        return {};
+      return std::format(" AND {}.system_address = {}", alias, system_address);
+    }
+  };
+  std::string const scope{scope_for("st")};
+  std::string const inner_scope{scope_for("bs")};
+
+  return sqlite::select_from<info::mission_stat_t>(
+    db_->db,
+    std::format(
+      "(SELECT m.faction AS faction, count(*) AS missions, sum(m.reward) AS rewards,"
+      " (SELECT b.type FROM {0} b LEFT JOIN {1} bs ON bs.market_id = b.market_id"
+      "  WHERE b.faction = m.faction AND b.status = 'completed' AND b.closed >= '{2:%Y-%m-%dT%H:%M:%SZ}'{4}"
+      "  GROUP BY b.type ORDER BY count(*) DESC LIMIT 1) AS top_type"
+      " FROM {0} m LEFT JOIN {1} st ON st.market_id = m.market_id"
+      " WHERE m.status = 'completed' AND m.closed >= '{2:%Y-%m-%dT%H:%M:%SZ}'{3}"
+      " GROUP BY m.faction ORDER BY missions DESC)",
+      sql_iface::tables::mission,
+      sql_iface::tables::station,
+      since,
+      scope,
+      inner_scope
+    ),
+    ""
+  );
+  }
+
 auto database_storage_t::load_acquisition_summary(std::chrono::sys_seconds since)
   -> expected_ec<std::vector<info::acquisition_summary_t>>
   {
