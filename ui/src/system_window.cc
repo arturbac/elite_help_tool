@@ -517,6 +517,7 @@ auto system_window_t::refresh_ui() -> void
 
 auto system_window_t::setup_ui() -> void
   {
+  setWindowTitle("System");
   auto * central_widget = new QWidget();
   auto * main_layout = new QVBoxLayout(central_widget);
 

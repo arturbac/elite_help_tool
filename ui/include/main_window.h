@@ -18,6 +18,7 @@
 
 enum struct window_type_e
   {
+  ///\brief nieuzywane, zostaje dla zapisanych ukladow z czasow okien zastepczych
   none,
   system,
   journal_log,
@@ -63,15 +64,24 @@ public:
 
   auto closeEvent(QCloseEvent * event) -> void override;
 
+  ///\brief pokazuje okno narzedziowe i wyciaga je na wierzch MDI
+  auto activate_window(window_type_e type) -> void;
+
 private:
+  [[nodiscard]]
+  auto subwindow_for(window_type_e type) const -> QMdiSubWindow *;
+
+  ///\brief wpina okno w MDI, znakuje typem i odbiera mu mozliwosc zamkniecia
+  auto add_tool_window(QMdiSubWindow * sub, window_type_e type) -> void;
+
+  /// filtr blokujacy zamykanie okien narzedziowych
+  QObject * close_blocker_{};
+
   auto background_worker(std::stop_token stoken) -> void;
 
   auto setup_ui() -> void;
 
   auto setup_toolbox() -> void;
-
-  [[nodiscard]]
-  auto create_tool_window(QString const & title) -> QMdiSubWindow *;
 
   auto save_settings() -> void;
 

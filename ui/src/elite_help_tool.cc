@@ -15,12 +15,28 @@
 #include <qscrollarea.h>
 #include <qgroupbox.h>
 
-// Struktura reprezentująca definicję przycisku narzędziowego
-struct tool_definition_t
+namespace
   {
-  QString label;
-  QString window_title;
+///\brief okna narzedziowe zyja przez caly czas dzialania aplikacji
+///\detail kazde istnieje w jednej instancji i ma swoj przycisk na toolbarze, zamkniecie zostawiloby
+/// przycisk bez okna, wiec zdarzenie zamkniecia jest polykane
+class close_blocker_t final : public QObject
+  {
+public:
+  using QObject::QObject;
+
+protected:
+  auto eventFilter(QObject * watched, QEvent * event) -> bool override
+    {
+    if(event->type() == QEvent::Close)
+      {
+      event->ignore();
+      return true;
+      }
+    return QObject::eventFilter(watched, event);
+    }
   };
+  }  // namespace
 
 Q_DECLARE_METATYPE(window_type_e)
 
@@ -49,42 +65,77 @@ auto main_window_t::setup_ui() -> void
   mdi_area_->setViewMode(QMdiArea::SubWindowView);
   setCentralWidget(mdi_area_);
 
+  close_blocker_ = new close_blocker_t(this);
+
   setup_toolbox();
 
   system_view_ = new system_window_t(state_);
-  mdi_area_->addSubWindow(system_view_);
-  system_view_->setProperty("window_type", QVariant::fromValue(window_type_e::system));
-  system_view_->show();
+  add_tool_window(system_view_, window_type_e::system);
 
   ship_view_ = new ship_loadout_window_t(state_.ship_loadout);
-  mdi_area_->addSubWindow(ship_view_);
-  ship_view_->setProperty("window_type", QVariant::fromValue(window_type_e::ship));
-  ship_view_->show();
+  add_tool_window(ship_view_, window_type_e::ship);
 
   jlw_ = new journal_log_window_t{};
-  mdi_area_->addSubWindow(jlw_);
-  jlw_->setProperty("window_type", QVariant::fromValue(window_type_e::journal_log));
-  jlw_->show();
+  add_tool_window(jlw_, window_type_e::journal_log);
 
   mission_view_ = new mission_window_t{state_};
-  mdi_area_->addSubWindow(mission_view_);
-  mission_view_->setProperty("window_type", QVariant::fromValue(window_type_e::mission));
-  mission_view_->show();
-  
+  add_tool_window(mission_view_, window_type_e::mission);
+
   route_view_ = new route_window_t{state_};
-  mdi_area_->addSubWindow(route_view_);
-  route_view_->setProperty("window_type", QVariant::fromValue(window_type_e::route));
-  route_view_->show();
+  add_tool_window(route_view_, window_type_e::route);
 
   faction_view_ = new faction_window_t{state_};
-  mdi_area_->addSubWindow(faction_view_);
-  faction_view_->setProperty("window_type", QVariant::fromValue(window_type_e::faction));
-  faction_view_->show();
+  add_tool_window(faction_view_, window_type_e::faction);
 
   faction_state_view_ = new faction_state_window_t{state_, db_path_};
-  mdi_area_->addSubWindow(faction_state_view_);
-  faction_state_view_->setProperty("window_type", QVariant::fromValue(window_type_e::faction_state));
-  faction_state_view_->show();
+  add_tool_window(faction_state_view_, window_type_e::faction_state);
+  }
+
+auto main_window_t::add_tool_window(QMdiSubWindow * sub, window_type_e type) -> void
+  {
+  mdi_area_->addSubWindow(sub);
+  sub->setProperty("window_type", QVariant::fromValue(type));
+
+  // bez przycisku zamykania - okno jest jedno i ma zyc do konca sesji
+  // WindowSystemMenuHint dokladalby menu okna z pozycja zamknij, wiec go tu nie ma
+  sub->setWindowFlags(Qt::SubWindow | Qt::WindowTitleHint | Qt::WindowMinMaxButtonsHint);
+  sub->installEventFilter(close_blocker_);
+  sub->show();
+  }
+
+auto main_window_t::subwindow_for(window_type_e type) const -> QMdiSubWindow *
+  {
+  switch(type)
+    {
+    case window_type_e::system:        return system_view_;
+    case window_type_e::ship:          return ship_view_;
+    case window_type_e::mission:       return mission_view_;
+    case window_type_e::route:         return route_view_;
+    case window_type_e::faction:       return faction_view_;
+    case window_type_e::faction_state: return faction_state_view_;
+    case window_type_e::journal_log:   return jlw_;
+    case window_type_e::none:          break;
+    }
+  return nullptr;
+  }
+
+auto main_window_t::activate_window(window_type_e type) -> void
+  {
+  auto * sub{subwindow_for(type)};
+  if(not sub)
+    return;
+
+  if(sub->mdiArea() == nullptr)
+    mdi_area_->addSubWindow(sub);
+
+  // zwiniete okno trzeba wpierw rozwinac, samo raise() by go nie pokazalo
+  if(sub->isMinimized())
+    sub->showNormal();
+  else
+    sub->show();
+
+  sub->raise();
+  mdi_area_->setActiveSubWindow(sub);
   }
 
 auto main_window_t::setup_toolbox() -> void
@@ -93,36 +144,30 @@ auto main_window_t::setup_toolbox() -> void
   toolbox_dock->setMovable(false);
   addToolBar(Qt::LeftToolBarArea, toolbox_dock);
 
-  std::vector<tool_definition_t> const tools = {
-    {"Exploration", "Exploration View"},
-    {"Log", "System Logs"},
-    {"Systems", "Systems Overview"},
-    {"PVE PM", "PVE Performance Monitor"}
+  // po jednym przycisku na okno, klikniecie wyciaga je na wierzch
+  struct tool_button_t
+    {
+    window_type_e type;
+    QString label;
+    };
+
+  std::vector<tool_button_t> const tools{
+    {window_type_e::system, "System"},
+    {window_type_e::faction_state, "Factions"},
+    {window_type_e::faction, "Reputation"},
+    {window_type_e::mission, "Missions"},
+    {window_type_e::route, "Route"},
+    {window_type_e::ship, "Ship"},
+    {window_type_e::journal_log, "Log"}
   };
 
-  // Tworzenie przycisków na toolbarze
-  for(auto const & tool: tools)
+  for(tool_button_t const & tool: tools)
     {
     auto * btn = new QPushButton(tool.label, this);
     toolbox_dock->addWidget(btn);
 
-    connect(btn, &QPushButton::clicked, this, [this, title = tool.window_title]() { create_tool_window(title); });
+    connect(btn, &QPushButton::clicked, this, [this, type = tool.type]() { activate_window(type); });
     }
-
-  }
-
-auto main_window_t::create_tool_window(QString const & title) -> QMdiSubWindow *
-  {
-  auto * widget = new QWidget();
-  auto * layout = new QVBoxLayout(widget);
-  layout->addWidget(new QLabel("Content of " + title, widget));
-
-  auto * sub_window = mdi_area_->addSubWindow(widget);
-  sub_window->setWindowTitle(title);
-  sub_window->setAttribute(Qt::WA_DeleteOnClose);
-  sub_window->show();
-  sub_window->setProperty("window_type", QVariant::fromValue(window_type_e::none));
-  return sub_window;
   }
 
 auto main_window_t::save_settings() -> void
@@ -166,22 +211,11 @@ auto main_window_t::load_settings() -> void
     settings.setArrayIndex(i);
     auto type_int = settings.value("type").toInt();
     auto type = static_cast<window_type_e>(type_int);
-    auto title = settings.value("title").toString();
     auto const pos_var = settings.value("pos");
     auto const size_var = settings.value("size");
 
-    QMdiSubWindow * sub{};
-    switch(type)
-      {
-      case window_type_e::none:        sub = create_tool_window(title); break;
-      case window_type_e::system:      sub = system_view_; break;
-      case window_type_e::ship:        sub = ship_view_; break;
-      case window_type_e::mission:     sub = mission_view_; break;
-      case window_type_e::route:     sub = route_view_; break;
-      case window_type_e::faction:     sub = faction_view_; break;
-      case window_type_e::faction_state: sub = faction_state_view_; break;
-      case window_type_e::journal_log: sub = jlw_; break;
-      }
+    // zapisy sprzed przebudowy toolbaru moga zawierac okna zastepcze, ktorych juz nie ma
+    QMdiSubWindow * sub{subwindow_for(type)};
     if(sub) [[likely]]
       {
       if(sub->mdiArea() == nullptr)

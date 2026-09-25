@@ -109,6 +109,7 @@ route_window_t::route_window_t(current_state_t const & state, QWidget * parent) 
 
 auto route_window_t::setup_ui() -> void
   {
+  setWindowTitle("Route");
   auto * central_widget = new QWidget(this);
   auto * layout = new QVBoxLayout(central_widget);
 

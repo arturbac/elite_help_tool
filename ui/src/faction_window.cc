@@ -140,7 +140,7 @@ faction_window_t::faction_window_t(current_state_t & state, QWidget * parent) : 
 
 auto faction_window_t::setup_ui() -> void
   {
-  setWindowTitle("Factions");
+  setWindowTitle("Faction reputation");
 
   auto * central_widget = new QWidget(this);
   auto * layout = new QVBoxLayout(central_widget);

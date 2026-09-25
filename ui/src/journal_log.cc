@@ -106,6 +106,7 @@ journal_log_window_t::journal_log_window_t(QWidget * parent) : QMdiSubWindow(par
 
 auto journal_log_window_t::setup_ui() -> void
   {
+  setWindowTitle("Journal log");
   auto * central_widget = new QWidget();
   auto * layout = new QVBoxLayout(central_widget);
   m_list_widget = new QListWidget(central_widget);
