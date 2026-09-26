@@ -53,13 +53,21 @@ namespace
     }
 
   ///\brief width of the screen in the middle, which is the only one the player looks at
-  ///\detail the layer sees one surface spanning every monitor and cannot tell where one ends, so the
-  /// width of the middle one is told to it rather than guessed
+  ///
+  /// The layer sees one surface spanning every monitor and cannot see where one ends - but it does not
+  /// have to. The game draws its own interface on the middle screen at the ordinary shape of a monitor
+  /// however wide the whole surface is, so that screen's width follows from its height: 2160 tall makes
+  /// it 3840 across, whether the surface beside it is 8000 or twice that. Only a middle screen of an
+  /// unusual shape needs telling, which EHT_OVERLAY_CENTRE_WIDTH still does.
   [[nodiscard]]
-  auto centre_screen_width(float display_width) noexcept -> float
+  auto centre_screen_width(ImVec2 display) noexcept -> float
     {
-    static float const width{env_float("EHT_OVERLAY_CENTRE_WIDTH", 0.f)};
-    return width > 0.f and width <= display_width ? width : display_width;
+    static float const told{env_float("EHT_OVERLAY_CENTRE_WIDTH", 0.f)};
+    if(told > 0.f and told <= display.x)
+      return told;
+
+    constexpr float ordinary_shape{16.f / 9.f};
+    return std::min(display.y * ordinary_shape, display.x);
     }
 
   ///\brief how much smaller the small text is than the ordinary text
@@ -104,19 +112,18 @@ namespace
 
   ///\brief width of the band at the screen edge we are allowed to draw in
   [[nodiscard]]
-  auto side_band_width(float display_width) noexcept -> float
+  auto side_band_width(ImVec2 display) noexcept -> float
     {
     if(side_band_override() > 0.f)
       return side_band_override();
 
-    // Once the middle screen's width is known the band is not a guess any more: it is exactly the
-    // screen beside it, edge to edge, and every pixel of it is outside where the player looks
-    if(float const centre{centre_screen_width(display_width)}; centre < display_width)
-      return std::max(240.f, (display_width - centre) * 0.5f);
+    // The band is not a guess: it is exactly the screen beside the middle one, edge to edge, and
+    // every pixel of it lies outside where the player looks
+    if(float const centre{centre_screen_width(display)}; centre < display.x)
+      return std::max(240.f, (display.x - centre) * 0.5f);
 
-    // a fifth of the width suits both 16:9 and a triple monitor, where it works out to
-    // roughly what is left outside the part the player actually looks at
-    return std::clamp(display_width * 0.2f, 240.f, 1600.f);
+    // on a single screen the middle one is the whole surface, so the band goes back to a fifth of it
+    return std::clamp(display.x * 0.2f, 240.f, 1600.f);
     }
 
   [[nodiscard]]
@@ -587,7 +594,7 @@ namespace
     };
 
     ImVec2 const display{ImGui::GetIO().DisplaySize};
-    float const band{side_band_width(display.x)};
+    float const band{side_band_width(display)};
 
     for(auto const corner:
         {overlay::corner_e::top_left,
@@ -611,7 +618,7 @@ namespace
         corner == overlay::corner_e::centre_top_left or corner == overlay::corner_e::centre_top_right
       };
       // a head-up readout is glanced at, not read - past this width it stops being a glance
-      float const width{head_up ? std::min(band, centre_screen_width(display.x) * 0.22f) : band};
+      float const width{head_up ? std::min(band, centre_screen_width(display) * 0.22f) : band};
 
       auto const [position, pivot]{corner_position(corner, display)};
       ImGui::SetNextWindowBgAlpha(0.35f);
