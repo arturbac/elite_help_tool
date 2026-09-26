@@ -525,6 +525,41 @@ auto ensure_resources(swapchain_data_t & data, VkQueue queue) -> bool
   return true;
   }
 
+auto renew_present_semaphore(swapchain_data_t & data, uint32_t image_index) noexcept -> void
+  {
+  if(data.device == nullptr or image_index >= data.frames.size())
+    return;
+
+  device_data_t & device{*data.device};
+  frame_resources_t & frame{data.frames[image_index]};
+
+  // nasze zgloszenie moze jeszcze pracowac, wiec najpierw czekamy az skonczy
+  if(frame.submitted)
+    {
+    if(device.WaitForFences(device.device, 1u, &frame.fence, VK_TRUE, fence_timeout_ns) != VK_SUCCESS)
+      {
+      data.broken = true;
+      return;
+      }
+    device.ResetFences(device.device, 1u, &frame.fence);
+    frame.submitted = false;
+    }
+
+  VkSemaphoreCreateInfo const semaphore_info{
+    .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO, .pNext = nullptr, .flags = 0u
+  };
+  VkSemaphore replacement{};
+  if(device.CreateSemaphore(device.device, &semaphore_info, nullptr, &replacement) != VK_SUCCESS)
+    {
+    data.broken = true;
+    return;
+    }
+
+  device.DestroySemaphore(device.device, frame.semaphore, nullptr);
+  frame.semaphore = replacement;
+  log("present failed, presentation semaphore replaced for image {}", image_index);
+  }
+
 auto draw_overlay(
   swapchain_data_t & data, VkQueue queue, uint32_t image_index, VkSemaphore const * wait, uint32_t wait_count
 ) noexcept -> VkSemaphore

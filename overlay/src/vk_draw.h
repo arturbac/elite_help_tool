@@ -10,6 +10,13 @@ auto ensure_resources(swapchain_data_t & data, VkQueue queue) -> bool;
 
 auto destroy_resources(swapchain_data_t & data) -> void;
 
+///\brief odtwarza semafor prezentacji po nieudanym present
+///
+/// gdy vkQueuePresentKHR zwroci blad, specyfikacja nie gwarantuje ze operacja czekania na semafor
+/// zostala w ogole zakolejkowana. taki semafor moze zostac zasygnalizowany na zawsze, a ponowne
+/// zasygnalizowanie go nastepnym zgloszeniem to blad, ktory konczy sie zawieszeniem kolejki
+auto renew_present_semaphore(swapchain_data_t & data, uint32_t image_index) noexcept -> void;
+
 ///\brief rysuje overlay na wskazanym obrazie; zwraca semafor do odczekania przez present
 ///
 /// VK_NULL_HANDLE oznacza ze nic nie narysowano i present ma isc dalej z oryginalnymi semaforami.

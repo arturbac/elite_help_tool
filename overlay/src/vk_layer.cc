@@ -421,6 +421,9 @@ namespace
       return data->QueuePresentKHR(queue, present_info);
 
     std::array<VkSemaphore, max_swapchains_per_present> signalled{};
+    // po nieudanym present trzeba wiedziec czyj semafor sprzatnac
+    std::array<swapchain_data_t *, max_swapchains_per_present> owners{};
+    std::array<uint32_t, max_swapchains_per_present> owner_images{};
     uint32_t signalled_count{};
 
     VkSemaphore const * wait{present_info->pWaitSemaphores};
@@ -438,6 +441,8 @@ namespace
         continue;
 
       signalled[signalled_count] = semaphore;
+      owners[signalled_count] = entry;
+      owner_images[signalled_count] = present_info->pImageIndices[index];
       ++signalled_count;
       // oryginalne semafory konsumuje pierwsze nasze zgloszenie, kolejne nie maja juz na co czekac
       wait = nullptr;
@@ -450,7 +455,16 @@ namespace
     VkPresentInfoKHR patched{*present_info};
     patched.waitSemaphoreCount = signalled_count;
     patched.pWaitSemaphores = signalled.data();
-    return data->QueuePresentKHR(queue, &patched);
+
+    VkResult const result{data->QueuePresentKHR(queue, &patched)};
+
+    // VK_SUBOPTIMAL_KHR to nadal odbyta prezentacja, wiec semafor zostal skonsumowany;
+    // kazdy inny blad, a zwlaszcza OUT_OF_DATE po zmianie okna, nie daje takiej pewnosci
+    if(result != VK_SUCCESS and result != VK_SUBOPTIMAL_KHR) [[unlikely]]
+      for(uint32_t index{}; index != signalled_count; ++index)
+        renew_present_semaphore(*owners[index], owner_images[index]);
+
+    return result;
     }
 
   VKAPI_ATTR auto VKAPI_CALL overlay_EnumerateInstanceLayerProperties(uint32_t * count, VkLayerProperties * properties)
