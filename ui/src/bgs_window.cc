@@ -61,7 +61,7 @@ auto bgs_effort_model_t::data(QModelIndex const & index, int role) const -> QVar
       case column_e::closed_by:
         // zerowy znacznik znaczy, ze fala jeszcze nie przyszla i doba trwa
         return row.closed_by == std::chrono::sys_seconds{}
-                 ? QString{"trwa"}
+                 ? QString{"running"}
                  : QString::fromStdString(std::format("{:%d.%m %H:%M}", row.closed_by));
       case column_e::system:      return QString::fromStdString(row.system_name);
       case column_e::population:  return QString::fromStdString(info::format_population(row.population));
@@ -113,26 +113,26 @@ auto bgs_effort_model_t::data(QModelIndex const & index, int role) const -> QVar
 
   if(role == Qt::ToolTipRole and column == column_e::rate)
     return QString{
-      "Plusow na jeden punkt procentowy w TYM systemie i TEJ dobie.\n"
-      "Liczone dla calego systemu, nie dla pojedynczej frakcji: wplywy sumuja sie\n"
-      "do stu procent, wiec frakcje pchane tego samego dnia dziela jeden przyrost.\n"
+      "Pluses per percentage point in THIS system and THIS day.\n"
+      "Counted for the whole system, not a single faction: influence adds up\n"
+      "to a hundred percent, so factions pushed the same day share one gain.\n"
       "\n"
-      "To srednia po tym, kogo akurat tej doby pchano - te same plusy kupuja wiecej\n"
-      "punktow frakcji z dolu stawki niz liderowi systemu, wiec dzien pracy dla\n"
-      "slabszej frakcji wyjdzie taniej niz ten sam wysilek wlozony w silniejsza.\n"
-      "Gra dzieli tez wplyw misji przez wielkosc systemu, wiec tej liczby\n"
-      "nie wolno porownywac miedzy systemami o roznej populacji."
+      "It is an average over whoever was pushed that day - the same pluses buy more\n"
+      "points for a faction at the bottom than for the system leader, so a day spent on\n"
+      "the weaker faction comes out cheaper than the same effort put into the stronger one.\n"
+      "The game also divides a mission's influence by the size of the system, so this number\n"
+      "must not be compared between systems of different population."
     };
 
   if(role == Qt::ToolTipRole and column == column_e::share)
     return QString{
-      "Czesc calej pracy w gore wlozonej tej doby w ten system,\n"
-      "ktora poszla wlasnie na te frakcje.\n"
+      "The share of all upward work put into this system that day\n"
+      "that went to this faction.\n"
       "\n"
-      "To udzial w WYSILKU, nie w przyroscie. Te same piec punktow podnosi\n"
-      "frakcje lezaca na dnie znacznie mocniej niz taka z dziewiecdziesiecioma\n"
-      "procentami, wiec rowny podzial pracy nie daje rownego podzialu punktow -\n"
-      "kolumna obok mowi, z jakiego poziomu kazda z nich startowala."
+      "This is a share of the EFFORT, not of the gain. The same five points lift\n"
+      "a faction at the bottom far more than one holding ninety\n"
+      "percent, so an even split of work is not an even split of points -\n"
+      "the column beside it says what level each started from."
     };
 
   if(role == Qt::TextAlignmentRole)
@@ -156,16 +156,16 @@ auto bgs_effort_model_t::headerData(int section, Qt::Orientation orientation, in
 
   switch(column_e(section))
     {
-    case column_e::closed_by:   return QString{"Zamknieta (UTC)"};
+    case column_e::closed_by:   return QString{"Closed (UTC)"};
     case column_e::system:      return QString{"System"};
-    case column_e::population:  return QString{"Populacja"};
-    case column_e::faction:       return QString{"Frakcja"};
-    case column_e::faction_state: return QString{"Stan"};
-    case column_e::missions:    return QString{"Misje"};
-    case column_e::pluses:      return QString{"Plusy"};
-    case column_e::share:       return QString{"Udzial"};
-    case column_e::influence:   return QString{"Wplyw"};
-    case column_e::rate:        return QString{"Plus/pp"};
+    case column_e::population:  return QString{"Population"};
+    case column_e::faction:       return QString{"Faction"};
+    case column_e::faction_state: return QString{"State"};
+    case column_e::missions:    return QString{"Missions"};
+    case column_e::pluses:      return QString{"Pluses"};
+    case column_e::share:       return QString{"Share"};
+    case column_e::influence:   return QString{"Influence"};
+    case column_e::rate:        return QString{"Plus/pt"};
     case column_e::column_max:  break;
     }
 
@@ -206,9 +206,9 @@ auto war_onset_model_t::data(QModelIndex const & index, int role) const -> QVari
   auto const state = [&]() -> std::string
   {
     if(row.status == "pending")
-      return "zapowiedziana";
+      return "announced";
 
-    return std::format("{} : {}{}", row.won_days1, row.won_days2, row.status.empty() ? "" : " trwa");
+    return std::format("{} : {}{}", row.won_days1, row.won_days2, row.status.empty() ? "" : " running");
   };
 
   ///\brief zielony gdy ta strona prowadzi, czerwony gdy przegrywa, bez koloru przy remisie
@@ -256,9 +256,9 @@ auto war_onset_model_t::data(QModelIndex const & index, int role) const -> QVari
 
   if(role == Qt::ToolTipRole)
     return QString{
-      "Wojna ruszyla gdzies w tym oknie - gra nie zapisuje tego momentu nigdzie.\n"
-      "Szerokosc okna zawiera takze czas, w ktorym nie bylo nas w systemie,\n"
-      "a osady wchodza w stan wojny jeszcze pozniej niz sam konflikt."
+      "The war started somewhere in this window - the game records that moment nowhere.\n"
+      "The width also covers the time we were not in the system,\n"
+      "and settlements enter the war state later than the conflict itself."
     };
 
   if(role == Qt::ForegroundRole and column == column_e::faction1)
@@ -281,13 +281,13 @@ auto war_onset_model_t::headerData(int section, Qt::Orientation orientation, int
   switch(column_e(section))
     {
     case column_e::system:       return QString{"System"};
-    case column_e::war_type:     return QString{"Typ"};
-    case column_e::window:       return QString{"Okno"};
-    case column_e::faction1:     return QString{"Frakcja A"};
-    case column_e::state:        return QString{"Stan"};
-    case column_e::faction2:     return QString{"Frakcja B"};
-    case column_e::pending_last: return QString{"Zapowiedziana (UTC)"};
-    case column_e::active_first: return QString{"Zauwazona (UTC)"};
+    case column_e::war_type:     return QString{"Type"};
+    case column_e::window:       return QString{"Window"};
+    case column_e::faction1:     return QString{"Faction A"};
+    case column_e::state:        return QString{"State"};
+    case column_e::faction2:     return QString{"Faction B"};
+    case column_e::pending_last: return QString{"Announced (UTC)"};
+    case column_e::active_first: return QString{"Seen running (UTC)"};
     case column_e::column_max:   break;
     }
 
@@ -320,11 +320,11 @@ auto bgs_window_t::setup_ui() -> void
   auto * controls = new QHBoxLayout();
   period_combo_ = new QComboBox(central_widget);
   for(uint32_t const days: periods)
-    period_combo_->addItem(QString::fromStdString(std::format("ostatnie {} dni", days)), QVariant{days});
+    period_combo_->addItem(QString::fromStdString(std::format("last {} days", days)), QVariant{days});
   period_combo_->setCurrentIndex(1);
 
   system_combo_ = new QComboBox(central_widget);
-  controls->addWidget(new QLabel("Okres:", central_widget));
+  controls->addWidget(new QLabel("Period:", central_widget));
   controls->addWidget(period_combo_);
   controls->addWidget(new QLabel("System:", central_widget));
   controls->addWidget(system_combo_, 1);
@@ -361,7 +361,7 @@ auto bgs_window_t::setup_ui() -> void
   );
   view_->setTextElideMode(Qt::ElideRight);
   effort_layout->addWidget(view_, 1);
-  tabs->addTab(effort_page, "Praca");
+  tabs->addTab(effort_page, "Effort");
 
   // --- kiedy wojny naprawde ruszaly ---
   auto * war_page = new QWidget(tabs);
@@ -385,7 +385,7 @@ auto bgs_window_t::setup_ui() -> void
   war_view_->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
   war_view_->sortByColumn(war_onset_model_t::default_sort_column, Qt::DescendingOrder);
   war_layout->addWidget(war_view_, 1);
-  tabs->addTab(war_page, "Poczatki wojen");
+  tabs->addTab(war_page, "War onsets");
 
   layout->addWidget(tabs, 1);
   setWidget(central_widget);
@@ -421,7 +421,7 @@ auto bgs_window_t::reload_systems() -> void
   auto const previous{system_combo_->currentData()};
 
   system_combo_->clear();
-  system_combo_->addItem("wszystkie", QVariant{qulonglong(0)});
+  system_combo_->addItem("all", QVariant{qulonglong(0)});
   for(info::system_ref_t const & system: *systems)
     system_combo_->addItem(
       QString::fromStdString(system.name.empty() ? std::format("{}", system.system_address) : system.name),
@@ -446,12 +446,12 @@ auto bgs_window_t::show_effort() -> void
 
   model_->update_data(std::move(*effort));
 
-  // kolumna "zamknieta" podaje wykryta fale, wiec obok musi stac to, jak pewna ta wiedza jest
-  std::string header{"brak zaobserwowanych przeliczen"};
+  // kolumna "closed" podaje wykryta fale, wiec obok musi stac to, jak pewna ta wiedza jest
+  std::string header{"no recalculations observed"};
   if(auto stats{db_.load_tick_stats(info::tick_kind_e::influence, days)}; stats and stats->waves > 0u)
     header = std::format(
-      "fal przeliczen: {} | przerwa typowo {:.1f}h, najdluzej {:.1f}h | okno pomiaru typowo {} min"
-      " | najszersza propagacja po galaktyce {} min",
+      "waves: {} | gap typically {:.1f}h, longest {:.1f}h | measurement window typically {} min"
+      " | widest spread across the galaxy {} min",
       stats->waves,
       double(stats->typical_gap.count()) / 60.0,
       double(stats->longest_gap.count()) / 60.0,
@@ -483,14 +483,14 @@ auto bgs_window_t::show_wars() -> void
       double(std::chrono::duration_cast<std::chrono::minutes>(row.active_first - row.pending_last).count()) / 60.0
     );
 
-  std::string header{"brak wojen z zapisanym przejsciem z zapowiedzi w stan wojny"};
+  std::string header{"no wars with a recorded transition from announced to running"};
   if(not windows.empty())
     {
     std::ranges::sort(windows);
     header = std::format(
-      "{} wojen z calej zapisanej historii | okno najkrotsze {:.1f}h, mediana {:.1f}h, najdluzsze {:.1f}h"
-      " | to gorne ograniczenia - zawieraja tez czas, w ktorym nas tam nie bylo,"
-      " a osady wchodza w stan wojny jeszcze pozniej",
+      "{} wars across the whole recorded history | window shortest {:.1f}h, median {:.1f}h, longest {:.1f}h"
+      " | these are upper bounds - they also cover the time we were not there,"
+      " and settlements enter the war state later still",
       windows.size(),
       windows.front(),
       windows[windows.size() / 2u],

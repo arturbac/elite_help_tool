@@ -54,7 +54,7 @@ auto main(int argc, char ** argv) -> int
 
   ::execvp(argv[1], argv + 1);
 
-  // wracamy tu wylacznie wtedy gdy gra sie nie uruchomila
-  std::fprintf(stderr, "eht-overlay-run: nie mozna uruchomic %s: %s\n", argv[1], std::strerror(errno));
+  // we only get here when the game failed to start
+  std::fprintf(stderr, "eht-overlay-run: cannot launch %s: %s\n", argv[1], std::strerror(errno));
   return 127;
   }

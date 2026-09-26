@@ -202,10 +202,10 @@ auto micro_resource_window_t::setup_ui() -> void
   carrier_combo_ = new QComboBox(stock_page);
   carrier_row->addWidget(carrier_combo_, 1);
 
-  mark_mine_ = new QCheckBox("moj", stock_page);
-  mark_mine_->setToolTip("Oznacz ten flotowiec jako wlasny");
-  only_mine_ = new QCheckBox("tylko moje", stock_page);
-  only_mine_->setToolTip("Ukryj flotowce obce - ich bartendera widac przy kazdym dokowaniu");
+  mark_mine_ = new QCheckBox("mine", stock_page);
+  mark_mine_->setToolTip("Mark this carrier as your own");
+  only_mine_ = new QCheckBox("only mine", stock_page);
+  only_mine_->setToolTip("Hide foreign carriers - their bartender shows up at every docking");
   carrier_row->addWidget(mark_mine_);
   carrier_row->addWidget(only_mine_);
   stock_layout->addLayout(carrier_row);
@@ -356,8 +356,8 @@ auto micro_resource_window_t::carrier_stats_line(std::string_view carrier_id) ->
 
   info::carrier_t const & stats{**carrier};
   return qformat(
-           "\npaliwo {} t | wolne {} z {} t | saldo {} Cr (dostepne {}) | skok {:.0f} z {:.0f} ly"
-           " | {} | stan na {:%Y-%m-%d %H:%M} UTC",
+           "\nfuel {} t | free {} of {} t | balance {} Cr (available {}) | jump {:.0f} of {:.0f} ly"
+           " | {} | as of {:%Y-%m-%d %H:%M} UTC",
            stats.fuel_level,
            stats.free_space,
            stats.total_capacity,
@@ -365,7 +365,7 @@ auto micro_resource_window_t::carrier_stats_line(std::string_view carrier_id) ->
            QLocale{}.toString(qulonglong{stats.available_balance}).toStdString(),
            stats.jump_range_curr,
            stats.jump_range_max,
-           stats.docking_access.empty() ? std::string{"dostep nieznany"} : stats.docking_access,
+           stats.docking_access.empty() ? std::string{"access unknown"} : stats.docking_access,
            stats.stats_seen
   )
     .toStdString();

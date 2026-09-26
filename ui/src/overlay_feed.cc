@@ -401,7 +401,7 @@ auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
   {
     tick_view_t const view{describe_tick(db_, factions_system_, kind, wall_clock)};
     return overlay::line_t{
-      .text = std::format("{} {}{}", caption, view.here, view.awaiting ? "  (fala ruszyla, tu jeszcze nie)" : ""),
+      .text = std::format("{} {}{}", caption, view.here, view.awaiting ? "  (wave started, not here yet)" : ""),
       .color = view.awaiting ? colour_alert : colour_plain
     };
   };
@@ -469,8 +469,8 @@ auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
         conflict_lines_.insert(
           conflict_lines_.begin(),
           overlay::line_t{
-            .text = decides_now ? std::format("{}: rozstrzyga sie najblizszym tickiem - bondy na reke", war.war_type)
-                                : std::format("{}: jeszcze {} tickow wojny", war.war_type, war.ticks_left),
+            .text = decides_now ? std::format("{}: decided at the next tick - have bonds ready", war.war_type)
+                                : std::format("{}: {} more war ticks", war.war_type, war.ticks_left),
             .color = decides_now ? colour_alert : colour_plain
           }
         );
@@ -1014,7 +1014,7 @@ auto overlay_feed_t::build_logistics_lines() const -> std::vector<overlay::line_
   if(auto port{db.load_last_port()}; port and *port)
     lines.push_back(
       overlay::line_t{
-        .text = std::format("ostatni port: {}, {} ({})", (*port)->name, (*port)->system, (*port)->station_type),
+        .text = std::format("last port: {}, {} ({})", (*port)->name, (*port)->system, (*port)->station_type),
         .color = colour_plain
       }
     );
@@ -1023,7 +1023,7 @@ auto overlay_feed_t::build_logistics_lines() const -> std::vector<overlay::line_
   if(not pending or pending->empty())
     return lines;
 
-  lines.push_back(overlay::line_t{.text = "statki w drodze:", .color = colour_heading});
+  lines.push_back(overlay::line_t{.text = "ships in transit:", .color = colour_heading});
   for(info::ship_transfer_t const & transfer: *pending)
     {
     auto const left{std::chrono::duration_cast<std::chrono::minutes>(transfer.arrives - now)};
@@ -1032,7 +1032,7 @@ auto overlay_feed_t::build_logistics_lines() const -> std::vector<overlay::line_
     lines.push_back(
       overlay::line_t{
         .text = std::format(
-          "  {} -> {}  za {}h {:02}min",
+          "  {} -> {}  in {}h {:02}min",
           transfer.ship_type,
           station and *station ? (*station)->name : std::format("market {}", transfer.to_market_id),
           left.count() / 60,

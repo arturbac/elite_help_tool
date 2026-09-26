@@ -157,7 +157,7 @@ route_window_t::route_window_t(current_state_t const & state, std::string db_pat
 
 auto route_window_t::load_from_file() -> void
   {
-  auto const chosen{QFileDialog::getOpenFileName(this, "Trasa neutronowa (spansh)", {}, "JSON (*.json)")};
+  auto const chosen{QFileDialog::getOpenFileName(this, "Neutron route (spansh)", {}, "JSON (*.json)")};
   if(chosen.isEmpty())
     return;
 
@@ -166,14 +166,14 @@ auto route_window_t::load_from_file() -> void
   if(auto res{glz::read_file_json<glz::opts{.error_on_unknown_keys = false}>(parsed, chosen.toStdString(), buffer)};
      res)
     {
-    info_label_->setText(QString{"Nie udalo sie odczytac trasy: %1"}.arg(chosen));
+    info_label_->setText(QString{"could not read the route: %1"}.arg(chosen));
     spdlog::error("route window: failed to parse {}", chosen.toStdString());
     return;
     }
 
   if(parsed.result.system_jumps.empty())
     {
-    info_label_->setText("Plik nie zawiera zadnych przystankow");
+    info_label_->setText("the file contains no waypoints");
     return;
     }
 
@@ -230,12 +230,12 @@ auto route_window_t::setup_ui() -> void
   auto * layout = new QVBoxLayout(central_widget);
 
   auto * controls = new QHBoxLayout();
-  load_button_ = new QPushButton("Wczytaj trase...", central_widget);
-  reversed_box_ = new QCheckBox("Od konca", central_widget);
+  load_button_ = new QPushButton("Load route...", central_widget);
+  reversed_box_ = new QCheckBox("Reversed", central_widget);
   // plik ze spansh jest droga powrotna, wiec odwrocenie jest normalnym przypadkiem, nie wyjatkiem
   reversed_box_->setChecked(true);
-  remember_button_ = new QPushButton("Zapamietaj", central_widget);
-  forget_button_ = new QPushButton("Zapomnij", central_widget);
+  remember_button_ = new QPushButton("Remember", central_widget);
+  forget_button_ = new QPushButton("Forget", central_widget);
   controls->addWidget(load_button_);
   controls->addWidget(reversed_box_);
   controls->addWidget(remember_button_);
@@ -362,17 +362,17 @@ auto route_window_t::show_route() -> void
     }
 
   QString const name{
-    QString::fromStdString(neutron_name_) + (remembered_ ? " [zapamietana]" : " [jednorazowa]")
+    QString::fromStdString(neutron_name_) + (remembered_ ? " [remembered]" : " [one-off]")
   };
 
   // Cel na poczatku - przy waskim oknie etykieta urywa sie z prawej, a to wlasnie jego trzeba
   // przeczytac po kazdym skoku; nazwa trasy jest tu najmniej pilna
   info_label_->setText(
-    next.empty() ? QString{"Na miejscu | %1"}.arg(name)
+    next.empty() ? QString{"Arrived | %1"}.arg(name)
                  // licznik i mianownik w tych samych jednostkach - przystankach, nie skokach
-                 : QString{"Nastepny: %1%2 | zostalo %3 z %4 przystankow | %5"}
+                 : QString{"Next: %1%2 | %3 of %4 stops left | %5"}
                      .arg(QString::fromStdString(next))
-                     .arg(copied ? "  (w schowku)" : "")
+                     .arg(copied ? "  (copied)" : "")
                      .arg(neutron_route_.size() - reached)
                      .arg(neutron_route_.size())
                      .arg(name)

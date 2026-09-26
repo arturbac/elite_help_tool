@@ -36,7 +36,7 @@ void print_war_onsets(database_storage_t & db)
   auto onsets{db.load_war_onsets()};
   if(not onsets)
     {
-    std::println(stderr, "nie udalo sie odczytac poczatkow wojen");
+    std::println(stderr, "could not read war onsets");
     return;
     }
 
@@ -47,14 +47,14 @@ void print_war_onsets(database_storage_t & db)
       double(std::chrono::duration_cast<std::chrono::minutes>(onset.active_first - onset.pending_last).count()) / 60.0
     );
 
-  std::println("\n=== POCZATKI WOJEN === {} konfliktow z zapisanym przejsciem pending -> active", onsets->size());
+  std::println("\n=== WAR ONSETS === {} conflicts with a recorded pending -> active transition", onsets->size());
   if(not lags.empty())
     {
     std::vector<double> sorted{lags};
     std::ranges::sort(sorted);
     std::println(
-      "przedzial niepewnosci: najkrotszy {:.1f}h, mediana {:.1f}h, najdluzszy {:.1f}h"
-      "  (gorne ograniczenie - zawiera tez czas, w ktorym nas tam nie bylo)",
+      "uncertainty window: shortest {:.1f}h, median {:.1f}h, longest {:.1f}h"
+      "  (an upper bound - it also covers the time we were not there)",
       sorted.front(),
       sorted[sorted.size() / 2u],
       sorted.back()
@@ -64,13 +64,13 @@ void print_war_onsets(database_storage_t & db)
   std::println(
     "{:<24}{:<9}{:>7}  {:<26}{:^15}{:<26}{:<19}{:<19}",
     "system",
-    "typ",
-    "okno",
-    "frakcja A",
-    "stan",
-    "frakcja B",
-    "zapowiedziana UTC",
-    "zauwazona UTC"
+    "type",
+    "window",
+    "faction A",
+    "state",
+    "faction B",
+    "announced UTC",
+    "seen running UTC"
   );
   for(size_t ix{}; ix < onsets->size() and ix < 25u; ++ix)
     {
@@ -78,8 +78,8 @@ void print_war_onsets(database_storage_t & db)
     // pusty status znaczy, ze wojna sie zamknela - dopiero wtedy wynik jest ostateczny
     std::string const state{
       onset.status == "pending"
-        ? std::string{"zapowiedziana"}
-        : std::format("{} : {}{}", onset.won_days1, onset.won_days2, onset.status.empty() ? "" : " trwa")
+        ? std::string{"announced"}
+        : std::format("{} : {}{}", onset.won_days1, onset.won_days2, onset.status.empty() ? "" : " running")
     };
 
     std::println(
@@ -106,30 +106,30 @@ void print_bgs_effort(database_storage_t & db, uint32_t within_days)
   auto effort{db.load_bgs_effort(within_days, 0u)};
   if(not effort)
     {
-    std::println(stderr, "nie udalo sie odczytac pracy BGS");
+    std::println(stderr, "could not read BGS effort");
     return;
     }
 
-  std::println("\n=== PRACA BGS === {} pozycji z ostatnich {} dni", effort->size(), within_days);
+  std::println("\n=== BGS EFFORT === {} rows from the last {} days", effort->size(), within_days);
   std::println(
-    "{:<16}{:<24}{:>9}  {:<24}{:<11}{:>5}{:>7}{:>7}{:>8}{:>17}{:>12}",
-    "zamknieta UTC",
+    "{:<16}{:<24}{:>9}  {:<24}{:<11}{:>5}{:>7}{:>7}{:>8}{:>18}{:>11}",
+    "closed UTC",
     "system",
-    "populacja",
-    "frakcja",
-    "stan",
+    "population",
+    "faction",
+    "state",
     "msn",
-    "w gore",
-    "w dol",
-    "udzial",
-    "wplyw przed/po",
-    "sys plus/pp"
+    "up",
+    "down",
+    "share",
+    "influence",
+    "sys pl/pt"
   );
 
   for(info::bgs_effort_t const & row: *effort)
     {
     std::string const closed{
-      row.closed_by == std::chrono::sys_seconds{} ? std::string{"trwa"} : std::format("{:%d.%m %H:%M}", row.closed_by)
+      row.closed_by == std::chrono::sys_seconds{} ? std::string{"running"} : std::format("{:%d.%m %H:%M}", row.closed_by)
     };
 
     std::string moved{"-"};
@@ -149,7 +149,7 @@ void print_bgs_effort(database_storage_t & db, uint32_t within_days)
       rate = std::format("{:.1f}", double(row.system_pushed_up) / *row.system_gain);
 
     std::println(
-      "{:<16}{:<24}{:>9}  {:<24}{:<11}{:>5}{:>7}{:>7}{:>8}{:>17}{:>12}",
+      "{:<16}{:<24}{:>9}  {:<24}{:<11}{:>5}{:>7}{:>7}{:>8}{:>18}{:>11}",
       closed,
       row.system_name.substr(0, 23),
       info::format_population(row.population),
@@ -177,21 +177,21 @@ void print_tick_history(database_storage_t & db, uint32_t within_days)
     auto facts{db.load_recent_ticks(kind, within_days)};
     if(not facts)
       {
-      std::println(stderr, "nie udalo sie odczytac historii tickow");
+      std::println(stderr, "could not read tick history");
       continue;
       }
 
     std::println(
-      "\n=== {} === {} fal z ostatnich {} dni",
-      kind == info::tick_kind_e::influence ? "WPLYWY (oddaj misje przed poczatkiem)"
-                                           : "WOJNY (bondy sprzedawaj po koncu)",
+      "\n=== {} === {} waves from the last {} days",
+      kind == info::tick_kind_e::influence ? "INFLUENCE (hand missions in before the start)"
+                                           : "WARS (sell bonds after the end)",
       facts->size(),
       within_days
     );
     if(auto stats{db.load_tick_stats(kind, within_days)}; stats)
       std::println(
-        "przerwa typowo {:.1f}h, najdluzej {:.1f}h | okno pomiaru typowo {} min"
-        " | fal z wiecej niz jednym systemem: {} z {} (najszersza propagacja {} min)",
+        "gap typically {:.1f}h, longest {:.1f}h | measurement window typically {} min"
+        " | waves seen in more than one system: {} of {} (widest spread {} min)",
         double(stats->typical_gap.count()) / 60.0,
         double(stats->longest_gap.count()) / 60.0,
         stats->typical_window.count(),
@@ -201,7 +201,7 @@ void print_tick_history(database_storage_t & db, uint32_t within_days)
       );
 
     std::println(
-      "{:<24}{:<24}{:>5}{:>10}{:>9}", "poczatek fali (UTC)", "koniec fali (UTC)", "sys", "odczytow", "do nast."
+      "{:<24}{:<24}{:>5}{:>10}{:>9}", "wave start (UTC)", "wave end (UTC)", "sys", "reads", "to next"
     );
 
     std::optional<std::chrono::sys_seconds> previous;
@@ -277,18 +277,18 @@ auto main(int argc, char ** argv) -> int
   };
 
   po::options_description desc("Opcje");
-  desc.add_options()("help,h", "Wyświetl pomoc")(
+  desc.add_options()("help,h", "show help")(
     "dir,d", po::value<std::string>()->default_value("."), "journal folder"
   )("commander,c",
     po::value<std::string>()->default_value(""),
-    "FID konta do ktorego nalezy baza; puste = konto z najnowszego journala, 'all' = bez rozroznienia"
+    "FID of the account this database belongs to; empty = account from the newest journal, 'all' = no distinction"
   )("ticks",
     po::value<uint32_t>()->implicit_value(30),
-    "wypisz zaobserwowane fale przeliczen z istniejacej bazy zamiast importowac, za tyle ostatnich dni"
+    "print the observed recalculation waves from the existing database instead of importing, for this many days"
   )("bgs",
     po::value<uint32_t>()->implicit_value(14),
-    "wypisz prace w plusach zestawiona z ruchem wplywow, doba po dobie, za tyle ostatnich dni"
-  )("wars", "wypisz jak pozno po zapowiedzi wojny naprawde ruszaly");
+    "print the effort in pluses against the influence it moved, day by day, for this many days"
+  )("wars", "print how late after the announcement the wars actually started");
 
   po::variables_map vm;
   try
@@ -298,7 +298,7 @@ auto main(int argc, char ** argv) -> int
     }
   catch(std::exception const & e)
     {
-    std::println(stderr, "Błąd parametrów: {}", e.what());
+    std::println(stderr, "bad arguments: {}", e.what());
     return 1;
     }
 
@@ -349,7 +349,7 @@ auto main(int argc, char ** argv) -> int
   // katalog bywa mieszany - prefix kopiowany na drugie konto zabiera ze soba cudze journale.
   // swiat bierzemy ze wszystkich, ale kariere tylko od wlasciciela tej bazy
   if(auto const & chosen{vm["commander"].as<std::string>()}; chosen == "all")
-    std::println("import bez rozrozniania kont");
+    std::println("importing without distinguishing accounts");
   else if(not chosen.empty())
     state.owner_fid = chosen;
   else if(not journals.empty())
@@ -358,13 +358,13 @@ auto main(int argc, char ** argv) -> int
     state.owner_fid = who.FID;
     if(not who.FID.empty())
       if(auto res{state.db_.store_owner(info::db_owner_t{.fid = who.FID, .name = who.Name})}; not res)
-        std::println(stderr, "nie udalo sie zapisac wlasciciela bazy");
+        std::println(stderr, "could not store the database owner");
     }
 
   if(not state.owner_fid.empty())
-    std::println("baza nalezy do konta {}", state.owner_fid);
+    std::println("database belongs to account {}", state.owner_fid);
   else
-    std::println("nie udalo sie ustalic konta - kariera zostanie wzieta ze wszystkich journali");
+    std::println("could not determine the account - career will be taken from every journal");
 
   for(fs::path const & p: journals)
     {

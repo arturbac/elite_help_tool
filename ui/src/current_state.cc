@@ -1088,7 +1088,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
             spdlog::error("failed to store carrier stats for {}", event.Callsign);
           else
             spdlog::info(
-              "Carrier {} [{}]: paliwo {} t, wolne {} t, saldo {}",
+              "Carrier {} [{}]: fuel {} t, free {} t, balance {}",
               event.Name,
               event.Callsign,
               event.FuelLevel,
@@ -1299,7 +1299,7 @@ auto describe_tick(
   // dwa tygodnie wystarcza zeby zlapac typowa przerwe, a nie ciagna calej historii przy kazdym skoku
   constexpr uint32_t window_days{14};
 
-  tick_view_t view{.here = "brak obserwacji", .galaxy = {}, .awaiting = false};
+  tick_view_t view{.here = "no observations", .galaxy = {}, .awaiting = false};
 
   auto waves{db.load_recent_ticks(kind, window_days)};
   auto mine{db.last_local_tick(system_address, kind)};
@@ -1315,7 +1315,7 @@ auto describe_tick(
   // dlatego to "nie wczesniej niz", a nie "dokladnie wtedy"
   if(*mine)
     // strefa przy kazdej godzinie - journal i gra chodza na UTC, zegar na pasku nie
-    view.here = std::format("zmiana {:%d.%m %H:%M} UTC, {} temu", **mine, hours_ago(**mine, now));
+    view.here = std::format("changed {:%d.%m %H:%M} UTC, {} ago", **mine, hours_ago(**mine, now));
 
   if(not waves->empty())
     {
@@ -1325,10 +1325,10 @@ auto describe_tick(
     // tyle, ze jeszcze do niego nie doszla albo ze jeszcze tam nie zagladalismy po ticku
     view.awaiting = not *mine or **mine < wave.start_begin;
 
-    std::string regularity{"za malo fal"};
+    std::string regularity{"too few waves"};
     if(stats->waves > 2u)
       regularity = std::format(
-        "co ~{:.0f}h, max {:.0f}h",
+        "every ~{:.0f}h, max {:.0f}h",
         double(stats->typical_gap.count()) / 60.0,
         double(stats->longest_gap.count()) / 60.0
       );

@@ -532,7 +532,7 @@ auto faction_state_window_t::setup_ui() -> void
   auto * overview_layout = new QVBoxLayout(overview);
 
   // --- przeliczenia gry, nad reszta bo wyznaczaja, do kiedy warto jeszcze oddawac misje ---
-  auto * tick_group = new QGroupBox("Przeliczenia", overview);
+  auto * tick_group = new QGroupBox("Recalculations", overview);
   auto * tick_form = new QFormLayout(tick_group);
 
   // Dwie kolumny obok siebie zamiast piatki wierszy jedna pod druga - te same fakty schodza
@@ -551,16 +551,16 @@ auto faction_state_window_t::setup_ui() -> void
     return {caption_label, value};
   };
 
-  bgs_tick_label_ = make_tick_label(tick_left, "BGS tutaj:").second;
-  bgs_galaxy_label_ = make_tick_label(tick_left, "BGS galaktyka:").second;
-  std::tie(war_tick_row_label_, war_tick_label_) = make_tick_label(tick_right, "War tutaj:");
-  std::tie(war_galaxy_row_label_, war_galaxy_label_) = make_tick_label(tick_right, "War galaktyka:");
+  bgs_tick_label_ = make_tick_label(tick_left, "BGS here:").second;
+  bgs_galaxy_label_ = make_tick_label(tick_left, "BGS galaxy:").second;
+  std::tie(war_tick_row_label_, war_tick_label_) = make_tick_label(tick_right, "War here:");
+  std::tie(war_galaxy_row_label_, war_galaxy_label_) = make_tick_label(tick_right, "War galaxy:");
 
   tick_columns->addLayout(tick_left, 1);
   tick_columns->addLayout(tick_right, 1);
   tick_form->addRow(tick_columns);
 
-  std::tie(war_countdown_row_label_, war_countdown_label_) = make_tick_label(tick_form, "Do rozstrzygniecia:");
+  std::tie(war_countdown_row_label_, war_countdown_label_) = make_tick_label(tick_form, "To resolution:");
 
   overview_layout->addWidget(tick_group);
 
@@ -1184,8 +1184,8 @@ auto faction_state_window_t::update_tick_labels(uint64_t system_address) -> void
     if(view.awaiting)
       // fala juz gdzies ruszyla, a tutaj jej jeszcze nie widzielismy - to nie znaczy, ze nie byla,
       // bo o systemie wiemy tylko tyle, ile zobaczylismy przy ostatniej wizycie
-      local.append(kind == info::tick_kind_e::influence ? "  |  fala ruszyla, tu jeszcze nie widziana"
-                                                        : "  |  fala ruszyla, bondy jeszcze nie przeliczone");
+      local.append(kind == info::tick_kind_e::influence ? "  |  wave started, not seen here yet"
+                                                        : "  |  wave started, bonds not recalculated yet");
 
     here->setText(QString::fromStdString(local));
     galaxy->setText(QString::fromStdString(view.galaxy.empty() ? std::string{"-"} : view.galaxy));
@@ -1220,13 +1220,13 @@ auto faction_state_window_t::update_tick_labels(uint64_t system_address) -> void
 
       countdown.append(std::format(
         "{}{} {}:{} {} - {}",
-        war.active ? "" : "(zapowiedziany) ",
+        war.active ? "" : "(announced) ",
         war.war_type,
         war.won_days1,
         war.won_days2,
         war.faction1,
-        war.ticks_left == 0u ? std::string{"ROZSTRZYGA SIE NAJBLIZSZYM TICKIEM - bondy na reke"}
-                             : std::format("jeszcze {} tickow wojny", war.ticks_left)
+        war.ticks_left == 0u ? std::string{"DECIDED AT THE NEXT TICK - have bonds ready"}
+                             : std::format("{} more war ticks", war.ticks_left)
       ));
       }
 

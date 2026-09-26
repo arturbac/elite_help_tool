@@ -45,8 +45,8 @@ auto sample_frame(uint64_t sequence) -> overlay::frame_t
         .corner = overlay::corner_e::top_right,
         .ttl_ms = sample_ttl_ms,
         .lines = {overlay::line_t{
-          .text = "bardzo dluga linia testowa ktora musi sie zawinac wewnatrz pasa bocznego "
-                  "zamiast wjezdzac na srodek ekranu zajmowany przez gre",
+          .text = "a very long test line that has to wrap inside the side band "
+                  "instead of running into the middle of the screen the game occupies",
           .color = colour_plain
         }}
       }
@@ -62,7 +62,7 @@ auto main() -> int
 
   if(not server.listening())
     {
-    std::fprintf(stderr, "nie mozna nasluchiwac na %s\n", path.c_str());
+    std::fprintf(stderr, "cannot listen on %s\n", path.c_str());
     return 1;
     }
 
