@@ -58,6 +58,17 @@ consteval auto adl_enum_bounds(happiness_e)
   return simple_enum::adl_info{unknown, despondent};
   }
 
+///\brief how far the journal has already been read into this database
+///\detail one row, so that starting the tool again does not walk the whole session back through
+/// the database writing what is already there. Compared against journal stamps and nothing else:
+/// the game's clock and this machine's need not agree, so the only safe comparison is like for like
+struct journal_progress_t
+  {
+  ///\brief always 1; the key exists so the write has something to conflict on
+  uint32_t id;
+  std::chrono::sys_seconds last_event;
+  };
+
 ///\brief the account this personal database belongs to
 ///\detail written during the import; the GUI reads it and refuses to add another commander's career, should
 /// somebody log into a second account from the same game profile
@@ -158,7 +169,7 @@ struct conflict_t
 auto to_conflict(uint64_t system_address, std::chrono::sys_seconds timestamp, events::conflict_t const & conflict)
   -> conflict_t;
 
-///\brief populacja skrocona do rzedu wielkosci - 74k, 9.9M, 2.0B
+///\brief the population cut down to its order of magnitude - 74k, 9.9M, 2.0B
 ///
 /// When comparing systems the order of magnitude is what counts, not single people: what decides is whether
 /// the system is a forty-thousand or a forty-million one, because that governs how much work

@@ -299,6 +299,14 @@ auto main_window_t::load_settings() -> void
 
 auto main_window_t::background_worker(std::stop_token stoken) -> void
   {
+  // How far this database was read last time, taken before a single line is replayed. Everything
+  // stamped at or before it is already written down
+  if(auto progress{state_.db_.load_journal_progress()}; progress and *progress)
+    {
+    state_.resume_from_ = **progress;
+    spdlog::info("journal already read up to {:%Y-%m-%dT%H:%M:%SZ}", state_.resume_from_);
+    }
+
   // the first filling of the faction list - db_ is touched from this thread alone
   state_.load_factions();
   QMetaObject::invokeMethod(
@@ -332,7 +340,15 @@ auto main_window_t::background_worker(std::stop_token stoken) -> void
       // the replay has reached the present. Whatever it said about a target was true at the time and
       // is not true now, and only from here is the state a picture of where the ship actually is -
       // which is the first moment the choice of window can be made on anything but a guess
+      spdlog::info(
+        "caught up: {} events handled, {} walked past as already written",
+        state_.events_handled_,
+        state_.events_walked_past_
+      );
+      // from here the stream is live, and nothing in it is ever skipped again
+      state_.catching_up_ = false;
       state_.forget_live_combat();
+      state_.remember_progress();
       bool const inhabited{not state_.system_factions.empty()};
       QMetaObject::invokeMethod(
         this, [this, inhabited]() { choose_opening_window(inhabited); }, Qt::QueuedConnection

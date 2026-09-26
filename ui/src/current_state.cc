@@ -222,6 +222,35 @@ static auto is_port(std::string_view station_type) -> bool
   return station_type != "OnFootSettlement" and station_type != "FleetCarrier" and not station_type.empty();
   }
 
+///\brief the events that say where the ship is and what it is flying
+///\detail these are replayed even when they are old, because nothing else rebuilds them: the system
+/// under us, the ship around us, the place we are standing in. They are a few dozen in a session
+/// against the thousands of scans, signals and kills that only ever need writing down once
+template<typename event_t>
+constexpr bool rebuilds_present_state{
+  std::same_as<event_t, events::location_t> or std::same_as<event_t, events::start_jump_t>
+  or std::same_as<event_t, events::fsd_jump_t> or std::same_as<event_t, events::fsd_target_t>
+  or std::same_as<event_t, events::loadout_t> or std::same_as<event_t, events::docked_t>
+  or std::same_as<event_t, events::undocked_t> or std::same_as<event_t, events::supercruise_entry_t>
+  or std::same_as<event_t, events::approach_settlement_t> or std::same_as<event_t, events::disembark_t>
+  or std::same_as<event_t, events::cargo_t> or std::same_as<event_t, events::missions_t>
+  or std::same_as<event_t, events::commander_t> or std::same_as<event_t, events::nav_route_t>
+  or std::same_as<event_t, events::nav_route_clear_t>
+};
+
+///\brief how often the mark is moved on disk while playing
+constexpr std::chrono::seconds progress_write_interval{60};
+
+void current_state_t::remember_progress()
+  {
+  if(last_event_ == std::chrono::sys_seconds{})
+    return;
+
+  progress_written_ = std::chrono::steady_clock::now();
+  if(auto res{db_.store_journal_progress(last_event_)}; not res)
+    spdlog::error("failed to record how far the journal was read");
+  }
+
 void current_state_t::forget_live_combat()
   {
   target = {};
@@ -235,6 +264,12 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
   {
   if(nullptr != parent->jlw_)
     {
+    // Already written down, and only on the way back to the present - after that everything is
+    // taken as it comes, because a game clock that stepped backwards must not silence live events
+    bool const already_written{catching_up_ and timestamp <= resume_from_};
+    if(timestamp > last_event_)
+      last_event_ = timestamp;
+
     bool update_system{};
     bool update_ship{};
     bool update_mission_info{};
@@ -252,6 +287,14 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
         };
 
         using T = std::decay_t<decltype(event)>;
+
+        if(already_written and not rebuilds_present_state<T>)
+          {
+          ++events_walked_past_;
+          return;
+          }
+        ++events_handled_;
+
         // a career belongs to a character - from another account's session we take only the world
       if constexpr(
         std::same_as<T, events::mission_accepted_t> or std::same_as<T, events::mission_completed_t>
@@ -1308,6 +1351,11 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
         },
         Qt::QueuedConnection
       );
+    // the mark is moved on from time to time rather than at every line; losing a minute of it only
+    // means a minute of journal walked again
+    if(not catching_up_ and std::chrono::steady_clock::now() - progress_written_ > progress_write_interval)
+      remember_progress();
+
     // the overlay is given a picture after every batch of events and decides for itself whether anything changed
     QMetaObject::invokeMethod(parent, [target = parent]() mutable { target->publish_overlay(); }, Qt::QueuedConnection);
 

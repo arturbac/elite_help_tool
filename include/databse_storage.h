@@ -369,6 +369,13 @@ struct database_storage_t
   [[nodiscard]]
   auto store_owner(info::db_owner_t const & owner) -> expected_ec<void>;
 
+  ///\brief marks how far the journal has been read into this database
+  auto store_journal_progress(std::chrono::sys_seconds last_event) -> expected_ec<void>;
+
+  ///\brief how far it had been read when the tool last ran
+  [[nodiscard]]
+  auto load_journal_progress() -> expected_ec<std::optional<std::chrono::sys_seconds>>;
+
   [[nodiscard]]
   auto load_owner() -> expected_ec<std::optional<info::db_owner_t>>;
 

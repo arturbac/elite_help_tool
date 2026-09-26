@@ -476,6 +476,7 @@ namespace tables
   inline constexpr std::string_view market_item{"live.market_item"};
   // what THIS character did - it stays in the personal database, with natural keys so it survives a galaxy rebuild
   inline constexpr std::string_view db_owner{"db_owner"};
+  inline constexpr std::string_view journal_progress{"journal_progress"};
   inline constexpr std::string_view system_progress{"system_progress"};
   inline constexpr std::string_view body_progress{"body_progress"};
   inline constexpr std::string_view genus_progress{"genus_progress"};
@@ -1347,6 +1348,12 @@ auto database_storage_t::create_database() -> expected_ec<void>
     auto res{sqlite::create_index(
       db_->db, sql_iface::tables::carrier_materials, "carrier_id, material_id, timestamp"
     )};
+    not res
+  ) [[unlikely]]
+    return res;
+
+  if(
+    auto res{sqlite::create_table<info::journal_progress_t>(db_->db, "id"sv, sql_iface::tables::journal_progress)};
     not res
   ) [[unlikely]]
     return res;
@@ -2973,6 +2980,26 @@ auto database_storage_t::load_station(uint64_t system_address, std::string_view 
     return std::optional<info::station_t>{};
 
   return std::optional<info::station_t>{std::move((*res)[0])};
+  }
+
+auto database_storage_t::store_journal_progress(std::chrono::sys_seconds last_event) -> expected_ec<void>
+  {
+  return sqlite::execute_query_no_result(
+    db_->db,
+    std::format(
+      "INSERT INTO {0} (id, last_event) VALUES (1, '{1:%Y-%m-%dT%H:%M:%SZ}')"
+      " ON CONFLICT(id) DO UPDATE SET last_event = excluded.last_event",
+      sql_iface::tables::journal_progress,
+      last_event
+    )
+  );
+  }
+
+auto database_storage_t::load_journal_progress() -> expected_ec<std::optional<std::chrono::sys_seconds>>
+  {
+  return sqlite::select_signle_from<std::chrono::sys_seconds>(
+    db_->db, std::format("SELECT last_event FROM {} WHERE id=1", sql_iface::tables::journal_progress)
+  );
   }
 
 auto database_storage_t::store_owner(info::db_owner_t const & owner) -> expected_ec<void>

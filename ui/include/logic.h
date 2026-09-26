@@ -83,6 +83,22 @@ struct current_state_t : public generic_state_t
   ///\brief the settlement we are in - collected micro resources get its market_id
   uint64_t settlement_market_id_{};
 
+  ///\brief how far the journal had been read into this database when the tool last ran
+  ///\detail everything up to here has already been written down, so on the way back to the present
+  /// it is walked past rather than through - except for the handful of events that say where the
+  /// ship is and what it is flying, which is what the tool would otherwise start out blind about
+  std::chrono::sys_seconds resume_from_{};
+  ///\brief the newest journal stamp seen, which is what gets remembered
+  std::chrono::sys_seconds last_event_{};
+  ///\brief true until the reader reaches the present; skipping is only ever done while it is
+  ///\detail a game clock that stepped backwards would otherwise make live events look old enough
+  /// to throw away, and live events are the ones that matter
+  bool catching_up_{true};
+  std::chrono::steady_clock::time_point progress_written_{};
+  ///\brief how the way back to the present was spent, said once when it is reached
+  uint64_t events_walked_past_{};
+  uint64_t events_handled_{};
+
   ///\brief the account this database belongs to, read at startup
   ///\detail if someone logged into a second account from this game profile, their missions and finds
   /// must not land in somebody else's career - the world we still take, because the galaxy is shared
@@ -94,6 +110,9 @@ struct current_state_t : public generic_state_t
   void handle(std::chrono::sys_seconds timestamp, events::event_holder_t && event) override;
   
   void route_system_visited(uint64_t system_address);
+
+  ///\brief writes down how far the journal has been read, so the next start can skip it
+  void remember_progress();
 
   ///\brief forgets what only held true inside one session of the game
   ///\detail a target lock does not survive the game being closed, and nothing in the journal says
