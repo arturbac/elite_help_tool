@@ -1161,8 +1161,9 @@ auto overlay_feed_t::refresh_market(
               format_credits_value(static_cast<uint32_t>(std::min<uint64_t>(run, UINT32_MAX))),
               bring_here ? "from" : "to",
               trade.station,
-              trade.system.empty() ? "" : ", ",
-              trade.system
+              // under a heading that already names the destination the system would only repeat it
+              trade.system.empty() or in_system != 0u ? "" : ", ",
+              in_system != 0u ? std::string_view{} : std::string_view{trade.system}
             ),
             .color = colour_plain
           }
