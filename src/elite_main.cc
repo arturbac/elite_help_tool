@@ -112,11 +112,12 @@ void print_bgs_effort(database_storage_t & db, uint32_t within_days)
 
   std::println("\n=== PRACA BGS === {} pozycji z ostatnich {} dni", effort->size(), within_days);
   std::println(
-    "{:<12}{:<24}{:>9}  {:<24}{:>5}{:>7}{:>7}{:>8}{:>17}{:>12}",
+    "{:<12}{:<24}{:>9}  {:<24}{:<11}{:>5}{:>7}{:>7}{:>8}{:>17}{:>12}",
     "zamknieta",
     "system",
     "populacja",
     "frakcja",
+    "stan",
     "msn",
     "w gore",
     "w dol",
@@ -148,11 +149,12 @@ void print_bgs_effort(database_storage_t & db, uint32_t within_days)
       rate = std::format("{:.1f}", double(row.system_pushed_up) / *row.system_gain);
 
     std::println(
-      "{:<12}{:<24}{:>9}  {:<24}{:>5}{:>7}{:>7}{:>8}{:>17}{:>12}",
+      "{:<12}{:<24}{:>9}  {:<24}{:<11}{:>5}{:>7}{:>7}{:>8}{:>17}{:>12}",
       closed,
       row.system_name.substr(0, 23),
       info::format_population(row.population),
       row.faction.substr(0, 23),
+      row.faction_state.substr(0, 10),
       row.missions,
       row.pushed_up,
       row.pushed_down,

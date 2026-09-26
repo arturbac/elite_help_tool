@@ -456,16 +456,33 @@ struct bgs_effort_t
   std::optional<double> influence_before;
   std::optional<double> influence_after;
 
+  ///\brief stan frakcji z odczytu sprzed zamykajacej fali, czyli ten obowiazujacy w tej dobie
+  ///
+  /// Bez niego przelicznik bywa nieczytelny, bo stan zmienia obie strony rownania. Najmocniej
+  /// **Retreat**: misje dla frakcji w odwrocie sa znacznie skuteczniejsze, a przy tym traci ona
+  /// okolo dwoch punktow procentowych na dobe - zmierzony przyrost jest wiec tym, co zostalo po
+  /// odjeciu tego odplywu, a prawdziwa skutecznosc pracy byla jeszcze wyzsza
+  std::string faction_state;
+
   ///\brief cala praca w gore wlozona tej doby w ten system, po wszystkich frakcjach razem
   ///
   /// Wplyw jest udzialem procentowym, wiec frakcje pchane tego samego dnia dziela miedzy siebie
-  /// jedna pule: +30 dla jednej i +10 dla drugiej to 75% i 25% tego samego przyrostu, a nie dwa
-  /// niezalezne wyniki. Liczenie przelicznika osobno dla kazdej frakcji zawyza go tym bardziej,
-  /// im wiecej frakcji robiono naraz - dlatego koszt punktu jest wielkoscia systemu, nie frakcji
+  /// jeden przyrost, a nie dostaja dwoch niezaleznych. Liczenie przelicznika osobno dla kazdej
+  /// zawyza go tym bardziej, im wiecej frakcji robiono naraz - dlatego koszt punktu jest
+  /// wielkoscia systemu, nie frakcji.
+  ///
+  /// **Podzial pracy nie jest podzialem przyrostu.** Te same piec punktow podnosi frakcje lezaca
+  /// na dnie znacznie mocniej niz taka, ktora ma juz dziewiecdziesiat procent - bo procenty licza
+  /// sie wzgledem sumy, a ta u gory jest juz prawie cala jej wlasna. Udzial w pracy mowi wiec, ile
+  /// wysilku gdzie poszlo, a nie ile punktow procentowych z tego wyjdzie; o tym decyduje jeszcze
+  /// to, gdzie frakcja stoi w stawce - dlatego przy kazdym wierszu widac jej wplyw sprzed fali
   int32_t system_pushed_up;
   ///\brief laczny przyrost wplywow frakcji pchanych tej doby w gore, w punktach procentowych.
   /// Puste takze wtedy, gdy ktorejkolwiek z nich brakuje odczytu - podzial musi obejmowac calosc
-  /// albo nie ma go wcale
+  /// albo nie ma go wcale.
+  ///
+  /// Koszt punktu policzony z tego jest srednia po tym, kogo akurat tej doby pchano: dzien pracy
+  /// dla frakcji z dolu stawki wyjdzie taniej niz ten sam wysilek wlozony w lidera systemu
   std::optional<double> system_gain;
   };
 

@@ -65,8 +65,9 @@ auto bgs_effort_model_t::data(QModelIndex const & index, int role) const -> QVar
                  : QString::fromStdString(std::format("{:%d.%m %H:%M}", row.closed_by));
       case column_e::system:      return QString::fromStdString(row.system_name);
       case column_e::population:  return QString::fromStdString(info::format_population(row.population));
-      case column_e::faction:     return QString::fromStdString(row.faction);
-      case column_e::missions:    return row.missions;
+      case column_e::faction:       return QString::fromStdString(row.faction);
+      case column_e::faction_state: return QString::fromStdString(row.faction_state);
+      case column_e::missions:      return row.missions;
       case column_e::pushed_up:   return row.pushed_up != 0 ? QVariant{row.pushed_up} : QVariant{QString{"-"}};
       case column_e::pushed_down: return row.pushed_down != 0 ? QVariant{row.pushed_down} : QVariant{QString{"-"}};
       case column_e::share:
@@ -89,8 +90,9 @@ auto bgs_effort_model_t::data(QModelIndex const & index, int role) const -> QVar
                  : qlonglong(row.closed_by.time_since_epoch().count());
       case column_e::system:      return QString::fromStdString(row.system_name);
       case column_e::population:  return qulonglong(row.population);
-      case column_e::faction:     return QString::fromStdString(row.faction);
-      case column_e::missions:    return row.missions;
+      case column_e::faction:       return QString::fromStdString(row.faction);
+      case column_e::faction_state: return QString::fromStdString(row.faction_state);
+      case column_e::missions:      return row.missions;
       case column_e::pushed_up:   return row.pushed_up;
       case column_e::pushed_down: return row.pushed_down;
       case column_e::share:       return share ? *share : 0.0;
@@ -104,17 +106,24 @@ auto bgs_effort_model_t::data(QModelIndex const & index, int role) const -> QVar
     return QString{
       "Plusow na jeden punkt procentowy w TYM systemie i TEJ dobie.\n"
       "Liczone dla calego systemu, nie dla pojedynczej frakcji: wplywy sumuja sie\n"
-      "do stu procent, wiec frakcje pchane tego samego dnia dziela jeden przyrost,\n"
-      "a kolumna Udzial mowi, jaka czesc pracy poszla na ktora.\n"
-      "Gra dzieli wplyw misji przez wielkosc systemu, wiec tej liczby\n"
+      "do stu procent, wiec frakcje pchane tego samego dnia dziela jeden przyrost.\n"
+      "\n"
+      "To srednia po tym, kogo akurat tej doby pchano - te same plusy kupuja wiecej\n"
+      "punktow frakcji z dolu stawki niz liderowi systemu, wiec dzien pracy dla\n"
+      "slabszej frakcji wyjdzie taniej niz ten sam wysilek wlozony w silniejsza.\n"
+      "Gra dzieli tez wplyw misji przez wielkosc systemu, wiec tej liczby\n"
       "nie wolno porownywac miedzy systemami o roznej populacji."
     };
 
   if(role == Qt::ToolTipRole and column == column_e::share)
     return QString{
       "Czesc calej pracy w gore wlozonej tej doby w ten system,\n"
-      "ktora poszla wlasnie na te frakcje. Przy +30 dla jednej\n"
-      "i +10 dla drugiej bedzie to 75% i 25% tego samego przyrostu."
+      "ktora poszla wlasnie na te frakcje.\n"
+      "\n"
+      "To udzial w WYSILKU, nie w przyroscie. Te same piec punktow podnosi\n"
+      "frakcje lezaca na dnie znacznie mocniej niz taka z dziewiecdziesiecioma\n"
+      "procentami, wiec rowny podzial pracy nie daje rownego podzialu punktow -\n"
+      "kolumna obok mowi, z jakiego poziomu kazda z nich startowala."
     };
 
   if(role == Qt::TextAlignmentRole)
@@ -142,7 +151,8 @@ auto bgs_effort_model_t::headerData(int section, Qt::Orientation orientation, in
     case column_e::closed_by:   return QString{"Zamknieta"};
     case column_e::system:      return QString{"System"};
     case column_e::population:  return QString{"Populacja"};
-    case column_e::faction:     return QString{"Frakcja"};
+    case column_e::faction:       return QString{"Frakcja"};
+    case column_e::faction_state: return QString{"Stan"};
     case column_e::missions:    return QString{"Misje"};
     case column_e::pushed_up:   return QString{"W gore"};
     case column_e::pushed_down: return QString{"W dol"};

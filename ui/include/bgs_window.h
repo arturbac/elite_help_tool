@@ -22,6 +22,7 @@ class bgs_effort_model_t final : public QAbstractTableModel
     system,
     population,
     faction,
+    faction_state,
     missions,
     pushed_up,
     pushed_down,

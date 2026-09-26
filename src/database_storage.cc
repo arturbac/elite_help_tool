@@ -2387,6 +2387,31 @@ auto influence_at(sqlite3 * db, uint64_t system_address, std::string_view factio
   return *res;
   }
 
+///\brief stan frakcji wedlug tej samej probki, z ktorej czytamy wplyw sprzed fali
+[[nodiscard]]
+auto state_at(sqlite3 * db, uint64_t system_address, std::string_view faction, std::chrono::sys_seconds when)
+  -> std::string
+  {
+  auto res{sqlite::select_signle_from<std::string>(
+    db,
+    std::format(
+      "SELECT fi.faction_state FROM {0} fi JOIN {1} f ON f.oid = fi.faction_oid"
+      " WHERE fi.system_address={2} AND f.name='{3}' AND fi.timestamp <= '{4:%Y-%m-%dT%H:%M:%SZ}'"
+      " ORDER BY fi.timestamp DESC LIMIT 1",
+      sql_iface::tables::faction_influence,
+      sql_iface::tables::faction_info,
+      system_address,
+      sqlite::escape_sql_quotes(faction),
+      when
+    )
+  )};
+  if(not res or not *res)
+    return {};
+
+  // "None" to brak stanu, a nie stan o nazwie None - w tabeli ma zostac pusto
+  return **res == "None" ? std::string{} : **res;
+  }
+
 ///\brief pierwsza zmiana wplywow w systemie po podanej chwili, dowolnej frakcji
 ///
 /// Sluzy za dowod, ze po fali naprawde tam bylismy. Brak takiej zmiany znaczy albo ze nie bylismy,
@@ -2518,6 +2543,7 @@ auto database_storage_t::load_bgs_effort(uint32_t within_days, uint64_t system_a
         .missions = {},
         .influence_before = {},
         .influence_after = {},
+        .faction_state = {},
         .system_pushed_up = {},
         .system_gain = {}
       };
@@ -2546,6 +2572,8 @@ auto database_storage_t::load_bgs_effort(uint32_t within_days, uint64_t system_a
         {
         bucket.effort.influence_before
           = influence_at(db_->db, bucket.effort.system_address, bucket.effort.faction, closing->start_begin);
+        bucket.effort.faction_state
+          = state_at(db_->db, bucket.effort.system_address, bucket.effort.faction, closing->start_begin);
 
         // wartosc po fali wolno pokazac tylko gdy mamy dowod, ze po niej tam bylismy
         if(auto seen{first_change_after(db_->db, bucket.effort.system_address, closing->end_end)}; seen)
