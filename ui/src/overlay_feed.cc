@@ -408,7 +408,7 @@ auto describe_missions(
     std::string const system{done ? mission.redirected_system : mission.destination_system};
     std::string const place{
       done ? (mission.redirected_settlement.empty() ? mission.redirected_station : mission.redirected_settlement)
-           : (mission.destination_settlement.empty() ? mission.destination_station : mission.destination_settlement)
+           : std::string{mission.destination_place()}
     };
     return {system, place};
   };
@@ -1258,10 +1258,7 @@ auto overlay_feed_t::refresh_mission_places(current_state_t const & state) -> vo
     )
       continue;
 
-    resolve(
-      mission.destination_system,
-      mission.destination_settlement.empty() ? mission.destination_station : mission.destination_settlement
-    );
+    resolve(mission.destination_system, std::string{mission.destination_place()});
     resolve(
       mission.redirected_system,
       mission.redirected_settlement.empty() ? mission.redirected_station : mission.redirected_settlement
@@ -1450,7 +1447,7 @@ auto overlay_feed_t::build_settlement_lines(current_state_t const & state) const
       if(mission.redirected_settlement == station_name_ or mission.redirected_station == station_name_)
         hand_in.push_back(&mission);
       }
-    else if(mission.destination_settlement == station_name_ or mission.destination_station == station_name_)
+    else if(not station_name_.empty() and mission.destination_place() == station_name_)
       here.push_back(&mission);
     else if(
       on_foot and not station_faction_.empty() and mission.target_faction == station_faction_

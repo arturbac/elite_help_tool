@@ -311,6 +311,11 @@ struct mission_t
     {
     return std::max<uint32_t>(std::max<uint32_t>(count, kill_count), passenger_count);
     }
+
+  ///\brief the place the mission sends the player to, as far as the game really tells it
+  ///\detail empty for a hunt in space - see the definition
+  [[nodiscard]]
+  auto destination_place() const noexcept -> std::string_view;
   };
 
 using space_location_t = std::array<double, 3>;

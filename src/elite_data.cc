@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <string_view>
 #include <span>
 #include <simple_enum/enum_cast.hpp>
@@ -141,6 +142,19 @@ namespace
 
 auto is_mining_only(std::string_view commodity) noexcept -> bool
   { return std::ranges::binary_search(mining_only_commodities, commodity); }
+
+auto mission_t::destination_place() const noexcept -> std::string_view
+  {
+  // An assassination in space names a station in the journal, yet the game itself shows the target's
+  // whereabouts as currently unknown - the mark turns up in a signal source somewhere in the system,
+  // near whatever body it likes, and the station is nothing but where the game filed the mission.
+  // On foot the settlement is real, that is where the target stands
+  std::string lowered{type};
+  std::ranges::transform(lowered, lowered.begin(), [](unsigned char c) { return char(std::tolower(c)); });
+  if(lowered.contains("assassinate") and not lowered.contains("onfoot"))
+    return {};
+  return destination_settlement.empty() ? destination_station : destination_settlement;
+  }
 
 auto transform_mission_name(std::string_view input) -> std::string
   {
