@@ -20,6 +20,8 @@
 #include <limits>
 #include <cmath>
 
+using namespace std::string_view_literals;
+
 namespace
   {
 constexpr std::string_view no_data{"—"};
@@ -210,11 +212,52 @@ namespace
 [[nodiscard]]
 auto station_rank(std::string_view signal_type) noexcept -> int
   {
-  if(signal_type.starts_with("Station") or signal_type == "Outpost")
-    return 0;
   if(signal_type == "FleetCarrier" or signal_type == "SquadronCarrier")
     return 2;
+  // skaner zglasza "StationCoriolis" czy "Outpost", a stacja z journala wlasny typ - obie drogi wiodą do doku
+  if(signal_type.starts_with("Station") or signal_type == "Outpost")
+    return 0;
+  for(std::string_view type:
+      {"AsteroidBase"sv,
+       "Bernal"sv,
+       "Coriolis"sv,
+       "CraterOutpost"sv,
+       "CraterPort"sv,
+       "Dodec"sv,
+       "MegaShip"sv,
+       "Ocellus"sv,
+       "OnFootSettlement"sv,
+       "Orbis"sv,
+       "SurfaceStation"sv})
+    if(signal_type == type)
+      return 0;
   return 1;
+  }
+
+///\brief plac budowy pod nazwa portu, ktory na nim stanal
+///\detail skan zostawia sygnal placu jeszcze dlugo po tym, jak port zaczal przyjmowac statki
+[[nodiscard]]
+auto finished_name(std::string_view name) noexcept -> std::string_view
+  {
+  for(std::string_view prefix: {"Planetary Construction Site: "sv, "Orbital Construction Site: "sv})
+    if(name.starts_with(prefix))
+      return name.substr(prefix.size());
+  return name;
+  }
+
+[[nodiscard]]
+auto is_installation(std::string_view signal_type) noexcept -> bool
+  { return signal_type == "Installation" or signal_type.ends_with("ConstructionDepot"); }
+
+///\brief nazwa tak, jak czyta ja gracz
+///\detail statek kolonizacyjny przychodzi z journala jako surowy token lokalizacji
+[[nodiscard]]
+auto readable_name(std::string const & name) -> QString
+  {
+  constexpr std::string_view colonisation_ship{"$EXT_PANEL_ColonisationShip; "};
+  if(name.starts_with(colonisation_ship))
+    return QString::fromStdString("Colonisation Ship " + name.substr(colonisation_ship.size()));
+  return QString::fromStdString(name);
   }
   }  // namespace
 
@@ -245,7 +288,7 @@ auto system_station_model_t::data(QModelIndex const & index, int role) const -> 
     switch(column_e(index.column()))
       {
       case column_e::signal_type: return rank * 1000 + int(column_e::signal_type);
-      case column_e::name:        return QString::fromStdString(item.name);
+      case column_e::name:        return readable_name(item.name);
       default:                    return {};
       }
 
@@ -255,7 +298,7 @@ auto system_station_model_t::data(QModelIndex const & index, int role) const -> 
   switch(column_e(index.column()))
     {
     case column_e::signal_type: return QString::fromStdString(item.signal_type);
-    case column_e::name:        return QString::fromStdString(item.name);
+    case column_e::name:        return readable_name(item.name);
     default:                    return {};
     }
   }
@@ -922,20 +965,51 @@ auto faction_state_window_t::update_stations(uint64_t system_address) -> void
     return;
     }
 
+  auto known{db_.load_stations(system_address)};
+  if(not known)
+    {
+    spdlog::error("failed to load stations for {}", system_address);
+    return;
+    }
+
   bool const hide_carriers{hide_carriers_->isChecked()};
   bool const hide_installations{hide_installations_->isChecked()};
 
+  // nazwa stacji, w ktorej kiedykolwiek stanelismy - sygnal o niej jest juz tylko powtorzeniem
+  std::set<std::string, std::less<>> recorded;
+  for(info::station_t const & station: *known)
+    if(not station.name.empty())
+      recorded.emplace(station.name);
+
   std::vector<system_signal_t> stations;
+  auto keep = [&](system_signal_t && entry) -> void
+  {
+    if(hide_carriers and station_rank(entry.signal_type) == 2)
+      return;
+    if(hide_installations and is_installation(entry.signal_type))
+      return;
+    stations.emplace_back(std::move(entry));
+  };
+
   for(system_signal_t & signal: *res)
     {
     if(classify_signal(signal.signal_type) != signal_class_e::station)
       continue;
-    // w zasiedlonych systemach flotowce potrafia przyslonic wszystkie prawdziwe stacje
-    if(hide_carriers and station_rank(signal.signal_type) == 2)
+    if(recorded.contains(finished_name(signal.name)))
       continue;
-    if(hide_installations and signal.signal_type == "Installation")
+    keep(std::move(signal));
+    }
+
+  for(info::station_t & station: *known)
+    {
+    if(station.name.empty())
       continue;
-    stations.emplace_back(std::move(signal));
+    keep(system_signal_t{
+      .system_address = station.system_address,
+      .name = std::move(station.name),
+      .signal_type = std::move(station.station_type),
+      .is_station = true
+    });
     }
 
   stations_model_->update_data(std::move(stations));

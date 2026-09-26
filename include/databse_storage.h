@@ -268,6 +268,12 @@ struct database_storage_t
   [[nodiscard]]
   auto load_station(uint64_t system_address, std::string_view name) -> expected_ec<std::optional<info::station_t>>;
 
+  ///\brief stacje systemu znane z journali - dokowania, rynkow, celow misji
+  ///\detail sygnal skanera potrafi nie wspomniec o osadzie ani o porcie, ktory dopiero stanal,
+  /// a stacja w ktorej stanelismy jest swiadectwem mocniejszym niz brak sygnalu
+  [[nodiscard]]
+  auto load_stations(uint64_t system_address) -> expected_ec<std::vector<info::station_t>>;
+
   ///\brief zawartosc rynku zlaczona ze slownikiem towarow
   [[nodiscard]]
   auto load_market_entries(uint64_t market_id) -> expected_ec<std::vector<info::market_entry_t>>;
