@@ -24,8 +24,7 @@ class bgs_effort_model_t final : public QAbstractTableModel
     faction,
     faction_state,
     missions,
-    pushed_up,
-    pushed_down,
+    pluses,
     share,
     influence,
     rate,
@@ -34,6 +33,9 @@ class bgs_effort_model_t final : public QAbstractTableModel
 
 public:
   static constexpr int sort_role = Qt::UserRole + 1;
+  ///\brief kolumny, ktore oddaja szerokosc reszcie - nazwy znosza skrocenie, liczby nie
+  static constexpr int stretch_column = int(column_e::system);
+  static constexpr int second_stretch_column = int(column_e::faction);
 
   std::vector<info::bgs_effort_t> rows_{};
 

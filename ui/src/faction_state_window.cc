@@ -535,24 +535,32 @@ auto faction_state_window_t::setup_ui() -> void
   auto * tick_group = new QGroupBox("Przeliczenia", overview);
   auto * tick_form = new QFormLayout(tick_group);
 
-  // Kazda informacja w osobnym wierszu - upchniete w jedna etykiete nie miescily sie w kolumnie
-  // formularza i urywaly sie w polowie zdania
-  tick_form->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
+  // Dwie kolumny obok siebie zamiast piatki wierszy jedna pod druga - te same fakty schodza
+  // z polowy okna do trzech linijek, a kazda wartosc miesci sie bez zawijania
+  auto * tick_columns = new QHBoxLayout();
+  auto * tick_left = new QFormLayout();
+  auto * tick_right = new QFormLayout();
+  tick_left->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
+  tick_right->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
 
-  auto make_tick_label = [&](char const * caption) -> std::pair<QLabel *, QLabel *>
+  auto make_tick_label = [&](QFormLayout * form, char const * caption) -> std::pair<QLabel *, QLabel *>
   {
     auto * caption_label = new QLabel(caption, tick_group);
     auto * value = new QLabel(tick_group);
-    value->setWordWrap(true);
-    tick_form->addRow(caption_label, value);
+    form->addRow(caption_label, value);
     return {caption_label, value};
   };
 
-  bgs_tick_label_ = make_tick_label("BGS tick tutaj:").second;
-  bgs_galaxy_label_ = make_tick_label("BGS tick w galaktyce:").second;
-  std::tie(war_tick_row_label_, war_tick_label_) = make_tick_label("War tick tutaj:");
-  std::tie(war_galaxy_row_label_, war_galaxy_label_) = make_tick_label("War tick w galaktyce:");
-  std::tie(war_countdown_row_label_, war_countdown_label_) = make_tick_label("Do rozstrzygniecia:");
+  bgs_tick_label_ = make_tick_label(tick_left, "BGS tutaj:").second;
+  bgs_galaxy_label_ = make_tick_label(tick_left, "BGS galaktyka:").second;
+  std::tie(war_tick_row_label_, war_tick_label_) = make_tick_label(tick_right, "War tutaj:");
+  std::tie(war_galaxy_row_label_, war_galaxy_label_) = make_tick_label(tick_right, "War galaktyka:");
+
+  tick_columns->addLayout(tick_left, 1);
+  tick_columns->addLayout(tick_right, 1);
+  tick_form->addRow(tick_columns);
+
+  std::tie(war_countdown_row_label_, war_countdown_label_) = make_tick_label(tick_form, "Do rozstrzygniecia:");
 
   overview_layout->addWidget(tick_group);
 
@@ -1165,11 +1173,12 @@ auto faction_state_window_t::update_tick_labels(uint64_t system_address) -> void
 
   describe(info::tick_kind_e::influence, bgs_tick_label_, bgs_galaxy_label_);
 
-  // zegar wojen ma sens tylko gdy jest o co walczyc - poza konfliktem zajmowalby miejsce na nic.
-  // Konflikt zamkniety ma pusty status, wiec licza sie wylacznie pending i active
-  bool at_war{};
-  if(auto conflicts{db_.load_conflicts(system_address)}; conflicts)
-    at_war = std::ranges::any_of(*conflicts, [](info::conflict_t const & c) { return not c.status.empty(); });
+  // Zegar wojen ma sens tylko gdy jest o co walczyc. Liczy sie stan biezacy, a load_conflicts
+  // oddaje cala historie - wojna zamknieta miesiac temu ma tam nadal wiersze ze statusem "active",
+  // wiec pytanie o nia wprost wlaczaloby te wiersze na zawsze. load_war_countdown patrzy wylacznie
+  // na najswiezszy odczyt kazdej pary i pomija zamkniete
+  auto wars{db_.load_war_countdown(system_address)};
+  bool const at_war{wars and not wars->empty()};
 
   for(QLabel * label:
       {war_tick_row_label_, war_tick_label_, war_galaxy_row_label_, war_galaxy_label_,
@@ -1183,7 +1192,7 @@ auto faction_state_window_t::update_tick_labels(uint64_t system_address) -> void
 
   // ile jeszcze przeliczen do rozstrzygniecia - zero znaczy, ze warto miec bondy na reku
   std::string countdown;
-  if(auto wars{db_.load_war_countdown(system_address)}; wars)
+  if(wars)
     for(info::war_countdown_t const & war: *wars)
       {
       if(not countdown.empty())

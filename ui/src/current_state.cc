@@ -1245,21 +1245,17 @@ auto describe_tick(
     // ze jeszcze do niego nie doszla albo ze jeszcze tam nie zagladalismy
     view.awaiting = mine->empty() or mine->front().window_end < wave.start_begin;
 
-    std::string regularity{"za malo fal na wzorzec"};
+    std::string regularity{"za malo fal"};
     if(stats->waves > 2u)
       regularity = std::format(
-        "typowo co {:.1f}h, najdluzej {:.1f}h",
+        "co ~{:.0f}h, max {:.0f}h",
         double(stats->typical_gap.count()) / 60.0,
         double(stats->longest_gap.count()) / 60.0
       );
 
-    view.galaxy = std::format(
-      "galaktyka {:%d.%m %H:%M}-{:%H:%M} ({} sys), {}",
-      wave.start_begin,
-      wave.end_end,
-      wave.systems,
-      regularity
-    );
+    // bez slowa "galaktyka" - mowi je juz podpis wiersza, a kazdy znak tu kosztuje szerokosc
+    view.galaxy
+      = std::format("{:%d.%m %H:%M}-{:%H:%M} ({} sys) - {}", wave.start_begin, wave.end_end, wave.systems, regularity);
     }
 
   return view;

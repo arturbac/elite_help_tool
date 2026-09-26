@@ -68,8 +68,18 @@ auto bgs_effort_model_t::data(QModelIndex const & index, int role) const -> QVar
       case column_e::faction:       return QString::fromStdString(row.faction);
       case column_e::faction_state: return QString::fromStdString(row.faction_state);
       case column_e::missions:      return row.missions;
-      case column_e::pushed_up:   return row.pushed_up != 0 ? QVariant{row.pushed_up} : QVariant{QString{"-"}};
-      case column_e::pushed_down: return row.pushed_down != 0 ? QVariant{row.pushed_down} : QVariant{QString{"-"}};
+      case column_e::pluses:
+        {
+        // jedna kolumna na obie dzwignie - "w dol" bywa puste w niemal kazdym wierszu, a zabieralo
+        // tyle samo szerokosci co reszta
+        if(row.pushed_up != 0 and row.pushed_down != 0)
+          return QString::fromStdString(std::format("+{} -{}", row.pushed_up, row.pushed_down));
+        if(row.pushed_up != 0)
+          return QString::fromStdString(std::format("+{}", row.pushed_up));
+        if(row.pushed_down != 0)
+          return QString::fromStdString(std::format("-{}", row.pushed_down));
+        return QString{"-"};
+        }
       case column_e::share:
         return share ? QString::fromStdString(std::format("{:.0f}%", *share)) : QString{"-"};
       case column_e::influence:
@@ -93,8 +103,7 @@ auto bgs_effort_model_t::data(QModelIndex const & index, int role) const -> QVar
       case column_e::faction:       return QString::fromStdString(row.faction);
       case column_e::faction_state: return QString::fromStdString(row.faction_state);
       case column_e::missions:      return row.missions;
-      case column_e::pushed_up:   return row.pushed_up;
-      case column_e::pushed_down: return row.pushed_down;
+      case column_e::pluses:      return row.pushed_up + row.pushed_down;
       case column_e::share:       return share ? *share : 0.0;
       case column_e::influence:
         return row.influence_before and row.influence_after ? *row.influence_after - *row.influence_before : 0.0;
@@ -131,8 +140,7 @@ auto bgs_effort_model_t::data(QModelIndex const & index, int role) const -> QVar
       {
       case column_e::population:
       case column_e::missions:
-      case column_e::pushed_up:
-      case column_e::pushed_down:
+      case column_e::pluses:
       case column_e::share:
       case column_e::rate:        return int(Qt::AlignRight | Qt::AlignVCenter);
       default:                    break;
@@ -154,11 +162,10 @@ auto bgs_effort_model_t::headerData(int section, Qt::Orientation orientation, in
     case column_e::faction:       return QString{"Frakcja"};
     case column_e::faction_state: return QString{"Stan"};
     case column_e::missions:    return QString{"Misje"};
-    case column_e::pushed_up:   return QString{"W gore"};
-    case column_e::pushed_down: return QString{"W dol"};
+    case column_e::pluses:      return QString{"Plusy"};
     case column_e::share:       return QString{"Udzial"};
-    case column_e::influence:   return QString{"Wplyw przed -> po"};
-    case column_e::rate:        return QString{"Plus/pp systemu"};
+    case column_e::influence:   return QString{"Wplyw"};
+    case column_e::rate:        return QString{"Plus/pp"};
     case column_e::column_max:  break;
     }
 
@@ -344,7 +351,15 @@ auto bgs_window_t::setup_ui() -> void
   view_->setSelectionBehavior(QAbstractItemView::SelectRows);
   view_->verticalHeader()->setVisible(false);
   view_->horizontalHeader()->setStretchLastSection(false);
+
+  // Same liczby dostaja tyle, ile potrzebuja, a nazwy oddaja lub biora reszte - przy samym
+  // ResizeToContents tabela zadala wiecej szerokosci niz okno i ostatnia kolumna wypadala poza kadr
   view_->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
+  view_->horizontalHeader()->setSectionResizeMode(int(bgs_effort_model_t::stretch_column), QHeaderView::Stretch);
+  view_->horizontalHeader()->setSectionResizeMode(
+    int(bgs_effort_model_t::second_stretch_column), QHeaderView::Stretch
+  );
+  view_->setTextElideMode(Qt::ElideRight);
   effort_layout->addWidget(view_, 1);
   tabs->addTab(effort_page, "Praca");
 
