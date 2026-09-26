@@ -526,12 +526,18 @@ auto overlay_feed_t::refresh_market(uint64_t market_id, uint32_t cargo_capacity)
   if(market_id == 0u)
     return;
 
+  auto station{db_.load_station(market_id)};
+  std::string const name{station and *station ? (*station)->name : std::format("market {}", market_id)};
+
   auto entries{db_.load_market_entries(market_id)};
   if(not entries or entries->empty())
+    {
+    // zdarzenie Market powstaje dopiero po otwarciu ekranu towarow - milczenie w tym miejscu
+    // wygladaloby jak brak okazji, a znaczy tylko tyle, ze nie mielismy czego zapisac
+    market_lines_.push_back(overlay::line_t{.text = std::format("{}: no market data", name), .color = colour_alert});
+    market_lines_.push_back(overlay::line_t{.text = "  open the commodity market to record it", .color = colour_plain});
     return;
-
-  auto station{db_.load_station(market_id)};
-  std::string const name{station and *station ? (*station)->name : std::string{"station"}};
+    }
 
   // odchylenie od sredniej galaktycznej to jedyna liczba mowiaca czy cena jest okazja
   auto const sell_gain{
