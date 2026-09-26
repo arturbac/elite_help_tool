@@ -67,6 +67,8 @@ private:
   std::chrono::steady_clock::time_point factions_loaded_{};
   std::vector<overlay::line_t> faction_lines_;
   std::vector<overlay::line_t> conflict_lines_;
+  ///\brief the influence chart of the system we stand in - empty when there is too little history
+  std::vector<overlay::chart_t> faction_charts_;
 
   uint64_t market_id_{};
   std::chrono::steady_clock::time_point market_loaded_{};

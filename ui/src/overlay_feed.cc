@@ -5,6 +5,10 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
+#include <limits>
+#include <optional>
+#include <span>
 #include <functional>
 #include <cctype>
 #include <format>
@@ -108,6 +112,27 @@ auto same_content(overlay::frame_t const & left, overlay::frame_t const & right)
     for(size_t line{}; line != left.blocks[block].lines.size(); ++line)
       if(left.blocks[block].lines[line].text != right.blocks[block].lines[line].text)
         return false;
+
+    // the chart carries no text, so without comparing it a tick could pass without the picture
+    // ever being resent - the lines would keep saying the same while the curves had moved
+    auto const & lc{left.blocks[block].charts};
+    auto const & rc{right.blocks[block].charts};
+    if(lc.size() != rc.size())
+      return false;
+
+    for(size_t chart{}; chart != lc.size(); ++chart)
+      {
+      if(lc[chart].caption != rc[chart].caption or lc[chart].series.size() != rc[chart].series.size())
+        return false;
+
+      for(size_t series{}; series != lc[chart].series.size(); ++series)
+        {
+        overlay::series_t const & ls{lc[chart].series[series]};
+        overlay::series_t const & rs{rc[chart].series[series]};
+        if(ls.name != rs.name or ls.points.size() != rs.points.size())
+          return false;
+        }
+      }
     }
   return true;
   }
@@ -349,6 +374,141 @@ auto describe_system(star_system_t const & system, bool with_controlling) -> std
 
   return lines;
   }
+
+///\brief how far back the influence chart reaches
+constexpr std::chrono::days chart_window{10};
+///\brief the height of the plot itself, without the caption and the legend
+constexpr uint32_t chart_height{130u};
+///\brief the shapes handed out in the order of the legend
+///\detail three independent factions share one colour, so without distinct shapes their lines
+/// could not be told apart
+constexpr std::array chart_markers{
+  overlay::marker_e::circle,
+  overlay::marker_e::diamond,
+  overlay::marker_e::triangle,
+  overlay::marker_e::square,
+  overlay::marker_e::cross
+};
+
+///\brief a faction as the chart needs it - who it is and how it is drawn, nothing more
+struct charted_t
+  {
+  int64_t oid{-1};
+  std::string name;
+  uint32_t color{};
+  overlay::marker_e marker{};
+  };
+
+///\brief the ten day influence chart, with the scale already applied
+///
+/// The layer receives nothing but numbers in 0..1 - the logarithm, the decades and the window all
+/// happen here. A logarithmic scale is what makes the chart useful at all: a faction sitting at 2%
+/// and one at 45% move by comparable fractions of themselves, and on a linear axis the small one
+/// lies flat against the bottom.
+[[nodiscard]]
+auto build_influence_chart(
+  std::span<info::faction_influence_t const> history, std::span<charted_t const> shown, std::chrono::sys_seconds now
+) -> std::vector<overlay::chart_t>
+  {
+  using std::chrono::sys_seconds;
+
+  sys_seconds const from{now - chart_window};
+  double const span{static_cast<double>((now - from).count())};
+  if(span <= 0.0)
+    return {};
+
+  struct sample_t
+    {
+    double x{};
+    double percent{};
+    };
+
+  std::vector<std::vector<sample_t>> gathered(shown.size());
+  double lowest{std::numeric_limits<double>::max()};
+  double highest{};
+
+  for(size_t ix{}; ix != shown.size(); ++ix)
+    {
+    // influence is stored only when it changes, so a faction quiet for ten days has no row inside
+    // the window at all - the last value before it is what the line has to start from
+    std::optional<double> seed;
+    std::vector<sample_t> & points{gathered[ix]};
+
+    for(info::faction_influence_t const & entry: history)
+      {
+      if(entry.faction_oid != shown[ix].oid)
+        continue;
+
+      double const percent{entry.influence * 100.0};
+      if(entry.timestamp <= from)
+        seed = percent;
+      else if(entry.timestamp <= now)
+        points.push_back(
+          sample_t{.x = static_cast<double>((entry.timestamp - from).count()) / span, .percent = percent}
+        );
+      }
+
+    if(seed)
+      points.insert(points.begin(), sample_t{.x = 0.0, .percent = *seed});
+
+    // the value holds until the next tick, so the line runs on to the right edge instead of
+    // stopping wherever the last change happened to fall
+    if(not points.empty() and points.back().x < 1.0)
+      points.push_back(sample_t{.x = 1.0, .percent = points.back().percent});
+
+    for(sample_t const & point: points)
+      if(point.percent > 0.0)
+        {
+        lowest = std::min(lowest, point.percent);
+        highest = std::max(highest, point.percent);
+        }
+    }
+
+  if(highest <= 0.0 or std::ranges::all_of(gathered, [](auto const & p) { return p.size() < 2u; }))
+    return {};
+
+  // whole decades give a readable grid; the floor also catches a faction squeezed down to a
+  // fraction of a percent, which on a linear scale would be indistinguishable from zero
+  double const low{std::max(0.1, std::pow(10.0, std::floor(std::log10(lowest))))};
+  double const high{std::max(low * 10.0, std::pow(10.0, std::ceil(std::log10(highest))))};
+  double const log_low{std::log10(low)};
+  double const log_span{std::log10(high) - log_low};
+
+  auto const map_y = [&](double percent) -> float
+  { return static_cast<float>((std::log10(std::clamp(percent, low, high)) - log_low) / log_span); };
+
+  overlay::chart_t chart{
+    .caption = std::format("influence, {} days, log scale", chart_window.count()), .height = chart_height
+  };
+
+  for(double decade{low}; decade <= high * 1.0001; decade *= 10.0)
+    chart.grid.push_back(
+      overlay::grid_line_t{
+        .y = map_y(decade), .label = decade >= 1.0 ? std::format("{:.0f}%", decade) : std::format("{:.1f}%", decade)
+      }
+    );
+
+  for(size_t ix{}; ix != shown.size(); ++ix)
+    {
+    if(gathered[ix].size() < 2u)
+      continue;
+
+    overlay::series_t series{
+      .name = shown[ix].name, .color = shown[ix].color,
+      .marker = shown[ix].marker
+    };
+    series.points.reserve(gathered[ix].size());
+    for(sample_t const & point: gathered[ix])
+      series.points.push_back(overlay::point_t{.x = static_cast<float>(point.x), .y = map_y(point.percent)});
+
+    chart.series.push_back(std::move(series));
+    }
+
+  if(chart.series.empty())
+    return {};
+
+  return {std::move(chart)};
+  }
   }  // namespace
 
 overlay_feed_t::overlay_feed_t(std::string socket_path, std::string db_path) :
@@ -390,6 +550,7 @@ auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
   factions_loaded_ = now;
   faction_lines_.clear();
   conflict_lines_.clear();
+  faction_charts_.clear();
 
   if(factions_system_ == 0u)
     return;
@@ -505,6 +666,7 @@ auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
 
   struct presence_t
     {
+    int64_t oid;
     std::string name;
     info::allegiance_e allegiance;
     std::string active;
@@ -516,6 +678,7 @@ auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
   for(auto const & [oid, entry]: latest)
     {
     presence_t item{
+      .oid = oid,
       .name = {},
       .allegiance = info::allegiance_e::unknown,
       .active = not entry->active_states.empty() ? entry->active_states
@@ -539,10 +702,27 @@ auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
 
   std::ranges::sort(presence, std::ranges::greater{}, &presence_t::influence);
 
+  std::vector<charted_t> charted;
+  size_t marker_ix{};
   for(presence_t const & item: presence | std::views::take(listed_factions))
+    {
+    charted.push_back(
+      charted_t{
+        .oid = item.oid,
+        .name = item.name,
+        .color = allegiance_colour(item.allegiance),
+        .marker = chart_markers[marker_ix % chart_markers.size()]
+      }
+    );
+    ++marker_ix;
+    }
+
+  marker_ix = 0u;
+  for(presence_t const & item: presence | std::views::take(listed_factions))
+    {
     faction_lines_.push_back(
       overlay::line_t{
-        // gwiazdka wyroznia frakcje kontrolujaca, bo to ona decyduje o obliczu systemu
+        // the star marks the controlling faction, because that one decides the system's face
         .text = std::format(
           "{}{}  {:.1f}%{}{}",
           item.name == state.system.controlling_faction ? "* " : "  ",
@@ -551,9 +731,15 @@ auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
           item.active.empty() ? "" : "  ",
           item.active
         ),
-        .color = allegiance_colour(item.allegiance)
+        .color = allegiance_colour(item.allegiance),
+        // the same shape the faction's line wears on the chart below, so the two read as one
+        .marker = chart_markers[marker_ix % chart_markers.size()]
       }
     );
+    ++marker_ix;
+    }
+
+  faction_charts_ = build_influence_chart(*history, charted, wall_clock);
   }
 
 auto overlay_feed_t::refresh_market(uint64_t market_id, uint32_t cargo_capacity) -> void
@@ -1064,7 +1250,14 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
     lines.insert(lines.end(), faction_lines_.begin(), faction_lines_.end());
     lines.insert(lines.end(), conflict_lines_.begin(), conflict_lines_.end());
     frame.blocks.push_back(
-      overlay::block_t{.corner = overlay::corner_e::top_left, .ttl_ms = block_ttl_ms, .lines = std::move(lines)}
+      overlay::block_t{
+        // the chart goes under the text, because the names and the current values are what one
+        // reads at a glance; the shape of the last ten days is what one studies when there is time
+        .corner = overlay::corner_e::top_left,
+        .ttl_ms = block_ttl_ms,
+        .lines = std::move(lines),
+        .charts = faction_charts_
+      }
     );
     }
 

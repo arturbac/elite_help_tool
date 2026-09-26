@@ -8,6 +8,7 @@
 #include <cmath>
 #include <chrono>
 #include <cstdlib>
+#include <vector>
 
 namespace eht_overlay
   {
@@ -141,9 +142,166 @@ namespace
     ImGui::PopStyleColor();
     }
 
+  ///\brief the shape standing in front of a name, and again at the head of that name's line
+  ///\detail three independent factions share one colour, so the shape is what tells their lines apart
+  auto draw_marker(ImDrawList * draw, ImVec2 centre, float radius, ImU32 colour, overlay::marker_e marker) -> void
+    {
+    using enum overlay::marker_e;
+    switch(marker)
+      {
+      case circle: draw->AddCircleFilled(centre, radius, colour, 12); break;
+
+      case diamond:
+        {
+        ImVec2 const points[]{
+          ImVec2{centre.x, centre.y - radius},
+          ImVec2{centre.x + radius, centre.y},
+          ImVec2{centre.x, centre.y + radius},
+          ImVec2{centre.x - radius, centre.y}
+        };
+        draw->AddConvexPolyFilled(points, 4, colour);
+        }
+        break;
+
+      case triangle:
+        draw->AddTriangleFilled(
+          ImVec2{centre.x, centre.y - radius},
+          ImVec2{centre.x + radius, centre.y + radius},
+          ImVec2{centre.x - radius, centre.y + radius},
+          colour
+        );
+        break;
+
+      case square:
+        draw->AddRectFilled(
+          ImVec2{centre.x - radius, centre.y - radius}, ImVec2{centre.x + radius, centre.y + radius}, colour
+        );
+        break;
+
+      case cross:
+        draw->AddLine(
+          ImVec2{centre.x - radius, centre.y - radius}, ImVec2{centre.x + radius, centre.y + radius}, colour, radius * 0.6f
+        );
+        draw->AddLine(
+          ImVec2{centre.x - radius, centre.y + radius}, ImVec2{centre.x + radius, centre.y - radius}, colour, radius * 0.6f
+        );
+        break;
+
+      case none: break;
+      }
+    }
+
+  ///\brief a line of text, with its marker in front when it carries one
+  auto draw_line(overlay::line_t const & line) -> void
+    {
+    if(line.marker == overlay::marker_e::none)
+      {
+      coloured_text(line.color, "%s", line.text.c_str());
+      return;
+      }
+
+    float const box{ImGui::GetFontSize()};
+    ImVec2 const origin{ImGui::GetCursorScreenPos()};
+    ImGui::Dummy(ImVec2{box, box});
+    ImGui::SameLine(0.f, ImGui::GetStyle().ItemSpacing.x * 0.5f);
+    draw_marker(
+      ImGui::GetWindowDrawList(),
+      ImVec2{origin.x + box * 0.5f, origin.y + box * 0.5f},
+      box * 0.28f,
+      ImGui::GetColorU32(to_color(line.color)),
+      line.marker
+    );
+    coloured_text(line.color, "%s", line.text.c_str());
+    }
+
+  ///\brief draws a chart out of numbers the tool has already scaled to 0..1
+  ///\detail no logarithm and no units here - whatever axis the tool chose, the layer only stretches
+  /// the numbers over the rectangle it was given
+  auto draw_chart(overlay::chart_t const & chart, float width) -> void
+    {
+    if(chart.series.empty() or width <= 0.f)
+      return;
+
+    // the font is rasterised at 13 * scale, so its size is the way back to the scale the rest uses
+    float const scale{ImGui::GetFontSize() / 13.f};
+    float const height{static_cast<float>(chart.height) * scale};
+
+    if(not chart.caption.empty())
+      coloured_text(0x9a9a9au, "%s", chart.caption.c_str());
+
+    ImDrawList * const draw{ImGui::GetWindowDrawList()};
+    ImVec2 const origin{ImGui::GetCursorScreenPos()};
+    ImGui::Dummy(ImVec2{width, height});
+
+    ImVec2 const far_corner{origin.x + width, origin.y + height};
+    draw->AddRectFilled(origin, far_corner, IM_COL32(0, 0, 0, 70));
+
+    for(overlay::grid_line_t const & guide: chart.grid)
+      {
+      float const y{far_corner.y - std::clamp(guide.y, 0.f, 1.f) * height};
+      draw->AddLine(ImVec2{origin.x, y}, ImVec2{far_corner.x, y}, IM_COL32(255, 255, 255, 38));
+      }
+
+    // the buffer keeps its capacity between frames; this sits on the game's frame path, where an
+    // allocation per series per frame would be paid for by the player
+    static std::vector<ImVec2> screen_points;
+
+    // the marker sits at the head of the line, so the plot gives it room instead of letting it
+    // hang over the edge
+    float const head{2.8f * scale};
+    float const plot_width{std::max(1.f, width - head)};
+
+    for(overlay::series_t const & series: chart.series)
+      {
+      if(series.points.size() < 2u)
+        continue;
+
+      screen_points.clear();
+      for(overlay::point_t const & point: series.points)
+        screen_points.push_back(
+          ImVec2{
+            origin.x + std::clamp(point.x, 0.f, 1.f) * plot_width,
+            far_corner.y - std::clamp(point.y, 0.f, 1.f) * height
+          }
+        );
+
+      ImU32 const colour{ImGui::GetColorU32(to_color(series.color))};
+      draw->AddPolyline(
+        screen_points.data(), static_cast<int>(screen_points.size()), colour, ImDrawFlags_None, 1.6f * scale
+      );
+      // the head of the line says which faction it is without a legend of its own
+      draw_marker(draw, screen_points.back(), head, colour, series.marker);
+      }
+
+    // the labels go last, over the curves and on a ground of their own - a line crossing its own
+    // decade was leaving the number unreadable exactly where it mattered
+    float const font{ImGui::GetFontSize()};
+    for(overlay::grid_line_t const & guide: chart.grid)
+      {
+      if(guide.label.empty())
+        continue;
+
+      float const y{far_corner.y - std::clamp(guide.y, 0.f, 1.f) * height};
+      // above its own line, except at the top edge, where there is no room above
+      float text_y{y - font};
+      if(text_y < origin.y)
+        text_y = y;
+      text_y = std::min(text_y, far_corner.y - font);
+
+      ImVec2 const at{origin.x + 2.f * scale, text_y};
+      ImVec2 const size{ImGui::CalcTextSize(guide.label.c_str())};
+      draw->AddRectFilled(
+        ImVec2{at.x - 2.f * scale, at.y}, ImVec2{at.x + size.x + 2.f * scale, at.y + size.y}, IM_COL32(0, 0, 0, 150)
+      );
+      draw->AddText(at, IM_COL32(200, 200, 200, 190), guide.label.c_str());
+      }
+    }
+
   [[nodiscard]]
   auto block_visible(overlay::block_t const & block, uint64_t age_ms) noexcept -> bool
-    { return not block.lines.empty() and (block.ttl_ms == 0u or age_ms <= block.ttl_ms); }
+    {
+    return (not block.lines.empty() or not block.charts.empty()) and (block.ttl_ms == 0u or age_ms <= block.ttl_ms);
+    }
 
   auto build_ui(swapchain_data_t & data) -> void
     {
@@ -210,7 +368,14 @@ namespace
               ImGui::Separator();
 
             for(overlay::line_t const & line: block.lines)
-              coloured_text(line.color, "%s", line.text.c_str());
+              draw_line(line);
+
+            // a chart wider than this is no more readable, only more of the view taken away
+            float const chart_width{
+              std::min(band - 2.f * ImGui::GetStyle().WindowPadding.x, 360.f * ImGui::GetFontSize() / 13.f)
+            };
+            for(overlay::chart_t const & chart: block.charts)
+              draw_chart(chart, chart_width);
             }
 
         ImGui::PopTextWrapPos();

@@ -24,7 +24,7 @@ struct ImGuiContext;
 
 namespace eht_overlay
   {
-///\brief loader trzyma tablice dyspozycji w pierwszym slowie kazdego uchwytu dispatchable
+///\brief the loader keeps the dispatch table in the first word of every dispatchable handle
 [[nodiscard]]
 inline auto dispatch_key(void * handle) noexcept -> void *
   { return *static_cast<void **>(handle); }
@@ -101,7 +101,7 @@ struct device_data_t
   auto family_of(VkQueue queue) -> uint32_t;
   };
 
-///\brief zasoby jednego obrazu lancucha wymiany
+///\brief the resources of one swapchain image
 struct frame_resources_t
   {
   VkCommandBuffer command_buffer{};
