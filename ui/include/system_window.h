@@ -140,6 +140,12 @@ public:
   
   system_bodies_signals_model_t * signals_model_;
   
+  ///\brief kiedy galaktyka i ten system przeliczyly sie ostatnio - u gory, bo od tego zalezy
+  /// czy oddana teraz misja liczy sie jeszcze na te dobe
+  QLabel * bgs_tick_label_{};
+  ///\brief osobny zegar, widoczny tylko gdy w systemie trwa konflikt
+  QLabel * war_tick_label_{};
+  QLabel * war_tick_row_label_{};
   QLabel * target_label_{};
   QLabel * system_label_{};
   QLabel * fss_label_{};
@@ -155,5 +161,8 @@ public:
   auto setup_ui() -> void;
 
   auto update_labels() -> void;
+
+  ///\brief gorne dwie linie - przeliczenie wplywow i, gdy trwa konflikt, przeliczenie wojen
+  auto update_tick_labels() -> void;
   };
 

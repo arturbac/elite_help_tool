@@ -1,5 +1,6 @@
 // #define SPDLOG_USE_STD_FORMAT
 #include <databse_storage.h>
+#include <set>
 #include <sqlite3.h>
 #include <filesystem>
 #include <glaze/glaze.hpp>
@@ -467,6 +468,8 @@ namespace tables
   inline constexpr std::string_view system_conflict{"galaxy.system_conflict"};
   inline constexpr std::string_view system_signal{"galaxy.system_signal"};
   inline constexpr std::string_view station{"galaxy.station"};
+  // tick jest wlasnoscia gry, nie postaci - i odtwarza sie z journali razem z reszta galaktyki
+  inline constexpr std::string_view tick_observation{"galaxy.tick_observation"};
   // to czego nie da sie odtworzyc siedzi w osobnym pliku podpietym jako schemat live
   inline constexpr std::string_view market{"live.market"};
   inline constexpr std::string_view commodity{"live.commodity"};
@@ -479,6 +482,7 @@ namespace tables
   inline constexpr std::string_view faction_reputation{"faction_reputation"};
   inline constexpr std::string_view mission{"mission"};
   inline constexpr std::string_view mission_cargo{"mission_cargo"};
+  inline constexpr std::string_view mission_influence{"mission_influence"};
   inline constexpr std::string_view micro_resource{"live.micro_resource"};
   // sprzedaz mikrozasobow to zdarzenie journala, wiec odtwarzalna
   inline constexpr std::string_view micro_sale{"micro_sale"};
@@ -926,6 +930,15 @@ static int select_single_callback(
   assert(argc == 1);
   std::span<char *> fields{argv, size_t(argc)};
   std::optional<value_type> & value{*static_cast<std::optional<value_type> *>(d)};
+
+  // agregat po pustym zbiorze (max, min, sum) oddaje wiersz z NULL, a sqlite podaje go jako nullptr.
+  // string_view zbudowany z nullptr to UB, wiec brak wartosci musi zostac brakiem wartosci
+  if(fields[0] == nullptr)
+    {
+    value.reset();
+    return 0;
+    }
+
   value = deserialize<value_type>(fields[0]);
 
   return 0;
@@ -1191,6 +1204,12 @@ auto database_storage_t::create_database() -> expected_ec<void>
     [[unlikely]]
     return res;
 
+  if(
+    auto res{sqlite::create_table<info::tick_observation_t>(db_->db, "oid"sv, sql_iface::tables::tick_observation)};
+    not res
+  ) [[unlikely]]
+    return res;
+
   if(auto res{sqlite::create_table<info::station_t>(db_->db, "market_id"sv, sql_iface::tables::station)}; not res)
     [[unlikely]]
     return res;
@@ -1213,6 +1232,14 @@ auto database_storage_t::create_database() -> expected_ec<void>
 
   if(
     auto res{sqlite::create_table<info::mission_cargo_t>(db_->db, "mission_id"sv, sql_iface::tables::mission_cargo)};
+    not res
+  ) [[unlikely]]
+    return res;
+
+  if(
+    auto res{
+      sqlite::create_table<info::mission_influence_t>(db_->db, "oid"sv, sql_iface::tables::mission_influence)
+    };
     not res
   ) [[unlikely]]
     return res;
@@ -1341,6 +1368,30 @@ auto database_storage_t::create_database() -> expected_ec<void>
     auto res{sqlite::create_index(db_->db, sql_iface::tables::micro_acquisition, "timestamp, market_id, name")};
     not res
   ) [[unlikely]]
+    return res;
+
+  // misja rusza kilka frakcji naraz, wiec wpisow jest wielokrotnie wiecej niz misji. Ten sam klucz
+  // sluzy odsiewaniu powtorek przy przebudowie i wyszukiwaniu po systemie
+  if(
+    auto res{sqlite::create_index(
+      db_->db, sql_iface::tables::mission_influence, "mission_id, faction, system_address", "key", true
+    )};
+    not res
+  ) [[unlikely]]
+    return res;
+
+  // to samo okno wpada raz na system, a przebudowa powtarza je od poczatku
+  if(
+    auto res{sqlite::create_index(
+      db_->db, sql_iface::tables::tick_observation, "kind, system_address, window_begin, window_end", "key", true
+    )};
+    not res
+  ) [[unlikely]]
+    return res;
+
+  // wyszukiwanie ostatnich ticków idzie po koncu okna
+  if(auto res{sqlite::create_index(db_->db, sql_iface::tables::tick_observation, "kind, window_end", "recent")};
+     not res) [[unlikely]]
     return res;
 
   return {};
@@ -2111,6 +2162,453 @@ auto database_storage_t::store(info::micro_acquisition_t const & value) -> expec
     return {};
 
   return sqlite::insert_into(db_->db, "oid"sv, sql_iface::tables::micro_acquisition, value);
+  }
+
+auto database_storage_t::store(info::mission_influence_t const & value) -> expected_ec<void>
+  {
+  // przebudowa z journali powtarza kazda misje - rozroznia je misja, frakcja i system
+  std::string known_query{std::format(
+    "SELECT count(*) FROM {} WHERE mission_id={} AND faction='{}' AND system_address={}",
+    sql_iface::tables::mission_influence,
+    value.mission_id,
+    sqlite::escape_sql_quotes(value.faction),
+    value.system_address
+  )};
+  auto known{sqlite::select_signle_from<uint64_t>(db_->db, known_query)};
+  if(not known) [[unlikely]]
+    return cxx23::unexpected{known.error()};
+
+  if(*known and **known != 0)
+    return {};
+
+  return sqlite::insert_into(db_->db, "oid"sv, sql_iface::tables::mission_influence, value);
+  }
+
+auto database_storage_t::last_system_seen(uint64_t system_address)
+  -> expected_ec<std::optional<std::chrono::sys_seconds>>
+  {
+  // odczyt systemu obejmuje wszystkie obecne frakcje naraz, wiec najswiezszy wpis dowolnej z nich
+  // mowi kiedy ostatnio na ten system patrzylismy
+  // bez agregatu - przy nieodwiedzonym systemie ma nie byc zadnego wiersza, a nie wiersz z NULL
+  auto res{sqlite::select_signle_from<std::chrono::sys_seconds>(
+    db_->db,
+    std::format(
+      "SELECT last_seen FROM {} WHERE system_address={} ORDER BY last_seen DESC LIMIT 1",
+      sql_iface::tables::faction_presence,
+      system_address
+    )
+  )};
+  if(not res) [[unlikely]]
+    return cxx23::unexpected{res.error()};
+
+  return *res;
+  }
+
+auto database_storage_t::store(info::tick_observation_t const & value) -> expected_ec<void>
+  {
+  std::string known_query{std::format(
+    "SELECT count(*) FROM {} WHERE kind='{}' AND system_address={}"
+    " AND window_begin='{:%Y-%m-%dT%H:%M:%SZ}' AND window_end='{:%Y-%m-%dT%H:%M:%SZ}'",
+    sql_iface::tables::tick_observation,
+    simple_enum::enum_name(value.kind),
+    value.system_address,
+    value.window_begin,
+    value.window_end
+  )};
+  auto known{sqlite::select_signle_from<uint64_t>(db_->db, known_query)};
+  if(not known) [[unlikely]]
+    return cxx23::unexpected{known.error()};
+
+  if(*known and **known != 0)
+    return {};
+
+  return sqlite::insert_into(db_->db, "oid"sv, sql_iface::tables::tick_observation, value);
+  }
+
+namespace
+  {
+///\brief najdluzsza przerwa miedzy zmianami, ktora jeszcze uchodzi za te sama fale przeliczenia
+///
+/// Galaktyka przelicza sie systemami i rozjazd miedzy nimi siega godzin, wiec fala musi miec
+/// luz. Z drugiej strony kolejna przychodzi zwykle po dobie, a w weekend po dwoch, wiec prog
+/// w okolicach polowy doby rozdziela je pewnie
+constexpr std::chrono::hours same_wave_gap{8};
+  }  // namespace
+
+auto database_storage_t::load_recent_ticks(info::tick_kind_e kind, uint32_t within_days)
+  -> expected_ec<std::vector<info::tick_fact_t>>
+  {
+  using namespace std::chrono;
+
+  auto rows{sqlite::select_from<info::tick_observation_t>(
+    db_->db,
+    sql_iface::tables::tick_observation,
+    std::format(
+      // okno szersze niz kilka godzin powstaje po dluzszej nieobecnosci w systemie i nie mowi nic
+      // o porze przeliczenia, a rozbija fale na osobne pozycje - do klastrowania nie wchodzi
+      " WHERE kind='{0}' AND (julianday(window_end) - julianday(window_begin)) * 24 <= 3"
+      " AND window_end >="
+      " (SELECT strftime('%Y-%m-%dT%H:%M:%SZ', max(window_end), '-{1} days') FROM {2} WHERE kind='{0}')"
+      " ORDER BY window_end ASC",
+      simple_enum::enum_name(kind),
+      within_days,
+      sql_iface::tables::tick_observation
+    )
+  )};
+  if(not rows) [[unlikely]]
+    return cxx23::unexpected{rows.error()};
+
+  // Fale rozdziela przerwa, nie doba kalendarzowa i nie wspolna czesc okien. Okna z roznych
+  // systemow nie musza sie przecinac, bo kazdy system przelicza sie u siebie - probowanie ich
+  // przeciecia dawalo zbior pusty i gubilo wiekszosc dni
+  std::vector<info::tick_fact_t> facts;
+  for(auto it{rows->begin()}; it != rows->end();)
+    {
+    auto const wave_begin{it};
+    auto last_end{it->window_end};
+    for(; it != rows->end() and it->window_end - last_end <= same_wave_gap; ++it)
+      last_end = it->window_end;
+
+    // posortowane po koncu okna, wiec pierwszy element fali przeliczyl sie najwczesniej,
+    // a ostatni najpozniej
+    auto const & first{*wave_begin};
+    auto const & last{*std::prev(it)};
+
+    std::vector<uint64_t> touched;
+    touched.reserve(size_t(std::distance(wave_begin, it)));
+    for(auto scan{wave_begin}; scan != it; ++scan)
+      touched.push_back(scan->system_address);
+    std::ranges::sort(touched);
+    auto const unique_systems{std::ranges::unique(touched)};
+
+    facts.push_back(info::tick_fact_t{
+      .kind = kind,
+      .start_begin = first.window_begin,
+      .start_end = first.window_end,
+      .end_begin = last.window_begin,
+      .end_end = last.window_end,
+      .samples = uint32_t(std::distance(wave_begin, it)),
+      .systems = uint32_t(touched.size() - size_t(std::ranges::distance(unique_systems)))
+    });
+    }
+
+  // najswiezsza fala na poczatku - to ona odpowiada na pytanie "kiedy byl ostatni"
+  std::ranges::reverse(facts);
+  return facts;
+  }
+
+auto database_storage_t::load_system_ticks(uint64_t system_address, info::tick_kind_e kind, uint32_t within_days)
+  -> expected_ec<std::vector<info::tick_observation_t>>
+  {
+  return sqlite::select_from<info::tick_observation_t>(
+    db_->db,
+    sql_iface::tables::tick_observation,
+    std::format(
+      // ten sam prog szerokosci co przy falach - szerokie okno nie mowi o porze niczego
+      " WHERE kind='{0}' AND system_address={1}"
+      " AND (julianday(window_end) - julianday(window_begin)) * 24 <= 3"
+      " AND window_end >="
+      " (SELECT strftime('%Y-%m-%dT%H:%M:%SZ', max(window_end), '-{2} days') FROM {3} WHERE kind='{0}')"
+      " ORDER BY window_end DESC",
+      simple_enum::enum_name(kind),
+      system_address,
+      within_days,
+      sql_iface::tables::tick_observation
+    )
+  );
+  }
+
+namespace
+  {
+///\brief wplyw frakcji wedlug ostatniej probki nie pozniejszej niz podana chwila, w procentach
+[[nodiscard]]
+auto influence_at(sqlite3 * db, uint64_t system_address, std::string_view faction, std::chrono::sys_seconds when)
+  -> std::optional<double>
+  {
+  auto res{sqlite::select_signle_from<double>(
+    db,
+    std::format(
+      "SELECT fi.influence * 100 FROM {0} fi JOIN {1} f ON f.oid = fi.faction_oid"
+      " WHERE fi.system_address={2} AND f.name='{3}' AND fi.timestamp <= '{4:%Y-%m-%dT%H:%M:%SZ}'"
+      " ORDER BY fi.timestamp DESC LIMIT 1",
+      sql_iface::tables::faction_influence,
+      sql_iface::tables::faction_info,
+      system_address,
+      sqlite::escape_sql_quotes(faction),
+      when
+    )
+  )};
+  if(not res)
+    return std::nullopt;
+
+  return *res;
+  }
+
+///\brief pierwsza zmiana wplywow w systemie po podanej chwili, dowolnej frakcji
+///
+/// Sluzy za dowod, ze po fali naprawde tam bylismy. Brak takiej zmiany znaczy albo ze nie bylismy,
+/// albo ze nic sie nie ruszylo - w obu wypadkach doby nie wolno rozliczyc
+[[nodiscard]]
+auto first_change_after(sqlite3 * db, uint64_t system_address, std::chrono::sys_seconds when)
+  -> std::optional<std::chrono::sys_seconds>
+  {
+  auto res{sqlite::select_signle_from<std::chrono::sys_seconds>(
+    db,
+    std::format(
+      "SELECT timestamp FROM {0} WHERE system_address={1} AND timestamp > '{2:%Y-%m-%dT%H:%M:%SZ}'"
+      " ORDER BY timestamp ASC LIMIT 1",
+      sql_iface::tables::faction_influence,
+      system_address,
+      when
+    )
+  )};
+  if(not res)
+    return std::nullopt;
+
+  return *res;
+  }
+
+  }  // namespace
+
+namespace bgs_detail
+  {
+///\brief surowy plus z misji razem z opisem systemu - nazwy pol musza zgadzac sie z aliasami
+/// zapytania, a sama struktura potrzebuje wiazania zewnetrznego, bo refleksja glaze nie siega
+/// do przestrzeni anonimowej
+struct effort_row_t
+  {
+  uint64_t system_address;
+  std::string system_name;
+  uint64_t population;
+  std::string faction;
+  std::chrono::sys_seconds timestamp;
+  int32_t pluses;
+  uint64_t mission_id;
+  };
+  }  // namespace bgs_detail
+
+auto database_storage_t::load_bgs_effort(uint32_t within_days, uint64_t system_address)
+  -> expected_ec<std::vector<info::bgs_effort_t>>
+  {
+  using namespace std::chrono;
+
+  auto waves{load_recent_ticks(info::tick_kind_e::influence, within_days)};
+  if(not waves) [[unlikely]]
+    return cxx23::unexpected{waves.error()};
+
+  if(waves->empty())
+    return std::vector<info::bgs_effort_t>{};
+
+  // fale przychodza od najswiezszej, a granice dob wygodniej szukac rosnaco
+  std::vector<info::tick_fact_t> ordered{*waves};
+  std::ranges::reverse(ordered);
+
+  std::string const scope{system_address != 0u ? std::format(" AND mi.system_address={}", system_address) : ""};
+  auto rows{sqlite::select_from<bgs_detail::effort_row_t>(
+    db_->db,
+    std::format(
+      "(SELECT mi.system_address AS system_address, coalesce(ss.name, '') AS system_name,"
+      " coalesce(ss.population, 0) AS population, mi.faction AS faction, mi.timestamp AS timestamp,"
+      " mi.pluses AS pluses, mi.mission_id AS mission_id"
+      " FROM {0} mi LEFT JOIN {1} ss ON ss.system_address = mi.system_address"
+      " WHERE mi.timestamp >= '{2:%Y-%m-%dT%H:%M:%SZ}'{3})",
+      sql_iface::tables::mission_influence,
+      sql_iface::tables::star_system,
+      ordered.front().start_begin,
+      scope
+    ),
+    ""
+  )};
+  if(not rows) [[unlikely]]
+    return cxx23::unexpected{rows.error()};
+
+  struct bucket_t
+    {
+    info::bgs_effort_t effort;
+    std::set<uint64_t> missions;
+    };
+  std::map<std::tuple<uint64_t, std::string, sys_seconds>, bucket_t> buckets;
+
+  for(bgs_detail::effort_row_t const & row: *rows)
+    {
+    // misja oddana przed fala liczy sie do doby, ktora ta fala zamyka. Wpadniecie w samo okno fali
+    // jest nierozstrzygalne, wiec idzie do doby zamykanej - tam misja jeszcze najpewniej zdazyla
+    auto const closing{std::ranges::find_if(ordered, [&](info::tick_fact_t const & w)
+                                            { return w.start_end >= row.timestamp; })};
+
+    // po ostatniej fali siedzi doba jeszcze nierozliczona - zerowy znacznik mowi "trwa"
+    sys_seconds const closed_by{closing != ordered.end() ? closing->start_end : sys_seconds{}};
+
+    auto & bucket{buckets[{row.system_address, row.faction, closed_by}]};
+    if(bucket.effort.faction.empty())
+      bucket.effort = info::bgs_effort_t{
+        .system_address = row.system_address,
+        .system_name = row.system_name,
+        .population = row.population,
+        .faction = row.faction,
+        .closed_by = closed_by,
+        .pushed_up = {},
+        .pushed_down = {},
+        .missions = {},
+        .influence_before = {},
+        .influence_after = {}
+      };
+
+    if(row.pluses > 0)
+      bucket.effort.pushed_up += row.pluses;
+    else
+      bucket.effort.pushed_down -= row.pluses;
+
+    bucket.missions.insert(row.mission_id);
+    }
+
+  std::vector<info::bgs_effort_t> result;
+  result.reserve(buckets.size());
+  for(auto & [key, bucket]: buckets)
+    {
+    bucket.effort.missions = int32_t(bucket.missions.size());
+
+    // doby nierozliczonej nie ma czym zamknac, a reszcie dokladamy wplyw z obu stron fali
+    if(bucket.effort.closed_by != sys_seconds{})
+      {
+      auto const closing{std::ranges::find_if(
+        ordered, [&](info::tick_fact_t const & w) { return w.start_end == bucket.effort.closed_by; }
+      )};
+      if(closing != ordered.end())
+        {
+        bucket.effort.influence_before
+          = influence_at(db_->db, bucket.effort.system_address, bucket.effort.faction, closing->start_begin);
+
+        // wartosc po fali wolno pokazac tylko gdy mamy dowod, ze po niej tam bylismy
+        if(auto seen{first_change_after(db_->db, bucket.effort.system_address, closing->end_end)}; seen)
+          bucket.effort.influence_after
+            = influence_at(db_->db, bucket.effort.system_address, bucket.effort.faction, *seen);
+        }
+      }
+
+    result.push_back(std::move(bucket.effort));
+    }
+
+  // najswiezsze doby na gorze, a w obrebie doby najwieksza praca pierwsza
+  std::ranges::sort(
+    result,
+    [](info::bgs_effort_t const & l, info::bgs_effort_t const & r)
+    {
+      if(l.closed_by != r.closed_by)
+        return l.closed_by > r.closed_by;
+      return l.pushed_up + l.pushed_down > r.pushed_up + r.pushed_down;
+    }
+  );
+
+  return result;
+  }
+
+auto database_storage_t::load_war_countdown(uint64_t system_address)
+  -> expected_ec<std::vector<info::war_countdown_t>>
+  {
+  auto conflicts{load_conflicts(system_address)};
+  if(not conflicts) [[unlikely]]
+    return cxx23::unexpected{conflicts.error()};
+
+  // baza trzyma cala historie, a odliczac mozna tylko z najswiezszego stanu kazdej pary
+  std::map<std::pair<std::string, std::string>, info::conflict_t const *> latest;
+  for(info::conflict_t const & conflict: *conflicts)
+    {
+    auto & slot{latest[{conflict.faction1, conflict.faction2}]};
+    if(slot == nullptr or slot->timestamp < conflict.timestamp)
+      slot = &conflict;
+    }
+
+  ///\brief tyle wygranych dni rozstrzyga konflikt
+  constexpr uint32_t days_to_win{4};
+
+  std::vector<info::war_countdown_t> result;
+  for(auto const & [pair, entry]: latest)
+    {
+    info::conflict_t const & conflict{*entry};
+
+    // pusty status znaczy, ze konflikt juz sie zamknal - nie ma czego odliczac
+    if(conflict.status.empty())
+      continue;
+
+    bool const active{conflict.status == "active"};
+    uint32_t const won{std::max(conflict.won_days1, conflict.won_days2)};
+
+    result.push_back(info::war_countdown_t{
+      .system_address = system_address,
+      .war_type = conflict.war_type,
+      .faction1 = conflict.faction1,
+      .faction2 = conflict.faction2,
+      .won_days1 = conflict.won_days1,
+      .won_days2 = conflict.won_days2,
+      // zapowiedziany potrzebuje jeszcze jednego przeliczenia, zeby w ogole ruszyc
+      .ticks_left = (active ? 0u : 1u) + (won >= days_to_win ? 0u : days_to_win - won),
+      .active = active
+    });
+    }
+
+  // najblizsze rozstrzygniecia pierwsze - to one decyduja, kiedy miec bondy na reku
+  std::ranges::sort(
+    result, [](info::war_countdown_t const & l, info::war_countdown_t const & r) { return l.ticks_left < r.ticks_left; }
+  );
+
+  return result;
+  }
+
+auto database_storage_t::load_tick_stats(info::tick_kind_e kind, uint32_t within_days)
+  -> expected_ec<info::tick_stats_t>
+  {
+  using namespace std::chrono;
+
+  auto facts{load_recent_ticks(kind, within_days)};
+  if(not facts) [[unlikely]]
+    return cxx23::unexpected{facts.error()};
+
+  info::tick_stats_t stats{
+    .kind = kind,
+    .waves = uint32_t(facts->size()),
+    .typical_gap = {},
+    .longest_gap = {},
+    .multi_system_waves = {},
+    .widest_spread = {},
+    .typical_window = {}
+  };
+
+  std::vector<minutes> widths;
+  widths.reserve(facts->size());
+  for(auto const & fact: *facts)
+    widths.push_back(duration_cast<minutes>(fact.start_end - fact.start_begin));
+
+  if(not widths.empty())
+    {
+    auto const middle{widths.begin() + std::ptrdiff_t(widths.size() / 2u)};
+    std::ranges::nth_element(widths, middle);
+    stats.typical_window = *middle;
+    }
+
+  std::vector<minutes> gaps;
+  gaps.reserve(facts->size());
+  for(auto const & fact: *facts)
+    {
+    if(fact.systems > 1u)
+      ++stats.multi_system_waves;
+
+    stats.widest_spread = std::max(stats.widest_spread, duration_cast<minutes>(fact.end_end - fact.start_end));
+    }
+
+  // fale ida od najswiezszej, wiec przerwa dzieli sasiadow na liscie
+  for(size_t ix{1}; ix < facts->size(); ++ix)
+    gaps.push_back(duration_cast<minutes>((*facts)[ix - 1u].start_end - (*facts)[ix].start_end));
+
+  if(not gaps.empty())
+    {
+    stats.longest_gap = *std::ranges::max_element(gaps);
+    auto const middle{gaps.begin() + std::ptrdiff_t(gaps.size() / 2u)};
+    std::ranges::nth_element(gaps, middle);
+    stats.typical_gap = *middle;
+    }
+
+  return stats;
   }
 
 auto database_storage_t::load_station(uint64_t market_id) -> expected_ec<std::optional<info::station_t>>

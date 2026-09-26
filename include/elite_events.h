@@ -340,6 +340,24 @@ struct material_reward_t
   uint32_t Count;
   };
 
+///\brief ruch wplywow jednej frakcji w jednym systemie, oplacony ta misja
+///\detail gra nie podaje liczby, tylko ciag "+", "++" albo "+++" - jego dlugosc jest cala miara.
+/// Trend mowi w ktora strone poszla frakcja: UpGood rosnie, DownBad spada
+struct influence_effect_t
+  {
+  uint64_t SystemAddress;
+  std::string Trend;
+  std::string Influence;
+  };
+
+///\brief skutki jednej misji dla jednej frakcji - oddana misja rusza zwykle kilka frakcji naraz,
+/// a kazda z nich moze poczuc to w wiecej niz jednym systemie
+struct faction_effect_t
+  {
+  std::string Faction;
+  std::vector<influence_effect_t> Influence;
+  };
+
 struct mission_completed_t
   {
   uint64_t MissionID;
@@ -347,6 +365,9 @@ struct mission_completed_t
   uint64_t Reward;
   ///\brief nagrody materialowe - najwiekszy pojedynczy zrodlo danych, dwa razy wiekszy niz porty
   std::vector<material_reward_t> MaterialsReward;
+  ///\brief kogo ta misja ruszyla i o ile - jedyny slad wplywu oddanej misji w calym journalu.
+  /// Bez tego nie da sie powiedziec ile pracy kosztowal punkt procentowy w systemie
+  std::vector<faction_effect_t> FactionEffects;
   };
 
 struct mission_failed_t

@@ -404,6 +404,155 @@ struct mission_cargo_t
   uint32_t count;
   };
 
+///\brief ile wplywu jedna oddana misja dolozyla jednej frakcji w jednym systemie
+///
+/// gra liczy to plusami, nie procentami - "+++" znaczy tyle, ze dostala trzy razy tyle co "+",
+/// ale ile to punktow procentowych zalezy od systemu i od tego co w tej dobie zrobili inni.
+/// Dlatego trzymamy surowa liczbe plusow, a przelicznik na procenty wychodzi dopiero z zestawienia
+/// z [[faction_influence_t]] po ticku
+struct mission_influence_t
+  {
+  int64_t oid{-1};
+  uint64_t mission_id;
+  ///\brief kiedy misja zostala oddana - to ta chwila decyduje do ktorej doby BGS wpadnie
+  std::chrono::sys_seconds timestamp;
+  std::string faction;
+  uint64_t system_address;
+  ///\brief ze znakiem: dodatnie gdy frakcja rosnie, ujemne gdy ja ta misja spycha w dol
+  int32_t pluses;
+  };
+
+///\brief praca wlozona w jedna frakcje w jednym systemie przez jedna dobe BGS, zestawiona z tym
+/// co ta doba faktycznie dala
+struct bgs_effort_t
+  {
+  uint64_t system_address;
+  std::string system_name;
+  ///\brief populacja systemu - bez niej liczba plusow nic nie znaczy
+  ///
+  /// gra dzieli wplyw misji przez wielkosc systemu, wiec te same 10 plusow daje w systemie
+  /// czterdziestomilionowym ulamek tego, co w czterdziestotysiecznym. Przelicznik ma sens wylacznie
+  /// w obrebie jednego systemu i nigdy nie wolno go usredniac miedzy systemami
+  uint64_t population;
+  std::string faction;
+  ///\brief fala, ktora te dobe zamknela - plusy oddane przed nia licza sie wlasnie do niej.
+  /// Granica jest wykryta, nie wyliczona z godziny, bo tick przesuwa sie co kilka dni
+  std::chrono::sys_seconds closed_by;
+  ///\brief plusy pchajace frakcje w gore i te spychajace ja w dol, osobno - to dwie rozne dzwignie
+  int32_t pushed_up;
+  int32_t pushed_down;
+  int32_t missions;
+  ///\brief wplyw z ostatniej probki przed zamykajaca fala i z pierwszej po niej, w procentach.
+  /// Puste gdy nie bylo nas w systemie po jednej ze stron - wtedy tej doby nie da sie rozliczyc
+  /// i nie wolno jej dopowiadac
+  std::optional<double> influence_before;
+  std::optional<double> influence_after;
+  };
+
+///\brief ile jeszcze zostalo trwajacemu konfliktowi
+///
+/// Konflikt rozstrzyga sie, gdy jedna ze stron uzbiera cztery wygrane dni - w danych Artura konczy
+/// tak 53 z 90 zamknietych konfliktow, reszta to ostatnie odczyty sprzed zniknienia z systemu.
+/// Dzieki temu koniec wojny daje sie odliczyc z samego won_days, bez znajomosci pory przeliczenia;
+/// pora mowi juz tylko, o ktorej tego dnia
+struct war_countdown_t
+  {
+  uint64_t system_address;
+  std::string war_type;
+  std::string faction1;
+  std::string faction2;
+  uint32_t won_days1;
+  uint32_t won_days2;
+  ///\brief zero znaczy, ze konflikt rozstrzyga sie najblizszym przeliczeniem wojen - wtedy warto
+  /// miec bondy na reku, bo po wygranej ida z premia
+  uint32_t ticks_left;
+  ///\brief czy konflikt juz trwa - zapowiedziany dopiero sie zacznie i ma pelne cztery dni przed soba
+  bool active;
+  };
+
+///\brief ktory z dziennych przeliczen gry - to sa dwa osobne zegary
+///\detail zwykle chodza razem, ale nie zawsze: 4 sierpnia 2026 wplywy przeliczyly sie o 16:30,
+/// a wojny o 14:30, siodmego wplywy o 16:30 a wojny o 11:30
+enum struct tick_kind_e : uint8_t
+  {
+  ///\brief przeliczenie wplywow frakcji
+  influence,
+  ///\brief przeliczenie dni wygranych w konfliktach
+  war
+  };
+
+consteval auto adl_enum_bounds(tick_kind_e)
+  {
+  using enum tick_kind_e;
+  return simple_enum::adl_info{influence, war};
+  }
+
+///\brief slad po jednym ticku: przedzial miedzy ostatnim odczytem ze stara wartoscia a pierwszym
+/// z nowa
+///
+/// Gra nie oglasza ticku. Jedyne co widac to ze miedzy dwoma spojrzeniami na system wartosc sie
+/// zmienila - a to znaczy tyle, ze tick wypadl gdzies w tym przedziale. Im wiecej systemow
+/// odwiedzonych blisko siebie w czasie, tym ciasniej przedzialy sie przecinaja
+struct tick_observation_t
+  {
+  int64_t oid{-1};
+  tick_kind_e kind;
+  uint64_t system_address;
+  ///\brief ostatni odczyt, ktory pokazywal jeszcze stara wartosc
+  std::chrono::sys_seconds window_begin;
+  ///\brief pierwszy odczyt z nowa wartoscia
+  std::chrono::sys_seconds window_end;
+  };
+
+///\brief jedna fala przeliczenia, zlozona z obserwacji po kolejnych systemach
+///
+/// Tick nie jest chwila. Galaktyka przelicza sie systemami, sasiednie potrafia sie rozjechac
+/// o godziny, wiec przecinanie okien z roznych systemow dawaloby zbior pusty - a nie daje, bo
+/// kazdy system ma wlasny moment. Dlatego zamiast jednej godziny trzymamy oba konce fali:
+///
+/// - **poczatek** jest tym, co liczy sie dla wplywow: misje trzeba oddac przed nim, bo po nim
+///   plusy ida juz na nastepna dobe,
+/// - **koniec** jest tym, co liczy sie dla wojen: dopiero po nim bondy sprzedaja sie po nowemu.
+///
+/// Fale nie chodza co 24h - w weekendy potrafi nie byc ticku przez prawie dwie doby, a po
+/// aktualizacji gry serwery gubia go zupelnie. Dlatego zadne pole nie jest prognoza
+struct tick_fact_t
+  {
+  tick_kind_e kind;
+  ///\brief okno, w ktorym przeliczyl sie pierwszy system - tu fala sie zaczela
+  std::chrono::sys_seconds start_begin;
+  std::chrono::sys_seconds start_end;
+  ///\brief okno, w ktorym przeliczyl sie ostatni - tu fala doszla do konca
+  std::chrono::sys_seconds end_begin;
+  std::chrono::sys_seconds end_end;
+  ///\brief ile obserwacji i ilu roznych systemow zlozylo sie na te fale
+  uint32_t samples;
+  uint32_t systems;
+  };
+
+///\brief jak regularnie przeliczenie w ogole przychodzi
+///
+/// Odpowiada na pytanie "czy tick dzisiaj byl" inaczej niz przez doliczanie doby: pokazuje typowa
+/// i najdluzsza zaobserwowana przerwe, wiec od razu widac, ze w weekend potrafi nie przyjsc
+struct tick_stats_t
+  {
+  tick_kind_e kind;
+  uint32_t waves;
+  ///\brief mediana i najdluzsza przerwa miedzy poczatkami kolejnych fal
+  std::chrono::minutes typical_gap;
+  std::chrono::minutes longest_gap;
+  ///\brief ile fal widzialo wiecej niz jeden system - tylko one mowia cos o szerokosci propagacji
+  uint32_t multi_system_waves;
+  ///\brief najszersza zaobserwowana propagacja, od poczatku fali do jej konca
+  std::chrono::minutes widest_spread;
+  ///\brief mediana szerokosci okna, czyli jak dokladnie to w ogole zmierzono
+  ///
+  /// Okno to odstep miedzy odczytem ze stara i z nowa wartoscia, wiec rzadsze wizyty w systemie
+  /// rozszerzaja je. Tick nie przesuwa sie przez to na wykresie - po prostu wiadomo o nim mniej,
+  /// i wlasnie ta liczba o tym mowi
+  std::chrono::minutes typical_window;
+  };
+
 ///\brief ile czego trzeba przywiezc lacznie, po zsumowaniu otwartych misji
 struct cargo_need_t
   {

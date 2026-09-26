@@ -24,6 +24,131 @@
 namespace fs = std::filesystem;
 namespace po = boost::program_options;
 
+
+///\brief praca w plusach zestawiona z tym, co dala - doba BGS po dobie
+///
+/// Przelicznik plusow na punkt procentowy liczony jest osobno dla kazdego systemu i nigdzie nie
+/// jest usredniany, bo gra dzieli wplyw misji przez wielkosc systemu: te same dziesiec plusow daje
+/// w systemie czterdziestomilionowym ulamek tego, co w czterdziestotysiecznym
+void print_bgs_effort(database_storage_t & db, uint32_t within_days)
+  {
+  auto effort{db.load_bgs_effort(within_days, 0u)};
+  if(not effort)
+    {
+    std::println(stderr, "nie udalo sie odczytac pracy BGS");
+    return;
+    }
+
+  std::println("\n=== PRACA BGS === {} pozycji z ostatnich {} dni", effort->size(), within_days);
+  std::println(
+    "{:<12}{:<24}{:>10}  {:<24}{:>5}{:>7}{:>7}{:>16}{:>9}",
+    "zamknieta",
+    "system",
+    "populacja",
+    "frakcja",
+    "msn",
+    "w gore",
+    "w dol",
+    "wplyw przed/po",
+    "plus/pp"
+  );
+
+  for(info::bgs_effort_t const & row: *effort)
+    {
+    std::string const closed{
+      row.closed_by == std::chrono::sys_seconds{} ? std::string{"trwa"} : std::format("{:%d.%m %H:%M}", row.closed_by)
+    };
+
+    std::string moved{"-"};
+    std::string rate{"-"};
+    if(row.influence_before and row.influence_after)
+      {
+      double const delta{*row.influence_after - *row.influence_before};
+      moved = std::format("{:.1f}->{:.1f}", *row.influence_before, *row.influence_after);
+
+      // Przy ruchu rzedu dziesiatych czesci punktu przelicznik mowi juz tylko o zaokragleniu -
+      // i o tym, co tej doby zrobili inni gracze, bo wplyw jest suma zerowa
+      if(delta >= 0.3 and row.pushed_up > 0)
+        rate = std::format("{:.1f}", double(row.pushed_up) / delta);
+      }
+
+    std::println(
+      "{:<12}{:<24}{:>10}  {:<24}{:>5}{:>7}{:>7}{:>16}{:>9}",
+      closed,
+      row.system_name.substr(0, 23),
+      row.population,
+      row.faction.substr(0, 23),
+      row.missions,
+      row.pushed_up,
+      row.pushed_down,
+      moved,
+      rate
+    );
+    }
+  }
+
+///\brief wypisuje zaobserwowane fale przeliczen - osobno wplywy, osobno wojny
+///
+/// Zadna z tych liczb nie jest prognoza. Tick przesuwa sie co kilka dni, w weekend potrafi nie
+/// przyjsc przez prawie dwie doby, a po aktualizacji gry gubi sie zupelnie - wiec wypisujemy
+/// wylacznie to, co zostalo zobaczone
+void print_tick_history(database_storage_t & db, uint32_t within_days)
+  {
+  for(info::tick_kind_e const kind: {info::tick_kind_e::influence, info::tick_kind_e::war})
+    {
+    auto facts{db.load_recent_ticks(kind, within_days)};
+    if(not facts)
+      {
+      std::println(stderr, "nie udalo sie odczytac historii tickow");
+      continue;
+      }
+
+    std::println(
+      "\n=== {} === {} fal z ostatnich {} dni",
+      kind == info::tick_kind_e::influence ? "WPLYWY (oddaj misje przed poczatkiem)"
+                                           : "WOJNY (bondy sprzedawaj po koncu)",
+      facts->size(),
+      within_days
+    );
+    if(auto stats{db.load_tick_stats(kind, within_days)}; stats)
+      std::println(
+        "przerwa typowo {:.1f}h, najdluzej {:.1f}h | okno pomiaru typowo {} min"
+        " | fal z wiecej niz jednym systemem: {} z {} (najszersza propagacja {} min)",
+        double(stats->typical_gap.count()) / 60.0,
+        double(stats->longest_gap.count()) / 60.0,
+        stats->typical_window.count(),
+        stats->multi_system_waves,
+        stats->waves,
+        stats->widest_spread.count()
+      );
+
+    std::println(
+      "{:<24}{:<24}{:>5}{:>10}{:>9}", "poczatek fali (UTC)", "koniec fali (UTC)", "sys", "odczytow", "do nast."
+    );
+
+    std::optional<std::chrono::sys_seconds> previous;
+    for(info::tick_fact_t const & f: *facts)
+      {
+      std::string gap{"-"};
+      if(previous)
+        {
+        auto const hours{std::chrono::duration_cast<std::chrono::minutes>(*previous - f.start_end).count() / 60.0};
+        gap = std::format("{:.1f}h", hours);
+        }
+      previous = f.start_end;
+
+      std::println(
+        "{:<24}{:<24}{:>5}{:>10}{:>9}",
+        std::format("{:%m-%d %H:%M} - {:%H:%M}", f.start_begin, f.start_end),
+        std::format("{:%m-%d %H:%M} - {:%H:%M}", f.end_begin, f.end_end),
+        f.systems,
+        f.samples,
+        gap
+      );
+      }
+    }
+  }
+
 struct config_t
   {
   fs::path directory;
@@ -78,7 +203,13 @@ auto main(int argc, char ** argv) -> int
     "dir,d", po::value<std::string>()->default_value("."), "journal folder"
   )("commander,c",
     po::value<std::string>()->default_value(""),
-    "FID konta do ktorego nalezy baza; puste = konto z najnowszego journala, 'all' = bez rozroznienia");
+    "FID konta do ktorego nalezy baza; puste = konto z najnowszego journala, 'all' = bez rozroznienia"
+  )("ticks",
+    po::value<uint32_t>()->implicit_value(30),
+    "wypisz zaobserwowane fale przeliczen z istniejacej bazy zamiast importowac, za tyle ostatnich dni"
+  )("bgs",
+    po::value<uint32_t>()->implicit_value(14),
+    "wypisz prace w plusach zestawiona z ruchem wplywow, doba po dobie, za tyle ostatnich dni");
 
   po::variables_map vm;
   try
@@ -95,6 +226,18 @@ auto main(int argc, char ** argv) -> int
   if(vm.count("help"))
     {
     std::cout << desc << "\n";
+    return 0;
+    }
+
+  if(vm.count("ticks") or vm.count("bgs"))
+    {
+    database_import_state_t::state_t state{"ehtdb.sqlite"};
+    if(not state.db_.open(storage_mode_e::live))
+      return EXIT_FAILURE;
+    if(vm.count("ticks"))
+      print_tick_history(state.db_, vm["ticks"].as<uint32_t>());
+    if(vm.count("bgs"))
+      print_bgs_effort(state.db_, vm["bgs"].as<uint32_t>());
     return 0;
     }
 

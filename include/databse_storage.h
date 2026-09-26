@@ -145,7 +145,47 @@ struct database_storage_t
   [[nodiscard]]
   auto load_acquisition_summary(std::chrono::sys_seconds since)
     -> expected_ec<std::vector<info::acquisition_summary_t>>;
-  
+
+  ///\brief wplyw oddanej misji na jedna frakcje w jednym systemie, z pominieciem juz znanych
+  [[nodiscard]]
+  auto store(info::mission_influence_t const & value) -> expected_ec<void>;
+
+  ///\brief kiedy ostatnio patrzylismy na ten system - dowolna frakcja, bo odczyt obejmuje wszystkie
+  [[nodiscard]]
+  auto last_system_seen(uint64_t system_address) -> expected_ec<std::optional<std::chrono::sys_seconds>>;
+
+  ///\brief slad po ticku, z pominieciem juz znanych okien
+  [[nodiscard]]
+  auto store(info::tick_observation_t const & value) -> expected_ec<void>;
+
+  ///\brief ostatnie zaobserwowane ticki danego rodzaju, od najswiezszego
+  ///\detail okna z jednej doby sa przecinane - kazdy odwiedzony system zawezza wynik
+  [[nodiscard]]
+  auto load_recent_ticks(info::tick_kind_e kind, uint32_t within_days)
+    -> expected_ec<std::vector<info::tick_fact_t>>;
+
+  ///\brief przeliczenia zaobserwowane w jednym systemie, od najswiezszego
+  ///\detail sasiednie systemy przelicza sie o roznych porach, wiec to jest ta pora, ktora obowiazuje
+  /// przy oddawaniu misji akurat tutaj - globalna fala mowi tylko, w jakim zakresie szukac
+  [[nodiscard]]
+  auto load_system_ticks(uint64_t system_address, info::tick_kind_e kind, uint32_t within_days)
+    -> expected_ec<std::vector<info::tick_observation_t>>;
+
+  ///\brief jak regularnie przeliczenie przychodzi - z tych samych fal, co load_recent_ticks
+  [[nodiscard]]
+  auto load_tick_stats(info::tick_kind_e kind, uint32_t within_days) -> expected_ec<info::tick_stats_t>;
+
+  ///\brief praca w plusach zestawiona z ruchem wplywow, doba BGS po dobie
+  ///\detail doby rozdzielaja wykryte fale przeliczen, nie stala godzina - ta przesuwa sie co kilka
+  /// dni i w weekend potrafi nie przyjsc wcale. system_address rozne od zera zaweza do jednego systemu
+  [[nodiscard]]
+  auto load_bgs_effort(uint32_t within_days, uint64_t system_address)
+    -> expected_ec<std::vector<info::bgs_effort_t>>;
+
+  ///\brief ile jeszcze przeliczen wojny do rozstrzygniecia kazdego trwajacego konfliktu
+  [[nodiscard]]
+  auto load_war_countdown(uint64_t system_address) -> expected_ec<std::vector<info::war_countdown_t>>;
+
   [[nodiscard]]
   auto store(info::fcmaterial_t const & value) -> expected_ec<void>;
   

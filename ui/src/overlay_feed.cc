@@ -394,6 +394,20 @@ auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
   if(factions_system_ == 0u)
     return;
 
+  // w pasie bocznym miesci sie jedna linia, wiec zostaje sama godzina i to, czy fala juz tu doszla -
+  // rozklad na systemy i statystyke widac w oknie systemu
+  auto const wall_clock{std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())};
+  auto const tick_line = [&](info::tick_kind_e kind, std::string_view caption) -> overlay::line_t
+  {
+    tick_view_t const view{describe_tick(db_, factions_system_, kind, wall_clock)};
+    return overlay::line_t{
+      .text = std::format("{} {}{}", caption, view.here, view.awaiting ? "  (fala ruszyla, tu jeszcze nie)" : ""),
+      .color = view.awaiting ? colour_alert : colour_plain
+    };
+  };
+
+  faction_lines_.push_back(tick_line(info::tick_kind_e::influence, "BGS tick"));
+
   if(auto conflicts{db_.load_conflicts(factions_system_)}; conflicts)
     {
     // baza trzyma cala historie wpisow, a na ekranie ma byc obecny stan kazdej pary frakcji
@@ -438,6 +452,31 @@ auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
           }
         );
       }
+    }
+
+  // zegar wojen pokazujemy tylko gdy cos trwa - to po nim sprzedaje sie bondy
+  if(not conflict_lines_.empty())
+    {
+    // konflikt rozstrzyga sie przy czwartym wygranym dniu, wiec koniec da sie odliczyc bez
+    // znajomosci pory przeliczenia - a wlasnie wtedy bondy sa najwiecej warte
+    if(auto countdown{db_.load_war_countdown(factions_system_)}; countdown)
+      for(info::war_countdown_t const & war: *countdown)
+        {
+        if(not war.active)
+          continue;
+
+        bool const decides_now{war.ticks_left == 0u};
+        conflict_lines_.insert(
+          conflict_lines_.begin(),
+          overlay::line_t{
+            .text = decides_now ? std::format("{}: rozstrzyga sie najblizszym tickiem - bondy na reke", war.war_type)
+                                : std::format("{}: jeszcze {} tickow wojny", war.war_type, war.ticks_left),
+            .color = decides_now ? colour_alert : colour_plain
+          }
+        );
+        }
+
+    conflict_lines_.insert(conflict_lines_.begin(), tick_line(info::tick_kind_e::war, "war tick"));
     }
 
   auto history{db_.load_influence_history(factions_system_)};

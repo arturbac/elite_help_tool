@@ -464,6 +464,8 @@ static auto set_label_color(QLabel * label, planet_value_e val) -> void
 
 auto system_window_t::update_labels() -> void
   {
+  update_tick_labels();
+
   target_label_->setText(
     QString::fromStdString(
       std::format("Next: {} [{}] {}", state_.next_target.Name, state_.next_target.StarClass, model_->bodies_.size())
@@ -537,12 +539,20 @@ auto system_window_t::setup_ui() -> void
   auto * info_group = new QGroupBox("Status");
   auto * form = new QFormLayout(info_group);
 
+  bgs_tick_label_ = new QLabel();
+  bgs_tick_label_->setWordWrap(true);
+  war_tick_label_ = new QLabel();
+  war_tick_label_->setWordWrap(true);
   target_label_ = new QLabel();
   system_label_ = new QLabel();
   fss_label_ = new QLabel();
   poi_label_ = new QLabel();
   poi_label_->setWordWrap(true);
 
+  // przeliczenia na samej gorze - to one wyznaczaja, do kiedy warto jeszcze oddawac misje
+  form->addRow("BGS tick:", bgs_tick_label_);
+  war_tick_row_label_ = new QLabel("War tick:");
+  form->addRow(war_tick_row_label_, war_tick_label_);
   form->addRow("Next Target:", target_label_);
   form->addRow("Current System:", system_label_);
   form->addRow("FSS Status:", fss_label_);
@@ -608,3 +618,56 @@ auto system_window_t::setup_ui() -> void
   setAttribute(Qt::WA_DeleteOnClose);
   }
 
+
+auto system_window_t::update_tick_labels() -> void
+  {
+  auto & db{const_cast<database_storage_t &>(state_.db_)};
+  auto const now{std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())};
+  auto const address{state_.system.system_address};
+
+  auto const describe = [&](info::tick_kind_e kind) -> QString
+  {
+    tick_view_t const view{describe_tick(db, address, kind, now)};
+    std::string text{view.here};
+    if(view.awaiting)
+      // fala juz gdzies ruszyla, a tutaj jej jeszcze nie widzielismy - to nie znaczy, ze nie byla,
+      // bo o systemie wiemy tylko tyle, ile zobaczylismy przy ostatniej wizycie
+      text.append(kind == info::tick_kind_e::influence ? "  |  fala ruszyla, tu jeszcze nie widziana"
+                                                       : "  |  fala ruszyla, bondy jeszcze nie przeliczone");
+    if(not view.galaxy.empty())
+      text.append("  |  ").append(view.galaxy);
+
+    return QString::fromStdString(text);
+  };
+
+  bgs_tick_label_->setText(describe(info::tick_kind_e::influence));
+
+  // zegar wojen ma sens tylko gdy jest o co walczyc - poza konfliktem zajmowalby miejsce na nic.
+  // Konflikt zamkniety ma pusty status, wiec licza sie wylacznie pending i active
+  bool at_war{};
+  if(auto conflicts{db.load_conflicts(address)}; conflicts)
+    at_war = std::ranges::any_of(*conflicts, [](info::conflict_t const & c) { return not c.status.empty(); });
+
+  war_tick_label_->setVisible(at_war);
+  war_tick_row_label_->setVisible(at_war);
+  if(at_war)
+    {
+    std::string text{describe(info::tick_kind_e::war).toStdString()};
+
+    // ile jeszcze przeliczen do rozstrzygniecia - zero znaczy, ze warto miec bondy na reku
+    if(auto countdown{db.load_war_countdown(address)}; countdown and not countdown->empty())
+      for(info::war_countdown_t const & war: *countdown)
+        text.append(std::format(
+          "\n{} {} {}:{} {} - {}",
+          war.active ? "|" : "(zapowiedziany)",
+          war.war_type,
+          war.won_days1,
+          war.won_days2,
+          war.faction1,
+          war.ticks_left == 0u ? std::string{"ROZSTRZYGA SIE NAJBLIZSZYM TICKIEM - bondy na reke"}
+                               : std::format("jeszcze {} tickow wojny", war.ticks_left)
+        ));
+
+    war_tick_label_->setText(QString::fromStdString(text));
+    }
+  }

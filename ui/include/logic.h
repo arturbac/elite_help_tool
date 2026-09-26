@@ -7,6 +7,24 @@
 
 class main_window_t;
 
+///\brief zdanie o przeliczeniu gotowe do pokazania - to samo w oknie systemu i w overlayu
+struct tick_view_t
+  {
+  ///\brief kiedy ten system przeliczyl sie ostatnio i jak dawno temu
+  std::string here;
+  ///\brief w jakim zakresie szla ostatnia fala po galaktyce i jak regularnie przychodzi
+  std::string galaxy;
+  ///\brief fala juz ruszyla, ale tego systemu jeszcze w niej nie widzielismy - przy wplywach
+  /// znaczy to "jest jeszcze czas oddac misje", przy wojnach "bondy jeszcze nie przeliczone"
+  bool awaiting;
+  };
+
+///\brief sklada opis przeliczenia z tego, co zaobserwowano - nigdy nie dopowiada prognozy
+[[nodiscard]]
+auto describe_tick(
+  database_storage_t & db, uint64_t system_address, info::tick_kind_e kind, std::chrono::sys_seconds now
+) -> tick_view_t;
+
 struct current_state_t : public generic_state_t
   {
   struct buffered_signal_t

@@ -16,13 +16,42 @@ static auto new_system_def(uint64_t system_address, std::string_view name, std::
   };
   }
 
+///\brief najdluzsze okno, ktore jeszcze cos mowi o porze ticku
+///
+/// Przy dluzszej przerwie miedzy odczytami przedzial obejmuje pol doby i przeciecie z nim niczego
+/// nie zawezi, a zasmieca tabele
+constexpr std::chrono::hours max_tick_window{24};
+
+///\brief zapisuje slad po ticku, gdy sledzona wartosc zmienila sie miedzy dwoma odczytami systemu
+void note_tick(
+  database_storage_t & db,
+  info::tick_kind_e kind,
+  uint64_t system_address,
+  std::optional<std::chrono::sys_seconds> previously_seen,
+  std::chrono::sys_seconds timestamp
+)
+  {
+  // bez poprzedniego odczytu nie ma czym ograniczyc okna - pierwsze spojrzenie na system nic nie mowi
+  if(not previously_seen or *previously_seen >= timestamp or timestamp - *previously_seen > max_tick_window)
+    return;
+
+  if(
+    auto res{db.store(info::tick_observation_t{
+      .kind = kind, .system_address = system_address, .window_begin = *previously_seen, .window_end = timestamp
+    })};
+    not res
+  )
+    spdlog::error("failed to store tick observation for {}", system_address);
+  }
+
 ///\brief rejestruje influence frakcji w systemie, tylko gdy zmienila sie wzgledem ostatniego wpisu
 void store_influence(
   database_storage_t & db,
   std::chrono::sys_seconds timestamp,
   uint64_t system_address,
   int64_t faction_oid,
-  events::faction_info_t const & event_faction
+  events::faction_info_t const & event_faction,
+  std::optional<std::chrono::sys_seconds> previously_seen
 )
   {
   if(faction_oid == -1) [[unlikely]]
@@ -44,6 +73,12 @@ void store_influence(
     }
 
   auto record{info::to_influence(faction_oid, system_address, timestamp, event_faction)};
+
+  // sam wplyw, bez stanow - stany potrafia sie zmienic poza tickiem, a wplyw przelicza sie wylacznie
+  // przy nim, wiec tylko on wyznacza okno
+  if(*last and (*last)->influence != record.influence)
+    note_tick(db, info::tick_kind_e::influence, system_address, previously_seen, timestamp);
+
   if(
     *last and (*last)->influence == record.influence and (*last)->faction_state == record.faction_state
     and (*last)->pending_states == record.pending_states and (*last)->active_states == record.active_states
@@ -60,7 +95,8 @@ void process_conflicts(
   database_storage_t & db,
   std::chrono::sys_seconds timestamp,
   uint64_t system_address,
-  std::span<events::conflict_t const> conflicts
+  std::span<events::conflict_t const> conflicts,
+  std::optional<std::chrono::sys_seconds> previously_seen
 )
   {
   for(events::conflict_t const & conflict: conflicts)
@@ -77,6 +113,11 @@ void process_conflicts(
     if(*last and **last == record)
       continue;
 
+    // dni wygrane przelicza tick wojen, ktory chodzi wlasnym zegarem - 4 sierpnia 2026 wypadl
+    // dwie godziny przed tickiem wplywow, siodmego piec godzin przed nim
+    if(*last and ((*last)->won_days1 != record.won_days1 or (*last)->won_days2 != record.won_days2))
+      note_tick(db, info::tick_kind_e::war, system_address, previously_seen, timestamp);
+
     if(auto res{db.store(record)}; not res)
       spdlog::error("failed to store conflict {} vs {}", record.faction1, record.faction2);
     }
@@ -87,7 +128,8 @@ auto process_factions(
   std::chrono::sys_seconds timestamp,
   uint64_t system_address,
   std::span<events::faction_info_t> factions,
-  bool personal
+  bool personal,
+  std::optional<std::chrono::sys_seconds> previously_seen
 ) -> std::vector<info::faction_info_t>
   {
   std::vector<info::faction_info_t> result;
@@ -121,7 +163,7 @@ auto process_factions(
           spdlog::error("failed to update faction data for {}", new_faction_data.name);
         }
       }
-    store_influence(db, timestamp, system_address, new_faction_data.oid, f);
+    store_influence(db, timestamp, system_address, new_faction_data.oid, f, previously_seen);
     result.emplace_back(std::move(new_faction_data));
     }
   return result;
@@ -234,15 +276,24 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
             if(auto res2{db_.store(system)}; not res2) [[unlikely]]
               spdlog::error("error string system {} {}", event.SystemAddress, event.StarSystem);
             }
+          // kiedy ostatnio patrzylismy na ten system - musi byc odczytane zanim zapis obecnosci
+          // przesunie znacznik do przodu, bo to ono zamyka okno ticku od dolu
+          std::optional<std::chrono::sys_seconds> previously_seen;
+          if(auto seen{db_.last_system_seen(event.SystemAddress)}; seen)
+            previously_seen = *seen;
+          else
+            spdlog::error("failed to read last visit of {}", event.SystemAddress);
+
           // add/update factions database
           if(not event.Factions.empty())
             {
-            system_factions = process_factions(db_, timestamp, event.SystemAddress, event.Factions, personal_);
+            system_factions
+              = process_factions(db_, timestamp, event.SystemAddress, event.Factions, personal_, previously_seen);
             update_factions = true;
             }
           if(not event.Conflicts.empty())
             {
-            process_conflicts(db_, timestamp, event.SystemAddress, event.Conflicts);
+            process_conflicts(db_, timestamp, event.SystemAddress, event.Conflicts, previously_seen);
             update_factions = true;
             }
           // opis systemu przychodzi tylko z tych dwoch eventow
@@ -268,14 +319,23 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           jump_info = event;
           ship_loadout.FuelLevel = event.FuelLevel;
 
+          // kiedy ostatnio patrzylismy na ten system - musi byc odczytane zanim zapis obecnosci
+          // przesunie znacznik do przodu, bo to ono zamyka okno ticku od dolu
+          std::optional<std::chrono::sys_seconds> previously_seen;
+          if(auto seen{db_.last_system_seen(event.SystemAddress)}; seen)
+            previously_seen = *seen;
+          else
+            spdlog::error("failed to read last visit of {}", event.SystemAddress);
+
           if(not event.Factions.empty())
             {
-            system_factions = process_factions(db_, timestamp, event.SystemAddress, event.Factions, personal_);
+            system_factions
+              = process_factions(db_, timestamp, event.SystemAddress, event.Factions, personal_, previously_seen);
             update_factions = true;
             }
           if(not event.Conflicts.empty())
             {
-            process_conflicts(db_, timestamp, event.SystemAddress, event.Conflicts);
+            process_conflicts(db_, timestamp, event.SystemAddress, event.Conflicts, previously_seen);
             update_factions = true;
             }
           // opis systemu przychodzi tylko z tych dwoch eventow
@@ -786,6 +846,25 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           {
           if(auto res{db_.complete_mission(event.MissionID, timestamp, event.Reward)}; not res) [[unlikely]]
             spdlog::error("failed to change mission status for {}", event.MissionID);
+          // kogo ta misja ruszyla i o ile - plusy ze znakiem, zeby wypychanie obcych frakcji dalo sie
+          // policzyc osobno od budowania wlasnych. Gra nie podaje liczby, miara jest dlugosc ciagu
+          for(events::faction_effect_t const & effect: event.FactionEffects)
+            for(events::influence_effect_t const & influence: effect.Influence)
+              {
+              if(influence.Influence.empty())
+                continue;
+
+              auto const magnitude{int32_t(influence.Influence.size())};
+              if(auto res{db_.store(info::mission_influence_t{
+                   .mission_id = event.MissionID,
+                   .timestamp = timestamp,
+                   .faction = effect.Faction,
+                   .system_address = influence.SystemAddress,
+                   .pluses = influence.Trend == "DownBad" ? -magnitude : magnitude
+                 })};
+                 not res)
+                spdlog::error("failed to store mission influence for {}", event.MissionID);
+              }
           load_missions();
           update_mission_info = true;
 
@@ -1082,4 +1161,69 @@ void current_state_t::load_missions()
     spdlog::warn("failed to load missions status");
   else
     active_missions = std::move(*res);
+  }
+
+namespace
+  {
+///\brief odstep w godzinach z jednym miejscem po przecinku - minuty przy tickach sa nieczytelne
+[[nodiscard]]
+auto hours_ago(std::chrono::sys_seconds from, std::chrono::sys_seconds to) -> std::string
+  {
+  auto const span{std::chrono::duration_cast<std::chrono::minutes>(to - from).count() / 60.0};
+  return std::format("{:.1f}h", span);
+  }
+  }  // namespace
+
+auto describe_tick(
+  database_storage_t & db, uint64_t system_address, info::tick_kind_e kind, std::chrono::sys_seconds now
+) -> tick_view_t
+  {
+  // dwa tygodnie wystarcza zeby zlapac typowa przerwe, a nie ciagna calej historii przy kazdym skoku
+  constexpr uint32_t window_days{14};
+
+  tick_view_t view{.here = "brak obserwacji", .galaxy = {}, .awaiting = false};
+
+  auto waves{db.load_recent_ticks(kind, window_days)};
+  auto mine{db.load_system_ticks(system_address, kind, window_days)};
+  auto stats{db.load_tick_stats(kind, window_days)};
+  if(not waves or not mine or not stats)
+    {
+    spdlog::error("failed to read tick history for {}", system_address);
+    return view;
+    }
+
+  if(not mine->empty())
+    {
+    auto const & last{mine->front()};
+    view.here = std::format(
+      "{:%d.%m %H:%M}-{:%H:%M}, {} temu", last.window_begin, last.window_end, hours_ago(last.window_end, now)
+    );
+    }
+
+  if(not waves->empty())
+    {
+    auto const & wave{waves->front()};
+
+    // system przelicza sie wlasnym zegarem, wiec brak go w najswiezszej fali znaczy tylko tyle,
+    // ze jeszcze do niego nie doszla albo ze jeszcze tam nie zagladalismy
+    view.awaiting = mine->empty() or mine->front().window_end < wave.start_begin;
+
+    std::string regularity{"za malo fal na wzorzec"};
+    if(stats->waves > 2u)
+      regularity = std::format(
+        "typowo co {:.1f}h, najdluzej {:.1f}h",
+        double(stats->typical_gap.count()) / 60.0,
+        double(stats->longest_gap.count()) / 60.0
+      );
+
+    view.galaxy = std::format(
+      "galaktyka {:%d.%m %H:%M}-{:%H:%M} ({} sys), {}",
+      wave.start_begin,
+      wave.end_end,
+      wave.systems,
+      regularity
+    );
+    }
+
+  return view;
   }
