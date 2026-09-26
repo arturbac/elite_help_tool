@@ -1056,12 +1056,18 @@ auto database_storage_t::open(storage_mode_e mode) -> expected_ec<void>
     // - bez fsync na wiersz i z dziennikiem w pamieci import idzie wielokrotnie szybciej.
     // Awaria konczy sie uszkodzona baza, ale import i tak buduje ja od zera.
     //
-    // "main." nie jest ozdobnikiem: niekwalifikowane journal_mode i synchronous siegaja WSZYSTKICH
-    // podpietych baz, wiec zdjelyby te zabezpieczenia takze z live.sqlite - a tego pliku nie da sie
-    // odtworzyc i bywa wspoldzielony z druga, dzialajaca instancja. temp_store dotyczy polaczenia,
-    // nie bazy, wiec zostaje bez przedrostka
+    // przedrostek schematu nie jest ozdobnikiem: niekwalifikowane journal_mode i synchronous siegaja
+    // WSZYSTKICH podpietych baz, wiec zdjelyby te zabezpieczenia takze z live.sqlite - a tego pliku
+    // nie da sie odtworzyc i bywa wspoldzielony z druga, dzialajaca instancja. main i galaxy import
+    // buduje od zera, wiec tam skroty sa na miejscu - i konieczne, bo wiekszosc wierszy idzie
+    // wlasnie do galaxy; zostawienie jej z fsync na wiersz spowalnia caly import kilkunastokrotnie.
+    // temp_store dotyczy polaczenia, nie bazy, wiec zostaje bez przedrostka
     for(std::string_view pragma:
-        {"PRAGMA main.synchronous = OFF;"sv, "PRAGMA main.journal_mode = MEMORY;"sv, "PRAGMA temp_store = MEMORY;"sv})
+        {"PRAGMA main.synchronous = OFF;"sv,
+         "PRAGMA main.journal_mode = MEMORY;"sv,
+         "PRAGMA galaxy.synchronous = OFF;"sv,
+         "PRAGMA galaxy.journal_mode = MEMORY;"sv,
+         "PRAGMA temp_store = MEMORY;"sv})
       if(auto res{sqlite::execute_query_no_result(db_->db, pragma)}; not res) [[unlikely]]
         return res;
     }
