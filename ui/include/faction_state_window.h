@@ -138,7 +138,7 @@ public:
   auto update_data(std::vector<system_signal_t> && new_data) -> void;
   };
 
-///\brief jedna strona rynku - to co stacja sprzedaje albo to co skupuje
+///\brief one side of a market - what the station sells, or what it buys
 class market_model_t final : public QAbstractTableModel
   {
   Q_OBJECT
@@ -155,7 +155,7 @@ class market_model_t final : public QAbstractTableModel
 public:
   static constexpr int sort_role = Qt::UserRole + 1;
 
-  ///\brief true dla towarow na sprzedaz przez stacje, false dla skupowanych
+  ///\brief true for goods the station sells, false for the ones it buys
   bool station_sells_{};
   std::vector<info::market_entry_t> entries_{};
 
@@ -176,7 +176,7 @@ public:
   auto update_data(std::vector<info::market_entry_t> && new_data) -> void;
   };
 
-///\brief ile i jakich misji zrobilem dla poszczegolnych frakcji
+///\brief how many missions, and of what kind, were done for each faction
 class mission_stat_model_t final : public QAbstractTableModel
   {
   Q_OBJECT
@@ -226,12 +226,12 @@ public:
   QComboBox * range_combo_{};
   QComboBox * scale_combo_{};
 
-  ///\brief kiedy ten system i galaktyka przeliczyly sie ostatnio - u samej gory, bo od tego
-  /// zalezy, czy oddana teraz misja liczy sie jeszcze na te dobe
+  ///\brief when this system and the galaxy last recalculated - right at the top, because it decides
+  /// whether a mission handed in now still counts towards this day
   QLabel * bgs_tick_label_{};
-  ///\brief zakres, w jakim ostatnia fala szla po galaktyce, i jak regularnie przychodzi
+  ///\brief the span the last wave took across the galaxy, and how regularly it comes
   QLabel * bgs_galaxy_label_{};
-  ///\brief osobny zegar, widoczny tylko gdy w systemie trwa konflikt
+  ///\brief a separate clock, shown only while a conflict is running in the system
   QLabel * war_tick_label_{};
   QLabel * war_tick_row_label_{};
   QLabel * war_galaxy_label_{};
@@ -240,14 +240,14 @@ public:
   QLabel * war_countdown_label_{};
   QLabel * war_countdown_row_label_{};
 
-  ///\brief kiedy ostatnio liczylismy zegary i dla jakiego systemu
-  ///\detail przeliczenie to kilka zapytan z podzapytaniami skorelowanymi, a okno odswieza sie przy
-  /// kazdej zmianie stanu gry - bez tego szlyby setki zapytan na minute o dane zmieniajace sie
+  ///\brief when the clocks were last worked out, and for which system
+  ///\detail working them out costs several queries with correlated subqueries, and the window refreshes on
+  /// every change of game state - without this it would be hundreds of queries a minute for data that
   /// raz na dobe
   std::chrono::steady_clock::time_point ticks_loaded_{};
   uint64_t ticks_system_{};
 
-  ///\brief opis systemu w czterech linijkach, bez podpisow - co jest czym, widac po wartosci
+  ///\brief the system described in four lines, without captions - the value says what it is
   ///\detail "Industrial / Agriculture", "Federation - Anarchy, Anarchy" po lewej, wlasciciel
   /// z populacja i gwiazda ze wspolrzednymi po prawej
   QLabel * economy_label_{};
@@ -261,7 +261,7 @@ public:
   system_conflict_model_t * conflicts_model_{};
   QTableView * conflicts_view_{};
   QLabel * conflicts_note_{};
-  ///\brief podpis nad tabela konfliktow - chowany razem z nia, gdy nie ma czego pokazac
+  ///\brief the caption above the conflict table - hidden along with it when there is nothing to show
   QLabel * conflicts_caption_{};
   ///\brief panel splittera z konfliktami - jego gorna granica oddaje miejsce liscie frakcji
   QWidget * conflicts_container_{};
@@ -281,7 +281,7 @@ public:
   QTableView * mission_view_{};
 
   QTabWidget * tabs_{};
-  ///\brief zakladka marketu po indeksie sie nie da - dochodza nowe i numery sie przesuwaja
+  ///\brief the market tab cannot be addressed by index - new ones appear and the numbers shift
   QWidget * market_page_{};
   QLabel * market_header_{};
   market_model_t * market_sells_model_{};
@@ -291,7 +291,7 @@ public:
 
   explicit faction_state_window_t(current_state_t const & state, std::string db_path, QWidget * parent = nullptr);
 
-  ///\brief wolane gdy stan gry sie zmienil - odswieza widok jesli sledzimy biezacy system
+  ///\brief called when the game state has changed - odswieza widok jesli sledzimy biezacy system
   auto refresh_ui() -> void;
 
   auto setup_ui() -> void;
@@ -301,7 +301,7 @@ private:
   auto show_system(uint64_t system_address) -> void;
   auto update_system_info(uint64_t system_address) -> void;
 
-  ///\brief gorne dwie linie - przeliczenie wplywow i, gdy trwa konflikt, przeliczenie wojen
+  ///\brief the top two lines - the influence recalculation and, during a conflict, the war one
   auto update_tick_labels(uint64_t system_address) -> void;
   auto update_conflicts(uint64_t system_address) -> void;
   auto update_stations(uint64_t system_address) -> void;
@@ -319,6 +319,6 @@ private:
 
   uint64_t shown_system_{};
 
-  /// trzymana zeby zmiana zakresu nie wymagala ponownego zapytania do bazy
+  /// kept so that changing the range needs no fresh query to the database
   std::vector<info::faction_influence_t> history_{};
   };

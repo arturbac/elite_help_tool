@@ -2,7 +2,7 @@
 
 namespace eht_overlay
   {
-///\brief nieudane zalozenie imgui ma trafic do logu, a nie ubic gre
+///\brief a failed imgui setup belongs in the log, not in a dead game
 auto imgui_assert_failed(char const * expression, char const * file, int line) -> void;
   }  // namespace eht_overlay
 

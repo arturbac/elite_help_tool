@@ -10,16 +10,16 @@ class main_window_t;
 ///\brief zdanie o przeliczeniu gotowe do pokazania - to samo w oknie systemu i w overlayu
 struct tick_view_t
   {
-  ///\brief kiedy ten system przeliczyl sie ostatnio i jak dawno temu
+  ///\brief when this system last recalculated, and how long ago
   std::string here;
-  ///\brief w jakim zakresie szla ostatnia fala po galaktyce i jak regularnie przychodzi
+  ///\brief the span the last wave took across the galaxy, and how regularly it comes
   std::string galaxy;
-  ///\brief fala juz ruszyla, ale tego systemu jeszcze w niej nie widzielismy - przy wplywach
-  /// znaczy to "jest jeszcze czas oddac misje", przy wojnach "bondy jeszcze nie przeliczone"
+  ///\brief the wave has started but we have not yet seen this system in it - for influence that
+  /// means "there is still time to hand missions in", for wars "bonds not recalculated yet"
   bool awaiting;
   };
 
-///\brief sklada opis przeliczenia z tego, co zaobserwowano - nigdy nie dopowiada prognozy
+///\brief builds the description of a recalculation from what was observed - it never adds a forecast
 [[nodiscard]]
 auto describe_tick(
   database_storage_t & db, uint64_t system_address, info::tick_kind_e kind, std::chrono::sys_seconds now
@@ -43,7 +43,7 @@ struct current_state_t : public generic_state_t
   database_storage_t db_;
   std::vector<buffered_signal_t> buffered_signals;
 
-  ///\brief co jest w ladowni teraz - stan przejsciowy, Cargo.json jest nadpisywany
+  ///\brief what is in the hold right now - a passing state, Cargo.json gets overwritten
   events::cargo_file_t cargo;
 
   events::fsd_jump_t jump_info;
@@ -57,9 +57,9 @@ struct current_state_t : public generic_state_t
   ///\brief osada w ktorej jestesmy - zdobyte mikrozasoby dostaja jej market_id
   uint64_t settlement_market_id_{};
 
-  ///\brief konto do ktorego nalezy ta baza, odczytane przy starcie
-  ///\detail gdyby ktos zalogowal sie z tego profilu gry na drugie konto, jego misje i zdobycze
-  /// nie moga trafic do cudzej kariery - swiat bierzemy dalej, bo galaktyka jest wspolna
+  ///\brief the account this database belongs to, read at startup
+  ///\detail if someone logged into a second account from this game profile, their missions and finds
+  /// must not land in somebody else's career - the world we still take, because the galaxy is shared
   std::string owner_fid_;
   bool personal_{true};
 
@@ -69,7 +69,7 @@ struct current_state_t : public generic_state_t
   
   void route_system_visited(uint64_t system_address);
 
-  // wołane z wątku roboczego, db_ nie jest dotykane z wątku GUI
+  // called from the worker thread; db_ is never touched from the GUI thread
   void load_factions();
 
 private:

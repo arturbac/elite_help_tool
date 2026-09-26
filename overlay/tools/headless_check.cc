@@ -1,8 +1,8 @@
-///\brief sprawdzenie warstwy bez ekranu
+///\brief checking the layer without a screen
 ///
-/// VK_EXT_headless_surface daje lancuch wymiany, ktorego nikt nie oglada. gra tego nie zauwaza,
-/// a warstwa rysuje dokladnie tak samo jak w prawdziwym oknie. obraz wracamy do pliku PPM,
-/// wiec da sie obejrzec czy overlay faktycznie wszedl w klatke - bez pulpitu i bez gry
+/// VK_EXT_headless_surface gives a swapchain nobody looks at. the game does not notice,
+/// and the layer draws exactly as it would in a real window. the image goes back out as a PPM file,
+/// so it can be checked whether the overlay really made it into the frame - with no desktop and no game
 #include <vulkan/vulkan.h>
 
 #include <algorithm>
@@ -17,7 +17,7 @@ namespace
   {
 uint32_t width{1280u};
 uint32_t height{720u};
-///\brief kilka klatek, zeby kazdy obraz lancucha zdazyl przejsc przez present
+///\brief a few frames, so every swapchain image gets through a present
 uint32_t frames{6u};
 
 auto fail(char const * what, VkResult result = VK_SUCCESS) -> int
@@ -61,7 +61,7 @@ auto main(int argc, char ** argv) -> int
     }
   if(argc > 4)
     frames = static_cast<uint32_t>(std::atoi(argv[4]));
-  // alt-tab i zmiana rozdzielczosci w grze to wlasnie to - lancuch wymiany ginie i powstaje od nowa
+  // alt-tab and an in-game resolution change are exactly this - the swapchain dies and is built anew
   uint32_t const rounds{argc > 5 ? static_cast<uint32_t>(std::atoi(argv[5])) : 1u};
 
   VkApplicationInfo const application{
@@ -318,7 +318,7 @@ auto main(int argc, char ** argv) -> int
         images[index], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 0u, VK_ACCESS_TRANSFER_WRITE_BIT
       );
 
-      // tlo w odcieniu ktory latwo odroznic od tego co rysuje overlay
+      // a background shade that is easy to tell apart from whatever the overlay draws
       VkClearColorValue const colour{.float32 = {0.06f, 0.10f, 0.18f, 1.f}};
       VkImageSubresourceRange const range{
         .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
@@ -379,7 +379,7 @@ auto main(int argc, char ** argv) -> int
     1000.0 * spent / double(uint64_t{frames} * rounds)
   );
 
-  // odczyt tego co naprawde zostalo w obrazie po ostatnim present
+  // reading back what actually remained in the image after the last present
   VkBufferCreateInfo const buffer_info{
     .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
     .pNext = nullptr,

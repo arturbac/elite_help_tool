@@ -1,13 +1,13 @@
 #pragma once
 
-// warstwa nie linkuje loadera - kazda funkcja Vulkana przychodzi z lancucha pod nami
+// the layer does not link the loader - every Vulkan function comes from the chain below us
 #define VK_NO_PROTOTYPES
 #include <vulkan/vk_layer.h>
 #include <vulkan/vulkan.h>
 
 #include <overlay_ipc.h>
 
-// naglowki Vulkana nie niosa tego makra, a symbole warstwy musza przebic ukryta widocznosc
+// the Vulkan headers do not carry this macro, and the layer's symbols must break through hidden visibility
 #ifndef VK_LAYER_EXPORT
 #define VK_LAYER_EXPORT __attribute__((visibility("default")))
 #endif
@@ -93,7 +93,7 @@ struct device_data_t
 
   std::vector<VkQueueFamilyProperties> queue_families;
 
-  ///\brief rodzine kolejki poznajemy dopiero po vkGetDeviceQueue, a potrzebna jest przy present
+  ///\brief the queue family is only learned from vkGetDeviceQueue, and it is needed at present time
   std::mutex queues_mutex;
   std::unordered_map<void *, uint32_t> queue_family_of;
 
@@ -128,7 +128,7 @@ struct swapchain_data_t
 
   ImGuiContext * imgui{};
   bool ready{};
-  ///\brief raz nieudana inicjalizacja nie ma sensu powtarzac co klatke
+  ///\brief an initialisation that failed once is not worth retrying every frame
   bool broken{};
 
   uint64_t drawn_frames{};
@@ -147,7 +147,7 @@ struct registry_t
 [[nodiscard]]
 auto registry() -> registry_t &;
 
-///\brief jeden klient na proces gry, zakladany dopiero gdy naprawde jest co rysowac
+///\brief one client per game process, created only once there is really something to draw
 [[nodiscard]]
 auto ipc_client() -> overlay::client_t &;
   }  // namespace eht_overlay

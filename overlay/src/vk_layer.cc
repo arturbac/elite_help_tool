@@ -10,7 +10,7 @@ namespace eht_overlay
 namespace
   {
   constexpr char layer_name[]{"VK_LAYER_EHT_overlay"};
-  ///\brief present na wiecej lancuchow naraz to rzecz z innej bajki - po prostu ich nie rysujemy
+  ///\brief presenting several swapchains at once is another matter entirely - we simply do not draw them
   constexpr uint32_t max_swapchains_per_present{8u};
 
   [[nodiscard]]
@@ -82,14 +82,14 @@ auto log_line(std::string_view text) -> void
 
 auto registry() -> registry_t &
   {
-  // celowo nigdy nie kasowany - sprzatanie globali w trakcie wygaszania procesu gry to proszenie sie o klopoty
+  // deliberately never destroyed - tidying globals while the game process winds down is asking for trouble
   static registry_t * const instance{new registry_t{}};
   return *instance;
   }
 
 auto ipc_client() -> overlay::client_t &
   {
-  // jak wyzej, a dodatkowo nie chcemy dolaczac watku io gdy gra juz sie zwija
+  // as above, and we also do not want to join the io thread once the game is already shutting down
   static overlay::client_t * const client{new overlay::client_t{overlay::default_socket_path()}};
   return *client;
   }
@@ -338,14 +338,14 @@ namespace
     if(data == nullptr or data->CreateSwapchainKHR == nullptr)
       return VK_ERROR_INITIALIZATION_FAILED;
 
-    // rysujemy do obrazow lancucha, wiec musza byc uzywalne jako attachment
+    // we draw into the swapchain images, so they must be usable as an attachment
     VkSwapchainCreateInfoKHR patched{*create_info};
     patched.imageUsage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 
     VkResult result{data->CreateSwapchainKHR(device, &patched, allocator, swapchain)};
     if(result != VK_SUCCESS and patched.imageUsage != create_info->imageUsage)
       {
-      // gra jest wazniejsza niz overlay - gdy sterownik nie chce dolozonego uzycia, wracamy do oryginalu
+      // the game matters more than the overlay - if the driver refuses the added usage, we fall back to the original
       log("swapchain rejected extra usage, falling back without overlay");
       return data->CreateSwapchainKHR(device, create_info, allocator, swapchain);
       }
@@ -372,7 +372,7 @@ namespace
 
     log("swapchain {}x{} with {} images", entry->extent.width, entry->extent.height, entry->images.size());
 
-    // klient ipc powstaje dopiero teraz - proces bez lancucha wymiany, np launcher gry, nie placi za nic
+    // the ipc client is created only now - a process without a swapchain, a game launcher say, pays for nothing
     (void)ipc_client();
 
       {
@@ -444,7 +444,7 @@ namespace
       owners[signalled_count] = entry;
       owner_images[signalled_count] = present_info->pImageIndices[index];
       ++signalled_count;
-      // oryginalne semafory konsumuje pierwsze nasze zgloszenie, kolejne nie maja juz na co czekac
+      // our first submission consumes the original semaphores; the later ones have nothing left to wait on
       wait = nullptr;
       wait_count = 0u;
       }
@@ -458,8 +458,8 @@ namespace
 
     VkResult const result{data->QueuePresentKHR(queue, &patched)};
 
-    // VK_SUBOPTIMAL_KHR to nadal odbyta prezentacja, wiec semafor zostal skonsumowany;
-    // kazdy inny blad, a zwlaszcza OUT_OF_DATE po zmianie okna, nie daje takiej pewnosci
+    // VK_SUBOPTIMAL_KHR is still a present that happened, so the semaphore was consumed;
+    // any other error, OUT_OF_DATE after a window change above all, gives no such certainty
     if(result != VK_SUCCESS and result != VK_SUBOPTIMAL_KHR) [[unlikely]]
       for(uint32_t index{}; index != signalled_count; ++index)
         renew_present_semaphore(*owners[index], owner_images[index]);
@@ -507,7 +507,7 @@ namespace
     VkPhysicalDevice physical_device, char const * layer, uint32_t * count, VkExtensionProperties * properties
   ) -> VkResult
     {
-    // warstwa nie wnosi zadnych rozszerzen, pytanie o nasza nazwe zbywamy pusta lista
+    // the layer contributes no extensions; a query for our own name is answered with an empty list
     if(layer != nullptr and std::strcmp(layer, layer_name) == 0)
       {
       *count = 0u;

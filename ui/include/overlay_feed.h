@@ -11,8 +11,8 @@
 
 ///\brief zasila warstwe rysujaca w oknie gry
 ///
-/// warstwa nie zna bazy ani logiki - dostaje gotowe linie. cala decyzja co pokazac zapada tutaj,
-/// dzieki czemu zmiana tresci nie wymaga ruszania niczego w procesie gry
+/// the layer knows neither database nor logic - it receives finished lines. every decision about what to show is made here,
+/// so changing the content requires touching nothing in the game process
 class overlay_feed_t final
   {
 public:
@@ -24,9 +24,9 @@ public:
   [[nodiscard]]
   auto clients() const noexcept -> unsigned;
 
-  ///\brief trasa wyznaczona poza gra razem z postepem
-  ///\detail overlay nie siegnie po nia sam - zyje w oknie Route, ktore jedyne wie, ktory
-  /// przystanek mamy juz za soba
+  ///\brief a route plotted outside the game, together with the progress along it
+  ///\detail the overlay cannot reach it on its own - it lives in the Route window, which alone knows
+  /// which waypoint is already behind us
   struct plotted_route_t
     {
     std::span<info::neutron_waypoint_t const> waypoints;
@@ -34,30 +34,30 @@ public:
     std::string_view name;
     };
 
-  ///\brief buduje obraz ze stanu i wysyla go, o ile cokolwiek sie zmienilo
+  ///\brief builds the image from the state and sends it, provided anything has changed
   auto publish(current_state_t const & state, plotted_route_t const & plotted) -> void;
 
 private:
-  ///\brief influence nie siedzi w stanie, trzeba po nie do bazy - wlasne polaczenie jak w oknach
+  ///\brief influence is not in the state, it has to come from the database - its own connection, as in the windows
   auto refresh_factions(current_state_t const & state) -> void;
 
-  ///\brief rynek znamy tylko dla stacji w ktorej stoimy i tylko dopoki nie odlecimy
+  ///\brief we know the market only for the station we stand in, and only until we leave
   auto refresh_market(uint64_t market_id, uint32_t cargo_capacity) -> void;
 
   ///\brief skad wziac towar wymagany przez otwarte misje
   auto refresh_supply() -> void;
 
-  ///\brief najblizsze skoki obu tras - w pasie bocznym mieszcza sie tylko nastepne, nie cala lista
+  ///\brief the next hops of both routes - a side band holds only what comes next, not the whole list
   [[nodiscard]]
   auto build_route_lines(current_state_t const & state, plotted_route_t const & plotted) const
     -> std::vector<overlay::line_t>;
 
-  ///\brief statki w drodze i ostatni port - jedno i drugie latwo stracic z oczu, a oba potrafia
-  /// zdecydowac o tym, gdzie sie wyladuje i czym poleci dalej
+  ///\brief ships in transit and the last port - both are easy to lose track of, and both can
+  /// decide where one ends up and what one flies on in
   [[nodiscard]]
   auto build_logistics_lines() const -> std::vector<overlay::line_t>;
 
-  ///\brief laczy wymagania z zawartoscia ladowni - bez tego trzeba porownywac dwa rogi ekranu
+  ///\brief joins the requirements with the hold - without it two corners of the screen have to be compared
   [[nodiscard]]
   auto build_supply_lines(events::cargo_file_t const & cargo) const -> std::vector<overlay::line_t>;
 
@@ -73,10 +73,10 @@ private:
   std::vector<overlay::line_t> market_lines_;
 
   std::chrono::steady_clock::time_point supply_loaded_{};
-  ///\brief surowe dane, bo linie zaleza tez od ladowni, ktora zmienia sie czesciej niz baza
+  ///\brief raw data, because the lines also depend on the hold, which changes more often than the database
   std::vector<info::cargo_need_t> needs_;
   std::vector<info::supply_option_t> options_;
-  ///\brief rynki handlujace danym towarem, nawet puste - zeby nie mylic pustki z brakiem zrodla
+  ///\brief markets that trade the commodity, empty ones included - so emptiness is not mistaken for no source
   std::vector<info::supply_option_t> producers_;
   overlay::frame_t last_;
   std::chrono::steady_clock::time_point last_sent_{};

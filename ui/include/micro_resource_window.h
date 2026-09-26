@@ -45,7 +45,7 @@ public:
   auto update_data(std::vector<info::carrier_stock_t> && new_data) -> void;
   };
 
-///\brief skad biora sie mikrozasoby - zebrane w osadach kontra nagrody z misji
+///\brief where micro resources come from - collected at settlements against mission rewards
 class acquisition_model_t final : public QAbstractTableModel
   {
   Q_OBJECT
@@ -83,7 +83,7 @@ public:
   auto update_data(std::vector<info::acquisition_summary_t> && new_data) -> void;
   };
 
-///\brief zarzadzanie mikrozasobami - co lezy na flotowcu i skad to sie bierze
+///\brief managing micro resources - what sits on the carrier and where it comes from
 class micro_resource_window_t final : public QMdiSubWindow
   {
   Q_OBJECT
@@ -92,10 +92,10 @@ public:
   database_storage_t db_;
 
   QComboBox * carrier_combo_{};
-  ///\brief lista zawezona do wlasnych - bartendera obcych widac przy kazdym dokowaniu i po paru
-  /// tygodniach jest ich w niej wiecej niz swoich
+  ///\brief the list narrowed to one's own - a stranger's bartender shows at every docking, and after a
+  /// few weeks there are more of them in it than of one's own
   QCheckBox * only_mine_{};
-  ///\brief oznacza wybrany flotowiec jako swoj - jedyna droga do ustawienia tego znacznika
+  ///\brief marks the selected carrier as one's own - the only way to set this flag
   QCheckBox * mark_mine_{};
   QLabel * stock_header_{};
   carrier_stock_model_t * stock_model_{};
@@ -107,7 +107,7 @@ public:
 
   explicit micro_resource_window_t(std::string db_path, QWidget * parent = nullptr);
 
-  ///\brief wolane gdy stan gry sie zmienil
+  ///\brief called when the game state has changed
   auto refresh_ui() -> void;
 
   auto setup_ui() -> void;

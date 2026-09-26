@@ -23,10 +23,10 @@ auto prepend_path(char const * name, std::string const & value) -> void
   }
   }  // namespace
 
-///\brief opakowanie do opcji uruchamiania Steam: eht-overlay-run %command%
+///\brief a wrapper for the Steam launch option: eht-overlay-run %command%
 ///
-/// samo w sobie nic nie rysuje - wlacza warstwe i oddaje proces grze. cokolwiek by sie tu nie
-/// stalo, gra musi wystartowac, bo to opakowanie stoi na jej drodze
+/// it draws nothing itself - it turns the layer on and hands the process to the game. whatever
+/// happens here, the game must still start, because this wrapper stands in its way
 auto main(int argc, char ** argv) -> int
   {
   if(argc < 2)
@@ -39,7 +39,7 @@ auto main(int argc, char ** argv) -> int
     return 2;
     }
 
-  // zero nadpisuje tylko gdy zmiennej nie ma - swiadome wylaczenie zostaje uszanowane
+  // a zero overwrite only applies when the variable is absent - a deliberate opt-out is respected
   ::setenv("ENABLE_EHT_OVERLAY", "1", 0);
 
   if(
@@ -48,7 +48,7 @@ auto main(int argc, char ** argv) -> int
   )
     prepend_path("VK_ADD_IMPLICIT_LAYER_PATH", manifest_dir);
 
-  // katalog gniazda ma istniec zanim gra sprobuje sie polaczyc; brak katalogu to nie powod do przerwania
+  // the socket directory must exist before the game tries to connect; a missing one is no reason to stop
   std::error_code ec{};
   std::filesystem::create_directories(std::filesystem::path{overlay::default_socket_path()}.parent_path(), ec);
 

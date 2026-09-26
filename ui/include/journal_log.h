@@ -12,7 +12,7 @@
 #include <qmdisubwindow.h>
 
 
-// Bazowa klasa dla spójności (opcjonalnie)
+// a base class for consistency (optional)
 struct base_log_widget_t : public QWidget
   {
   using QWidget::QWidget;

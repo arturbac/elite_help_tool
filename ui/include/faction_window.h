@@ -24,7 +24,7 @@ class faction_model_t final : public QAbstractTableModel
     };
 
 public:
-  // wartość surowa do sortowania, obok sformatowanej dla widoku
+  // the raw value for sorting, beside the formatted one for the view
   static constexpr int sort_role = Qt::UserRole + 1;
 
   std::vector<info::faction_info_t> factions_{};

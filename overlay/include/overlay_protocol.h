@@ -7,10 +7,10 @@
 #include <string>
 #include <vector>
 
-///\brief protokol miedzy elite_help_tool a warstwa rysujaca w oknie gry
+///\brief the protocol between elite_help_tool and the layer drawing in the game window
 ///
-/// warstwa jest celowo glupia - dostaje gotowe linie tekstu i nie wie nic o bazie ani o logice gry.
-/// dzieki temu w procesie gry nie ma ani SQLite ani zadnego stanu do utrzymania
+/// the layer is deliberately dumb - it receives finished lines of text and knows nothing of the database or game logic.
+/// that keeps SQLite, and any state at all, out of the game process
 namespace overlay
   {
 enum struct corner_e : uint8_t
@@ -38,19 +38,19 @@ struct line_t
 struct block_t
   {
   corner_e corner{corner_e::top_left};
-  ///\brief po tylu milisekundach bez odswiezenia blok gasnie, 0 wylacza wygasanie
+  ///\brief the block fades after this many milliseconds without a refresh; 0 disables fading
   uint32_t ttl_ms{};
   std::vector<line_t> lines;
   };
 
-///\brief pelny obraz do narysowania - zastepuje poprzedni w calosci, liczy sie wylacznie ostatni
+///\brief the full image to draw - replaces the previous one entirely, only the newest counts
 struct frame_t
   {
   uint64_t seq{};
   std::vector<block_t> blocks;
   };
 
-///\brief gniazdo lezy pod $HOME, bo to jedyne miejsce widoczne po obu stronach kontenera pressure-vessel
+///\brief the socket lives under $HOME, the only place visible on both sides of the pressure-vessel container
 [[nodiscard]]
 inline auto default_socket_path() -> std::string
   {

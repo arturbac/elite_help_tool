@@ -22,7 +22,7 @@
 
 enum struct window_type_e
   {
-  ///\brief nieuzywane, zostaje dla zapisanych ukladow z czasow okien zastepczych
+  ///\brief unused; kept for saved layouts from the days of placeholder windows
   none,
   system,
   journal_log,
@@ -58,9 +58,9 @@ public:
   QPointer<micro_resource_window_t> micro_resource_view_;
   QPointer<bgs_window_t> bgs_view_;
 
-  ///\brief zasila overlay w oknie gry; zyje niezaleznie od tego czy gra w ogole dziala
+  ///\brief feeds the overlay in the game window; it lives whether or not the game is running at all
   std::unique_ptr<overlay_feed_t> overlay_feed_;
-  ///\brief podtrzymuje obraz gdy z journala nic nie przychodzi, np gdy stoimy zadokowani
+  ///\brief keeps the image alive when nothing arrives from the journal, while docked for instance
   QTimer * overlay_timer_{};
 
   fs::path file_to_monitor{};

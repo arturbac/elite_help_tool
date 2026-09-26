@@ -12,17 +12,17 @@
 
 namespace overlay
   {
-///\brief ramka razem z chwila odbioru - bez niej nie da sie zrealizowac wygasania blokow
+///\brief a frame together with the moment it arrived - block expiry needs it
 struct received_frame_t
   {
   frame_t frame;
   std::chrono::steady_clock::time_point at;
   };
 
-///\brief strona w procesie gry - czyta w tle, watek prezentacji dostaje wylacznie gotowy wskaznik
+///\brief the game-process side - reads in the background, the present thread only ever gets a ready pointer
 ///
-/// nic tu nie moze zablokowac watku prezentacji, bo to on liczy klatki gry. calosc gniazda
-/// i parsowania siedzi w osobnym watku, a snapshot() to podbicie licznika referencji i nic wiecej
+/// nothing here may block the present thread, because that thread counts the game's frames. the socket
+/// and the parsing live in a thread of their own, and snapshot() is a refcount bump and nothing more
 class client_t
   {
 public:
@@ -31,14 +31,14 @@ public:
   auto operator=(client_t const &) -> client_t & = delete;
   ~client_t();
 
-  ///\brief ostatnia kompletna ramka albo pusty wskaznik gdy jeszcze nic nie przyszlo
+  ///\brief the last complete frame, or an empty pointer while nothing has arrived yet
   [[nodiscard]]
   auto snapshot() const -> std::shared_ptr<received_frame_t const>;
 
   [[nodiscard]]
   auto connected() const noexcept -> bool;
 
-  ///\brief ile ramek dotarlo od startu - do diagnostyki
+  ///\brief how many frames arrived since start - for diagnostics
   [[nodiscard]]
   auto received() const noexcept -> uint64_t;
 
@@ -53,7 +53,7 @@ private:
   std::thread worker_;
   };
 
-///\brief strona w elite_help_tool - rozsyla ramki, publish() nigdy nie blokuje watku wolajacego
+///\brief the elite_help_tool side - sends frames out; publish() never blocks the calling thread
 class server_t
   {
 public:
@@ -65,7 +65,7 @@ public:
   [[nodiscard]]
   auto listening() const noexcept -> bool;
 
-  ///\brief gniazdo na ktorym stanal serwer - przy niepowodzeniu jedyna wskazowka co poprawic
+  ///\brief the socket the server bound to - on failure the only hint at what to fix
   [[nodiscard]]
   auto path() const noexcept -> std::string_view;
 
@@ -73,10 +73,10 @@ public:
   [[nodiscard]]
   auto clients() const noexcept -> unsigned;
 
-  ///\brief serializuje raz i zostawia watkowi io; ramka jeszcze niewyslana jest zastepowana nowa
+  ///\brief serializes once and leaves it to the io thread; a frame not yet sent is replaced by the new one
   ///
-  /// ostatnia ramka zostaje zapamietana i trafia do kazdego nowego klienta. gra startuje zwykle
-  /// pozniej niz narzedzie, wiec bez tego overlay swiecilby pustka az do najblizszej zmiany
+  /// the last frame is kept and handed to every new client. the game usually starts later than
+  /// the tool, so without it the overlay would sit empty until the next change
   auto publish(frame_t const & frame) -> void;
 
 private:
@@ -96,7 +96,7 @@ private:
   std::atomic<unsigned> client_count_{};
   std::mutex peers_mutex_;
   std::vector<peer_t> peers_;
-  ///\brief ostatni wyslany obraz, gotowy do podania nowo podlaczonym
+  ///\brief the last image sent, ready to hand to whoever connects next
   std::string retained_;
   std::thread worker_;
   };

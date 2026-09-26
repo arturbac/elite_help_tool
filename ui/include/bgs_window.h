@@ -9,10 +9,10 @@
 
 ///\brief praca w plusach doba po dobie, zestawiona z tym, co ta doba dala
 ///
-/// Doby rozdzielaja wykryte fale przeliczen, nie stala godzina. Populacja stoi przy kazdym wierszu,
+/// Days are separated by detected recalculation waves, not by a fixed hour. Population sits on every row,
 /// bo gra dzieli wplyw misji przez wielkosc systemu - ten sam wysilek daje w systemie
-/// czterdziestomilionowym ulamek tego, co w czterdziestotysiecznym, wiec przelicznik plusow na
-/// punkt procentowy ma sens wylacznie w obrebie jednego systemu
+/// forty-million system a fraction of what they give in a forty-thousand one, so pluses per
+/// percentage point only makes sense within a single system
 class bgs_effort_model_t final : public QAbstractTableModel
   {
   Q_OBJECT
@@ -33,7 +33,7 @@ class bgs_effort_model_t final : public QAbstractTableModel
 
 public:
   static constexpr int sort_role = Qt::UserRole + 1;
-  ///\brief kolumny, ktore oddaja szerokosc reszcie - nazwy znosza skrocenie, liczby nie
+  ///\brief the columns that give width back to the rest - names survive elision, numbers do not
   static constexpr int stretch_column = int(column_e::system);
   static constexpr int second_stretch_column = int(column_e::faction);
 
@@ -56,11 +56,11 @@ public:
   auto update_data(std::vector<info::bgs_effort_t> && new_data) -> void;
   };
 
-///\brief jak pozno po zapowiedzi wojny naprawde ruszaly
+///\brief how late after the announcement the wars actually started
 ///
-/// Oba znaczniki sa ograniczeniami, nie chwilami: przejscie w stan wojny nie trafia do journala
-/// wcale, wiec jedynym sladem jest status konfliktu przy nastepnym odczycie systemu. Szerokosc
-/// okna zawiera zatem takze czas, w ktorym nas tam nie bylo
+/// Both marks are bounds, not moments: the transition into the war state never reaches the journal
+/// at all, so the only trace is the conflict status at the next reading of the system. The width
+/// therefore also covers the time we were not there
 class war_onset_model_t final : public QAbstractTableModel
   {
   Q_OBJECT
@@ -79,7 +79,7 @@ class war_onset_model_t final : public QAbstractTableModel
 
 public:
   static constexpr int sort_role = Qt::UserRole + 1;
-  ///\brief domyslnie od najswiezszej wojny - interesuje to, co dzieje sie teraz
+  ///\brief newest war first by default - what is happening now is what matters
   static constexpr int default_sort_column = int(column_e::active_first);
 
   std::vector<info::war_onset_t> rows_{};
@@ -101,7 +101,7 @@ public:
   auto update_data(std::vector<info::war_onset_t> && new_data) -> void;
   };
 
-///\brief okno pracy BGS - ile plusow oddano i co z tego wyszlo
+///\brief the BGS effort window - how many pluses were handed in and what came of it
 class bgs_window_t final : public QMdiSubWindow
   {
   Q_OBJECT
@@ -111,7 +111,7 @@ public:
 
   QComboBox * period_combo_{};
   QComboBox * system_combo_{};
-  ///\brief ostatnia fala i to, jak regularnie przychodzi - bez tego kolumna "zamknieta" nic nie mowi
+  ///\brief the last wave and how regularly it comes - without it the "closed" column says nothing
   QLabel * tick_header_{};
   bgs_effort_model_t * model_{};
   QTableView * view_{};
@@ -123,7 +123,7 @@ public:
 
   explicit bgs_window_t(std::string db_path, QWidget * parent = nullptr);
 
-  ///\brief wolane gdy stan gry sie zmienil
+  ///\brief called when the game state has changed
   auto refresh_ui() -> void;
 
   auto setup_ui() -> void;

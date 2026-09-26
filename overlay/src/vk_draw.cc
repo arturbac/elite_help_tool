@@ -14,11 +14,11 @@ namespace eht_overlay
 namespace
   {
   constexpr float corner_margin{14.f};
-  ///\brief present z wieksza liczba semaforow po prostu pomijamy - nie warto alokowac na sciezce klatki
+  ///\brief a present with more semaphores is simply skipped - not worth allocating on the frame path
   constexpr uint32_t max_wait_semaphores{16u};
-  ///\brief nigdy nie czekamy bez konca - zawieszony overlay nie ma prawa zawiesic gry
+  ///\brief we never wait for ever - a hung overlay has no right to hang the game
   constexpr uint64_t fence_timeout_ns{1000000000ull};
-  ///\brief powyzej tego rysowanie zabiera klatke, wiec warto o tym wiedziec
+  ///\brief above this the drawing costs a frame, which is worth knowing about
   constexpr double slow_draw_seconds{0.004};
 
   [[nodiscard]]
@@ -37,7 +37,7 @@ namespace
     return enabled;
     }
 
-  ///\brief na ekranach panoramicznych srodek nalezy do gry, overlay mieszka w bocznych pasach
+  ///\brief on wide screens the middle belongs to the game; the overlay lives in the side bands
   [[nodiscard]]
   auto side_band_override() noexcept -> float
     {
@@ -53,15 +53,15 @@ namespace
     return band;
     }
 
-  ///\brief szerokosc pasa przy krawedzi ekranu na ktorym wolno rysowac
+  ///\brief width of the band at the screen edge we are allowed to draw in
   [[nodiscard]]
   auto side_band_width(float display_width) noexcept -> float
     {
     if(side_band_override() > 0.f)
       return side_band_override();
 
-    // jedna piata szerokosci pasuje i do 16:9 i do potrojnego monitora, gdzie wypada
-    // mniej wiecej tyle, ile zostaje poza czescia na ktora gracz naprawde patrzy
+    // a fifth of the width suits both 16:9 and a triple monitor, where it works out to
+    // roughly what is left outside the part the player actually looks at
     return std::clamp(display_width * 0.2f, 240.f, 1600.f);
     }
 
@@ -95,7 +95,7 @@ namespace
   auto now_seconds() noexcept -> double
     { return std::chrono::duration<double>{std::chrono::steady_clock::now().time_since_epoch()}.count(); }
 
-  ///\brief imgui nie moze wolac loadera, bo ten wpuscilby nas ponownie na gore lancucha warstw
+  ///\brief imgui must not call the loader, which would let us back in at the top of the layer chain
   auto vulkan_loader(char const * name, void * user_data) -> PFN_vkVoidFunction
     {
     auto * const device{static_cast<device_data_t *>(user_data)};
@@ -132,7 +132,7 @@ namespace
     return "eht_unknown";
     }
 
-  ///\brief TextColored nie zawija wierszy, a w pasie bocznym zawijanie jest konieczne
+  ///\brief TextColored does not wrap, and in a side band wrapping is essential
   template<typename... args_t>
   auto coloured_text(uint32_t rgb, char const * format, args_t... args) -> void
     {
@@ -182,7 +182,7 @@ namespace
       auto const [position, pivot]{corner_position(corner, display)};
       ImGui::SetNextWindowBgAlpha(0.35f);
       ImGui::SetNextWindowPos(position, ImGuiCond_Always, pivot);
-      // dlugi tekst ma sie zawinac w pasie, a nie wjechac graczowi w pole widzenia
+      // long text should wrap inside the band rather than run into the player's field of view
       ImGui::SetNextWindowSizeConstraints(ImVec2{0.f, 0.f}, ImVec2{band, display.y});
 
       if(ImGui::Begin(window_name(corner), nullptr, flags))
@@ -304,7 +304,7 @@ auto ensure_resources(swapchain_data_t & data, VkQueue queue) -> bool
     .flags = 0u,
     .format = data.format,
     .samples = VK_SAMPLE_COUNT_1_BIT,
-    // obraz gry musi zostac nietkniety - dokladamy sie do niego, nie czyscimy go
+    // the game's image must stay untouched - we add to it, we do not clear it
     .loadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
     .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
     .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
@@ -399,7 +399,7 @@ auto ensure_resources(swapchain_data_t & data, VkQueue queue) -> bool
       destroy_resources(data);
       return false;
       }
-    // loader wymaga aby kazdy nowy uchwyt dispatchable dostal od nas tablice dyspozycji
+    // the loader requires every new dispatchable handle to receive a dispatch table from us
     if(device.set_device_loader_data != nullptr)
       device.set_device_loader_data(device.device, frame.command_buffer);
 
@@ -469,12 +469,12 @@ auto ensure_resources(swapchain_data_t & data, VkQueue queue) -> bool
   ImGui::SetCurrentContext(data.imgui);
 
   ImGuiIO & io{ImGui::GetIO()};
-  // overlay nigdy nie tworzy plikow w katalogu gry
+  // the overlay never creates files in the game's directory
   io.IniFilename = nullptr;
   io.LogFilename = nullptr;
   io.DisplaySize = ImVec2{static_cast<float>(data.extent.width), static_cast<float>(data.extent.height)};
-  // celem jest staly udzial w wysokosci ekranu, zeby napis byl tak samo czytelny na 1080 i na 4k.
-  // font rasteryzujemy w docelowym rozmiarze, bo rozciaganie gotowej bitmapy daje papke
+  // the goal is a constant fraction of screen height, so the text reads the same on 1080 and on 4k.
+  // the font is rasterised at the target size, because stretching a finished bitmap turns to mush
   float const scale{
     scale_override() > 0.f ? scale_override() : std::max(1.f, static_cast<float>(data.extent.height) / 780.f)
   };
@@ -533,7 +533,7 @@ auto renew_present_semaphore(swapchain_data_t & data, uint32_t image_index) noex
   device_data_t & device{*data.device};
   frame_resources_t & frame{data.frames[image_index]};
 
-  // nasze zgloszenie moze jeszcze pracowac, wiec najpierw czekamy az skonczy
+  // our own submission may still be running, so we wait for it to finish first
   if(frame.submitted)
     {
     if(device.WaitForFences(device.device, 1u, &frame.fence, VK_TRUE, fence_timeout_ns) != VK_SUCCESS)
@@ -574,7 +574,7 @@ auto draw_overlay(
     {
     if(not data.ready and not ensure_resources(data, queue))
       {
-      // jedna nieudana proba wystarczy - dalej gra ma isc swoim torem bez nas
+      // one failed attempt is enough - from there the game goes its own way without us
       data.broken = true;
       return VK_NULL_HANDLE;
       }
@@ -587,7 +587,7 @@ auto draw_overlay(
 
     if(frame.submitted)
       {
-      // sekunda to juz awaria; wolimy stracic overlay niz zatrzymac klatki gry
+      // a whole second is a failure; we would rather lose the overlay than stall the game's frames
       if(device.WaitForFences(device.device, 1u, &frame.fence, VK_TRUE, fence_timeout_ns) != VK_SUCCESS)
         {
         log("overlay command buffer did not finish in time, disabling for this swapchain");

@@ -19,9 +19,9 @@ namespace overlay
   {
 namespace
   {
-  ///\brief ramka to 4 bajty dlugosci little endian i json, nic wiecej nie jest potrzebne
+  ///\brief a frame is 4 little-endian length bytes and json, nothing more is needed
   constexpr size_t header_size{4u};
-  ///\brief gornia granica zdrowego rozsadku - powyzej niej strumien jest rozjechany i zrywamy polaczenie
+  ///\brief a sanity ceiling - above it the stream has gone wrong and we drop the connection
   constexpr uint32_t max_message_size{256u * 1024u};
   constexpr int reconnect_delay_ms{1000};
 
@@ -71,7 +71,7 @@ namespace
     return size;
     }
 
-  ///\brief obudzenie watku io - jeden licznik eventfd wystarczy i na nowa ramke i na koniec pracy
+  ///\brief waking the io thread - one eventfd counter covers both a new frame and shutdown
   auto signal(int fd) -> void
     {
     uint64_t const one{1u};
@@ -128,7 +128,7 @@ auto client_t::run() -> void
 
   while(true)
     {
-      // proba polaczenia - narzedzie moze wystartowac pozniej niz gra, wiec probujemy w kolko
+      // connection attempt - the tool may start after the game, so we keep retrying
       {
       int const fd{::socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0)};
       sockaddr_un address{};
@@ -228,7 +228,7 @@ server_t::server_t(std::string socket_path) : socket_path_{std::move(socket_path
   sockaddr_un address{};
   if(listen_fd_ >= 0 and fill_address(address, socket_path_))
     {
-    // zostawiony plik po ubitym procesie nie moze blokowac startu
+    // a file left behind by a killed process must not block startup
     ::unlink(socket_path_.c_str());
     if(
       ::bind(listen_fd_, reinterpret_cast<sockaddr const *>(&address), sizeof(address)) != 0
@@ -260,7 +260,7 @@ server_t::~server_t()
   if(worker_.joinable())
     worker_.join();
 
-    // bez tego gra po drugiej stronie nie zobaczy konca strumienia i bedzie czekac na ramki w nieskonczonosc
+    // without this the game on the other side never sees the end of the stream and waits for frames for ever
     {
     std::lock_guard const lock{peers_mutex_};
     for(peer_t const & peer: peers_)
@@ -301,7 +301,7 @@ auto server_t::publish(frame_t const & frame) -> void
     std::lock_guard const lock{peers_mutex_};
     retained_ = encoded;
 
-    // liczy sie tylko najswiezszy obraz, wiec zalegla ramka idzie do kosza zamiast rosnac w kolejke
+    // only the newest image matters, so a stale frame is dropped rather than queued up
     for(peer_t & peer: peers_)
       {
       peer.outbox = encoded;
@@ -341,7 +341,7 @@ auto server_t::run() -> void
       return;
       }
 
-    // pobudka przychodzi i od publish i od destruktora - rozroznia je tylko ta flaga
+    // the wakeup comes from both publish and the destructor - only this flag tells them apart
     if((fds[1].revents & POLLIN) != 0)
       {
       drain(wakeup_fd_);
@@ -357,7 +357,7 @@ auto server_t::run() -> void
           break;
 
         std::lock_guard const lock{peers_mutex_};
-        // swiezo podlaczona gra dostaje aktualny obraz od razu, nie czeka na nastepna zmiane
+        // a freshly connected game gets the current image at once instead of waiting for the next change
         peers_.push_back(peer_t{.fd = accepted, .outbox = retained_, .sent = 0u});
         client_count_.store(static_cast<unsigned>(peers_.size()), std::memory_order_relaxed);
         }
@@ -366,7 +366,7 @@ auto server_t::run() -> void
       std::lock_guard const lock{peers_mutex_};
       std::vector<int> dropped;
 
-      // kolejnosc peers_ zmienia wylacznie ten watek, wiec pozycja w fds odpowiada pozycji w wektorze
+      // only this thread reorders peers_, so a position in fds matches the position in the vector
       for(size_t peer_index{}; peer_index != peers_.size(); ++peer_index)
         {
         peer_t & peer{peers_[peer_index]};
@@ -379,7 +379,7 @@ auto server_t::run() -> void
 
         if(not drop and (revents & POLLIN) != 0)
           {
-          // klient nic nie mowi, wiec cokolwiek czytelnego oznacza tylko jedno - rozlaczenie
+          // the client says nothing, so anything readable means one thing only - it has gone
           std::array<char, 64> discard{};
           auto const got{::read(peer.fd, discard.data(), discard.size())};
           if(got == 0 or (got < 0 and errno != EAGAIN and errno != EWOULDBLOCK and errno != EINTR))

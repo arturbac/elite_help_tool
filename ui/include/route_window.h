@@ -65,23 +65,23 @@ public:
   QPushButton * load_button_{};
   QPushButton * remember_button_{};
   QPushButton * forget_button_{};
-  ///\brief plik ze spansh opisuje droge powrotna, wiec domyslnie lecimy nim od konca
+  ///\brief the spansh file describes the way back, so by default we fly it in reverse
   QCheckBox * reversed_box_{};
 
-  ///\brief trasa wyznaczona na zewnatrz, w kolejnosci lotu; pusta znaczy "pokazuj trase z gry"
+  ///\brief the externally plotted route in flight order; empty means "show the game's route"
   std::vector<info::neutron_waypoint_t> neutron_route_;
   std::string neutron_name_;
-  ///\brief czy pokazywana trasa jest ta zapamietana, czy wczytana na jeden raz
+  ///\brief whether the shown route is the remembered one or loaded for a single trip
   bool remembered_{};
-  ///\brief ostatni cel wrzucony do schowka - zeby wrzucac go tylko przy zmianie, a nie co odswiezenie
+  ///\brief the last target put in the clipboard - so it is put there on change only, not on every refresh
   std::string clipboard_target_;
 
-  ///\brief ile przystankow trasy mamy za soba
+  ///\brief how many waypoints of the route are behind us
   ///
-  /// Postep idzie wylacznie do przodu. Kurs do kolejnego przystanku gra wyznacza sama i potrafi
-  /// poprowadzic przez systemy, ktorych na tej liscie nie ma - szukanie biezacego systemu za
-  /// kazdym razem cofaloby wtedy postep do zera i schowek dostawalby pierwszy przystanek zamiast
-  /// nastepnego
+  /// Progress only ever moves forward. The game plots the course to the next waypoint itself and can
+  /// lead through systems that are not on this list - looking the current system up every
+  /// time would then reset progress to zero and the clipboard would get the first waypoint instead of
+  /// the next one
   size_t reached_{};
 
   explicit route_window_t(current_state_t const & state, std::string db_path, QWidget * parent = nullptr);
@@ -89,13 +89,13 @@ public:
   auto refresh_ui() -> void;
 
 private:
-  ///\brief wczytuje trase wyznaczona przez spansh; nie zapisuje jej nigdzie
+  ///\brief loads a route plotted by spansh; it stores it nowhere
   auto load_from_file() -> void;
-  ///\brief odwraca kolejnosc i przelicza odleglosci miedzy sasiadami
+  ///\brief reverses the order and recomputes the distances between neighbours
   auto apply_direction(std::vector<info::neutron_waypoint_t> route) -> void;
-  ///\brief pokazuje trase neutronowa gdy jest, a w przeciwnym razie trase z gry
+  ///\brief shows the neutron route when there is one, otherwise the game's route
   auto show_route() -> void;
-  ///\brief ustawia postep na wskazany przystanek - do cofania sie i do wejscia w trase w polowie
+  ///\brief sets progress to the given waypoint - for stepping back and for joining a route halfway
   auto jump_to_waypoint(int row) -> void;
 
   auto setup_ui() -> void;

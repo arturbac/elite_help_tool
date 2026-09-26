@@ -7,9 +7,9 @@
 
 ///\brief zrodlo testowe - dowodzi ze gniazdo przechodzi przez granice kontenera pressure-vessel
 ///
-/// docelowo te ramki wysyla elite_help_tool; to narzedzie istnieje po to, zeby dalo sie sprawdzic
-/// sama droge i uklad napisow, bez wciagania w test calej aplikacji, bazy i gry. tresc jest
-/// celowo taka sama jak prawdziwa, razem z dluga linia sprawdzajaca zawijanie w pasie bocznym
+/// in the end elite_help_tool sends these frames; this tool exists so that the path itself and the
+/// layout of the text can be checked without dragging the whole application, database and game into it.
+/// the content deliberately matches the real thing, long wrapping line in the side band included
 namespace
   {
 constexpr uint32_t colour_heading{0x9ad1ffu};
