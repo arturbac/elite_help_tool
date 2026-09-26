@@ -1075,6 +1075,8 @@ struct status_file_t
   ///\brief 0 none, 1-4 the cockpit panels, 5 station services, 6 galaxy map, 7 system map,
   /// 8 orrery, 9 FSS, 10 surface scanner, 11 codex
   uint32_t GuiFocus;
+  ///\brief the body we are near or on, by its full name - absent in open space
+  std::string BodyName;
   };
 
 struct market_file_t
@@ -1330,6 +1332,10 @@ struct star_details_t
   std::optional<double> rotation_period;
   uint32_t age_my;
   uint8_t sub_class;
+  ///\brief what the star orbits - with two stars or more it is a barycentre shared with its partner,
+  /// which is what pairs them in a picture of the system; empty for rows written before it was kept
+  std::optional<events::body_id_t> parent_star;
+  std::optional<events::body_id_t> parent_barycenter;
   };
 
 struct ring_t

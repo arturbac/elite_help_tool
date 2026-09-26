@@ -229,6 +229,400 @@ auto worth_mapping(body_t const & body) -> bool
   return planet != nullptr and not planet->mapped and body.value >= minimum_body_value;
   }
 
+namespace system_map
+  {
+// Sizes keep an order, not a scale: a star twice a planet, a giant above a rocky world, a moon small.
+// Drawn to scale a system would be one disc and a scatter of dust
+constexpr float star_radius{10.f};
+constexpr float giant_radius{6.5f};
+constexpr float planet_radius{4.5f};
+constexpr float moon_radius{2.8f};
+constexpr float submoon_radius{2.f};
+constexpr float barycentre_radius{3.5f};
+constexpr float star_column{30.f};
+constexpr float column{19.f};
+constexpr float label_band{16.f};
+constexpr float moon_step{10.f};
+constexpr float row_gap{8.f};
+constexpr uint32_t line_colour{0x5a6470u};
+constexpr uint32_t label_colour{0xa8b0bau};
+constexpr uint32_t here_colour{0x40e0ffu};
+constexpr uint32_t bio_colour{0x3cb371u};
+
+///\brief the order the game numbers bodies in - "A 10" after "A 9", not after "A 1"
+[[nodiscard]]
+auto natural_less(std::string_view a, std::string_view b) -> bool
+  {
+  auto ta{a | std::views::split(' ')};
+  auto tb{b | std::views::split(' ')};
+  auto ia{ta.begin()};
+  auto ib{tb.begin()};
+  for(; ia != ta.end() and ib != tb.end(); ++ia, ++ib)
+    {
+    std::string_view const x{(*ia).begin(), (*ia).end()};
+    std::string_view const y{(*ib).begin(), (*ib).end()};
+    if(x == y)
+      continue;
+    bool const nx{not x.empty() and std::ranges::all_of(x, [](unsigned char c) { return std::isdigit(c) != 0; })};
+    bool const ny{not y.empty() and std::ranges::all_of(y, [](unsigned char c) { return std::isdigit(c) != 0; })};
+    if(nx and ny and x.size() != y.size())
+      return x.size() < y.size();
+    return x < y;
+    }
+  return ib != tb.end();
+  }
+
+///\brief the last word of a body's name - "3" of "A 3", "a" of "A 3 a"; the row and column say the rest
+[[nodiscard]]
+auto last_word(std::string_view name) -> std::string_view
+  {
+  auto const at{name.rfind(' ')};
+  return at == std::string_view::npos ? name : name.substr(at + 1);
+  }
+
+[[nodiscard]]
+auto star_colour(std::string_view type) -> uint32_t
+  {
+  // the exotic ones first, because several of them begin with the letter of an ordinary class
+  if(type.starts_with("TTS"))
+    return 0xffb070u;
+  if(type.starts_with("AeBe"))
+    return 0xf0f0ffu;
+  if(type == "H" or type.contains("BlackHole"))
+    return 0x505050u;
+  if(type == "N")
+    return 0x9fd8ffu;
+  if(type.starts_with('D'))
+    return 0xe8f0ffu;
+  if(type.starts_with('W'))
+    return 0x8fa8ffu;
+  if(type.starts_with('C') or type.starts_with('S') or type == "MS")
+    return 0xd05030u;
+  switch(type.empty() ? '?' : type.front())
+    {
+    case 'O': return 0x9bb0ffu;
+    case 'B': return 0xaabfffu;
+    case 'A': return 0xdbe4ffu;
+    case 'F': return 0xfff6e0u;
+    // the tints the game's own system map gives them - an M star is peach there, not red, and the red
+    // is left to the brown dwarfs, darkening as they cool
+    case 'G': return 0xfff0a0u;
+    case 'K': return 0xffcf7au;
+    case 'M': return 0xffa468u;
+    case 'L': return 0xd83c6au;
+    case 'T': return 0xa8306eu;
+    case 'Y': return 0x74304cu;
+    default:  return 0xccccccu;
+    }
+  }
+
+[[nodiscard]]
+auto is_giant(std::string_view planet_class) -> bool
+  { return planet_class.contains("gas giant") or planet_class == "Water giant"; }
+
+[[nodiscard]]
+auto has_bio(planet_details_t const & details) -> bool
+  {
+  return not details.genuses_.empty()
+         or std::ranges::any_of(
+           details.signals_,
+           [](events::signal_t const & s) { return s.Count != 0u and s.Type_Localised.contains("Biological"); }
+         );
+  }
+
+///\brief metal grey, rock yellow, ice white - and green over all of it where there is life to sample
+[[nodiscard]]
+auto planet_colour(planet_details_t const & details) -> uint32_t
+  {
+  if(has_bio(details))
+    return bio_colour;
+  std::string_view const pc{details.planet_class};
+  if(pc.contains("water based life"))
+    return 0x6fb6c8u;
+  if(pc.contains("ammonia based life"))
+    return 0xc8905au;
+  if(pc.contains("Helium"))
+    return 0xe0d8c0u;
+  if(pc == "Water giant")
+    return 0x5f8fd8u;
+  if(pc.contains("class I gas"))
+    return 0xd8b080u;
+  if(pc.contains("class II gas"))
+    return 0xe8d8b0u;
+  if(pc.contains("class III gas"))
+    return 0xa8c8e8u;
+  if(pc.contains("class IV gas"))
+    return 0x9fb0c8u;
+  if(pc.contains("class V gas"))
+    return 0x8090b0u;
+  if(pc == "Metal rich body" or pc == "High metal content body")
+    return 0x9a9a9au;
+  if(pc == "Rocky body")
+    return 0xd9c060u;
+  if(pc == "Rocky ice body")
+    return 0xe8e0a8u;
+  if(pc == "Icy body")
+    return 0xf2f6ffu;
+  if(pc == "Earthlike body")
+    return 0x4fc38au;
+  if(pc == "Water world")
+    return 0x4a88e0u;
+  if(pc == "Ammonia world")
+    return 0xb07a40u;
+  return 0x808080u;
+  }
+  }  // namespace system_map
+
+///\brief the system as the game's orrery lays it out, without its scale
+///
+/// A row for every star, its planets along it in the order the game numbers them, the moons hanging
+/// under their planet. A row that belongs to a barycentre rather than a star starts with a ring
+/// instead of a disc. Stars sharing a barycentre are bracketed on the left, planets sharing one above.
+/// The hierarchy is the one the scans gave - the names only say what to write beside each disc
+[[nodiscard]]
+auto build_system_diagram(star_system_t const & system, std::string_view here) -> std::optional<overlay::diagram_t>
+  {
+  using namespace system_map;
+  using events::body_id_t;
+
+  std::map<body_id_t, body_t const *> by_id;
+  for(body_t const & body: system.bodies)
+    {
+    // belt clusters come in as scans without a class - they are no bodies worth a disc
+    if(auto const * pd{std::get_if<planet_details_t>(&body.details)}; pd != nullptr and pd->planet_class.empty())
+      continue;
+    by_id.emplace(body.body_id, &body);
+    }
+  if(by_id.empty())
+    return std::nullopt;
+
+  auto const planet_of = [](body_t const * body) -> planet_details_t const *
+  { return std::get_if<planet_details_t>(&body->details); };
+
+  // a moon hangs under its planet only when the planet is known; otherwise it stands in the row itself
+  std::map<body_id_t, std::vector<body_t const *>> moons;
+  struct row_t
+    {
+    body_t const * star{};
+    ///\brief the barycentre a starless row belongs to
+    std::optional<body_id_t> barycentre;
+    std::vector<body_t const *> planets;
+    };
+  std::map<std::pair<int, body_id_t>, row_t> rows;  // (0 star / 1 barycentre / 2 unknown, id)
+
+  for(auto const & [id, body]: by_id)
+    if(body->body_type() == body_type_e::star)
+      rows[{0, id}].star = body;
+
+  for(auto const & [id, body]: by_id)
+    {
+    planet_details_t const * const pd{planet_of(body)};
+    if(pd == nullptr)
+      continue;
+    if(pd->parent_planet and by_id.contains(*pd->parent_planet))
+      moons[*pd->parent_planet].push_back(body);
+    else if(pd->parent_star)
+      rows[{0, *pd->parent_star}].planets.push_back(body);
+    else if(pd->parent_barycenter)
+      {
+      row_t & row{rows[{1, *pd->parent_barycenter}]};
+      row.barycentre = *pd->parent_barycenter;
+      row.planets.push_back(body);
+      }
+    else
+      rows[{2, 0u}].planets.push_back(body);
+    }
+
+  auto const by_name = [](body_t const * a, body_t const * b) { return natural_less(a->name, b->name); };
+  for(auto & [key, row]: rows)
+    std::ranges::sort(row.planets, by_name);
+  for(auto & [id, list]: moons)
+    std::ranges::sort(list, by_name);
+
+  // the stars in the order of their letters, the rows of barycentres after them
+  std::vector<row_t const *> ordered;
+  for(auto const & [key, row]: rows)
+    ordered.push_back(&row);
+  auto const row_name = [](row_t const * row) -> std::string_view
+  {
+    if(row->star != nullptr)
+      return row->star->name;
+    return row->planets.empty() ? std::string_view{} : std::string_view{row->planets.front()->name};
+  };
+  std::ranges::stable_sort(
+    ordered,
+    [&](row_t const * a, row_t const * b)
+    {
+      bool const sa{a->star != nullptr};
+      bool const sb{b->star != nullptr};
+      if(sa != sb)
+        return sa;
+      return natural_less(row_name(a), row_name(b));
+    }
+  );
+
+  overlay::diagram_t diagram{};
+  std::string_view const here_short{here.empty() ? std::string_view{} : body_short_name(system.name, here)};
+
+  auto const mark_here = [&](body_t const * body, float x, float y, float r)
+  {
+    if(not here_short.empty() and body->name == here_short)
+      diagram.discs.push_back(overlay::disc_t{.x = x, .y = y, .radius = r + 3.5f, .color = here_colour, .outline = true});
+  };
+
+  // the star rows, remembered for the brackets pairing stars around a shared barycentre
+  std::map<body_id_t, std::vector<float>> star_pairs;
+  float top{};
+  float widest{};
+
+  for(row_t const * row: ordered)
+    {
+    bool const any_giant{std::ranges::any_of(
+      row->planets, [&](body_t const * b) { return is_giant(planet_of(b)->planet_class); }
+    )};
+    float const lead{row->star != nullptr ? star_radius : (any_giant ? giant_radius : planet_radius)};
+    float const line_y{top + label_band + lead};
+    float const lead_x{star_column / 2.f};
+    float bottom{line_y + lead};
+
+    float const last_x{
+      row->planets.empty() ? lead_x : star_column + (static_cast<float>(row->planets.size()) - 0.5f) * column
+    };
+    if(not row->planets.empty())
+      diagram.segments.push_back(
+        overlay::segment_t{.x0 = lead_x, .y0 = line_y, .x1 = last_x, .y1 = line_y, .color = line_colour}
+      );
+
+    if(row->star != nullptr)
+      {
+      auto const & sd{std::get<star_details_t>(row->star->details)};
+      diagram.discs.push_back(
+        overlay::disc_t{.x = lead_x, .y = line_y, .radius = star_radius, .color = star_colour(sd.star_type)}
+      );
+      diagram.labels.push_back(
+        overlay::label_t{
+          .x = lead_x, .y = line_y - star_radius - 5.f, .text = row->star->name, .color = label_colour, .align = 0.5f
+        }
+      );
+      mark_here(row->star, lead_x, line_y, star_radius);
+      if(sd.parent_barycenter)
+        star_pairs[*sd.parent_barycenter].push_back(line_y);
+      }
+    else
+      {
+      diagram.discs.push_back(
+        overlay::disc_t{
+          .x = lead_x, .y = line_y, .radius = barycentre_radius, .color = line_colour, .outline = true
+        }
+      );
+      // the row's name is what its planets are called without their number - "BC" of "BC 1"
+      std::string_view const first{row_name(row)};
+      std::string_view const prefix{first.substr(0, std::min(first.size(), first.rfind(' ')))};
+      diagram.labels.push_back(
+        overlay::label_t{
+          .x = lead_x, .y = line_y - star_radius - 5.f, .text = std::string{prefix}, .color = label_colour, .align = 0.5f
+        }
+      );
+      }
+
+    // planets sharing a barycentre of their own - one lower in the tree than the star - get a bracket
+    // over them; a barycentre above the star is the star's own orbit and pairs nothing in this row
+    std::map<body_id_t, std::vector<float>> planet_pairs;
+
+    for(size_t ix{}; ix != row->planets.size(); ++ix)
+      {
+      body_t const * const planet{row->planets[ix]};
+      planet_details_t const & pd{*planet_of(planet)};
+      float const x{star_column + (static_cast<float>(ix) + 0.5f) * column};
+      float const r{is_giant(pd.planet_class) ? giant_radius : planet_radius};
+
+      diagram.discs.push_back(overlay::disc_t{.x = x, .y = line_y, .radius = r, .color = planet_colour(pd)});
+      diagram.labels.push_back(
+        overlay::label_t{
+          .x = x, .y = line_y - giant_radius - 9.f, .text = std::string{last_word(planet->name)}, .color = label_colour,
+          .align = 0.5f
+        }
+      );
+      mark_here(planet, x, line_y, r);
+
+      if(row->star != nullptr and pd.parent_barycenter and *pd.parent_barycenter > row->star->body_id)
+        planet_pairs[*pd.parent_barycenter].push_back(x);
+
+      // the moons in a column under the planet, a moon's own moons right after it and smaller
+      float y{line_y + r + 5.f};
+      float column_end{};
+      auto const hang = [&](this auto const & self, body_id_t parent, int depth) -> void
+      {
+        auto const it{moons.find(parent)};
+        if(it == moons.end())
+          return;
+        for(body_t const * moon: it->second)
+          {
+          planet_details_t const & md{*planet_of(moon)};
+          float const mr{depth == 1 ? (is_giant(md.planet_class) ? planet_radius : moon_radius) : submoon_radius};
+          y += mr;
+          diagram.discs.push_back(overlay::disc_t{.x = x, .y = y, .radius = mr, .color = planet_colour(md)});
+          diagram.labels.push_back(
+            overlay::label_t{
+              .x = x + mr + 5.5f, .y = y, .text = std::string{last_word(moon->name)}, .color = label_colour, .align = 0.f
+            }
+          );
+          mark_here(moon, x, y, mr);
+          column_end = y;
+          y += mr + moon_step - 2.f * moon_radius;
+          self(moon->body_id, depth + 1);
+          }
+      };
+      hang(planet->body_id, 1);
+
+      if(column_end > 0.f)
+        {
+        diagram.segments.insert(
+          diagram.segments.begin(),
+          overlay::segment_t{.x0 = x, .y0 = line_y, .x1 = x, .y1 = column_end, .color = line_colour}
+        );
+        bottom = std::max(bottom, column_end + moon_radius);
+        }
+      }
+
+    float const bracket_y{line_y - giant_radius - 3.f};
+    for(auto const & [id, xs]: planet_pairs)
+      {
+      if(xs.size() < 2u)
+        continue;
+      diagram.segments.push_back(
+        overlay::segment_t{.x0 = xs.front(), .y0 = bracket_y, .x1 = xs.back(), .y1 = bracket_y, .color = label_colour}
+      );
+      for(float const x: xs)
+        diagram.segments.push_back(
+          overlay::segment_t{.x0 = x, .y0 = bracket_y, .x1 = x, .y1 = line_y - planet_radius, .color = label_colour}
+        );
+      }
+
+    widest = std::max(widest, last_x + column / 2.f + 6.f);
+    top = bottom + row_gap;
+    }
+
+  // the stars pairing around a barycentre of their own, bracketed on the left as the game does it
+  for(auto const & [id, ys]: star_pairs)
+    {
+    if(ys.size() < 2u)
+      continue;
+    constexpr float bx{1.f};
+    diagram.segments.push_back(
+      overlay::segment_t{.x0 = bx, .y0 = ys.front(), .x1 = bx, .y1 = ys.back(), .color = label_colour}
+    );
+    for(float const y: ys)
+      diagram.segments.push_back(
+        overlay::segment_t{.x0 = bx, .y0 = y, .x1 = star_column / 2.f - star_radius, .y1 = y, .color = label_colour}
+      );
+    }
+
+  diagram.width = std::max(widest, star_column);
+  diagram.height = top;
+  return diagram;
+  }
+
 [[nodiscard]]
 auto describe_exploration(star_system_t const & system) -> std::vector<overlay::line_t>
   {
@@ -1390,7 +1784,10 @@ auto overlay_feed_t::refresh_status(current_state_t const & state) -> void
 
   status_read_ = now;
   if(auto status{load_status(state.journal_dir_path_)}; status)
+    {
     gui_focus_ = status->GuiFocus;
+    status_body_ = std::move(status->BodyName);
+    }
   }
 
 /// head. Nothing here is remembered - the moment the target is let go there is nothing to show.
@@ -1923,6 +2320,12 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
       overlay::block_t{
         .corner = overlay::corner_e::bottom_right, .ttl_ms = block_ttl_ms, .lines = std::move(exploration)
       }
+    );
+
+  // the least urgent thing on this side, so it goes last - into the corner itself
+  if(auto map{build_system_diagram(state.system, status_body_)}; map)
+    frame.blocks.push_back(
+      overlay::block_t{.corner = overlay::corner_e::bottom_right, .ttl_ms = block_ttl_ms, .diagrams = {std::move(*map)}}
     );
 
   // what can be done here comes first: it is the only thing on this side that asks nothing of the

@@ -108,6 +108,8 @@ private:
 
   ///\brief the interface the game has open, 0 when it is showing nothing but the cockpit
   uint32_t gui_focus_{};
+  ///\brief the body the game says we are at, empty away from any
+  std::string status_body_;
   std::chrono::steady_clock::time_point status_read_{};
 
   std::chrono::steady_clock::time_point supply_loaded_{};

@@ -27,6 +27,8 @@ struct star_details_t
   std::optional<double> rotation_period;
   uint32_t age_my;
   uint8_t sub_class;
+  std::optional<events::body_id_t> parent_star;
+  std::optional<events::body_id_t> parent_barycenter;
   };
 
 [[nodiscard]]
@@ -41,7 +43,9 @@ auto to_db_fromat(uint64_t ref_body_oid, ::star_details_t const & v) noexcept ->
     .surface_temperature = v.surface_temperature,
     .rotation_period = v.rotation_period,
     .age_my = v.age_my,
-    .sub_class = v.sub_class
+    .sub_class = v.sub_class,
+    .parent_star = v.parent_star,
+    .parent_barycenter = v.parent_barycenter
   };
   }
 
@@ -56,7 +60,9 @@ auto to_native_fromat(sql_iface::star_details_t const & v) noexcept -> ::star_de
     .surface_temperature = v.surface_temperature,
     .rotation_period = v.rotation_period,
     .age_my = v.age_my,
-    .sub_class = v.sub_class
+    .sub_class = v.sub_class,
+    .parent_star = v.parent_star,
+    .parent_barycenter = v.parent_barycenter
   };
   }
 
@@ -884,7 +890,9 @@ static int select_callback(
     {
       auto const key{glz::reflect<table_type>::keys[ix]};
       assert(key == std::string_view{columns[ix]});
-      value = deserialize<T>(fields[ix]);
+      // a real SQL NULL comes as a null pointer - it is what a column added in place holds in the rows
+      // written before it, and a string_view built from it reads memory that is not there
+      value = fields[ix] != nullptr ? deserialize<T>(fields[ix]) : T{};
       ++ix;
     }
   );
@@ -1126,6 +1134,9 @@ auto database_storage_t::migrate_live_schema() -> expected_ec<void>
       {addition_t{sql_iface::tables::market_item, "producer"sv, "INTEGER DEFAULT 0"sv},
        addition_t{sql_iface::tables::market_item, "consumer"sv, "INTEGER DEFAULT 0"sv},
        addition_t{sql_iface::tables::station, "controlling_faction"sv, "TEXT DEFAULT ''"sv},
+       // what a star orbits - stars written before it was kept stay NULL until a rebuild or a rescan
+       addition_t{sql_iface::tables::star_details, "parent_star"sv, "INTEGER"sv},
+       addition_t{sql_iface::tables::star_details, "parent_barycenter"sv, "INTEGER"sv},
        // the carrier's state from CarrierStats - added in place, because live.sqlite is never created anew
        addition_t{sql_iface::tables::carrier, "carrier_type"sv, "TEXT DEFAULT ''"sv},
        addition_t{sql_iface::tables::carrier, "docking_access"sv, "TEXT DEFAULT ''"sv},

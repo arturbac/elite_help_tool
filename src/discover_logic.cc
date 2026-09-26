@@ -899,8 +899,18 @@ auto to_body(events::scan_detailed_scan_t && event) -> body_t
       .surface_temperature = event.SurfaceTemperature,
       .rotation_period = event.RotationPeriod,
       .age_my = event.Age_MY,
-      .sub_class = event.Subclass
+      .sub_class = event.Subclass,
+      .parent_star = {},
+      .parent_barycenter = {}
     };
+    // a star orbits a star or a barycentre, and the nearest of each is the first in the list
+    star_details_t & star{std::get<star_details_t>(b.details)};
+    if(auto it{std::ranges::find_if(event.Parents, [](events::parent_t const & p) { return p.Star.has_value(); })};
+       it != event.Parents.end())
+      star.parent_star = *it->Star;
+    if(auto it{std::ranges::find_if(event.Parents, [](events::parent_t const & p) { return p.Null.has_value(); })};
+       it != event.Parents.end())
+      star.parent_barycenter = *it->Null;
     }
   else
     {

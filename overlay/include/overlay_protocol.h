@@ -140,6 +140,50 @@ struct chart_t
   std::vector<series_t> series;
   };
 
+///\brief a filled circle, or a ring when outline is set - in pixels at scale 1, like the whole diagram
+struct disc_t
+  {
+  float x{};
+  float y{};
+  float radius{};
+  uint32_t color{0xffffffu};
+  bool outline{};
+  };
+
+///\brief a straight stroke between two points
+struct segment_t
+  {
+  float x0{};
+  float y0{};
+  float x1{};
+  float y1{};
+  uint32_t color{0x808080u};
+  };
+
+///\brief a piece of text anchored at a point - align 0 puts the point at its left edge, 0.5 in its
+/// middle, 1 at its right; vertically the text is always centred on the point
+struct label_t
+  {
+  float x{};
+  float y{};
+  std::string text;
+  uint32_t color{0xbbbbbbu};
+  float align{};
+  };
+
+///\brief a picture made of plain shapes, laid out by the tool
+///\detail the coordinates are pixels at scale 1 with y growing downwards. The layer scales them like
+/// everything else and shrinks the whole picture further when it would not fit the band - it knows
+/// nothing of what the shapes stand for
+struct diagram_t
+  {
+  float width{};
+  float height{};
+  std::vector<segment_t> segments;
+  std::vector<disc_t> discs;
+  std::vector<label_t> labels;
+  };
+
 ///\brief how large a block's text is set
 ///\detail a new field, not a new value of an existing enumeration - an older layer skips a field it
 /// does not know and goes on drawing, where an unknown enumerator would cost it the whole frame
@@ -165,6 +209,8 @@ struct block_t
   std::vector<line_t> lines;
   std::vector<chart_t> charts;
   text_e text{text_e::normal};
+  ///\brief drawn after the charts; a field an older layer skips, so it simply goes without the picture
+  std::vector<diagram_t> diagrams;
   };
 
 ///\brief the full image to draw - replaces the previous one entirely, only the newest counts

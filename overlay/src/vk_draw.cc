@@ -580,10 +580,60 @@ namespace
       }
     }
 
+  ///\brief draws a picture the tool laid out, shrunk to the room there is when it would not fit
+  auto draw_diagram(swapchain_data_t & data, overlay::diagram_t const & diagram, float available) -> void
+    {
+    if(diagram.width <= 0.f or diagram.height <= 0.f or available <= 0.f)
+      return;
+
+    float const scale{ImGui::GetFontSize() / 13.f};
+    // never larger than the rest of the overlay, only smaller when the band is narrower than the picture
+    float const k{std::min(scale, available / diagram.width)};
+
+    ImDrawList * const draw{ImGui::GetWindowDrawList()};
+    ImVec2 const origin{ImGui::GetCursorScreenPos()};
+    ImGui::Dummy(ImVec2{diagram.width * k, diagram.height * k});
+
+    auto const at = [&](float x, float y) { return ImVec2{origin.x + x * k, origin.y + y * k}; };
+
+    for(overlay::segment_t const & segment: diagram.segments)
+      draw->AddLine(
+        at(segment.x0, segment.y0), at(segment.x1, segment.y1), ImGui::GetColorU32(to_color(segment.color)), 1.2f * k
+      );
+
+    for(overlay::disc_t const & disc: diagram.discs)
+      {
+      ImU32 const colour{ImGui::GetColorU32(to_color(disc.color))};
+      if(disc.outline)
+        draw->AddCircle(at(disc.x, disc.y), disc.radius * k, colour, 24, 1.6f * k);
+      else
+        draw->AddCircleFilled(at(disc.x, disc.y), disc.radius * k, colour, 24);
+      }
+
+    // the labels follow the picture's own scale, so a shrunk picture keeps its numbers beside their discs
+    ImFont * const font{data.small_font != nullptr ? data.small_font : ImGui::GetFont()};
+    float const size{font->FontSize * k / scale};
+    for(overlay::label_t const & label: diagram.labels)
+      {
+      if(label.text.empty())
+        continue;
+      ImVec2 const extent{font->CalcTextSizeA(size, FLT_MAX, 0.f, label.text.c_str())};
+      ImVec2 const anchor{at(label.x, label.y)};
+      draw->AddText(
+        font,
+        size,
+        ImVec2{anchor.x - extent.x * std::clamp(label.align, 0.f, 1.f), anchor.y - extent.y * 0.5f},
+        ImGui::GetColorU32(to_color(label.color)),
+        label.text.c_str()
+      );
+      }
+    }
+
   [[nodiscard]]
   auto block_visible(overlay::block_t const & block, uint64_t age_ms) noexcept -> bool
     {
-    return (not block.lines.empty() or not block.charts.empty()) and (block.ttl_ms == 0u or age_ms <= block.ttl_ms);
+    return (not block.lines.empty() or not block.charts.empty() or not block.diagrams.empty())
+           and (block.ttl_ms == 0u or age_ms <= block.ttl_ms);
     }
 
   auto build_ui(swapchain_data_t & data) -> void
@@ -679,6 +729,9 @@ namespace
             };
             for(overlay::chart_t const & chart: block.charts)
               draw_chart(chart, chart_width);
+
+            for(overlay::diagram_t const & diagram: block.diagrams)
+              draw_diagram(data, diagram, width - 2.f * ImGui::GetStyle().WindowPadding.x);
 
             if(small)
               ImGui::PopFont();
