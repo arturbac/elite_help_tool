@@ -1086,7 +1086,39 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           route_.clear();
           route_changed = true;
           }
-        else if constexpr(std::same_as<T, events::carrier_stats_t>)
+        // The crosshairs and the fighter, both live only. None of this is written down: a target is
+      // gone the moment it is let go, and seventy thousand of them a year would tell a database
+      // nothing a screen does not tell better while it still matters.
+      else if constexpr(std::same_as<T, events::ship_targeted_t>)
+        {
+        // every stage repeats what the earlier ones said, so the newest event is the whole truth
+        target = event.TargetLocked ? event : events::ship_targeted_t{};
+        }
+      else if constexpr(std::same_as<T, events::bounty_t>)
+        last_bounty = event;
+      else if constexpr(std::same_as<T, events::launch_fighter_t>)
+        {
+        fighter = fighter_e::deployed;
+        fighter_crewed = not event.PlayerControlled;
+        }
+      else if constexpr(std::same_as<T, events::dock_fighter_t>)
+        fighter = fighter_e::stowed;
+      else if constexpr(std::same_as<T, events::fighter_destroyed_t>)
+        fighter = fighter_e::destroyed;
+      else if constexpr(std::same_as<T, events::fighter_rebuilt_t>)
+        fighter = fighter_e::stowed;
+      else if constexpr(std::same_as<T, events::crew_assign_t>)
+        {
+        // one of the hired crew is on duty at a time, and only that one flies the fighter
+        if(event.Role == "Active")
+          crew_name = event.Name;
+        }
+      else if constexpr(std::same_as<T, events::npc_crew_rank_t>)
+        {
+        if(event.NpcCrewName == crew_name)
+          crew_combat_rank = event.RankCombat;
+        }
+      else if constexpr(std::same_as<T, events::carrier_stats_t>)
           {
           update_micro_resources = true;
 

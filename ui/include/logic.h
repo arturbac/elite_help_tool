@@ -46,6 +46,27 @@ struct current_state_t : public generic_state_t
   ///\brief what is in the hold right now - a passing state, Cargo.json gets overwritten
   events::cargo_file_t cargo;
 
+  ///\brief the ship under the crosshairs right now
+  ///\detail live only, and deliberately so: a target is gone the moment it is let go, and writing
+  /// down seventy thousand of them a year would say nothing a screen does not say better
+  events::ship_targeted_t target;
+  ///\brief the last kill that paid, kept only long enough to be read off the screen
+  events::bounty_t last_bounty;
+
+  ///\brief where the hired fighter is
+  enum struct fighter_e : uint8_t
+    {
+    stowed,
+    deployed,
+    destroyed
+    };
+  fighter_e fighter{fighter_e::stowed};
+  ///\brief false while it is the commander flying it
+  bool fighter_crewed{};
+  ///\brief the hired pilot on duty, and how good they have become
+  std::string crew_name;
+  uint32_t crew_combat_rank{};
+
   events::fsd_jump_t jump_info;
   events::fsd_target_t next_target;
   

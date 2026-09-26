@@ -83,6 +83,44 @@ namespace
     return scale;
     }
 
+  ///\brief a number taken from the environment once, with a fallback
+  [[nodiscard]]
+  auto env_float(char const * name, float fallback) noexcept -> float
+    {
+    char const * const value{std::getenv(name)};
+    if(value == nullptr or *value == '\0')
+      return fallback;
+
+    float const parsed{std::strtof(value, nullptr)};
+    return parsed > 0.f ? parsed : fallback;
+    }
+
+  ///\brief width of the screen in the middle, which is the only one the player looks at
+  ///\detail the layer sees one surface spanning every monitor and cannot tell where one ends, so the
+  /// width of the middle one is told to it rather than guessed
+  [[nodiscard]]
+  auto centre_screen_width(float display_width) noexcept -> float
+    {
+    static float const width{env_float("EHT_OVERLAY_CENTRE_WIDTH", 0.f)};
+    return width > 0.f and width <= display_width ? width : display_width;
+    }
+
+  ///\brief how far below the top edge the head-up readouts sit
+  [[nodiscard]]
+  auto hud_top() noexcept -> float
+    {
+    static float const top{env_float("EHT_OVERLAY_HUD_TOP", 100.f)};
+    return top;
+    }
+
+  ///\brief half the corridor left clear down the middle, where the fighting happens
+  [[nodiscard]]
+  auto hud_gap() noexcept -> float
+    {
+    static float const gap{env_float("EHT_OVERLAY_HUD_GAP", 400.f)};
+    return gap;
+    }
+
   [[nodiscard]]
   auto to_color(uint32_t rgb) noexcept -> ImVec4
     {
@@ -117,6 +155,11 @@ namespace
       case top_right:    return {ImVec2{display.x - corner_margin, corner_margin}, ImVec2{1.f, 0.f}};
       case bottom_left:  return {ImVec2{corner_margin, display.y - corner_margin}, ImVec2{0.f, 1.f}};
       case bottom_right: return {ImVec2{display.x - corner_margin, display.y - corner_margin}, ImVec2{1.f, 1.f}};
+
+      // both grow away from the middle, so the corridor between them stays the width it was set to
+      // however much text arrives
+      case centre_top_left:  return {ImVec2{display.x * 0.5f - hud_gap(), hud_top()}, ImVec2{1.f, 0.f}};
+      case centre_top_right: return {ImVec2{display.x * 0.5f + hud_gap(), hud_top()}, ImVec2{0.f, 0.f}};
       }
     return {ImVec2{corner_margin, corner_margin}, ImVec2{0.f, 0.f}};
     }
@@ -131,6 +174,8 @@ namespace
       case top_right:    return "eht_top_right";
       case bottom_left:  return "eht_bottom_left";
       case bottom_right: return "eht_bottom_right";
+      case centre_top_left:  return "eht_centre_top_left";
+      case centre_top_right: return "eht_centre_top_right";
       }
     return "eht_unknown";
     }
@@ -535,7 +580,9 @@ namespace
         {overlay::corner_e::top_left,
          overlay::corner_e::top_right,
          overlay::corner_e::bottom_left,
-         overlay::corner_e::bottom_right})
+         overlay::corner_e::bottom_right,
+         overlay::corner_e::centre_top_left,
+         overlay::corner_e::centre_top_right})
       {
       bool const stats_here{stats_enabled() and corner == overlay::corner_e::top_right};
 
@@ -547,15 +594,21 @@ namespace
       if(not anything)
         continue;
 
+      bool const head_up{
+        corner == overlay::corner_e::centre_top_left or corner == overlay::corner_e::centre_top_right
+      };
+      // a head-up readout is glanced at, not read - past this width it stops being a glance
+      float const width{head_up ? std::min(band, centre_screen_width(display.x) * 0.22f) : band};
+
       auto const [position, pivot]{corner_position(corner, display)};
       ImGui::SetNextWindowBgAlpha(0.35f);
       ImGui::SetNextWindowPos(position, ImGuiCond_Always, pivot);
       // long text should wrap inside the band rather than run into the player's field of view
-      ImGui::SetNextWindowSizeConstraints(ImVec2{0.f, 0.f}, ImVec2{band, display.y});
+      ImGui::SetNextWindowSizeConstraints(ImVec2{0.f, 0.f}, ImVec2{width, display.y});
 
       if(ImGui::Begin(window_name(corner), nullptr, flags))
         {
-        ImGui::PushTextWrapPos(band - 2.f * ImGui::GetStyle().WindowPadding.x);
+        ImGui::PushTextWrapPos(width - 2.f * ImGui::GetStyle().WindowPadding.x);
         if(stats_here)
           {
           coloured_text(
@@ -566,6 +619,14 @@ namespace
             coloured_text(0x86d986u, "elite_help_tool: connected, %llu frames", (unsigned long long)client.received());
           else
             coloured_text(0xd9a34au, "elite_help_tool: waiting for connection");
+
+          // a frame that cannot be read is almost always a layer older than the tool feeding it,
+          // and without saying so the overlay simply looks dead
+          if(auto const lost{client.rejected()}; lost != 0u)
+            coloured_text(
+              0xd9534fu, "%llu frames rejected - install this layer, it is older than the tool",
+              (unsigned long long)lost
+            );
           }
 
         if(snapshot)
@@ -582,7 +643,7 @@ namespace
 
             // a chart wider than this is no more readable, only more of the view taken away
             float const chart_width{
-              std::min(band - 2.f * ImGui::GetStyle().WindowPadding.x, 360.f * ImGui::GetFontSize() / 13.f)
+              std::min(width - 2.f * ImGui::GetStyle().WindowPadding.x, 360.f * ImGui::GetFontSize() / 13.f)
             };
             for(overlay::chart_t const & chart: block.charts)
               draw_chart(chart, chart_width);

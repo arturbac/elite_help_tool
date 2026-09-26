@@ -158,6 +158,9 @@ enum struct event_e : uint16_t
   LaunchDrone,
   LaunchFighter,
   DockFighter,
+  FighterDestroyed,
+  FighterRebuilt,
+  NpcCrewRank,
   DockingCancelled,
   MiningRefined,
   MaterialTrade,
@@ -1111,6 +1114,107 @@ struct fss_all_bodies_found_t
   uint32_t Count;
   };
 
+///\brief the ship under the crosshairs, as the scan uncovers it stage by stage
+///\detail the stages are cumulative and each adds a field: 0 the hull type, 1 the pilot and their
+/// rank, 2 the health, 3 the faction, the legal status and the price on their head. A target let go
+/// arrives as the same event with TargetLocked false and nothing else in it
+struct ship_targeted_t
+  {
+  std::chrono::sys_seconds timestamp;
+  bool TargetLocked;
+  std::string Ship;
+  ///\brief only when it differs from the internal name
+  std::string Ship_Localised;
+  int ScanStage{-1};
+  std::string PilotName;
+  std::string PilotName_Localised;
+  std::string PilotRank;
+  ///\brief per cent, not a fraction
+  double ShieldHealth;
+  double HullHealth;
+  std::string Faction;
+  ///\brief Wanted, Clean, Lawless, Hunter, None
+  std::string LegalStatus;
+  ///\brief the price on their head, absent when there is none
+  uint64_t Bounty;
+  std::string Subsystem;
+  std::string Subsystem_Localised;
+  double SubsystemHealth;
+  };
+
+///\brief one faction's share of a kill
+struct bounty_reward_t
+  {
+  std::string Faction;
+  uint64_t Reward;
+  };
+
+///\brief a kill that pays, with the factions that will pay for it
+///\detail who issued the warrant is known only here - the scan before the kill says there is a price
+/// but never whose it is, so the systems the money can be claimed in follow from this event alone
+struct bounty_t
+  {
+  std::chrono::sys_seconds timestamp;
+  std::vector<bounty_reward_t> Rewards;
+  std::string PilotName;
+  std::string PilotName_Localised;
+  std::string Target;
+  std::string Target_Localised;
+  uint64_t TotalReward;
+  std::string VictimFaction;
+  };
+
+///\brief the fighter going out, and whether anyone of ours is flying it
+struct launch_fighter_t
+  {
+  std::chrono::sys_seconds timestamp;
+  std::string Loadout;
+  uint32_t ID;
+  ///\brief false when the hired pilot has it, which is the case worth saying out loud
+  bool PlayerControlled;
+  };
+
+///\brief the fighter called back in
+struct dock_fighter_t
+  {
+  std::chrono::sys_seconds timestamp;
+  uint32_t ID;
+  };
+
+///\brief the fighter shot out from under the pilot
+struct fighter_destroyed_t
+  {
+  std::chrono::sys_seconds timestamp;
+  uint32_t ID;
+  };
+
+///\brief the hangar has built another one
+struct fighter_rebuilt_t
+  {
+  std::chrono::sys_seconds timestamp;
+  std::string Loadout;
+  uint32_t ID;
+  };
+
+///\brief who of the hired crew is on duty
+struct crew_assign_t
+  {
+  std::chrono::sys_seconds timestamp;
+  std::string Name;
+  uint64_t CrewID;
+  ///\brief Active is the one who flies the fighter
+  std::string Role;
+  };
+
+///\brief how good the hired pilot has become - they rank up by fighting
+struct npc_crew_rank_t
+  {
+  std::chrono::sys_seconds timestamp;
+  std::string NpcCrewName;
+  uint64_t NpcCrewId;
+  uint32_t RankCombat;
+  };
+
 using event_holder_t = std::variant<
   fsd_jump_t,
   fsd_target_t,
@@ -1147,6 +1251,14 @@ using event_holder_t = std::variant<
   cargo_t,
   carrier_stats_t,
   fcmaterials_t,
+  ship_targeted_t,
+  bounty_t,
+  launch_fighter_t,
+  dock_fighter_t,
+  fighter_destroyed_t,
+  fighter_rebuilt_t,
+  crew_assign_t,
+  npc_crew_rank_t,
   commander_t>;
 
   }  // namespace events

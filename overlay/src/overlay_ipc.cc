@@ -118,6 +118,9 @@ auto client_t::connected() const noexcept -> bool
   { return connected_.load(std::memory_order_relaxed); }
 
 [[nodiscard]]
+auto client_t::rejected() const noexcept -> uint64_t
+  { return rejected_.load(std::memory_order_relaxed); }
+
 auto client_t::received() const noexcept -> uint64_t
   { return received_.load(std::memory_order_relaxed); }
 
@@ -207,6 +210,8 @@ auto client_t::run() -> void
             latest_.store(std::shared_ptr<received_frame_t const>{std::move(parsed)}, std::memory_order_release);
             received_.fetch_add(1u, std::memory_order_relaxed);
             }
+          else
+            rejected_.fetch_add(1u, std::memory_order_relaxed);
 
           buffer.erase(0, header_size + size);
           }

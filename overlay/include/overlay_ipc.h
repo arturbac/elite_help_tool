@@ -42,6 +42,13 @@ public:
   [[nodiscard]]
   auto received() const noexcept -> uint64_t;
 
+  ///\brief frames that arrived and could not be read
+  ///\detail a new field is harmless to an older layer, which skips what it does not know - a new
+  /// value of an enumeration is not, and costs the whole frame. Counting the losses turns "the
+  /// overlay stopped showing anything" into "this layer is older than the tool that feeds it"
+  [[nodiscard]]
+  auto rejected() const noexcept -> uint64_t;
+
 private:
   auto run() -> void;
 
@@ -49,6 +56,7 @@ private:
   std::atomic<std::shared_ptr<received_frame_t const>> latest_{};
   std::atomic<bool> connected_{false};
   std::atomic<uint64_t> received_{};
+  std::atomic<uint64_t> rejected_{};
   int wakeup_fd_{-1};
   std::thread worker_;
   };

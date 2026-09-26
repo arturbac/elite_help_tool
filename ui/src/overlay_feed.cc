@@ -55,6 +55,40 @@ constexpr size_t listed_sources{2u};
 constexpr size_t listed_settlement_work{4u};
 constexpr unsigned listed_trades{3u};
 
+///\brief how long a kill stays on the head-up display after it is made
+constexpr std::chrono::seconds kill_shown{10};
+
+///\brief the rank ladder the game counts hired pilots on, the same one it counts the commander on
+[[nodiscard]]
+auto combat_rank_name(uint32_t rank) -> std::string_view
+  {
+  using namespace std::string_view_literals;
+  constexpr std::array ladder{
+    "Harmless"sv,
+    "Mostly Harmless"sv,
+    "Novice"sv,
+    "Competent"sv,
+    "Expert"sv,
+    "Master"sv,
+    "Dangerous"sv,
+    "Deadly"sv,
+    "Elite"sv
+  };
+  return rank < ladder.size() ? ladder[rank] : "unknown"sv;
+  }
+
+///\brief what the legal status means for the trigger finger
+///\detail green is a payday, red is a crime, and the difference is the whole reason for scanning
+[[nodiscard]]
+auto legal_colour(std::string_view status) -> uint32_t
+  {
+  if(status == "Wanted")
+    return colour_first;
+  if(status == "Clean")
+    return colour_expiring;
+  return colour_plain;
+  }
+
 ///\brief a port in space carries the most goods, a settlement the least - that is the order of worth
 [[nodiscard]]
 auto station_rank(std::string_view station_type) -> int
@@ -1197,6 +1231,136 @@ auto overlay_feed_t::refresh_mission_places(current_state_t const & state) -> vo
     }
   }
 
+///\brief the ship under the crosshairs, read off without looking away from it
+///
+/// The scan uncovers it in stages and each line appears as the game gives it: the hull first, then
+/// who flies it, then how hurt they are, and only at the end the faction and the price on their
+/// head. Nothing here is remembered - the moment the target is let go there is nothing to show.
+auto overlay_feed_t::build_target_lines(current_state_t const & state) const -> std::vector<overlay::line_t>
+  {
+  auto const & target{state.target};
+
+  std::vector<overlay::line_t> lines;
+
+  // a kill stands for a few seconds after it is made, because the money it paid is the answer to
+  // the question the scan asked
+  auto const wall{std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())};
+  if(state.last_bounty.TotalReward != 0u and wall - state.last_bounty.timestamp < kill_shown)
+    {
+    lines.push_back(
+      overlay::line_t{
+        .text = std::format(
+          "killed {}  +{} Cr",
+          state.last_bounty.PilotName_Localised.empty() ? state.last_bounty.VictimFaction
+                                                        : state.last_bounty.PilotName_Localised,
+          format_credits_value(uint32_t(std::min<uint64_t>(state.last_bounty.TotalReward, 0xffffffffull)))
+        ),
+        .color = colour_first
+      }
+    );
+
+    for(events::bounty_reward_t const & reward: state.last_bounty.Rewards)
+      lines.push_back(
+        overlay::line_t{
+          .text = std::format("  {}  {} Cr", reward.Faction, format_credits_value(uint32_t(reward.Reward))),
+          .color = colour_plain
+        }
+      );
+    }
+
+  if(not target.TargetLocked)
+    return lines;
+
+  std::string const pilot{target.PilotName_Localised.empty() ? target.PilotName : target.PilotName_Localised};
+  std::string const ship{target.Ship_Localised.empty() ? target.Ship : target.Ship_Localised};
+
+  if(not pilot.empty())
+    lines.push_back(
+      overlay::line_t{
+        .text = target.PilotRank.empty() ? pilot : std::format("{}  {}", pilot, target.PilotRank),
+        .color = colour_heading
+      }
+    );
+
+  if(not ship.empty())
+    lines.push_back(overlay::line_t{.text = ship, .color = colour_plain});
+
+  if(not target.Faction.empty())
+    lines.push_back(overlay::line_t{.text = target.Faction, .color = colour_plain});
+
+  if(not target.LegalStatus.empty())
+    {
+    std::string status{target.LegalStatus};
+    if(target.Bounty != 0u)
+      status += std::format("   {} Cr", format_credits_value(uint32_t(std::min<uint64_t>(target.Bounty, 0xffffffffull))));
+
+    lines.push_back(overlay::line_t{.text = std::move(status), .color = legal_colour(target.LegalStatus)});
+    }
+
+  // the health arrives from the second stage on, as whole per cent rather than a fraction
+  if(target.ScanStage >= 2)
+    lines.push_back(
+      overlay::line_t{
+        .text = std::format("hull {:.0f}%   shield {:.0f}%", target.HullHealth, target.ShieldHealth),
+        .color = target.HullHealth < 25.0 ? colour_expiring : colour_plain
+      }
+    );
+
+  if(not target.Subsystem_Localised.empty() or not target.Subsystem.empty())
+    lines.push_back(
+      overlay::line_t{
+        .text = std::format(
+          "{}  {:.0f}%",
+          target.Subsystem_Localised.empty() ? target.Subsystem : target.Subsystem_Localised,
+          target.SubsystemHealth
+        ),
+        .color = colour_plain
+      }
+    );
+
+  return lines;
+  }
+
+///\brief the hired pilot and the fighter they fly
+auto overlay_feed_t::build_crew_lines(current_state_t const & state) const -> std::vector<overlay::line_t>
+  {
+  using fighter_e = current_state_t::fighter_e;
+
+  if(state.crew_name.empty() and state.fighter == fighter_e::stowed)
+    return {};
+
+  std::vector<overlay::line_t> lines;
+
+  if(not state.crew_name.empty())
+    lines.push_back(
+      overlay::line_t{
+        .text = std::format("{}  {}", state.crew_name, combat_rank_name(state.crew_combat_rank)),
+        .color = colour_heading
+      }
+    );
+
+  switch(state.fighter)
+    {
+    case fighter_e::deployed:
+      lines.push_back(
+        overlay::line_t{
+          .text = state.fighter_crewed ? "fighter out, crew flying" : "fighter out, you are flying",
+          .color = colour_first
+        }
+      );
+      break;
+
+    case fighter_e::destroyed:
+      // the hangar builds another one, so this says wait rather than mourn
+      lines.push_back(overlay::line_t{.text = "fighter destroyed", .color = colour_expiring});
+      break;
+
+    case fighter_e::stowed: lines.push_back(overlay::line_t{.text = "fighter in the bay", .color = colour_plain}); break;
+    }
+
+  return lines;
+  }
+
 /// question, which is why they are answered together and above everything else on this side.
 auto overlay_feed_t::build_settlement_lines(current_state_t const & state) const -> std::vector<overlay::line_t>
   {
@@ -1587,6 +1751,18 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
 
   // what can be done here comes first: it is the only thing on this side that asks nothing of the
   // player but to turn around, and the trading below it will still be there afterwards
+  // Head-up, flanking the middle of the centre screen: what is read without looking away from the
+  // fight. The corridor between them is left clear, because that is where the fight is
+  if(auto aimed{build_target_lines(state)}; not aimed.empty())
+    frame.blocks.push_back(
+      overlay::block_t{.corner = overlay::corner_e::centre_top_left, .ttl_ms = block_ttl_ms, .lines = std::move(aimed)}
+    );
+
+  if(auto crew{build_crew_lines(state)}; not crew.empty())
+    frame.blocks.push_back(
+      overlay::block_t{.corner = overlay::corner_e::centre_top_right, .ttl_ms = block_ttl_ms, .lines = std::move(crew)}
+    );
+
   if(auto settlement{build_settlement_lines(state)}; not settlement.empty())
     frame.blocks.push_back(
       overlay::block_t{.corner = overlay::corner_e::top_right, .ttl_ms = block_ttl_ms, .lines = std::move(settlement)}

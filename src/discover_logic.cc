@@ -814,6 +814,16 @@ auto generic_state_t::discovery(std::string_view input) -> void
     // after this event it is known whose the following entries are, to the end of the file
     case Commander:         parse_and_handle.template operator()<events::commander_t>(); break;
     case Cargo:             parse_and_handle.template operator()<events::cargo_t>(); break;  //
+    // the crosshairs and what they pay - live only, neither belongs in any database
+    case ShipTargeted:      parse_and_handle.template operator()<events::ship_targeted_t>(); break;
+    case Bounty:            parse_and_handle.template operator()<events::bounty_t>(); break;
+    // the fighter and whoever flies it - also live only
+    case LaunchFighter:     parse_and_handle.template operator()<events::launch_fighter_t>(); break;
+    case DockFighter:       parse_and_handle.template operator()<events::dock_fighter_t>(); break;
+    case FighterDestroyed:  parse_and_handle.template operator()<events::fighter_destroyed_t>(); break;
+    case FighterRebuilt:    parse_and_handle.template operator()<events::fighter_rebuilt_t>(); break;
+    case CrewAssign:        parse_and_handle.template operator()<events::crew_assign_t>(); break;
+    case NpcCrewRank:       parse_and_handle.template operator()<events::npc_crew_rank_t>(); break;
     case Shutdown:          break;
     case CarrierStats:      parse_and_handle.template operator()<events::carrier_stats_t>(); break;
     case FCMaterials:

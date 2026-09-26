@@ -55,6 +55,14 @@ private:
   ///\brief who holds the places the open missions point at - the journal does not say
   auto refresh_mission_places(current_state_t const & state) -> void;
 
+  ///\brief the ship under the crosshairs, read off without looking away from it
+  [[nodiscard]]
+  auto build_target_lines(current_state_t const & state) const -> std::vector<overlay::line_t>;
+
+  ///\brief the hired pilot and the fighter they fly
+  [[nodiscard]]
+  auto build_crew_lines(current_state_t const & state) const -> std::vector<overlay::line_t>;
+
   ///\brief the next hops of both routes - a side band holds only what comes next, not the whole list
   [[nodiscard]]
   auto build_route_lines(current_state_t const & state, plotted_route_t const & plotted) const

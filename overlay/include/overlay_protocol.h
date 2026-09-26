@@ -18,13 +18,20 @@ enum struct corner_e : uint8_t
   top_left,
   top_right,
   bottom_left,
-  bottom_right
+  bottom_right,
+  ///\brief the upper part of the middle screen, to the left of the centre line
+  ///\detail for what has to be read without looking away from the fight. It flanks the centre rather
+  /// than sitting at the screen's edge, because on a triple screen the edges are where one does not
+  /// look - and it stays clear of the middle itself, which is where the fight is
+  centre_top_left,
+  ///\brief the same, to the right of the centre line
+  centre_top_right
   };
 
 consteval auto adl_enum_bounds(corner_e)
   {
   using enum corner_e;
-  return simple_enum::adl_info{top_left, bottom_right};
+  return simple_enum::adl_info{top_left, centre_top_right};
   }
 
 ///\brief the mark drawn in front of a name, and on that name's line in a chart
