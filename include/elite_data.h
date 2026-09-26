@@ -371,6 +371,13 @@ struct supply_option_t
   uint32_t buy_price;
   };
 
+///\brief czy towaru nie da sie kupic, a jedynie wykopac
+///
+/// stacja potrafi placic za taki surowiec bardzo dobrze, ale dla handlarza to slepy zaulek -
+/// nikt mu go nie sprzeda. Lista jest stala wiedza o grze, wiec siedzi w kodzie, nie w bazie
+[[nodiscard]]
+auto is_mining_only(std::string_view commodity) noexcept -> bool;
+
 ///\brief kurs handlowy: kupic tam, sprzedac tutaj
 struct trade_option_t
   {

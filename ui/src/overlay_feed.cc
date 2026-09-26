@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <array>
+#include <functional>
 #include <cctype>
 #include <format>
 #include <map>
@@ -588,6 +589,13 @@ auto overlay_feed_t::refresh_market(uint64_t market_id, uint32_t cargo_capacity)
     overlay::line_t{.text = std::format("{}: {} on sale, {} wanted", name, on_sale, wanted), .color = colour_heading}
   );
 
+  // surowca, ktorego nikt nie sprzedaje, handlarz nie przywiezie - stacja moze za niego placic
+  // swietnie i to nadal bedzie slepy zaulek, wiec idzie na koniec i pod wlasnym naglowkiem
+  auto const mined{[](info::market_entry_t const * entry) { return info::is_mining_only(entry->name); }};
+  auto const tradeable{std::ranges::partition(sells, std::not_fn(mined))};
+  std::vector<info::market_entry_t const *> const dug_up(tradeable.begin(), tradeable.end());
+  sells.erase(tradeable.begin(), tradeable.end());
+
   if(not sells.empty())
     {
     market_lines_.push_back(overlay::line_t{.text = "pays above average:", .color = colour_plain});
@@ -601,6 +609,23 @@ auto overlay_feed_t::refresh_market(uint64_t market_id, uint32_t cargo_capacity)
             format_credits_value(entry->sell_price - entry->mean_price)
           ),
           .color = colour_first
+        }
+      );
+    }
+
+  if(not dug_up.empty())
+    {
+    market_lines_.push_back(overlay::line_t{.text = "pays well, but mining only:", .color = colour_plain});
+    for(info::market_entry_t const * entry: dug_up | std::views::take(2u))
+      market_lines_.push_back(
+        overlay::line_t{
+          .text = std::format(
+            "  {}  {} Cr  {} over avg",
+            entry->name,
+            format_credits_value(entry->sell_price),
+            format_credits_value(entry->sell_price - entry->mean_price)
+          ),
+          .color = colour_plain
         }
       );
     }

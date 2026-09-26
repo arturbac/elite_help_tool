@@ -1,10 +1,15 @@
 #include <elite_data.h>
+
+#include <algorithm>
+#include <array>
+#include <string_view>
 #include <span>
 #include <simple_enum/enum_cast.hpp>
 #include <stralgo/stralgo.h>
 
 namespace info
   {
+using namespace std::string_view_literals;
 
 auto distance(space_location_t const & a, space_location_t const & b) -> double
   {
@@ -97,6 +102,19 @@ auto to_influence(
     .recovering_states = join_states(faction.RecoveringStates)
   };
   }
+
+namespace
+  {
+  ///\brief posortowane, bo szukamy binarnie; rosnie w miare jak Artur zglasza kolejne
+  constexpr std::array mining_only_commodities{
+    "Periclase Dunite"sv,
+    "Sapphire"sv,
+    "Thortveitite"sv,
+  };
+  }  // namespace
+
+auto is_mining_only(std::string_view commodity) noexcept -> bool
+  { return std::ranges::binary_search(mining_only_commodities, commodity); }
 
 auto transform_mission_name(std::string_view input) -> std::string
   {
