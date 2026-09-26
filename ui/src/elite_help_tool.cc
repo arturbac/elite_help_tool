@@ -90,7 +90,7 @@ auto main_window_t::setup_ui() -> void
 
   setup_toolbox();
 
-  system_view_ = new system_window_t(state_, db_path_);
+  system_view_ = new system_window_t(state_);
   add_tool_window(system_view_, window_type_e::system);
 
   ship_view_ = new ship_loadout_window_t(state_.ship_loadout);

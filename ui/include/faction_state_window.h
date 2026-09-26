@@ -226,6 +226,27 @@ public:
   QComboBox * range_combo_{};
   QComboBox * scale_combo_{};
 
+  ///\brief kiedy ten system i galaktyka przeliczyly sie ostatnio - u samej gory, bo od tego
+  /// zalezy, czy oddana teraz misja liczy sie jeszcze na te dobe
+  QLabel * bgs_tick_label_{};
+  ///\brief zakres, w jakim ostatnia fala szla po galaktyce, i jak regularnie przychodzi
+  QLabel * bgs_galaxy_label_{};
+  ///\brief osobny zegar, widoczny tylko gdy w systemie trwa konflikt
+  QLabel * war_tick_label_{};
+  QLabel * war_tick_row_label_{};
+  QLabel * war_galaxy_label_{};
+  QLabel * war_galaxy_row_label_{};
+  ///\brief ile jeszcze przeliczen do rozstrzygniecia trwajacych wojen
+  QLabel * war_countdown_label_{};
+  QLabel * war_countdown_row_label_{};
+
+  ///\brief kiedy ostatnio liczylismy zegary i dla jakiego systemu
+  ///\detail przeliczenie to kilka zapytan z podzapytaniami skorelowanymi, a okno odswieza sie przy
+  /// kazdej zmianie stanu gry - bez tego szlyby setki zapytan na minute o dane zmieniajace sie
+  /// raz na dobe
+  std::chrono::steady_clock::time_point ticks_loaded_{};
+  uint64_t ticks_system_{};
+
   QLabel * economy_label_{};
   QLabel * government_label_{};
   QLabel * allegiance_label_{};
@@ -276,6 +297,9 @@ private:
   auto reload_system_list() -> void;
   auto show_system(uint64_t system_address) -> void;
   auto update_system_info(uint64_t system_address) -> void;
+
+  ///\brief gorne dwie linie - przeliczenie wplywow i, gdy trwa konflikt, przeliczenie wojen
+  auto update_tick_labels(uint64_t system_address) -> void;
   auto update_conflicts(uint64_t system_address) -> void;
   auto update_stations(uint64_t system_address) -> void;
 

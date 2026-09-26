@@ -140,12 +140,6 @@ public:
   
   system_bodies_signals_model_t * signals_model_;
   
-  ///\brief kiedy galaktyka i ten system przeliczyly sie ostatnio - u gory, bo od tego zalezy
-  /// czy oddana teraz misja liczy sie jeszcze na te dobe
-  QLabel * bgs_tick_label_{};
-  ///\brief osobny zegar, widoczny tylko gdy w systemie trwa konflikt
-  QLabel * war_tick_label_{};
-  QLabel * war_tick_row_label_{};
   QLabel * target_label_{};
   QLabel * system_label_{};
   QLabel * fss_label_{};
@@ -154,26 +148,12 @@ public:
   QTreeView * tree_view{};
   QTreeView *signals_view{};
 
-  ///\brief wlasne polaczenie - db_ stanu nalezy do watku sledzacego journal i nie wolno go
-  /// dotykac z watku GUI
-  database_storage_t db_;
-
-  ///\brief kiedy ostatnio liczylismy zegary i dla jakiego systemu
-  ///\detail przeliczenie to kilka zapytan z podzapytaniami skorelowanymi, a etykiety odswiezaja sie
-  /// przy kazdej zmianie stanu gry - bez tego szlyby setki zapytan na minute o dane, ktore i tak
-  /// zmieniaja sie raz na dobe
-  std::chrono::steady_clock::time_point ticks_loaded_{};
-  uint64_t ticks_system_{};
-
-  explicit system_window_t(current_state_t const & state, std::string db_path, QWidget * parent = nullptr);
+  explicit system_window_t(current_state_t const & state, QWidget * parent = nullptr);
 
   auto refresh_ui() -> void;
 
   auto setup_ui() -> void;
 
   auto update_labels() -> void;
-
-  ///\brief gorne dwie linie - przeliczenie wplywow i, gdy trwa konflikt, przeliczenie wojen
-  auto update_tick_labels() -> void;
   };
 
