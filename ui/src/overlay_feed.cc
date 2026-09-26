@@ -959,15 +959,19 @@ auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
   faction_charts_ = build_influence_chart(*history, charted, wall_clock);
   }
 
-auto overlay_feed_t::refresh_market(uint64_t market_id, uint32_t cargo_capacity) -> void
+auto overlay_feed_t::refresh_market(
+  uint64_t market_id, uint32_t cargo_capacity, uint64_t destination, std::string_view destination_name
+) -> void
   {
   // the place alone will not do as a key: we are at a settlement from the moment we enter, but the goods
   // are known only once the player opens the market, so asking once on a change of place always found nothing
   auto const now{std::chrono::steady_clock::now()};
-  if(market_id == market_id_ and now - market_loaded_ < market_refresh)
+  // choosing a destination changes what is worth buying here, so it is part of the key - the answer comes at once
+  if(market_id == market_id_ and destination == market_destination_ and now - market_loaded_ < market_refresh)
     return;
 
   market_id_ = market_id;
+  market_destination_ = destination;
   market_loaded_ = now;
   market_lines_.clear();
   station_name_.clear();
@@ -1129,11 +1133,11 @@ auto overlay_feed_t::refresh_market(uint64_t market_id, uint32_t cargo_capacity)
 
   // the galactic average says whether a price is good, but the earnings come from the difference between markets
   auto const add_trades{
-    [this, cargo_capacity](bool bring_here, char const * heading)
+    [this, cargo_capacity](bool bring_here, std::string const & heading, uint64_t in_system) -> bool
     {
-      auto trades{db_.load_trade_options(market_id_, listed_trades, bring_here)};
+      auto trades{db_.load_trade_options(market_id_, listed_trades, bring_here, in_system)};
       if(not trades or trades->empty())
-        return;
+        return false;
 
       market_lines_.push_back(overlay::line_t{.text = heading, .color = colour_plain});
 
@@ -1164,11 +1168,27 @@ auto overlay_feed_t::refresh_market(uint64_t market_id, uint32_t cargo_capacity)
           }
         );
         }
+      return true;
     }
   };
 
-  add_trades(true, "bring here, best known:");
-  add_trades(false, "take from here, best known:");
+  // with a route plotted the question is no longer what pays anywhere, but what pays where we are going -
+  // and what is there that this place wants, for the way back. The game names only the system, not the
+  // station picked in it, so every market known there takes part
+  if(destination != 0u)
+    {
+    bool const any_there{add_trades(false, std::format("take to {}:", destination_name), destination)};
+    bool const any_back{add_trades(true, std::format("bring back from {}:", destination_name), destination)};
+    if(any_there or any_back)
+      return;
+    // silence would read as nothing being worth it, when mostly it means none of its markets were ever opened
+    market_lines_.push_back(
+      overlay::line_t{.text = std::format("{}: no known market trades with here", destination_name), .color = colour_alert}
+    );
+    }
+
+  add_trades(true, "bring here, best known:", 0u);
+  add_trades(false, "take from here, best known:", 0u);
   }
 
 auto overlay_feed_t::refresh_supply() -> void
@@ -1761,7 +1781,18 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
   refresh_factions(state);
   refresh_status(state);
   refresh_mission_places(state);
-  refresh_market(state.settlement_market_id_, state.ship_loadout.CargoCapacity);
+  // the route's last system is where we are going; the first entry is where it was plotted from
+  info::route_item_t const * const destination{
+    state.route_.size() > 1u and state.route_.back().system_address != state.system.system_address
+      ? &state.route_.back()
+      : nullptr
+  };
+  refresh_market(
+    state.settlement_market_id_,
+    state.ship_loadout.CargoCapacity,
+    destination != nullptr ? destination->system_address : 0u,
+    destination != nullptr ? std::string_view{destination->system} : std::string_view{}
+  );
   refresh_supply();
 
   overlay::frame_t frame{};

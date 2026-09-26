@@ -87,8 +87,9 @@ struct database_storage_t
 
   ///\brief trade rates against this market, worked out over the other markets we know
   ///\param bring_here true - buy elsewhere and sell here; false - buy here and carry away
+  ///\param in_system when non-zero, only the markets of that system - the one the route leads to
   [[nodiscard]]
-  auto load_trade_options(uint64_t market_id, unsigned limit, bool bring_here)
+  auto load_trade_options(uint64_t market_id, unsigned limit, bool bring_here, uint64_t in_system = 0u)
     -> expected_ec<std::vector<info::trade_option_t>>;
 
   ///\brief MissionAccepted proves the mission is open, even when the row already exists

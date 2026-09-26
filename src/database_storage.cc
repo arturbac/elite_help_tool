@@ -1607,7 +1607,7 @@ auto database_storage_t::load_present_factions(uint64_t system_address) -> expec
   );
   }
 
-auto database_storage_t::load_trade_options(uint64_t market_id, unsigned limit, bool bring_here)
+auto database_storage_t::load_trade_options(uint64_t market_id, unsigned limit, bool bring_here, uint64_t in_system)
   -> expected_ec<std::vector<info::trade_option_t>>
   {
   // the "here" market is the one we stand in, "other" is any other one we have ever seen.
@@ -1616,6 +1616,8 @@ auto database_storage_t::load_trade_options(uint64_t market_id, unsigned limit, 
   std::string_view const sell_side{bring_here ? "here" : "other"};
   // a rate on a single tonne is no rate - below this threshold the hint only litters the screen
   constexpr unsigned minimum_quantity{50u};
+  // the game names only the system a route ends in, never the station, so the whole system is the narrowest
+  std::string const system_filter{in_system != 0u ? std::format(" AND st.system_address = {}", in_system) : ""};
 
   return sqlite::select_from<info::trade_option_t>(
     db_->db,
@@ -1635,7 +1637,7 @@ auto database_storage_t::load_trade_options(uint64_t market_id, unsigned limit, 
       " LEFT JOIN {3} ss ON ss.system_address = st.system_address"
       " WHERE here.market_id = {4}"
       "   AND {6}.stock >= {8} AND {6}.buy_price > 0"
-      "   AND {7}.demand >= {8} AND {7}.sell_price > {6}.buy_price"
+      "   AND {7}.demand >= {8} AND {7}.sell_price > {6}.buy_price{9}"
       // the hold has a finite capacity, so what decides the earnings is the margin per tonne, not the percentage
       " ORDER BY ({7}.sell_price - {6}.buy_price) DESC"
       " LIMIT {5})",
@@ -1647,7 +1649,8 @@ auto database_storage_t::load_trade_options(uint64_t market_id, unsigned limit, 
       limit,
       buy_side,
       sell_side,
-      minimum_quantity
+      minimum_quantity,
+      system_filter
     ),
     ""
   );
