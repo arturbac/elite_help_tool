@@ -51,6 +51,8 @@ constexpr std::chrono::seconds market_refresh{5};
 ///\brief missions arrive rarely, and the query goes across both databases
 constexpr std::chrono::seconds supply_refresh{10};
 constexpr size_t listed_sources{2u};
+///\brief the band is not a mission log - beyond this the list stops being read at a glance
+constexpr size_t listed_settlement_work{4u};
 constexpr unsigned listed_trades{3u};
 
 ///\brief a port in space carries the most goods, a settlement the least - that is the order of worth
@@ -439,6 +441,7 @@ struct charted_t
 /// The layer receives nothing but numbers in 0..1 - the logarithm, the decades and the window all
 /// happen here. A logarithmic scale is what makes the chart useful at all: a faction sitting at 2%
 /// and one at 45% move by comparable fractions of themselves, and on a linear axis the small one
+
 /// lies flat against the bottom.
 [[nodiscard]]
 auto build_influence_chart(
@@ -827,6 +830,9 @@ auto overlay_feed_t::refresh_market(uint64_t market_id, uint32_t cargo_capacity)
   market_id_ = market_id;
   market_loaded_ = now;
   market_lines_.clear();
+  station_name_.clear();
+  station_faction_.clear();
+  station_type_.clear();
 
   if(market_id == 0u)
     return;
@@ -836,6 +842,14 @@ auto overlay_feed_t::refresh_market(uint64_t market_id, uint32_t cargo_capacity)
   // the owner of the place decides whose influence grows from missions handed in here - without it a
   // port's name on its own says little when planning work for a faction
   std::string const owner{station and *station ? (*station)->controlling_faction : std::string{}};
+
+  // kept for the settlement block, which asks the same reading a different question
+  if(station and *station)
+    {
+    station_name_ = (*station)->name;
+    station_faction_ = owner;
+    station_type_ = (*station)->station_type;
+    }
 
   auto entries{db_.load_market_entries(market_id)};
   if(not entries or entries->empty())
@@ -1039,6 +1053,98 @@ auto overlay_feed_t::refresh_supply() -> void
 
   if(auto producers{db_.load_producers()}; producers)
     producers_ = std::move(*producers);
+  }
+
+///\brief what the open missions can be advanced with without flying anywhere
+///
+/// Two kinds of work meet at a settlement and the game words them differently. One names the place:
+/// a theft, a download, an assassination at a settlement given by name. The other names a faction
+/// and no place at all - exterminating that faction's members counts at any settlement it holds,
+/// this one included, and nothing in the mission says so. Standing on the pad both are the same
+/// question, which is why they are answered together and above everything else on this side.
+auto overlay_feed_t::build_settlement_lines(current_state_t const & state) const -> std::vector<overlay::line_t>
+  {
+  if(station_name_.empty())
+    return {};
+
+  // the faction match holds only where one can walk up to them; in a starport the same mission
+  // would be a suggestion to do something the game does not allow
+  bool const on_foot{station_type_ == "OnFootSettlement"};
+
+  std::vector<info::mission_t const *> hand_in;
+  std::vector<info::mission_t const *> here;
+  std::vector<info::mission_t const *> fits;
+
+  for(info::mission_t const & mission: state.active_missions)
+    {
+    bool const done{mission.status == info::mission_status_e::redirected};
+    if(mission.status != info::mission_status_e::accepted and not done)
+      continue;
+
+    // A redirected mission keeps the settlement it was done at in its destination, and that place is
+    // now finished business - only the handing in is left. Matching it by destination would send the
+    // player back to a job already done.
+    if(done)
+      {
+      if(mission.redirected_settlement == station_name_ or mission.redirected_station == station_name_)
+        hand_in.push_back(&mission);
+      }
+    else if(mission.destination_settlement == station_name_ or mission.destination_station == station_name_)
+      here.push_back(&mission);
+    else if(
+      on_foot and not station_faction_.empty() and mission.target_faction == station_faction_
+      and mission.destination_settlement.empty()
+    )
+      fits.push_back(&mission);
+    }
+
+  if(hand_in.empty() and here.empty() and fits.empty())
+    return {};
+
+  auto const now{std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())};
+
+  std::vector<overlay::line_t> lines;
+  lines.push_back(overlay::line_t{.text = station_name_, .color = colour_heading});
+  if(not station_faction_.empty())
+    lines.push_back(overlay::line_t{.text = std::format("  {}", station_faction_), .color = colour_plain});
+
+  auto const add = [&](std::vector<info::mission_t const *> const & group, char const * caption, uint32_t colour)
+  {
+    if(group.empty())
+      return;
+
+    lines.push_back(overlay::line_t{.text = caption, .color = colour_heading});
+    for(info::mission_t const * mission: group | std::views::take(listed_settlement_work))
+      {
+      auto const left{std::chrono::duration_cast<std::chrono::seconds>(mission->expiry - now)};
+      auto const count{mission->mission_count()};
+
+      lines.push_back(
+        overlay::line_t{
+          .text = std::format(
+            "  {}{}  {}",
+            info::transform_mission_name(mission->type),
+            count > 1u ? std::format("  x{}", count) : std::string{},
+            format_remaining(left)
+          ),
+          .color = left < expiry_warning ? colour_expiring : colour
+        }
+      );
+      }
+
+    if(group.size() > listed_settlement_work)
+      lines.push_back(
+        overlay::line_t{
+          .text = std::format("  ... and {} more", group.size() - listed_settlement_work), .color = colour_plain
+        }
+      );
+  };
+
+  add(hand_in, "hand in here:", colour_first);
+  add(here, "do here:", colour_plain);
+  add(fits, "any settlement of this faction:", colour_plain);
+
+  return lines;
   }
 
 auto overlay_feed_t::build_supply_lines(events::cargo_file_t const & cargo) const -> std::vector<overlay::line_t>
@@ -1340,6 +1446,13 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
       overlay::block_t{
         .corner = overlay::corner_e::bottom_right, .ttl_ms = block_ttl_ms, .lines = std::move(exploration)
       }
+    );
+
+  // what can be done here comes first: it is the only thing on this side that asks nothing of the
+  // player but to turn around, and the trading below it will still be there afterwards
+  if(auto settlement{build_settlement_lines(state)}; not settlement.empty())
+    frame.blocks.push_back(
+      overlay::block_t{.corner = overlay::corner_e::top_right, .ttl_ms = block_ttl_ms, .lines = std::move(settlement)}
     );
 
   if(auto supply{build_supply_lines(state.cargo)}; not supply.empty())

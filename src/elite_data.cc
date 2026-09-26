@@ -169,9 +169,12 @@ auto transform_mission_name(std::string_view input) -> std::string
       continue;
       }
 
-    // 3. put a space before capital letters (CamelCase -> Camel Case)
+    // 3. put a space before capital letters (CamelCase -> Camel Case), but only where a word really
+    // begins - a capital following another capital belongs to the same run, and splitting those
+    // turned the board tag of "Mission_OnFoot_Massacre_MB" into "M B"
     // logic error check: always make sure no space is added at the very beginning
-    if(std::isupper(static_cast<unsigned char>(c)) && i > 0)
+    if(std::isupper(static_cast<unsigned char>(c)) && i > 0
+       && !std::isupper(static_cast<unsigned char>(working_view[i - 1])))
       {
       if(!result.empty() && result.back() != ' ')
         result.push_back(' ');

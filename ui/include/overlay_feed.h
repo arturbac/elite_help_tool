@@ -47,6 +47,10 @@ private:
   ///\brief where to get the goods the open missions call for
   auto refresh_supply() -> void;
 
+  ///\brief what the open missions can be advanced with without flying anywhere
+  [[nodiscard]]
+  auto build_settlement_lines(current_state_t const & state) const -> std::vector<overlay::line_t>;
+
   ///\brief the next hops of both routes - a side band holds only what comes next, not the whole list
   [[nodiscard]]
   auto build_route_lines(current_state_t const & state, plotted_route_t const & plotted) const
@@ -73,6 +77,10 @@ private:
   uint64_t market_id_{};
   std::chrono::steady_clock::time_point market_loaded_{};
   std::vector<overlay::line_t> market_lines_;
+  ///\brief the place we are standing at, kept from the same reading the market came from
+  std::string station_name_;
+  std::string station_faction_;
+  std::string station_type_;
 
   std::chrono::steady_clock::time_point supply_loaded_{};
   ///\brief raw data, because the lines also depend on the hold, which changes more often than the database
