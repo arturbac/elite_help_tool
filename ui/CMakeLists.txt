@@ -28,6 +28,7 @@ target_sources(elite_help_tool
             include/faction_window.h
             include/faction_state_window.h
             include/micro_resource_window.h
+            include/bgs_window.h
             include/overlay_feed.h
 )
 add_subdirectory(src)

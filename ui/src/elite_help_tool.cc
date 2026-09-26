@@ -90,7 +90,7 @@ auto main_window_t::setup_ui() -> void
 
   setup_toolbox();
 
-  system_view_ = new system_window_t(state_);
+  system_view_ = new system_window_t(state_, db_path_);
   add_tool_window(system_view_, window_type_e::system);
 
   ship_view_ = new ship_loadout_window_t(state_.ship_loadout);
@@ -113,6 +113,9 @@ auto main_window_t::setup_ui() -> void
 
   micro_resource_view_ = new micro_resource_window_t{db_path_};
   add_tool_window(micro_resource_view_, window_type_e::micro_resource);
+
+  bgs_view_ = new bgs_window_t{db_path_};
+  add_tool_window(bgs_view_, window_type_e::bgs);
   }
 
 auto main_window_t::add_tool_window(QMdiSubWindow * sub, window_type_e type) -> void
@@ -138,6 +141,7 @@ auto main_window_t::subwindow_for(window_type_e type) const -> QMdiSubWindow *
     case window_type_e::faction:       return faction_view_;
     case window_type_e::faction_state: return faction_state_view_;
     case window_type_e::micro_resource: return micro_resource_view_;
+    case window_type_e::bgs: return bgs_view_;
     case window_type_e::journal_log:   return jlw_;
     case window_type_e::none:          break;
     }
@@ -161,6 +165,11 @@ auto main_window_t::activate_window(window_type_e type) -> void
 
   sub->raise();
   mdi_area_->setActiveSubWindow(sub);
+
+  // praca BGS zmienia sie przy kazdej oddanej misji i przy kazdym przeliczeniu, a okno czyta baze
+  // wlasnym polaczeniem - siegniecie po nie z paska jest naturalnym momentem na odswiezenie
+  if(type == window_type_e::bgs and bgs_view_)
+    bgs_view_->refresh_ui();
   }
 
 auto main_window_t::setup_toolbox() -> void
@@ -184,6 +193,7 @@ auto main_window_t::setup_toolbox() -> void
     {window_type_e::route, "Route"},
     {window_type_e::ship, "Ship"},
     {window_type_e::micro_resource, "Data"},
+    {window_type_e::bgs, "BGS"},
     {window_type_e::journal_log, "Log"}
   };
 

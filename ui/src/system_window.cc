@@ -1,4 +1,5 @@
 #include <system_window.h>
+#include <spdlog/spdlog.h>
 #include <qformat.h>
 #include <qabstractitemmodel.h>
 #include <qboxlayout.h>
@@ -491,8 +492,14 @@ auto system_window_t::update_labels() -> void
   poi_label_->setText(points.empty() ? QString{"—"} : QString::fromStdString(points));
   }
 
-system_window_t::system_window_t(current_state_t const & state, QWidget * parent) : QMdiSubWindow(parent), state_(state)
+system_window_t::system_window_t(current_state_t const & state, std::string db_path, QWidget * parent) :
+    QMdiSubWindow(parent),
+    state_(state),
+    db_{db_path}
   {
+  if(auto res{db_.open()}; not res)
+    spdlog::error("system window: failed to open {}", db_path);
+
   setup_ui();
   connect(model_, &QAbstractItemModel::modelReset, tree_view, [tv = tree_view] { tv->expandAll(); });
   connect(proxy_model_, &QAbstractItemModel::modelReset, tree_view, [tv = tree_view] { tv->expandAll(); });
@@ -621,13 +628,22 @@ auto system_window_t::setup_ui() -> void
 
 auto system_window_t::update_tick_labels() -> void
   {
-  auto & db{const_cast<database_storage_t &>(state_.db_)};
+  // fala przychodzi raz na dobe, wiec czestsze pytanie niczego nowego nie powie
+  constexpr std::chrono::seconds tick_refresh{60};
+
+  auto const checked{std::chrono::steady_clock::now()};
+  if(ticks_system_ == state_.system.system_address and checked - ticks_loaded_ < tick_refresh)
+    return;
+
+  ticks_system_ = state_.system.system_address;
+  ticks_loaded_ = checked;
+
   auto const now{std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())};
   auto const address{state_.system.system_address};
 
   auto const describe = [&](info::tick_kind_e kind) -> QString
   {
-    tick_view_t const view{describe_tick(db, address, kind, now)};
+    tick_view_t const view{describe_tick(db_, address, kind, now)};
     std::string text{view.here};
     if(view.awaiting)
       // fala juz gdzies ruszyla, a tutaj jej jeszcze nie widzielismy - to nie znaczy, ze nie byla,
@@ -645,7 +661,7 @@ auto system_window_t::update_tick_labels() -> void
   // zegar wojen ma sens tylko gdy jest o co walczyc - poza konfliktem zajmowalby miejsce na nic.
   // Konflikt zamkniety ma pusty status, wiec licza sie wylacznie pending i active
   bool at_war{};
-  if(auto conflicts{db.load_conflicts(address)}; conflicts)
+  if(auto conflicts{db_.load_conflicts(address)}; conflicts)
     at_war = std::ranges::any_of(*conflicts, [](info::conflict_t const & c) { return not c.status.empty(); });
 
   war_tick_label_->setVisible(at_war);
@@ -655,7 +671,7 @@ auto system_window_t::update_tick_labels() -> void
     std::string text{describe(info::tick_kind_e::war).toStdString()};
 
     // ile jeszcze przeliczen do rozstrzygniecia - zero znaczy, ze warto miec bondy na reku
-    if(auto countdown{db.load_war_countdown(address)}; countdown and not countdown->empty())
+    if(auto countdown{db_.load_war_countdown(address)}; countdown and not countdown->empty())
       for(info::war_countdown_t const & war: *countdown)
         text.append(std::format(
           "\n{} {} {}:{} {} - {}",

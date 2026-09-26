@@ -154,7 +154,18 @@ public:
   QTreeView * tree_view{};
   QTreeView *signals_view{};
 
-  explicit system_window_t(current_state_t const & state, QWidget * parent = nullptr);
+  ///\brief wlasne polaczenie - db_ stanu nalezy do watku sledzacego journal i nie wolno go
+  /// dotykac z watku GUI
+  database_storage_t db_;
+
+  ///\brief kiedy ostatnio liczylismy zegary i dla jakiego systemu
+  ///\detail przeliczenie to kilka zapytan z podzapytaniami skorelowanymi, a etykiety odswiezaja sie
+  /// przy kazdej zmianie stanu gry - bez tego szlyby setki zapytan na minute o dane, ktore i tak
+  /// zmieniaja sie raz na dobe
+  std::chrono::steady_clock::time_point ticks_loaded_{};
+  uint64_t ticks_system_{};
+
+  explicit system_window_t(current_state_t const & state, std::string db_path, QWidget * parent = nullptr);
 
   auto refresh_ui() -> void;
 

@@ -2242,19 +2242,37 @@ constexpr std::chrono::hours same_wave_gap{8};
 /// w te strone jest bezpieczny - lepiej uznac, ze doba zamknela sie wczesniej, niz oddac za pozno
 constexpr std::chrono::minutes client_lag{5};
 
-///\brief pierwszy tydzien po kolonizacji, w ktorym wplywy chodza wlasnym rytmem
+///\brief najblizszy czwartek 07:00 UTC po podanej chwili, czyli tygodniowe przeliczenie gry
 ///
-/// Swiezo skolonizowany system ma wplywy ustawione z gory i do pierwszego tygodniowego przeliczenia
-/// albo stoja, albo skacza o ulamek punktu na frakcji glownej - w obu wypadkach nie jest to slad
-/// dobowego ticku, wiec takie systemy wypadaja z wykrywania na ten czas
-constexpr std::string_view settled_colony_clause{
-  " AND (( SELECT min(fi.timestamp) FROM galaxy.faction_influence fi"
-  "        WHERE fi.system_address = tick_observation.system_address ) IS NULL"
-  "      OR tick_observation.window_end >="
-  "         ( SELECT strftime('%Y-%m-%dT%H:%M:%SZ', min(fi.timestamp), '+7 days')"
-  "           FROM galaxy.faction_influence fi"
-  "           WHERE fi.system_address = tick_observation.system_address ))"
+/// %w liczy dni od niedzieli, wiec czwartek to 4. Gdy juz jest czwartek, ale po godzinie, wlasciwy
+/// jest dopiero nastepny tydzien
+/// modulo zapisane jest pojedynczym znakiem procenta - w std::format nie jest on specjalny,
+/// wiec podwojenie trafiloby wprost do SQL i wywrocilo zapytanie
+constexpr std::string_view next_weekly_tick{
+  "strftime('%Y-%m-%dT%H:%M:%SZ', datetime(date({0}, '+' || ("
+  "  CASE WHEN ((4 - CAST(strftime('%w', {0}) AS INTEGER) + 7) % 7) = 0 AND time({0}) >= '07:00:00'"
+  "       THEN 7 ELSE ((4 - CAST(strftime('%w', {0}) AS INTEGER) + 7) % 7) END"
+  ") || ' days'), '+7 hours'))"
 };
+
+///\brief czas po kolonizacji, w ktorym wplywy chodza wlasnym rytmem
+///
+/// Swiezo skolonizowany system ma wplywy ustawione z gory i do pierwszego **tygodniowego**
+/// przeliczenia - czwartek 07:00 UTC, czyli 09:00 czasu lokalnego - albo stoja, albo skacza
+/// o ulamek punktu na frakcji glownej. Ani jedno, ani drugie nie jest sladem dobowego ticku
+inline auto settled_colony_clause() -> std::string
+  {
+  std::string const first_seen{
+    "( SELECT min(fi.timestamp) FROM galaxy.faction_influence fi"
+    "  WHERE fi.system_address = tick_observation.system_address )"
+  };
+
+  return std::format(
+    " AND ({0} IS NULL OR tick_observation.window_end >= {1})",
+    first_seen,
+    std::vformat(next_weekly_tick, std::make_format_args(first_seen))
+  );
+  }
 
   }  // namespace
 
@@ -2276,7 +2294,7 @@ auto database_storage_t::load_recent_ticks(info::tick_kind_e kind, uint32_t with
       simple_enum::enum_name(kind),
       within_days,
       sql_iface::tables::tick_observation,
-      settled_colony_clause
+      settled_colony_clause()
     )
   )};
   if(not rows) [[unlikely]]
@@ -2338,7 +2356,7 @@ auto database_storage_t::load_system_ticks(uint64_t system_address, info::tick_k
       system_address,
       within_days,
       sql_iface::tables::tick_observation,
-      settled_colony_clause
+      settled_colony_clause()
     )
   );
   }
@@ -2526,6 +2544,22 @@ auto database_storage_t::load_bgs_effort(uint32_t within_days, uint64_t system_a
   );
 
   return result;
+  }
+
+auto database_storage_t::load_bgs_systems() -> expected_ec<std::vector<info::system_ref_t>>
+  {
+  // BGS robi sie tam, gdzie sie oddaje misje - lista bierze sie z samej pracy, bez osobnego ustawienia
+  return sqlite::select_from<info::system_ref_t>(
+    db_->db,
+    std::format(
+      "(SELECT DISTINCT mi.system_address AS system_address, coalesce(ss.name, '') AS name"
+      " FROM {0} mi LEFT JOIN {1} ss ON ss.system_address = mi.system_address"
+      " ORDER BY name)",
+      sql_iface::tables::mission_influence,
+      sql_iface::tables::star_system
+    ),
+    ""
+  );
   }
 
 auto database_storage_t::load_war_onsets() -> expected_ec<std::vector<info::war_onset_t>>
