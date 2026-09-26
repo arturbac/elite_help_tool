@@ -109,7 +109,8 @@ namespace
   constexpr std::array mining_only_commodities{
     "Alexandrite"sv,   "Bastnasite"sv, "Benitoite"sv, "Bromellite"sv,  "Deuterium"sv,          "Diamond"sv,
     "Grandidierite"sv, "Helium"sv,     "Helium-3"sv,  "Iridium"sv,     "Low Temp. Diamonds"sv, "Magnesite"sv,
-    "Monazite"sv,      "Musgravite"sv, "Olivine"sv,   "Painite"sv,     "Periclase Dunite"sv,   "Quartz Pyroxenite"sv,
+    "Monazite"sv,      "Musgravite"sv, "Olivine"sv,   "Painite"sv,     "Periclase Dunite"sv,
+  "Platinum"sv,   "Quartz Pyroxenite"sv,
     "Rhodplumsite"sv,  "Ruby"sv,       "Sapphire"sv,  "Serendibite"sv, "Thortveitite"sv,       "Void Opal"sv,
   };
   }  // namespace
