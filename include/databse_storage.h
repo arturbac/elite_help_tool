@@ -182,6 +182,14 @@ struct database_storage_t
   auto load_bgs_effort(uint32_t within_days, uint64_t system_address)
     -> expected_ec<std::vector<info::bgs_effort_t>>;
 
+  ///\brief zapisuje trase neutronowa, zastepujac poprzednia - trzymamy jedna, te lataną
+  [[nodiscard]]
+  auto store_neutron_route(std::span<info::neutron_waypoint_t const> route) -> expected_ec<void>;
+
+  ///\brief zapamietana trasa neutronowa w kolejnosci lotu
+  [[nodiscard]]
+  auto load_neutron_route() -> expected_ec<std::vector<info::neutron_waypoint_t>>;
+
   ///\brief systemy, w ktorych naprawde pracowalismy - te, ktore maja zapisany wplyw z misji
   [[nodiscard]]
   auto load_bgs_systems() -> expected_ec<std::vector<info::system_ref_t>>;

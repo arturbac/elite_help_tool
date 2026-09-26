@@ -102,7 +102,7 @@ auto main_window_t::setup_ui() -> void
   mission_view_ = new mission_window_t{state_};
   add_tool_window(mission_view_, window_type_e::mission);
 
-  route_view_ = new route_window_t{state_};
+  route_view_ = new route_window_t{state_, db_path_};
   add_tool_window(route_view_, window_type_e::route);
 
   faction_view_ = new faction_window_t{state_};

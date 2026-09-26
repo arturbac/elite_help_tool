@@ -488,6 +488,8 @@ namespace tables
   inline constexpr std::string_view micro_sale{"micro_sale"};
   inline constexpr std::string_view micro_sale_item{"micro_sale_item"};
   inline constexpr std::string_view micro_acquisition{"micro_acquisition"};
+  // trasy wyznaczonej na zewnatrz nie ma w zadnym journalu, wiec przebudowa by ja skasowala
+  inline constexpr std::string_view neutron_route{"live.neutron_route"};
   inline constexpr std::string_view carrier{"live.carrier"};
   inline constexpr std::string_view carrier_materials{"live.carrier_materials"};
   }  // namespace tables
@@ -1258,6 +1260,12 @@ auto database_storage_t::create_database() -> expected_ec<void>
 
   if(auto res{sqlite::create_table<info::micro_acquisition_t>(db_->db, "oid"sv, sql_iface::tables::micro_acquisition)};
      not res) [[unlikely]]
+    return res;
+
+  if(
+    auto res{sqlite::create_table<info::neutron_waypoint_t>(db_->db, "oid"sv, sql_iface::tables::neutron_route)};
+    not res
+  ) [[unlikely]]
     return res;
 
   if(auto res{sqlite::create_table<info::carrier_t>(db_->db, "oid"sv, sql_iface::tables::carrier)}; not res)
@@ -2637,6 +2645,28 @@ auto database_storage_t::load_bgs_effort(uint32_t within_days, uint64_t system_a
   );
 
   return result;
+  }
+
+auto database_storage_t::store_neutron_route(std::span<info::neutron_waypoint_t const> route) -> expected_ec<void>
+  {
+  // jedna zapamietana trasa - wczytanie nowej zastepuje poprzednia w calosci
+  if(auto res{sqlite::execute_query_no_result(db_->db, std::format("DELETE FROM {}", sql_iface::tables::neutron_route))};
+     not res) [[unlikely]]
+    return res;
+
+  for(info::neutron_waypoint_t const & waypoint: route)
+    if(auto res{sqlite::insert_into(db_->db, "oid"sv, sql_iface::tables::neutron_route, waypoint)}; not res)
+      [[unlikely]]
+      return res;
+
+  return {};
+  }
+
+auto database_storage_t::load_neutron_route() -> expected_ec<std::vector<info::neutron_waypoint_t>>
+  {
+  return sqlite::select_from<info::neutron_waypoint_t>(
+    db_->db, sql_iface::tables::neutron_route, " ORDER BY position"
+  );
   }
 
 auto database_storage_t::load_bgs_systems() -> expected_ec<std::vector<info::system_ref_t>>

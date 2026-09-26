@@ -614,6 +614,31 @@ struct tick_stats_t
   std::chrono::minutes typical_window;
   };
 
+///\brief przystanek zapisanej trasy neutronowej
+///
+/// Trasa wyznaczona na zewnatrz (spansh) i wczytana z pliku - gra nie zapisuje jej nigdzie, a
+/// NavRoute nadpisuje przy kazdym wyznaczeniu kursu, wiec skoki neutronowe wyznaczane pojedynczo
+/// kasowalyby ja bez przerwy. Trasa, ktora lata sie regularnie, ma zostac zapamietana, a ze nie da
+/// sie jej odtworzyc z journali, mieszka w bazie zbieranej na zywo
+struct neutron_waypoint_t
+  {
+  int64_t oid{-1};
+  ///\brief nazwa trasy, ta sama we wszystkich jej przystankach - zapamietana jest jedna, ta latana
+  /// regularnie; trasy jednorazowe zyja tylko do zamkniecia okna i nigdzie nie trafiaja
+  std::string route_name;
+  ///\brief kolejnosc lotu - juz po ewentualnym odwroceniu, wiec zero to pierwszy skok
+  uint32_t position;
+  std::string system;
+  uint64_t system_address;
+  double loc_x;
+  double loc_y;
+  double loc_z;
+  ///\brief czy to gwiazda neutronowa, czyli przystanek na doladowanie
+  bool neutron;
+  ///\brief odleglosc od poprzedniego przystanku w latach swietlnych
+  double distance;
+  };
+
 ///\brief ile czego trzeba przywiezc lacznie, po zsumowaniu otwartych misji
 struct cargo_need_t
   {
