@@ -354,7 +354,18 @@ auto format_remaining(std::chrono::seconds left) -> std::string
 [[nodiscard]]
 auto mission_wording(info::mission_t const & mission) -> std::string
   {
-  return mission.description.empty() ? info::transform_mission_name(mission.type) : mission.description;
+  std::string wording{
+    mission.description.empty() ? info::transform_mission_name(mission.type) : mission.description
+  };
+
+  // Whose man is being killed. For a kill in space the journal does say it - "Assassinate Politician:
+  // Rayner" comes with The Mercs of Mikunn attached - and it is the faction that pays for the deed in
+  // influence, which the sentence itself never mentions. An extermination contract already names them
+  // ("Exterminate Cartel of HIP 83983 members"), so it is added only where it is not there already
+  if(not mission.target_faction.empty() and wording.find(mission.target_faction) == std::string::npos)
+    wording += std::format("  ({})", mission.target_faction);
+
+  return wording;
   }
 
 ///\brief the open missions, gathered under the place they are owed to

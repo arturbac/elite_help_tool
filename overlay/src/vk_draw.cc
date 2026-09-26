@@ -40,49 +40,6 @@ namespace
     return enabled;
     }
 
-  ///\brief on wide screens the middle belongs to the game; the overlay lives in the side bands
-  [[nodiscard]]
-  auto side_band_override() noexcept -> float
-    {
-    static float const band{
-      []() -> float
-      {
-        char const * const value{std::getenv("EHT_OVERLAY_SIDE_WIDTH")};
-        if(value == nullptr or *value == '\0')
-          return 0.f;
-        return std::strtof(value, nullptr);
-      }()
-    };
-    return band;
-    }
-
-  ///\brief width of the band at the screen edge we are allowed to draw in
-  [[nodiscard]]
-  auto side_band_width(float display_width) noexcept -> float
-    {
-    if(side_band_override() > 0.f)
-      return side_band_override();
-
-    // a fifth of the width suits both 16:9 and a triple monitor, where it works out to
-    // roughly what is left outside the part the player actually looks at
-    return std::clamp(display_width * 0.2f, 240.f, 1600.f);
-    }
-
-  [[nodiscard]]
-  auto scale_override() noexcept -> float
-    {
-    static float const scale{
-      []() -> float
-      {
-        char const * const value{std::getenv("EHT_OVERLAY_SCALE")};
-        if(value == nullptr or *value == '\0')
-          return 0.f;
-        return std::strtof(value, nullptr);
-      }()
-    };
-    return scale;
-    }
-
   ///\brief a number taken from the environment once, with a fallback
   [[nodiscard]]
   auto env_float(char const * name, float fallback) noexcept -> float
@@ -119,6 +76,54 @@ namespace
     {
     static float const gap{env_float("EHT_OVERLAY_HUD_GAP", 400.f)};
     return gap;
+    }
+
+  ///\brief on wide screens the middle belongs to the game; the overlay lives in the side bands
+  [[nodiscard]]
+  auto side_band_override() noexcept -> float
+    {
+    static float const band{
+      []() -> float
+      {
+        char const * const value{std::getenv("EHT_OVERLAY_SIDE_WIDTH")};
+        if(value == nullptr or *value == '\0')
+          return 0.f;
+        return std::strtof(value, nullptr);
+      }()
+    };
+    return band;
+    }
+
+  ///\brief width of the band at the screen edge we are allowed to draw in
+  [[nodiscard]]
+  auto side_band_width(float display_width) noexcept -> float
+    {
+    if(side_band_override() > 0.f)
+      return side_band_override();
+
+    // Once the middle screen's width is known the band is not a guess any more: it is exactly the
+    // screen beside it, edge to edge, and every pixel of it is outside where the player looks
+    if(float const centre{centre_screen_width(display_width)}; centre < display_width)
+      return std::max(240.f, (display_width - centre) * 0.5f);
+
+    // a fifth of the width suits both 16:9 and a triple monitor, where it works out to
+    // roughly what is left outside the part the player actually looks at
+    return std::clamp(display_width * 0.2f, 240.f, 1600.f);
+    }
+
+  [[nodiscard]]
+  auto scale_override() noexcept -> float
+    {
+    static float const scale{
+      []() -> float
+      {
+        char const * const value{std::getenv("EHT_OVERLAY_SCALE")};
+        if(value == nullptr or *value == '\0')
+          return 0.f;
+        return std::strtof(value, nullptr);
+      }()
+    };
+    return scale;
     }
 
   [[nodiscard]]
