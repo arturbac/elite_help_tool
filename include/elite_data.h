@@ -58,7 +58,7 @@ consteval auto adl_enum_bounds(happiness_e)
   return simple_enum::adl_info{unknown, despondent};
   }
 
-///\brief konto do ktorego nalezy ta baza osobista
+///\brief the account this personal database belongs to
 ///\detail written during the import; the GUI reads it and refuses to add another commander's career, should
 /// somebody log into a second account from the same game profile
 struct db_owner_t
@@ -166,7 +166,7 @@ auto to_conflict(uint64_t system_address, std::chrono::sys_seconds timestamp, ev
 [[nodiscard]]
 auto format_population(uint64_t value) -> std::string;
 
-///\brief nazwy stanow sklejone przecinkiem, do zapisu i pokazania w tabeli
+///\brief the state names joined by commas, for storing and for showing in a table
 [[nodiscard]]
 auto join_states(std::span<events::faction_state_entry_t const> states) -> std::string;
 
@@ -187,7 +187,7 @@ struct station_t
 
 ///\brief when we last read this station's market
 ///\detail the contents themselves come from Market.json, which cannot be rebuilt, so the time of
-/// odczytu nalezy do bazy zbieranej na zywo
+/// the reading belongs to the database gathered live
 struct market_info_t
   {
   uint64_t market_id;
@@ -383,7 +383,7 @@ enum struct acquisition_source_e : uint8_t
 {
   ///\brief picked up at a settlement, a data port or a container
   collected,
-  ///\brief nagroda za misje, trafia wprost do lockera z pominieciem plecaka
+  ///\brief a mission reward; it goes straight to the locker, passing the backpack by
   mission_reward
 };
 
@@ -415,7 +415,7 @@ struct faction_presence_t
   std::chrono::sys_seconds last_seen;
   };
 
-///\brief lekka projekcja do listy obecnych
+///\brief a light projection for the list of those present
 struct faction_ref_t
   { int64_t faction_oid; };
 
@@ -432,7 +432,7 @@ struct mission_cargo_t
 ///
 /// the game counts this in pluses, not percent - "+++" means it got three times what "+" gets,
 /// but how many percentage points that is depends on the system and on what others did that day.
-/// Dlatego trzymamy surowa liczbe plusow, a przelicznik na procenty wychodzi dopiero z zestawienia
+/// So the raw count of pluses is what is kept, and the rate in percent comes only from setting it
 /// against [[faction_influence_t]] after the tick
 struct mission_influence_t
   {
@@ -549,7 +549,7 @@ struct war_countdown_t
 
 ///\brief which of the game's daily recalculations - these are two separate clocks
 ///\detail they usually run together, but not always: on 4 August 2026 influence recalculated at 16:30
-/// a wojny o 14:30, siodmego wplywy o 16:30 a wojny o 11:30
+/// and wars at 14:30; on the seventh influence at 16:30 and wars at 11:30
 enum struct tick_kind_e : uint8_t
   {
   ///\brief the recalculation of faction influence
@@ -564,8 +564,8 @@ consteval auto adl_enum_bounds(tick_kind_e)
   return simple_enum::adl_info{influence, war};
   }
 
-///\brief slad po jednym ticku: przedzial miedzy ostatnim odczytem ze stara wartoscia a pierwszym
-/// z nowa
+///\brief the trace of one tick: the span between the last reading with the old value and the first
+/// with the new one
 ///
 /// The game announces no tick. All that can be seen is that between two looks at a system the value
 /// changed - which means only that the tick fell somewhere in that interval. The more systems
@@ -620,9 +620,9 @@ struct tick_stats_t
   std::chrono::minutes longest_gap;
   ///\brief how many waves were seen in more than one system - only those say anything about the spread
   uint32_t multi_system_waves;
-  ///\brief najszersza zaobserwowana propagacja, od poczatku fali do jej konca
+  ///\brief the widest propagation seen, from the start of a wave to its end
   std::chrono::minutes widest_spread;
-  ///\brief mediana szerokosci okna, czyli jak dokladnie to w ogole zmierzono
+  ///\brief the median width of the window, that is how exactly this was measured at all
   ///
   /// The window is the gap between a reading with the old value and one with the new, so rarer visits
   /// widen it. That does not move the tick - it simply means less is known about it,
@@ -649,7 +649,7 @@ struct neutron_waypoint_t
   double loc_x;
   double loc_y;
   double loc_z;
-  ///\brief czy to gwiazda neutronowa, czyli przystanek na doladowanie
+  ///\brief whether this is a neutron star, that is a stop for a supercharge
   bool neutron;
   ///\brief the distance from the previous waypoint in light years
   double distance;

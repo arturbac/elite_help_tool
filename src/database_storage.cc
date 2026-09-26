@@ -112,7 +112,7 @@ auto to_db_fromat(uint64_t ref_body_oid, events::genus_t const & v) noexcept -> 
   return sql_iface::genus_t{.ref_body_oid = ref_body_oid, .genus = v.Genus_Localised, .species = v.Species_Localised};
   }
 
-///\brief Sampled zostaje puste - probka nalezy do postaci i przychodzi z genus_progress
+///\brief Sampled stays empty - a sample belongs to the character and comes from genus_progress
 [[nodiscard]]
 auto to_native_fromat(sql_iface::genus_t const & v) noexcept -> events::genus_t
   {
@@ -491,7 +491,7 @@ namespace tables
   inline constexpr std::string_view micro_sale{"micro_sale"};
   inline constexpr std::string_view micro_sale_item{"micro_sale_item"};
   inline constexpr std::string_view micro_acquisition{"micro_acquisition"};
-  // trasy wyznaczonej na zewnatrz nie ma w zadnym journalu, wiec przebudowa by ja skasowala
+  // a route plotted outside the game is in no journal at all, so a rebuild would wipe it
   inline constexpr std::string_view neutron_route{"live.neutron_route"};
   inline constexpr std::string_view carrier{"live.carrier"};
   inline constexpr std::string_view carrier_materials{"live.carrier_materials"};
@@ -541,7 +541,7 @@ constexpr auto reflection_type_name() -> std::string_view
 [[nodiscard]]
 auto sql_error_text(char const * err_msg) noexcept -> char const *
   {
-  return err_msg != nullptr ? err_msg : "brak opisu bledu";
+  return err_msg != nullptr ? err_msg : "no error text given";
   }
 
 [[nodiscard]]
@@ -616,7 +616,7 @@ constexpr auto serialize(T const & value) -> std::string
     static_assert(false);
   }
 
-///\brief nazwy kolumn w jednej linii, do komunikatu bledu
+///\brief the column names on one line, for an error message
 [[nodiscard]]
 static auto fmt_join(std::vector<std::string> const & values) -> std::string
   {
@@ -936,8 +936,8 @@ static int select_single_callback(
   std::span<char *> fields{argv, size_t(argc)};
   std::optional<value_type> & value{*static_cast<std::optional<value_type> *>(d)};
 
-  // agregat po pustym zbiorze (max, min, sum) oddaje wiersz z NULL, a sqlite podaje go jako nullptr.
-  // string_view zbudowany z nullptr to UB, wiec brak wartosci musi zostac brakiem wartosci
+  // an aggregate over an empty set (max, min, sum) returns a row of NULL, which sqlite hands over as a
+  // nullptr. a string_view built from nullptr is UB, so no value has to stay no value
   if(fields[0] == nullptr)
     {
     value.reset();
@@ -1054,7 +1054,7 @@ auto database_storage_t::open(storage_mode_e mode) -> expected_ec<void>
   if(rc != SQLITE_OK)
     return cxx23::unexpected(std::make_error_code(std::errc::io_error));
 
-  // czytanie z gui i zapis z watku sledzacego to osobne polaczenia, czekamy zamiast dostac SQLITE_BUSY
+  // reading from the gui and writing from the following thread are separate connections; we wait rather than take SQLITE_BUSY
   sqlite3_busy_timeout(db_->db, 3000);
 
   // data gathered live and knowledge of the galaxy in separate files - ATTACH creates them when they do not exist
@@ -1105,15 +1105,15 @@ auto database_storage_t::open(storage_mode_e mode) -> expected_ec<void>
   if(auto res{migrate_live_schema()}; not res) [[unlikely]]
     return res;
 
-  // wszystkie CREATE sa IF NOT EXISTS, wiec istniejaca baza dostaje brakujace tabele i indeksy
+  // every CREATE is IF NOT EXISTS, so an existing database gains the tables and indexes it lacks
   return create_database();
   }
 
 auto database_storage_t::migrate_live_schema() -> expected_ec<void>
   {
-  // kolumna dolozona w miejscu, zamiast przebudowy calej bazy. dla live.sqlite to jedyna droga,
-  // bo tego pliku nie da sie odtworzyc z journali; dla galaxy to uprzejmosc - narzedzie rusza od
-  // razu, a przebudowa i tak wypelni kolumne wstecz, kiedy bedzie po drodze
+  // a column added in place instead of rebuilding the whole database. for live.sqlite it is the only
+  // way, because that file cannot be rebuilt from journals; for galaxy it is a courtesy - the tool starts
+  // at once, and a rebuild will fill the column in hindsight whenever one comes along anyway
   struct addition_t
     {
     std::string_view table;
@@ -1318,7 +1318,7 @@ auto database_storage_t::create_database() -> expected_ec<void>
   ) [[unlikely]]
     return res;
 
-  // klucz musi byc unikalny, bo upsert obecnosci opiera sie na ON CONFLICT
+  // the key has to be unique, because recording presence upserts through ON CONFLICT
   if(
     auto res{
       sqlite::create_index(db_->db, sql_iface::tables::faction_presence, "faction_oid, system_address", "key", true)
@@ -1380,7 +1380,7 @@ auto database_storage_t::create_database() -> expected_ec<void>
   ) [[unlikely]]
     return res;
 
-  // upsert postepu opiera sie na ON CONFLICT, wiec klucze musza byc unikalne
+  // progress upserts through ON CONFLICT, so the keys have to be unique
   if(
     auto res{sqlite::create_index(db_->db, sql_iface::tables::body_progress, "system_address, body_id", "key", true)};
     not res
@@ -1395,7 +1395,7 @@ auto database_storage_t::create_database() -> expected_ec<void>
   ) [[unlikely]]
     return res;
 
-  // kazda zdobycz sprawdza czy juz ja znamy, a jest ich sto kilkadziesiat tysiecy
+  // every find checks whether we know it already, and there are a hundred and some thousand of them
   if(
     auto res{sqlite::create_index(db_->db, sql_iface::tables::micro_acquisition, "timestamp, market_id, name")};
     not res
@@ -1412,7 +1412,7 @@ auto database_storage_t::create_database() -> expected_ec<void>
   ) [[unlikely]]
     return res;
 
-  // to samo okno wpada raz na system, a przebudowa powtarza je od poczatku
+  // the same window falls once per system, and a rebuild repeats it from the beginning
   if(
     auto res{sqlite::create_index(
       db_->db, sql_iface::tables::tick_observation, "kind, system_address, window_begin, window_end", "key", true
@@ -1573,7 +1573,7 @@ auto database_storage_t::load_supply_options() -> expected_ec<std::vector<info::
 auto database_storage_t::store_faction_seen(int64_t faction_oid, uint64_t system_address, std::chrono::sys_seconds when)
   -> expected_ec<void>
   {
-  // jeden wiersz na pare frakcja/system, przesuwany do przodu przy kazdym odczycie systemu
+  // one row per faction and system, moved forward at every reading of that system
   std::string query{std::format(
     "INSERT INTO {0} (faction_oid, system_address, last_seen) VALUES ({1}, {2}, '{3:%Y-%m-%dT%H:%M:%SZ}')"
     " ON CONFLICT(faction_oid, system_address) DO UPDATE SET last_seen = excluded.last_seen",
@@ -1603,7 +1603,7 @@ auto database_storage_t::load_present_factions(uint64_t system_address) -> expec
 auto database_storage_t::load_trade_options(uint64_t market_id, unsigned limit, bool bring_here)
   -> expected_ec<std::vector<info::trade_option_t>>
   {
-  // rynek "here" to ten w ktorym stoimy, "other" to dowolny inny ktory kiedys widzielismy.
+  // the "here" market is the one we stand in, "other" is any other one we have ever seen.
   // the direction decides nothing but which side buys and which sells
   std::string_view const buy_side{bring_here ? "other" : "here"};
   std::string_view const sell_side{bring_here ? "here" : "other"};
@@ -1648,8 +1648,9 @@ auto database_storage_t::load_trade_options(uint64_t market_id, unsigned limit, 
 
 auto database_storage_t::reopen_mission(uint64_t mission_id, std::chrono::sys_seconds expiry) -> expected_ec<void>
   {
-  // zdarzenie Missions to zdjecie z chwili startu gry; odtworzone pozniej zamyka misje wziete po nim,
-  // a MissionAccepted jest swiadectwem mocniejszym - mowi wprost, ze w tej chwili misja byla otwarta
+  // the Missions event is a snapshot from the moment the game started; replayed later it closes missions
+  // taken after it, whereas MissionAccepted is the stronger witness - it says outright that at that
+  // moment the mission was open
   std::string query{std::format(
     "UPDATE {} SET status='{}', closed='', expiry='{:%Y-%m-%dT%H:%M:%SZ}' WHERE mission_id={}",
     sql_iface::tables::mission,
@@ -1663,7 +1664,7 @@ auto database_storage_t::reopen_mission(uint64_t mission_id, std::chrono::sys_se
 auto database_storage_t::complete_mission(uint64_t mission_id, std::chrono::sys_seconds when, uint64_t reward)
   -> expected_ec<void>
   {
-  // kwota z MissionAccepted to oferta, dopiero MissionCompleted mowi ile faktycznie wplynelo
+  // the sum in MissionAccepted is the offer; only MissionCompleted says what actually came in
   std::string query{std::format(
     "UPDATE {} SET status='{}', closed='{:%Y-%m-%dT%H:%M:%SZ}', reward={} WHERE mission_id={}",
     sql_iface::tables::mission,
@@ -1743,7 +1744,7 @@ auto database_storage_t::store(star_system_t const & system) -> expected_ec<void
 
 auto database_storage_t::store_fss_complete(uint64_t system_address) -> expected_ec<void>
   {
-  // skan nalezy do postaci, nie do systemu - dlatego osobna tabela w bazie glownej
+  // a scan belongs to the character, not to the system - hence a table of its own in the main database
   std::string query{std::format(
     "INSERT INTO {0} (system_address, fss_complete) VALUES ({1}, 1)"
     " ON CONFLICT(system_address) DO UPDATE SET fss_complete = 1",
@@ -1792,7 +1793,7 @@ auto database_storage_t::store(uint64_t system_address, body_t const & value) ->
        not res)
       return cxx23::unexpected{res.error()};
 
-    // stan z pamieci moze juz nosic slad mapowania - ten nalezy do postaci, nie do ciala
+    // the state held in memory may already carry a mark of mapping - that belongs to the character, not to the body
     if(pd.mapped)
       if(auto res{store_dss_complete(system_address, value.body_id)}; not res)
         return cxx23::unexpected{res.error()};
@@ -1826,7 +1827,7 @@ auto database_storage_t::store(uint64_t system_address, body_t const & value) ->
 
 auto database_storage_t::store_dss_complete(uint64_t system_address, events::body_id_t body_id) -> expected_ec<void>
   {
-  // klucz to system i numer ciala z gry, a nie oid - ten zmienia sie przy kazdej przebudowie galaxy
+  // the key is the system and the game's body number, not an oid - an oid changes with every galaxy rebuild
   std::string query{std::format(
     "INSERT INTO {0} (system_address, body_id, mapped, footfalled) VALUES ({1}, {2}, 1, 0)"
     " ON CONFLICT(system_address, body_id) DO UPDATE SET mapped = 1",
@@ -2278,8 +2279,8 @@ constexpr std::chrono::minutes client_lag{5};
 ///
 /// %w counts days from Sunday, so Thursday is 4. When it is Thursday already but past the hour, the right
 /// one is next week's
-/// modulo zapisane jest pojedynczym znakiem procenta - w std::format nie jest on specjalny,
-/// wiec podwojenie trafiloby wprost do SQL i wywrocilo zapytanie
+/// the modulo is written with a single per cent sign - in std::format it is not special, so doubling it
+/// would reach SQL verbatim and break the query
 constexpr std::string_view next_weekly_tick{
   "strftime('%Y-%m-%dT%H:%M:%SZ', datetime(date({0}, '+' || ("
   "  CASE WHEN ((4 - CAST(strftime('%w', {0}) AS INTEGER) + 7) % 7) = 0 AND time({0}) >= '07:00:00'"
@@ -2366,7 +2367,7 @@ auto database_storage_t::load_recent_ticks(info::tick_kind_e kind, uint32_t with
     });
     }
 
-  // najswiezsza fala na poczatku - to ona odpowiada na pytanie "kiedy byl ostatni"
+  // the newest wave first - that is the one answering the question "when was the last"
   std::ranges::reverse(facts);
   return facts;
   }
@@ -2438,7 +2439,7 @@ auto state_at(sqlite3 * db, uint64_t system_address, std::string_view faction, s
   if(not res or not *res)
     return {};
 
-  // "None" to brak stanu, a nie stan o nazwie None - w tabeli ma zostac pusto
+  // "None" means no state at all, not a state called None - the table is to stay empty there
   return **res == "None" ? std::string{} : **res;
   }
 
@@ -2552,8 +2553,9 @@ auto database_storage_t::load_bgs_effort(uint32_t within_days, uint64_t system_a
 
   for(bgs_detail::effort_row_t const & row: *rows)
     {
-    // misja oddana przed fala liczy sie do doby, ktora ta fala zamyka. Wpadniecie w samo okno fali
-    // jest nierozstrzygalne, wiec idzie do doby zamykanej - tam misja jeszcze najpewniej zdazyla
+    // a mission handed in before a wave counts towards the day that wave closes. Falling inside the wave's
+    // own window cannot be decided either way, so it goes to the day being closed - there the mission most
+    // likely still made it
     auto const closing{std::ranges::find_if(ordered, [&](info::tick_fact_t const & w)
                                             { return w.start_end >= row.timestamp; })};
 
@@ -2592,7 +2594,7 @@ auto database_storage_t::load_bgs_effort(uint32_t within_days, uint64_t system_a
     {
     bucket.effort.missions = int32_t(bucket.missions.size());
 
-    // doby nierozliczonej nie ma czym zamknac, a reszcie dokladamy wplyw z obu stron fali
+    // a day not yet settled has nothing to close it, and to the rest we add the influence from both sides of the wave
     if(bucket.effort.closed_by != sys_seconds{})
       {
       auto const closing{std::ranges::find_if(
@@ -2826,7 +2828,7 @@ auto database_storage_t::load_war_countdown(uint64_t system_address)
   if(not conflicts) [[unlikely]]
     return cxx23::unexpected{conflicts.error()};
 
-  // baza trzyma cala historie, a odliczac mozna tylko z najswiezszego stanu kazdej pary
+  // the database holds the whole history, and only the newest state of each pair can be counted down from
   std::map<std::pair<std::string, std::string>, info::conflict_t const *> latest;
   for(info::conflict_t const & conflict: *conflicts)
     {
@@ -3168,7 +3170,7 @@ auto database_storage_t::load_factions() -> expected_ec<std::vector<info::factio
   if(not res) [[unlikely]]
     return cxx23::unexpected{res.error()};
 
-  // reputacja jest osobista, wiec dochodzi z bazy glownej, a nie ze wspolnej wiedzy o frakcjach
+  // reputation is personal, so it comes from the main database rather than from the shared knowledge of factions
   auto reputations{sqlite::select_from<info::faction_reputation_t>(db_->db, sql_iface::tables::faction_reputation, {})};
   if(not reputations) [[unlikely]]
     return cxx23::unexpected{reputations.error()};
@@ -3191,7 +3193,7 @@ auto database_storage_t::load_factions() -> expected_ec<std::vector<info::factio
 auto database_storage_t::update_faction_info(info::faction_info_t const & faction, bool with_reputation)
   -> expected_ec<void>
   {
-  // reputacja idzie do bazy osobistej, reszta do wspolnej - nazwa laczy jedno z drugim
+  // reputation goes to the personal database, the rest to the shared one - the name joins the two
   if(with_reputation)
     {
     std::string reputation{std::format(

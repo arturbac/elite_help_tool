@@ -162,7 +162,7 @@ auto faction_window_t::setup_ui() -> void
   proxy_ = new QSortFilterProxyModel(this);
   proxy_->setSourceModel(model_);
   proxy_->setSortRole(faction_model_t::sort_role);
-  proxy_->setFilterKeyColumn(0);  // nazwa frakcji
+  proxy_->setFilterKeyColumn(0);  // the faction's name
   proxy_->setFilterCaseSensitivity(Qt::CaseInsensitive);
   table_view_->setModel(proxy_);
 

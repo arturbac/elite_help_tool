@@ -132,7 +132,7 @@ auto main_window_t::add_tool_window(QMdiSubWindow * sub, window_type_e type) -> 
   mdi_area_->addSubWindow(sub);
   sub->setProperty("window_type", QVariant::fromValue(type));
 
-  // bez przycisku zamykania - okno jest jedno i ma zyc do konca sesji
+  // no close button - there is one window of each and it is to live to the end of the session
   // WindowSystemMenuHint would add the window menu with a close entry, so it is not here
   sub->setWindowFlags(Qt::SubWindow | Qt::WindowTitleHint | Qt::WindowMinMaxButtonsHint);
   sub->installEventFilter(close_blocker_);
@@ -166,7 +166,7 @@ auto main_window_t::activate_window(window_type_e type) -> void
   if(sub->mdiArea() == nullptr)
     mdi_area_->addSubWindow(sub);
 
-  // zwiniete okno trzeba wpierw rozwinac, samo raise() by go nie pokazalo
+  // a collapsed window has to be restored first; raise() alone would not show it
   if(sub->isMinimized())
     sub->showNormal();
   else
@@ -363,7 +363,7 @@ auto apply_dark_theme() -> void
 
 namespace
   {
-///\brief ustawiane z obslugi sygnalu, wiec tylko to - reszta dzieje sie w petli zdarzen
+///\brief set from a signal handler, so this and nothing more - the rest happens in the event loop
 volatile std::sig_atomic_t asked_to_stop{};
   }  // namespace
 

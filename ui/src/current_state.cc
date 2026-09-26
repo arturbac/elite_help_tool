@@ -100,8 +100,8 @@ void store_influence(
 
   auto record{info::to_influence(faction_oid, system_address, timestamp, event_faction)};
 
-  // sam wplyw, bez stanow - stany potrafia sie zmienic poza tickiem, a wplyw przelicza sie wylacznie
-  // przy nim, wiec tylko on wyznacza okno
+  // influence alone, without the states - states can change outside the tick, whereas influence is
+  // recalculated at it and nowhere else, so influence alone marks out the window
   if(*last and (*last)->influence != record.influence and not war_settled)
     note_tick(db, info::tick_kind_e::influence, system_address, previously_seen, timestamp);
 
@@ -211,13 +211,13 @@ void current_state_t::route_system_visited(uint64_t system_address)
     }
   }
 
-static ///\brief czy do tego miejsca dokuje sie statkiem
+///\brief whether one docks a ship at this place
 ///
-/// Kapsula ratunkowa na flotowcu odsyla do ostatniego PORTU, a nie do ostatniego miejsca postoju.
+/// An escape pod on a carrier sends you to the last PORT, not to the last place you stopped at.
 /// On-foot settlements are out, because they have no landing pad for a ship. A carrier is out despite its
 /// pads - checked on 26.09.2026: after a stop at W1V-NXM at 14:33 the pod sent us to Arkush City,
 /// where the stop had been at 14:16
-auto is_port(std::string_view station_type) -> bool
+static auto is_port(std::string_view station_type) -> bool
   {
   return station_type != "OnFootSettlement" and station_type != "FleetCarrier" and not station_type.empty();
   }
@@ -243,7 +243,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
         };
 
         using T = std::decay_t<decltype(event)>;
-        // kariera nalezy do postaci - z sesji cudzego konta bierzemy sam swiat
+        // a career belongs to a character - from another account's session we take only the world
       if constexpr(
         std::same_as<T, events::mission_accepted_t> or std::same_as<T, events::mission_completed_t>
         or std::same_as<T, events::mission_abandoned_t> or std::same_as<T, events::mission_failed_t>
@@ -560,7 +560,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           for(events::backpack_item_t const & item: event.Added)
             {
             auto key{micro_resource_key(item.Name)};
-            // typ z plecaka to ta sama kategoria co przy sprzedazy
+            // the type out of the backpack is the same category as the one used when selling
             if(auto res{db_.store(info::micro_resource_t{
                  .name = key, .id = {}, .localised = item.Name_Localised, .category = item.Type
                })};
@@ -581,7 +581,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           }
         else if constexpr(std::same_as<T, events::shipyard_transfer_t>)
           {
-          // czas dostawy gra podaje raz i nigdy o nim nie przypomina, a przybycia nie oglasza wcale
+          // the game gives the delivery time once and never mentions it again, and announces the arrival not at all
           if(auto res{db_.store(info::ship_transfer_t{
                .ship_id = event.ShipID,
                .ship_type = event.ShipType_Localised.empty() ? event.ShipType : event.ShipType_Localised,
@@ -855,7 +855,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           }
         else if constexpr(std::same_as<T, events::cargo_t>)
           {
-          // SRV ma wlasna ladownie, a zapomniany ladunek to ten, ktory zostaje na statku
+          // an SRV has a hold of its own, and forgotten cargo is what stays on the ship
           if(event.Vessel == "SRV")
             return;
 
@@ -902,7 +902,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
             if(auto res{db_.store(mission)}; not res) [[unlikely]]
               spdlog::error("failed to store mission details for {}", event.MissionID);
 
-            // misja towarowa mowi czego trzeba - bez tego nie da sie podpowiedziec skad to wziac
+            // a cargo mission says what is needed - without that there is no telling where to get it
             if(not event.Commodity_Localised.empty() and event.Count != 0u)
               if(
                 auto res{db_.store(
@@ -944,10 +944,10 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           load_missions();
           update_mission_info = true;
 
-            // nagrody ida prosto do lockera, w plecaku sie nie pojawiaja - zadnego dublowania
+            // rewards go straight to the locker and never appear in the backpack - nothing is counted twice
             for(events::material_reward_t const & reward: event.MaterialsReward)
               {
-              // Encoded, Manufactured i Elements to materialy statku, nie mikrozasoby
+              // Encoded, Manufactured and Elements are ship materials, not micro resources
               if(reward.Category_Localised != "Data" and reward.Category_Localised != "Item"
                  and reward.Category_Localised != "Component" and reward.Category_Localised != "Consumable")
                 continue;
@@ -1009,7 +1009,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
               [[unlikely]]
               spdlog::warn("failed to change mission status for {}", mission.MissionID);
 
-          // to jedyny moment gdy gra mowi wprost co jeszcze wisi - wszystko poza ta lista juz sie zamknelo
+          // this is the only moment the game says outright what is still open - everything outside that list has closed
           std::vector<uint64_t> active;
           active.reserve(event.Active.size());
           for(events::mission_active_t const & mission: event.Active)
@@ -1058,8 +1058,8 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           {
           update_micro_resources = true;
 
-          // Laczymy po sygnaturze, nie po CarrierID - to pole znaczy co innego w kazdym z dwoch
-          // zrodel: tutaj jest numerem (rownym MarketID), a w FCMaterials.json sygnatura
+          // Joined by the callsign, not by CarrierID - that field means a different thing in each of the
+          // two sources: here it is a number (equal to MarketID), in FCMaterials.json it is the callsign
           info::carrier_t carrier{};
           if(auto known{db_.load_carrier(event.Callsign)}; known and *known)
             carrier = std::move(**known);
@@ -1139,7 +1139,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
                 {
                 for(events::fcmaterial_t const & fmat: fcmat.Items)
                   {
-                  // nazwy powtarzaja sie w kazdym odczycie, wiec ida do slownika a nie do wierszy
+                  // the names repeat at every reading, so they go to the dictionary rather than to the rows
                   if(auto res{db_.store(
                        info::micro_resource_t{
                          .name = micro_resource_key(fmat.Name), .id = fmat.id, .localised = fmat.Name_Localised
@@ -1232,7 +1232,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
         },
         Qt::QueuedConnection
       );
-    // overlay dostaje obraz po kazdej paczce zdarzen, a sam decyduje czy cokolwiek sie zmienilo
+    // the overlay is given a picture after every batch of events and decides for itself whether anything changed
     QMetaObject::invokeMethod(parent, [target = parent]() mutable { target->publish_overlay(); }, Qt::QueuedConnection);
 
     if(update_factions)
@@ -1251,8 +1251,8 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
       );
       }
 
-    // podsumowanie zdobyczy to przebieg przez cala historie - warto je liczyc tylko gdy przybylo zdobyczy,
-    // a nie przy kazdej zmianie wplywow frakcji
+    // the summary of finds is a pass over the whole history - worth counting only when finds have been
+    // added, not at every change of a faction's influence
     if(update_micro_resources)
       QMetaObject::invokeMethod(
         parent,
@@ -1297,7 +1297,7 @@ auto describe_tick(
   database_storage_t & db, uint64_t system_address, info::tick_kind_e kind, std::chrono::sys_seconds now
 ) -> tick_view_t
   {
-  // dwa tygodnie wystarcza zeby zlapac typowa przerwe, a nie ciagna calej historii przy kazdym skoku
+  // a fortnight is enough to catch the usual gap without dragging the whole history along at every jump
   constexpr uint32_t window_days{14};
 
   tick_view_t view{.here = "no observations", .galaxy = {}, .awaiting = false};
@@ -1334,7 +1334,7 @@ auto describe_tick(
         double(stats->longest_gap.count()) / 60.0
       );
 
-    // bez slowa "galaktyka" - mowi je juz podpis wiersza, a kazdy znak tu kosztuje szerokosc
+    // no word "galaxy" - the row's caption says it already, and every character here costs width
     view.galaxy = std::format(
       "{:%d.%m %H:%M}-{:%H:%M} UTC ({} sys) - {}", wave.start_begin, wave.end_end, wave.systems, regularity
     );

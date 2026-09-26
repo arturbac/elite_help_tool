@@ -208,7 +208,7 @@ auto system_conflict_model_t::update_data(std::vector<info::conflict_t> && new_d
 
 namespace
   {
-///\brief kolejnosc w tabeli stacji - najpierw to gdzie zadokujesz, flotowce na koncu bo odlatuja
+///\brief the order in the station table - first where you can dock, carriers last because they fly away
 [[nodiscard]]
 auto station_rank(std::string_view signal_type) noexcept -> int
   {
@@ -531,7 +531,7 @@ auto faction_state_window_t::setup_ui() -> void
   auto * overview = new QWidget(tabs);
   auto * overview_layout = new QVBoxLayout(overview);
 
-  // --- przeliczenia gry, nad reszta bo wyznaczaja, do kiedy warto jeszcze oddawac misje ---
+  // --- the game's recalculations, above the rest because they say how long handing missions in still pays ---
   auto * tick_group = new QGroupBox("Recalculations", overview);
   auto * tick_form = new QFormLayout(tick_group);
 
@@ -1210,7 +1210,7 @@ auto faction_state_window_t::update_tick_labels(uint64_t system_address) -> void
 
   describe(info::tick_kind_e::war, war_tick_label_, war_galaxy_label_);
 
-  // ile jeszcze przeliczen do rozstrzygniecia - zero znaczy, ze warto miec bondy na reku
+  // how many recalculations are left before it is settled - zero means it pays to have bonds in hand
   std::string countdown;
   if(wars)
     for(info::war_countdown_t const & war: *wars)

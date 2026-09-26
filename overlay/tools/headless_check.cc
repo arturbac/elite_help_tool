@@ -137,7 +137,7 @@ auto main(int argc, char ** argv) -> int
 
   VkPhysicalDeviceProperties properties{};
   vkGetPhysicalDeviceProperties(physical, &properties);
-  std::printf("urzadzenie: %s, rodzina kolejek %u\n", properties.deviceName, family);
+  std::printf("device: %s, queue family %u\n", properties.deviceName, family);
 
   float const priority{1.f};
   VkDeviceQueueCreateInfo const queue_info{
@@ -293,7 +293,7 @@ auto main(int argc, char ** argv) -> int
     images.assign(image_count, VkImage{});
     vkGetSwapchainImagesKHR(device, swapchain, &image_count, images.data());
     if(round == 0u)
-      std::printf("lancuch wymiany: %ux%u, %u obrazow\n", width, height, image_count);
+      std::printf("swapchain: %ux%u, %u images\n", width, height, image_count);
 
     for(uint32_t frame{}; frame != frames; ++frame)
       {
@@ -372,7 +372,7 @@ auto main(int argc, char ** argv) -> int
 
   auto const spent{std::chrono::duration<double>{std::chrono::steady_clock::now() - loop_started}.count()};
   std::printf(
-    "%u rund po %u klatek w %.3f s, srednio %.3f ms na klatke\n",
+    "%u rounds of %u frames in %.3f s, %.3f ms per frame on average\n",
     rounds,
     frames,
     spent,
@@ -477,7 +477,7 @@ auto main(int argc, char ** argv) -> int
   if(not write_ppm(output, pixels, chosen.format == VK_FORMAT_B8G8R8A8_UNORM))
     return fail("could not write output");
 
-  std::printf("zapisano %s\n", output);
+  std::printf("written %s\n", output);
 
   vkDestroyBuffer(device, readback, nullptr);
   vkFreeMemory(device, memory, nullptr);

@@ -27,7 +27,7 @@ auto sample_frame(uint64_t sequence) -> overlay::frame_t
     .seq = sequence,
     .blocks = {
       overlay::block_t{
-        .corner = overlay::corner_e::top_left, .ttl_ms = sample_ttl_ms, .lines = {overlay::line_t{.text = "Bleia Eohn QT-O d7-43", .color = colour_heading}, overlay::line_t{.text = "Camorra of Purui", .color = colour_plain}, overlay::line_t{.text = "Industrial / Anarchy", .color = colour_plain}, overlay::line_t{.text = "security: Anarchy", .color = colour_plain}, overlay::line_t{.text = "FSS incomplete, 14 bodies known", .color = colour_alert}, overlay::line_t{.text = std::format("feed {:%H:%M:%S} UTC, ramka {}", now, sequence), .color = colour_plain}}
+        .corner = overlay::corner_e::top_left, .ttl_ms = sample_ttl_ms, .lines = {overlay::line_t{.text = "Bleia Eohn QT-O d7-43", .color = colour_heading}, overlay::line_t{.text = "Camorra of Purui", .color = colour_plain}, overlay::line_t{.text = "Industrial / Anarchy", .color = colour_plain}, overlay::line_t{.text = "security: Anarchy", .color = colour_plain}, overlay::line_t{.text = "FSS incomplete, 14 bodies known", .color = colour_alert}, overlay::line_t{.text = std::format("feed {:%H:%M:%S} UTC, frame {}", now, sequence), .color = colour_plain}}
       },
       overlay::
         block_t{

@@ -21,12 +21,12 @@ struct database_import_state_t : public generic_state_t
     std::vector<buffered_signal_t> buffered_signals;
     database_storage_t db_;
 
-    ///\brief konto do ktorego nalezy ta baza - puste znaczy "bierz wszystko"
+    ///\brief the account this database belongs to - empty means "take everything"
     ///\detail the journal directory can hold records of several commanders, because the prefix gets copied.
     /// the world we take from all of them, because the galaxy is shared, but missions, finds, reputation
     /// and scanning progress belong to one commander and, once mixed, cannot be told apart again
     std::string owner_fid;
-    ///\brief czy biezacy journal nalezy do wlasciciela bazy
+    ///\brief whether the journal being read belongs to the database's owner
     bool personal{true};
 
     explicit state_t(std::string_view db_path) : db_{db_path} {}

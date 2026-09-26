@@ -476,7 +476,7 @@ auto system_window_t::update_labels() -> void
 
   fss_label_->setText(state_.system.fss_complete ? "COMPLETE" : "INCOMPLETE");
 
-  // stacje i instalacje naleza do okna systemu, tu zostaja zjawiska i punkty orientacyjne
+  // stations and installations belong to the system window; what stays here are phenomena and landmarks
   std::string points;
   for(system_signal_t const & signal: state_.system.system_signals)
     {

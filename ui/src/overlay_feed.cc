@@ -21,7 +21,7 @@ namespace
 constexpr uint32_t colour_heading{0x9ad1ffu};
 constexpr uint32_t colour_plain{0xddddddu};
 constexpr uint32_t colour_alert{0xd9a34au};
-///\brief nieodkryte przez nikogo - to jest ten przypadek, dla ktorego warto sie zatrzymac
+///\brief undiscovered by anyone - that is the case worth stopping for
 constexpr uint32_t colour_first{0x3cb371u};
 constexpr uint32_t colour_expiring{0xd9534fu};
 
@@ -137,7 +137,7 @@ auto same_content(overlay::frame_t const & left, overlay::frame_t const & right)
   return true;
   }
 
-///\brief w nazwie ciala gra powtarza nazwe systemu - na pasie bocznym to sama strata miejsca
+///\brief the game repeats the system's name inside a body's name - in a side band that is pure waste of room
 [[nodiscard]]
 auto short_body_name(std::string const & system_name, std::string const & body_name) -> std::string
   {
@@ -146,7 +146,7 @@ auto short_body_name(std::string const & system_name, std::string const & body_n
   return body_name;
   }
 
-///\brief warto zejsc tylko po to, czego jeszcze nie zmapowalismy i co cos daje
+///\brief worth going down to only what we have not mapped yet and what pays something
 [[nodiscard]]
 auto worth_mapping(body_t const & body) -> bool
   {
@@ -191,7 +191,7 @@ auto describe_exploration(star_system_t const & system) -> std::vector<overlay::
           body->distance_from_arrival_ls,
           planet != nullptr and planet->landable ? "  landable" : ""
         ),
-        // pierwsze odkrycie to premia, ktorej nie da sie odzyskac pozniej
+        // a first discovery is a bonus that cannot be had again later
         .color = body->was_discovered ? colour_plain : colour_first
       }
     );
@@ -259,7 +259,7 @@ auto describe_cargo(events::cargo_file_t const & cargo) -> std::vector<overlay::
   return lines;
   }
 
-///\brief zostalo mniej niz godzina to inny rodzaj wiadomosci niz zostalo pare dni
+///\brief less than an hour left is a different kind of news than a few days left
 [[nodiscard]]
 auto format_remaining(std::chrono::seconds left) -> std::string
   {
@@ -278,7 +278,7 @@ auto format_remaining(std::chrono::seconds left) -> std::string
   return std::format("{}m", minutes.count());
   }
 
-///\brief misja przekierowana jest zrobiona i czeka tylko na oddanie - to inna kategoria niz reszta
+///\brief a redirected mission is done and only waits to be handed in - a different category from the rest
 [[nodiscard]]
 auto describe_missions(std::vector<info::mission_t> const & missions) -> std::vector<overlay::line_t>
   {
@@ -327,7 +327,7 @@ auto describe_missions(std::vector<info::mission_t> const & missions) -> std::ve
           "  ",
           format_remaining(left)
         ),
-        // zielone jest do oddania, czerwone zaraz przepadnie
+        // green is ready to hand in, red is about to be lost
         .color = left < expiry_warning ? colour_expiring : (done ? colour_first : colour_plain)
       }
     );
@@ -521,7 +521,7 @@ overlay_feed_t::overlay_feed_t(std::string socket_path, std::string db_path) :
   if(server_->listening())
     spdlog::info("overlay feed listening on {}", server_->path());
   else
-    // najczestsza przyczyna to sciezka dluzsza niz 107 znakow - sockaddr_un nie ma gdzie jej wpisac
+    // the commonest cause is a path longer than 107 characters - sockaddr_un has nowhere to put it
     spdlog::warn(
       "overlay feed could not listen on {} ({} chars), in-game overlay will stay empty",
       server_->path(),
@@ -571,7 +571,7 @@ auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
 
   if(auto conflicts{db_.load_conflicts(factions_system_)}; conflicts)
     {
-    // baza trzyma cala historie wpisow, a na ekranie ma byc obecny stan kazdej pary frakcji
+    // the database holds the whole history of rows, and the screen is to show each pair's present state
     std::map<std::pair<std::string, std::string>, info::conflict_t const *> latest_conflict;
     for(info::conflict_t const & conflict: *conflicts)
       {
@@ -615,7 +615,7 @@ auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
       }
     }
 
-  // zegar wojen pokazujemy tylko gdy cos trwa - to po nim sprzedaje sie bondy
+  // the war clock is shown only while something is running - it is what bonds are sold by
   if(not conflict_lines_.empty())
     {
     // a conflict is settled at the fourth day won, so the end can be counted down without knowing when
@@ -775,7 +775,7 @@ auto overlay_feed_t::refresh_market(uint64_t market_id, uint32_t cargo_capacity)
     return;
     }
 
-  // odchylenie od sredniej galaktycznej to jedyna liczba mowiaca czy cena jest okazja
+  // the departure from the galactic average is the only number saying whether a price is a bargain
   auto const sell_gain{
     [](info::market_entry_t const & entry) -> double
     {
@@ -834,7 +834,7 @@ auto overlay_feed_t::refresh_market(uint64_t market_id, uint32_t cargo_capacity)
     wanted += entry.demand > 0u ? 1u : 0u;
     }
 
-  // port bywa dostawca albo odbiorca - te dwie liczby mowia to od pierwszego spojrzenia
+  // a port is either a supplier or a buyer - these two numbers say which at first glance
   market_lines_.push_back(
     overlay::line_t{.text = std::format("{}: {} on sale, {} wanted", name, on_sale, wanted), .color = colour_heading}
   );
@@ -912,7 +912,7 @@ auto overlay_feed_t::refresh_market(uint64_t market_id, uint32_t cargo_capacity)
       for(info::trade_option_t const & trade: *trades)
         {
         auto const margin{trade.sell_price - trade.buy_price};
-        // jeden kurs to tyle ton ile zmiesci ladownia, o ile starczy towaru i popytu
+        // one run is as many tonnes as the hold takes, provided the goods and the demand suffice
         auto const tonnes{std::min({cargo_capacity != 0u ? cargo_capacity : trade.stock, trade.stock, trade.demand})};
         auto const run{uint64_t{margin} * tonnes};
 
@@ -988,7 +988,7 @@ auto overlay_feed_t::build_supply_lines(events::cargo_file_t const & cargo) cons
     auto const internal{key(item.Name)};
     aboard[internal] += item.Count;
 
-    // obie nazwy potrafia sprowadzic sie do tego samego klucza i wtedy ilosc liczylaby sie dwa razy
+    // both names can come down to the same key, and then the quantity would be counted twice
     if(auto const localised{key(item.Name_Localised)}; not localised.empty() and localised != internal)
       aboard[localised] += item.Count;
     }
@@ -1012,7 +1012,7 @@ auto overlay_feed_t::build_supply_lines(events::cargo_file_t const & cargo) cons
       options_, [&need](info::supply_option_t const & option) { return option.commodity == need.commodity; }
     )};
 
-    // rynek moze tym handlowac i byc akurat pusty - to zupelnie inna wiadomosc niz brak zrodla
+    // a market may trade in it and happen to be empty - that is quite different news from having no source
     auto const seller{std::ranges::find_if(
       producers_, [&need](info::supply_option_t const & option) { return option.commodity == need.commodity; }
     )};
@@ -1021,7 +1021,7 @@ auto overlay_feed_t::build_supply_lines(events::cargo_file_t const & cargo) cons
     if(have < need.count)
       missing.insert(need.commodity);
 
-    // liczba w nawiasie to stan ladowni - dzieki niej brakujaca pozycja rzuca sie w oczy
+    // the number in brackets is what the hold holds - it is what makes a missing item stand out
     lines.push_back(
       overlay::line_t{
         .text = std::format(
@@ -1128,7 +1128,7 @@ auto overlay_feed_t::build_route_lines(current_state_t const & state, plotted_ro
 
   if(not plotted.waypoints.empty())
     {
-    // oba licznik i mianownik licza przystanki - mieszanie ich ze skokami dawalo "8 of 7"
+    // numerator and denominator both count waypoints - mixing them with jumps gave "8 of 7"
     auto const left{plotted.waypoints.size() - std::min(plotted.reached, plotted.waypoints.size())};
     lines.push_back(
       overlay::line_t{
@@ -1142,7 +1142,7 @@ auto overlay_feed_t::build_route_lines(current_state_t const & state, plotted_ro
       info::neutron_waypoint_t const & waypoint{plotted.waypoints[ix]};
       lines.push_back(
         overlay::line_t{
-          // gwiazda neutronowa nie tankuje, a klasy pozostalych plik nie podaje
+          // a neutron star does not refuel, and the file gives no class for the others
           .text = std::format(
             "  {}. {}  {}  {:.0f} ly",
             ix - plotted.reached + 1u,
@@ -1224,7 +1224,7 @@ auto overlay_feed_t::build_logistics_lines() const -> std::vector<overlay::line_
           left.count() / 60,
           left.count() % 60
         ),
-        // ostatni kwadrans to moment, w ktorym warto byc na miejscu
+        // the last quarter of an hour is when it pays to be there
         .color = left < std::chrono::minutes{15} ? colour_first : colour_plain
       }
     );
@@ -1273,7 +1273,7 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
       overlay::block_t{.corner = overlay::corner_e::top_right, .ttl_ms = block_ttl_ms, .lines = std::move(supply)}
     );
 
-  // rynek pod spodem, bo jest dluzszy i mniej pilny niz to, czego brakuje do misji
+  // the market underneath, because it is longer and less urgent than what the missions still lack
   if(not market_lines_.empty())
     frame.blocks.push_back(
       overlay::block_t{.corner = overlay::corner_e::top_right, .ttl_ms = block_ttl_ms, .lines = market_lines_}
@@ -1284,7 +1284,7 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
       overlay::block_t{.corner = overlay::corner_e::bottom_left, .ttl_ms = block_ttl_ms, .lines = std::move(logistics)}
     );
 
-  // trasa po lewej, nad ladownia - w locie to ona jest tym, na co sie patrzy
+  // the route on the left, above the hold - in flight it is the thing one looks at
   if(auto route{build_route_lines(state, plotted)}; not route.empty())
     frame.blocks.push_back(
       overlay::block_t{.corner = overlay::corner_e::bottom_left, .ttl_ms = block_ttl_ms, .lines = std::move(route)}

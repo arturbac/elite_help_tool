@@ -16,7 +16,7 @@ using expected_ec = cxx23::expected<T, std::error_code>;
 ///\brief the database's working mode; it decides the durability/speed trade-off
 enum struct storage_mode_e : uint8_t
   {
-  ///\brief praca na zywo - kazdy zapis we wlasnej transakcji, ustawienia domyslne sqlite
+  ///\brief working live - every write in a transaction of its own, sqlite's own defaults
   live,
   ///\brief building the database from scratch out of all the logs; on failure we repeat the import anyway
   bulk_import
@@ -131,7 +131,7 @@ struct database_storage_t
   [[nodiscard]]
   auto load_carrier_stock(std::string_view carrier_id) -> expected_ec<std::vector<info::carrier_stock_t>>;
 
-  ///\brief oznacza flotowiec jako swoj albo zdejmuje to oznaczenie
+  ///\brief marks a carrier as one's own, or takes that mark off
   ///\detail until now the flag existed in the schema and was carefully preserved on every
   /// price reading, but nothing in the whole program could set it
   [[nodiscard]]
@@ -142,7 +142,7 @@ struct database_storage_t
   auto load_carriers() -> expected_ec<std::vector<info::carrier_t>>;
 
   ///\brief completed missions per faction since the given moment
-  ///\detail system_address rozne od zera zaweza do misji wzietych w tym systemie
+  ///\detail a system_address other than zero narrows it to the missions taken in that system
   [[nodiscard]]
   auto load_mission_stats(std::chrono::sys_seconds since, uint64_t system_address)
     -> expected_ec<std::vector<info::mission_stat_t>>;
@@ -223,7 +223,7 @@ struct database_storage_t
   [[nodiscard]]
   auto load_war_onsets() -> expected_ec<std::vector<info::war_onset_t>>;
 
-  ///\brief ile jeszcze przeliczen wojny do rozstrzygniecia kazdego trwajacego konfliktu
+  ///\brief how many war recalculations are left before each running conflict is settled
   [[nodiscard]]
   auto load_war_countdown(uint64_t system_address) -> expected_ec<std::vector<info::war_countdown_t>>;
 
@@ -305,7 +305,7 @@ struct database_storage_t
   auto load_factions() -> expected_ec<std::vector<info::faction_info_t>>;
 
   [[nodiscard]]
-  ///\brief tozsamosc frakcji idzie do wspolnej galaxy, reputacja do bazy osobistej
+  ///\brief a faction's identity goes to the shared galaxy, its reputation to the personal database
   ///\detail with_reputation=false when importing somebody else's journal: we take the world, not the reputation
   [[nodiscard]]
   auto update_faction_info(info::faction_info_t const & faction, bool with_reputation = true) -> expected_ec<void>;
@@ -357,7 +357,7 @@ struct database_storage_t
   [[nodiscard]]
   auto load_station(uint64_t system_address, std::string_view name) -> expected_ec<std::optional<info::station_t>>;
 
-  ///\brief konto do ktorego nalezy ta baza osobista
+  ///\brief the account this personal database belongs to
   [[nodiscard]]
   auto store_owner(info::db_owner_t const & owner) -> expected_ec<void>;
 

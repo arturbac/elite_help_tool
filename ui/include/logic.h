@@ -7,7 +7,7 @@
 
 class main_window_t;
 
-///\brief zdanie o przeliczeniu gotowe do pokazania - to samo w oknie systemu i w overlayu
+///\brief the sentence about a recalculation, ready to show - the same in the system window and in the overlay
 struct tick_view_t
   {
   ///\brief when this system last recalculated, and how long ago

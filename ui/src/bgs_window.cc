@@ -94,7 +94,7 @@ auto bgs_effort_model_t::data(QModelIndex const & index, int role) const -> QVar
     switch(column)
       {
       case column_e::closed_by:
-        // doba jeszcze nierozliczona ma znacznik zerowy, a nalezy jej sie pierwsze miejsce
+        // a day not yet settled carries a zero marker, and first place is its due
         return row.closed_by == std::chrono::sys_seconds{}
                  ? std::numeric_limits<qlonglong>::max()
                  : qlonglong(row.closed_by.time_since_epoch().count());
@@ -416,7 +416,7 @@ auto bgs_window_t::reload_systems() -> void
     return;
     }
 
-  // zmiana listy odpala currentIndexChanged, a przeladowanie w trakcie budowy listy nic nie wnosi
+  // changing the list fires currentIndexChanged, and reloading while the list is being built adds nothing
   QSignalBlocker const quiet{system_combo_};
   auto const previous{system_combo_->currentData()};
 
@@ -446,7 +446,7 @@ auto bgs_window_t::show_effort() -> void
 
   model_->update_data(std::move(*effort));
 
-  // kolumna "closed" podaje wykryta fale, wiec obok musi stac to, jak pewna ta wiedza jest
+  // the "closed" column gives the wave that was detected, so next to it has to stand how sure that is
   std::string header{"no recalculations observed"};
   if(auto stats{db_.load_tick_stats(info::tick_kind_e::influence, days)}; stats and stats->waves > 0u)
     header = std::format(

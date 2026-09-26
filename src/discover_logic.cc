@@ -545,7 +545,7 @@ auto filter_current_visit(std::vector<system_signal_t> signals) -> std::vector<s
   if(signals.empty())
     return signals;
 
-  // przerwa dluzsza niz to oddziela wizyty, krotsza to kolejne partie tego samego pobytu
+  // a longer gap than this separates visits; a shorter one means further batches of the same stay
   constexpr auto visit_gap{std::chrono::hours{2}};
 
   std::ranges::sort(signals, std::ranges::greater{}, &system_signal_t::last_seen);
@@ -811,7 +811,7 @@ auto generic_state_t::discovery(std::string_view input) -> void
     case MissionFailed:     parse_and_handle.template operator()<events::mission_failed_t>(); break;
     case MissionRedirected: parse_and_handle.template operator()<events::mission_redirected_t>(); break;
     case Missions:          parse_and_handle.template operator()<events::missions_t>(); break;
-    // po tym zdarzeniu wiadomo, czyje sa nastepne wpisy az do konca pliku
+    // after this event it is known whose the following entries are, to the end of the file
     case Commander:         parse_and_handle.template operator()<events::commander_t>(); break;
     case Cargo:             parse_and_handle.template operator()<events::cargo_t>(); break;  //
     case Shutdown:          break;
@@ -835,7 +835,7 @@ auto generic_state_t::discovery(std::string_view input) -> void
           return;
           }
 
-        // plik jest nadpisywany, wiec pasuje tylko do ostatniego otwarcia bartendera
+        // the file is overwritten, so it matches the last opening of the bartender and no other
         if(file->MarketID != evt.MarketID)
           return;
 

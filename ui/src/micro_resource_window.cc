@@ -47,7 +47,7 @@ auto carrier_stock_model_t::data(QModelIndex const & index, int role) const -> Q
   if(role == Qt::TextAlignmentRole and (column == column_e::price or column == column_e::stock))
     return int(Qt::AlignRight | Qt::AlignVCenter);
 
-  // pusta polka to pozycja ktora zeszla w calosci - warto ja widziec, a nie zgadywac
+  // an empty shelf is an item that sold out entirely - worth seeing rather than guessing at
   if(role == Qt::ForegroundRole and item.stock == 0)
     return QBrush(Qt::gray);
 
@@ -228,7 +228,7 @@ auto micro_resource_window_t::setup_ui() -> void
   stock_layout->addWidget(stock_view_, 1);
   tabs->addTab(stock_page, "Carrier stock");
 
-  // --- skad to sie bierze ---
+  // --- where it all comes from ---
   auto * acquisition_page = new QWidget(tabs);
   auto * acquisition_layout = new QVBoxLayout(acquisition_page);
 
@@ -268,7 +268,7 @@ auto micro_resource_window_t::setup_ui() -> void
       if(index < 0)
         return;
 
-      // znacznik nalezy do wybranego flotowca, wiec idzie za wyborem
+      // the mark belongs to the chosen carrier, so it follows the choice
       reload_carriers();
       show_stock(carrier_combo_->itemData(index).toString().toStdString());
     }

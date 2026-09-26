@@ -144,7 +144,7 @@ route_window_t::route_window_t(current_state_t const & state, std::string db_pat
 
   setup_ui();
 
-  // zapamietana trasa wraca sama - po to zostala zapamietana
+  // the remembered route comes back on its own - that is what it was remembered for
   if(auto saved{db_.load_neutron_route()}; saved and not saved->empty())
     {
     neutron_name_ = saved->front().route_name;
@@ -305,7 +305,7 @@ auto route_window_t::show_route() -> void
 
   if(not loaded)
     {
-    // bez trasy z pliku okno pokazuje to, co wyznaczyla gra
+    // with no route from a file the window shows what the game plotted
     auto current_route{state_.route_};
     auto remaining{current_route | std::views::filter([](auto const & item) { return not item.visited; })};
     auto const remaining_count{std::ranges::distance(remaining)};
@@ -327,8 +327,8 @@ auto route_window_t::show_route() -> void
     [](info::neutron_waypoint_t const & waypoint) -> uint64_t { return waypoint.system_address; }
   )};
 
-  // Postep tylko do przodu: system spoza listy znaczy "gdzies po drodze", a nie "od poczatku".
-  // Gra wyznacza kurs do kolejnego przystanku sama i bywa, ze prowadzi przez systemy posrednie
+  // Progress only moves forward: a system outside the list means "somewhere along the way", not "back to
+  // the start". The game plots its own course to the next waypoint and sometimes leads through systems in between
   if(here != neutron_route_.end())
     reached_ = std::max(reached_, size_t(std::distance(neutron_route_.begin(), here)) + 1u);
 
@@ -386,7 +386,7 @@ auto route_window_t::jump_to_waypoint(int row) -> void
   if(neutron_route_.empty() or row < 0 or size_t(row) >= neutron_route_.size())
     return;
 
-  // wskazany przystanek staje sie tym, do ktorego lecimy - a wiec mamy za soba wszystkie przed nim
+  // the waypoint clicked becomes the one being flown to - so every one before it is behind us
   reached_ = size_t(row);
   clipboard_target_.clear();
   show_route();

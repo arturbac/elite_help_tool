@@ -92,8 +92,8 @@ void store_influence(
 
   auto record{info::to_influence(faction_oid, system_address, timestamp, event_faction)};
 
-  // sam wplyw, bez stanow - stany potrafia sie zmienic poza tickiem, a wplyw przelicza sie wylacznie
-  // przy nim, wiec tylko on wyznacza okno
+  // influence alone, without the states - states can change outside the tick, whereas influence is
+  // recalculated at it and nowhere else, so influence alone marks out the window
   if(*last and (*last)->influence != record.influence and not war_settled)
     note_tick(db, info::tick_kind_e::influence, system_address, previously_seen, timestamp);
 
@@ -180,9 +180,9 @@ void process_factions(
     store_influence(db, timestamp, system_address, new_faction_data.oid, f, previously_seen, war_settled);
     }
   }
-///\brief czy do tego miejsca dokuje sie statkiem
+///\brief whether one docks a ship at this place
 ///
-/// Kapsula ratunkowa na flotowcu odsyla do ostatniego PORTU, a nie do ostatniego miejsca postoju.
+/// An escape pod on a carrier sends you to the last PORT, not to the last place you stopped at.
 /// On-foot settlements are out, because they have no landing pad for a ship. A carrier is out despite its
 /// pads - checked on 26.09.2026: after a stop at W1V-NXM at 14:33 the pod sent us to Arkush City,
 /// where the stop had been at 14:16
@@ -608,7 +608,7 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
         for(events::backpack_item_t const & item: event.Added)
           {
           auto key{micro_resource_key(item.Name)};
-          // typ z plecaka to ta sama kategoria co przy sprzedazy
+          // the type out of the backpack is the same category as the one used when selling
           if(auto res{state.db_.store(info::micro_resource_t{
                .name = key, .id = {}, .localised = item.Name_Localised, .category = item.Type
              })};
@@ -627,7 +627,7 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
         }
       else if constexpr(std::same_as<T, events::shipyard_transfer_t>)
         {
-        // czas dostawy gra podaje raz i nigdy o nim nie przypomina, a przybycia nie oglasza wcale
+        // the game gives the delivery time once and never mentions it again, and announces the arrival not at all
         if(auto res{state.db_.store(info::ship_transfer_t{
              .ship_id = event.ShipID,
              .ship_type = event.ShipType_Localised.empty() ? event.ShipType : event.ShipType_Localised,
@@ -695,7 +695,7 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
         }
       else if constexpr(std::same_as<T, events::commander_t>)
         {
-        // od tej chwili az do konca pliku wiadomo, czyje sa wpisy
+        // from this moment to the end of the file it is known whose the entries are
         state.personal = state.owner_fid.empty() or event.FID == state.owner_fid;
         if(not state.personal)
           spdlog::info("journal of {} - taking the world from it, not the career", event.Name);
@@ -790,7 +790,7 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
         if(auto res{state.db_.store(mission)}; not res) [[unlikely]]
           critical_abort("failed to store mission details for {}", event.MissionID);
 
-        // misja towarowa mowi czego trzeba - bez tego nie da sie podpowiedziec skad to wziac
+        // a cargo mission says what is needed - without that there is no telling where to get it
         if(not event.Commodity_Localised.empty() and event.Count != 0u)
           if(
             auto res{state.db_.store(
@@ -826,10 +826,10 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
               spdlog::error("failed to store mission influence for {}", event.MissionID);
             }
 
-          // nagrody ida prosto do lockera, w plecaku sie nie pojawiaja - zadnego dublowania
+          // rewards go straight to the locker and never appear in the backpack - nothing is counted twice
           for(events::material_reward_t const & reward: event.MaterialsReward)
             {
-            // Encoded, Manufactured i Elements to materialy statku, nie mikrozasoby
+            // Encoded, Manufactured and Elements are ship materials, not micro resources
             if(reward.Category_Localised != "Data" and reward.Category_Localised != "Item"
                and reward.Category_Localised != "Component" and reward.Category_Localised != "Consumable")
               continue;
@@ -885,7 +885,7 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
             [[unlikely]]
             spdlog::warn("failed to change mission status for {}", mission.MissionID);
 
-        // to jedyny moment gdy gra mowi wprost co jeszcze wisi - wszystko poza ta lista juz sie zamknelo
+        // this is the only moment the game says outright what is still open - everything outside that list has closed
         std::vector<uint64_t> active;
         active.reserve(event.Active.size());
         for(events::mission_active_t const & mission: event.Active)

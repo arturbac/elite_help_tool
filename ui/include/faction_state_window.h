@@ -21,8 +21,8 @@ struct faction_presence_t
   info::government_e government;
   info::allegiance_e allegiance;
   std::string pending;     // PendingStates z ostatniego wpisu
-  std::string active;      // ActiveStates, a gdy puste to FactionState
-  std::string recovering;  // RecoveringStates - stany z ktorych frakcja wychodzi
+  std::string active;      // ActiveStates, or FactionState when that is empty
+  std::string recovering;  // RecoveringStates - the states the faction is coming out of
   double influence;
   };
 
@@ -218,7 +218,7 @@ class faction_state_window_t final : public QMdiSubWindow
 public:
   current_state_t const & state_;
 
-  /// wlasne polaczenie, db_ stanu nalezy do watku sledzacego journal
+  /// a connection of its own; the state's db_ belongs to the journal following thread
   database_storage_t db_;
 
   QCheckBox * follow_current_{};
@@ -236,7 +236,7 @@ public:
   QLabel * war_tick_row_label_{};
   QLabel * war_galaxy_label_{};
   QLabel * war_galaxy_row_label_{};
-  ///\brief ile jeszcze przeliczen do rozstrzygniecia trwajacych wojen
+  ///\brief how many recalculations are left before the running wars are settled
   QLabel * war_countdown_label_{};
   QLabel * war_countdown_row_label_{};
 
@@ -311,7 +311,7 @@ private:
 
   auto update_missions() -> void;
 
-  ///\brief jeden punkt na dobe, ostatni pomiar dnia, ograniczone do wybranego zakresu
+  ///\brief one point per day, the day's last measurement, limited to the chosen range
   auto update_chart() -> void;
 
   [[nodiscard]]

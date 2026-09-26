@@ -211,8 +211,8 @@ int main()
     expect((*faction)->reputation > 87.4 and (*faction)->reputation < 87.6) << "the reputation lost";
   };
 
-  // to jest cala stawka rozdzialu: wspolna wiedza o galaktyce moze byc przebudowana przez drugie
-  // konto, a postep tej postaci ma to przezyc - dlatego klucze sa naturalne, a nie oid-owe
+  // this is the whole point of the split: the shared knowledge of the galaxy can be rebuilt by the second
+  // account, and this character's progress has to survive that - hence natural keys rather than oids
   "a galaxy rebuild loses no progress"_test = [&]
   {
     dbs.close();

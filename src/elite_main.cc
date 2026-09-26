@@ -276,7 +276,7 @@ auto main(int argc, char ** argv) -> int
     return {};
   };
 
-  po::options_description desc("Opcje");
+  po::options_description desc("Options");
   desc.add_options()("help,h", "show help")(
     "dir,d", po::value<std::string>()->default_value("."), "journal folder"
   )("commander,c",

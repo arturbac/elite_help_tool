@@ -323,7 +323,7 @@ struct mission_accepted_t
   std::string DestinationStation;     //": "Yamazaki Base",
   std::string DestinationSettlement;  //
   std::string Commodity;              //: commodity type
-  std::string Commodity_Localised;    //: nazwa czytelna, ta sama ktora nosi slownik towarow
+  std::string Commodity_Localised;    //: the readable name, the same one the commodity dictionary carries
   uint32_t Count;                     //: number required / to deliver
   std::string Donation;               //: contracted donation (as string) (for altruism missions)
   int32_t Donated;                    //: actual donation (as int)
@@ -388,7 +388,7 @@ struct mission_redirected_t
   std::string NewDestinationSettlement;
   };
 
-///\brief kto gra w tej sesji - kazdy journal otwiera to zdarzenie zaraz po naglowku
+///\brief who is playing this session - every journal opens with this event right after the header
 ///\detail the FID is the account's fixed identifier while the name can change - so the FID decides
 struct commander_t
   {
@@ -402,7 +402,7 @@ struct mission_active_t
 
 struct missions_t
   {
-  ///\brief jedyne wiarygodne zrodlo prawdy o tym co jeszcze wisi - reszta to nasze domysly
+  ///\brief the only trustworthy source on what is still open - the rest is our guesswork
   std::vector<mission_active_t> Active;
   std::vector<mission_failed_t> Failed;
   std::vector<mission_completed_t> Complete;
@@ -1564,7 +1564,7 @@ static constexpr std::array<planet_value_info_t, 19> exploration_values{
    {"Rocky body", 300.0, 93'328.0},
    {"Icy body", 300.0},
    {"Rocky ice body", 300.0},
-   {"Earthlike body", 64'831.0 + 116'295.0},  // Earth-like jest zawsze "terraformowana" z definicji bazy
+   {"Earthlike body", 64'831.0 + 116'295.0},  // an Earth-like is always "terraformed" by the definition of the base value
    {"Water world", 24'831.0, 116'295.0},
    {"Ammonia world", 33'268.0},
    {"Water giant", 1'000.0},

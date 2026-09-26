@@ -88,7 +88,7 @@ class micro_resource_window_t final : public QMdiSubWindow
   {
   Q_OBJECT
 public:
-  /// wlasne polaczenie, db_ stanu nalezy do watku sledzacego journal
+  /// a connection of its own; the state's db_ belongs to the journal following thread
   database_storage_t db_;
 
   QComboBox * carrier_combo_{};
