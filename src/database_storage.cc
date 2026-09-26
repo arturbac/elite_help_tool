@@ -2984,14 +2984,35 @@ auto database_storage_t::load_owner() -> expected_ec<std::optional<info::db_owne
 auto database_storage_t::load_place_owner(std::string_view system_name, std::string_view place)
   -> expected_ec<std::optional<std::string>>
   {
-  // the two tables live in the same attached schema, so the join costs nothing beyond the index
+  // A retreat hands everything over. When a faction's retreat completes at a tick it leaves the
+  // system altogether, and every asset it held there - settlements included - passes to whoever
+  // controls the system. Nothing announces this per station, so until the next docking corrects the
+  // row the stored owner names a faction that is no longer there.
+  //
+  // Absence alone is not enough to conclude it, though. Engineer bases, megaships and the Pilots'
+  // Federation are held by names that never stand in a faction list at all - taking their stations
+  // from them would be wrong in 161 places to be right in one. So the owner is overruled only where
+  // it once played the background simulation in this very system, by having an influence history
+  // here, and has since stopped being among the factions seen at the newest reading.
   return sqlite::select_signle_from<std::string>(
     db_->db,
     std::format(
-      "SELECT st.controlling_faction FROM {0} st JOIN {1} sy ON sy.system_address = st.system_address"
-      " WHERE sy.name='{2}' AND st.name='{3}' LIMIT 1",
+      "SELECT CASE WHEN fo.oid IS NOT NULL AND sy.controlling_faction <> ''"
+      "             AND EXISTS(SELECT 1 FROM {4} i"
+      "                        WHERE i.system_address = st.system_address AND i.faction_oid = fo.oid)"
+      "             AND NOT EXISTS(SELECT 1 FROM {2} p"
+      "                            WHERE p.system_address = st.system_address AND p.faction_oid = fo.oid"
+      "                              AND p.last_seen = (SELECT max(last_seen) FROM {2}"
+      "                                                 WHERE system_address = st.system_address))"
+      "        THEN sy.controlling_faction ELSE st.controlling_faction END"
+      " FROM {0} st JOIN {1} sy ON sy.system_address = st.system_address"
+      " LEFT JOIN {3} fo ON fo.name = st.controlling_faction"
+      " WHERE sy.name='{5}' AND st.name='{6}' LIMIT 1",
       sql_iface::tables::station,
       sql_iface::tables::star_system,
+      sql_iface::tables::faction_presence,
+      sql_iface::tables::faction_info,
+      sql_iface::tables::faction_influence,
       sqlite::escape_sql_quotes(system_name),
       sqlite::escape_sql_quotes(place)
     )

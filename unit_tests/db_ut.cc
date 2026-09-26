@@ -213,6 +213,70 @@ int main()
 
   // this is the whole point of the split: the shared knowledge of the galaxy can be rebuilt by the second
   // account, and this character's progress has to survive that - hence natural keys rather than oids
+  // the rule Artur pointed out: when a faction's retreat completes it leaves the system, and every
+  // asset it held there passes to whoever controls the system. The danger is the obvious reading of
+  // it - engineer bases and megaships are held by names that never stand in a faction list at all,
+  // and taking their stations from them would be wrong far more often than the rule is right
+  "a completed retreat hands the settlements to whoever controls the system"_test = [&]
+  {
+    using namespace std::chrono;
+    constexpr uint64_t reach{4242424242ull};
+
+    star_system_t system_row{.system_address = reach, .name = "Test Reach"};
+    expect(bool(dbs.store(system_row)));
+    system_row.controlling_faction = "Holders";
+    expect(bool(dbs.update_system_info(system_row)));
+
+    expect(bool(dbs.update_faction_info(info::faction_info_t{.name = "Holders"})));
+    expect(bool(dbs.update_faction_info(info::faction_info_t{.name = "Leavers"})));
+
+    auto holders{dbs.faction_oid("Holders")};
+    auto leavers{dbs.faction_oid("Leavers")};
+    expect(holders and *holders);
+    expect(leavers and *leavers);
+
+    sys_seconds const before{sys_days{2026y / 9 / 20}};
+    sys_seconds const after{sys_days{2026y / 9 / 25}};
+
+    // both played the background simulation here, which is what tells them from an engineer
+    for(auto const oid: {int64_t(**holders), int64_t(**leavers)})
+      expect(bool(dbs.store(
+        info::faction_influence_t{.faction_oid = oid, .system_address = reach, .timestamp = before, .influence = 0.2}
+      )));
+
+    // the newest reading of the system saw only the holders - the leavers are gone
+    expect(bool(dbs.store_faction_seen(int64_t(**leavers), reach, before)));
+    expect(bool(dbs.store_faction_seen(int64_t(**holders), reach, after)));
+
+    expect(bool(dbs.store(
+      info::station_t{
+        .market_id = 91001u,
+        .system_address = reach,
+        .name = "Left Behind",
+        .station_type = "OnFootSettlement",
+        .controlling_faction = "Leavers"
+      }
+    )));
+    expect(bool(dbs.store(
+      info::station_t{
+        .market_id = 91002u,
+        .system_address = reach,
+        .name = "Tinkerer's Workshop",
+        .station_type = "Outpost",
+        .controlling_faction = "Hilda Tinkerer"
+      }
+    )));
+
+    auto abandoned{dbs.load_place_owner("Test Reach", "Left Behind")};
+    expect(abandoned and abandoned->has_value());
+    expect(**abandoned == "Holders") << "a settlement left behind by a retreat kept its old owner";
+
+    auto engineer{dbs.load_place_owner("Test Reach", "Tinkerer's Workshop")};
+    expect(engineer and engineer->has_value());
+    expect(**engineer == "Hilda Tinkerer") << "an engineer's base was taken from them by the retreat rule";
+  };
+
+
   "a galaxy rebuild loses no progress"_test = [&]
   {
     dbs.close();
