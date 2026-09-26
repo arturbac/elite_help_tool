@@ -1926,11 +1926,26 @@ auto database_storage_t::store(
   auto resoid{oid_for_body(system_address, body_id)};
   if(not resoid)
     return cxx23::unexpected{resoid.error()};
+
   std::optional<uint64_t> boid_oid{*resoid};
-  if(boid_oid)
-    for(events::signal_t const & sig: signals)
-      if(auto res{store(*boid_oid, sig)}; not res)
-        return cxx23::unexpected{res.error()};
+  if(not boid_oid)
+    return {};
+
+  // The event carries the body's whole list, so it replaces what was there rather than adding to
+  // it. Appending stacked a fresh copy every time a body was scanned again or a journal replayed
+  // after the tool was restarted - one body in the archive had ended up with a hundred and forty
+  // copies of the same signal, and the count of what is worth landing for grew with them
+  if(
+    auto res{sqlite::execute_query_no_result(
+      db_->db, std::format("DELETE FROM {} WHERE ref_body_oid={}", sql_iface::tables::signal, *boid_oid)
+    )};
+    not res
+  ) [[unlikely]]
+    return res;
+
+  for(events::signal_t const & sig: signals)
+    if(auto res{store(*boid_oid, sig)}; not res)
+      return cxx23::unexpected{res.error()};
 
   return {};
   }

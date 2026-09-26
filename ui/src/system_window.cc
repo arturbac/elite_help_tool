@@ -421,11 +421,6 @@ void system_bodies_signals_model_t::refresh(body_signals_t && new_data)
       }
     )};
     bsig.signals_.erase(new_end.begin(), new_end.end());
-    auto proj{[](events::signal_t const & sig) -> std::string { return sig.Type_Localised; }};
-    std::ranges::sort(bsig.signals_, std::ranges::less{}, proj);
-
-    auto newrng{std::ranges::unique(bsig.signals_, std::ranges::equal, proj)};
-    bsig.signals_.erase(newrng.begin(), newrng.end());
     }
   body_signals_ = std::move(new_data);
   endResetModel();
