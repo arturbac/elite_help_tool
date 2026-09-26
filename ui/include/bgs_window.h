@@ -73,6 +73,8 @@ class war_onset_model_t final : public QAbstractTableModel
 
 public:
   static constexpr int sort_role = Qt::UserRole + 1;
+  ///\brief domyslnie od najswiezszej wojny - interesuje to, co dzieje sie teraz
+  static constexpr int default_sort_column = int(column_e::active_first);
 
   std::vector<info::war_onset_t> rows_{};
 

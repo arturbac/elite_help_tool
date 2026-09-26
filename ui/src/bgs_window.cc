@@ -209,8 +209,8 @@ auto war_onset_model_t::headerData(int section, Qt::Orientation orientation, int
     case column_e::system:       return QString{"System"};
     case column_e::war_type:     return QString{"Typ"};
     case column_e::sides:        return QString{"Strony"};
-    case column_e::pending_last: return QString{"Jeszcze zapowiedziana"};
-    case column_e::active_first: return QString{"Juz trwala"};
+    case column_e::pending_last: return QString{"Zapowiedziana"};
+    case column_e::active_first: return QString{"Zauwazona jako trwajaca"};
     case column_e::window:       return QString{"Okno"};
     case column_e::column_max:   break;
     }
@@ -299,6 +299,7 @@ auto bgs_window_t::setup_ui() -> void
   war_view_->verticalHeader()->setVisible(false);
   war_view_->horizontalHeader()->setStretchLastSection(false);
   war_view_->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
+  war_view_->sortByColumn(war_onset_model_t::default_sort_column, Qt::DescendingOrder);
   war_layout->addWidget(war_view_, 1);
   tabs->addTab(war_page, "Poczatki wojen");
 

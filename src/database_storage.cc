@@ -2439,10 +2439,9 @@ auto database_storage_t::load_bgs_effort(uint32_t within_days, uint64_t system_a
   if(not waves) [[unlikely]]
     return cxx23::unexpected{waves.error()};
 
-  if(waves->empty())
-    return std::vector<info::bgs_effort_t>{};
-
-  // fale przychodza od najswiezszej, a granice dob wygodniej szukac rosnaco
+  // fale przychodza od najswiezszej, a granice dob wygodniej szukac rosnaco. Pusta lista nie jest
+  // bledem - na bazie jeszcze nieprzebudowanej zadna fala nie zostala wykryta, a praca mimo to
+  // zostala wykonana i ma sie pokazac, tyle ze w calosci jako doba jeszcze nierozliczona
   std::vector<info::tick_fact_t> ordered{*waves};
   std::ranges::reverse(ordered);
 
@@ -2450,14 +2449,17 @@ auto database_storage_t::load_bgs_effort(uint32_t within_days, uint64_t system_a
   auto rows{sqlite::select_from<bgs_detail::effort_row_t>(
     db_->db,
     std::format(
+      // okres liczony od ostatniej zapisanej pracy, nie od zegara - baza bywa starsza niz dzis,
+      // a pusty raport nie powiedzialby czy praca nie istnieje, czy tylko jest sprzed tygodnia
       "(SELECT mi.system_address AS system_address, coalesce(ss.name, '') AS system_name,"
       " coalesce(ss.population, 0) AS population, mi.faction AS faction, mi.timestamp AS timestamp,"
       " mi.pluses AS pluses, mi.mission_id AS mission_id"
       " FROM {0} mi LEFT JOIN {1} ss ON ss.system_address = mi.system_address"
-      " WHERE mi.timestamp >= '{2:%Y-%m-%dT%H:%M:%SZ}'{3})",
+      " WHERE mi.timestamp >="
+      "   (SELECT strftime('%Y-%m-%dT%H:%M:%SZ', max(timestamp), '-{2} days') FROM {0}){3})",
       sql_iface::tables::mission_influence,
       sql_iface::tables::star_system,
-      ordered.front().start_begin,
+      within_days,
       scope
     ),
     ""

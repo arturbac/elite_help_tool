@@ -62,7 +62,7 @@ void print_war_onsets(database_storage_t & db)
     }
 
   std::println(
-    "{:<24}{:<10}{:<40}{:<16}{:<16}{:>8}", "system", "typ", "strony", "zapowiedziana", "juz trwala", "okno"
+    "{:<24}{:<10}{:<40}{:<16}{:<16}{:>8}", "system", "typ", "strony", "zapowiedziana", "zauwazona", "okno"
   );
   for(size_t ix{}; ix < onsets->size() and ix < 25u; ++ix)
     {
