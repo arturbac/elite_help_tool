@@ -279,6 +279,8 @@ server_t::~server_t()
   }
 
 [[nodiscard]]
+auto server_t::path() const noexcept -> std::string_view { return socket_path_; }
+
 auto server_t::listening() const noexcept -> bool
   { return listen_fd_ >= 0; }
 

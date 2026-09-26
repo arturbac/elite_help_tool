@@ -59,6 +59,30 @@ dostaje je tak samo jak launcher. Launcher nie ma łańcucha wymiany, więc wars
 | `EHT_OVERLAY_SIDE_WIDTH` | szerokość pasa przy krawędzi, domyślnie 20% szerokości, najwyżej 1600 px |
 | `EHT_OVERLAY_SOCKET` | ścieżka gniazda, domyślnie `~/.local/share/elite_help_tool/overlay.sock` |
 
+## Dwa konta gry naraz
+
+Nic nie stoi na przeszkodzie, żeby obok siebie chodziły dwa komplety narzędzie + gra — na przykład
+konto ze Steama i drugie z osobnego launchera. Warunek jest jeden: **każda para musi mieć własne
+gniazdo**, bo serwer przy starcie kasuje plik gniazda, który zastał (żeby nie blokował go plik po
+ubitym procesie). Dwie instancje na domyślnej ścieżce odbiorą sobie nawzajem połączenie.
+
+```
+# konto główne - bez zmian, wartości domyślne
+elite_help_tool
+
+# konto drugie - narzędzie i gra dostają tę samą, własną ścieżkę
+EHT_OVERLAY_SOCKET=~/.local/share/elite_help_tool/overlay-alt.sock elite_help_tool
+EHT_OVERLAY_SOCKET=~/.local/share/elite_help_tool/overlay-alt.sock ENABLE_EHT_OVERLAY=1 <launcher>
+```
+
+Ścieżka gniazda nie może przekroczyć 107 znaków — tyle mieści `sockaddr_un`. Dłuższa kończy się
+brakiem nasłuchu, co widać w logu narzędzia razem z jej długością.
+
+Każde konto potrzebuje też własnego katalogu roboczego narzędzia, bo `journal-dir` i `ehtdb.sqlite`
+są względne do katalogu bieżącego, a misje i zdobycze należą do konkretnej postaci. Plik
+`live.sqlite` przeciwnie — trzyma wyłącznie fakty o galaktyce (rynki, ceny, półki bartendera),
+więc warto go podlinkować, żeby oba konta korzystały ze wspólnej wiedzy o cenach.
+
 Pas boczny ma znaczenie na panoramicznych ekranach: przy 8000 px środek należy do gry, a overlay
 mieści się w ~1600 px z każdej strony. Dłuższy tekst zawija się w pasie zamiast wjeżdżać na środek.
 

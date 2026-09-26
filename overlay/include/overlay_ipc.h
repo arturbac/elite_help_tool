@@ -65,6 +65,10 @@ public:
   [[nodiscard]]
   auto listening() const noexcept -> bool;
 
+  ///\brief gniazdo na ktorym stanal serwer - przy niepowodzeniu jedyna wskazowka co poprawic
+  [[nodiscard]]
+  auto path() const noexcept -> std::string_view;
+
   ///\brief liczba podlaczonych gier
   [[nodiscard]]
   auto clients() const noexcept -> unsigned;

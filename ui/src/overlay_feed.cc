@@ -359,9 +359,14 @@ overlay_feed_t::overlay_feed_t(std::string socket_path, std::string db_path) :
     spdlog::error("overlay feed: failed to open {}", db_path);
 
   if(server_->listening())
-    spdlog::info("overlay feed listening");
+    spdlog::info("overlay feed listening on {}", server_->path());
   else
-    spdlog::warn("overlay feed could not listen, in-game overlay will stay empty");
+    // najczestsza przyczyna to sciezka dluzsza niz 107 znakow - sockaddr_un nie ma gdzie jej wpisac
+    spdlog::warn(
+      "overlay feed could not listen on {} ({} chars), in-game overlay will stay empty",
+      server_->path(),
+      server_->path().size()
+    );
   }
 
 [[nodiscard]]
