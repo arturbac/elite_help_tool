@@ -894,6 +894,8 @@ struct approach_settlement_t
   std::string Name;
   std::string StationEconomy_Localised;
   std::string StationGovernment_Localised;
+  ///\brief frakcja wladajaca miejscem - journal podaje ja zagniezdzona, nie jako goly napis
+  system_faction_t StationFaction;
   };
 
 ///\brief wyjscie z pojazdu - bywa jedynym sladem miejsca gdy przylot byl taksowka
@@ -957,6 +959,8 @@ struct docked_t
   std::string StarSystem;
   std::string StationEconomy_Localised;
   std::string StationGovernment_Localised;
+  ///\brief frakcja wladajaca miejscem - journal podaje ja zagniezdzona, nie jako goly napis
+  system_faction_t StationFaction;
   };
 
 ///\brief odlot z ladowiska - od tej chwili rynek tego miejsca przestaje nas dotyczyc

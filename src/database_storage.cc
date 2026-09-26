@@ -1092,25 +1092,33 @@ auto database_storage_t::open(storage_mode_e mode) -> expected_ec<void>
 
 auto database_storage_t::migrate_live_schema() -> expected_ec<void>
   {
-  // baza glowna powstaje od nowa z journali, wiec brakujaca kolumne zalatwia przebudowa.
-  // live.sqlite trzyma to, czego odtworzyc sie nie da, wiec tutaj kolumne trzeba dolozyc w miejscu
-  auto known{sqlite::table_columns(db_->db, sql_iface::tables::market_item)};
-  if(not known) [[unlikely]]
-    return cxx23::unexpected{known.error()};
-
-  // pusta lista znaczy ze tabeli jeszcze nie ma - powstanie od razu w docelowym ksztalcie
-  if(known->empty())
-    return {};
-
-  for(std::string_view const column: {"producer"sv, "consumer"sv})
+  // kolumna dolozona w miejscu, zamiast przebudowy calej bazy. dla live.sqlite to jedyna droga,
+  // bo tego pliku nie da sie odtworzyc z journali; dla galaxy to uprzejmosc - narzedzie rusza od
+  // razu, a przebudowa i tak wypelni kolumne wstecz, kiedy bedzie po drodze
+  struct addition_t
     {
-    if(std::ranges::find(*known, column) != known->end())
+    std::string_view table;
+    std::string_view column;
+    std::string_view type;
+    };
+
+  for(addition_t const & add:
+      {addition_t{sql_iface::tables::market_item, "producer"sv, "INTEGER DEFAULT 0"sv},
+       addition_t{sql_iface::tables::market_item, "consumer"sv, "INTEGER DEFAULT 0"sv},
+       addition_t{sql_iface::tables::station, "controlling_faction"sv, "TEXT DEFAULT ''"sv}})
+    {
+    auto known{sqlite::table_columns(db_->db, add.table)};
+    if(not known) [[unlikely]]
+      return cxx23::unexpected{known.error()};
+
+    // pusta lista znaczy ze tabeli jeszcze nie ma - powstanie od razu w docelowym ksztalcie
+    if(known->empty() or std::ranges::find(*known, add.column) != known->end())
       continue;
 
-    spdlog::info("adding column {} to {}", column, sql_iface::tables::market_item);
+    spdlog::info("adding column {} to {}", add.column, add.table);
     if(
       auto res{sqlite::execute_query_no_result(
-        db_->db, std::format("ALTER TABLE {} ADD COLUMN {} INTEGER DEFAULT 0", sql_iface::tables::market_item, column)
+        db_->db, std::format("ALTER TABLE {} ADD COLUMN {} {}", add.table, add.column, add.type)
       )};
       not res
     ) [[unlikely]]
@@ -1975,6 +1983,7 @@ auto database_storage_t::store(info::station_t const & value) -> expected_ec<voi
   fill(merged.station_type, value.station_type);
   fill(merged.economy, value.economy);
   fill(merged.government, value.government);
+  fill(merged.controlling_faction, value.controlling_faction);
   if(merged.system_address == 0)
     merged.system_address = value.system_address;
 

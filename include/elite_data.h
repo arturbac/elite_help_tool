@@ -173,6 +173,8 @@ struct station_t
   ///\brief ekonomia i rzad miejsca - to one mowia czego tam szukac, nie nazwa osady
   std::string economy;
   std::string government;
+  ///\brief frakcja wladajaca miejscem - to jej wplywy rosna od oddanych tu misji
+  std::string controlling_faction;
   };
 
 ///\brief kiedy ostatnio odczytalismy rynek tej stacji

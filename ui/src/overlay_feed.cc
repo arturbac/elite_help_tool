@@ -534,6 +534,9 @@ auto overlay_feed_t::refresh_market(uint64_t market_id, uint32_t cargo_capacity)
 
   auto station{db_.load_station(market_id)};
   std::string const name{station and *station ? (*station)->name : std::format("market {}", market_id)};
+  // wlasciciel miejsca decyduje, czyje wplywy rosna od oddanych tu misji - bez tego nazwa portu
+  // sama w sobie niewiele mowi przy planowaniu pracy dla frakcji
+  std::string const owner{station and *station ? (*station)->controlling_faction : std::string{}};
 
   auto entries{db_.load_market_entries(market_id)};
   if(not entries or entries->empty())
@@ -541,6 +544,8 @@ auto overlay_feed_t::refresh_market(uint64_t market_id, uint32_t cargo_capacity)
     // zdarzenie Market powstaje dopiero po otwarciu ekranu towarow - milczenie w tym miejscu
     // wygladaloby jak brak okazji, a znaczy tylko tyle, ze nie mielismy czego zapisac
     market_lines_.push_back(overlay::line_t{.text = std::format("{}: no market data", name), .color = colour_alert});
+    if(not owner.empty())
+      market_lines_.push_back(overlay::line_t{.text = std::format("  {}", owner), .color = colour_first});
     market_lines_.push_back(overlay::line_t{.text = "  open the commodity market to record it", .color = colour_plain});
     return;
     }
@@ -608,6 +613,8 @@ auto overlay_feed_t::refresh_market(uint64_t market_id, uint32_t cargo_capacity)
   market_lines_.push_back(
     overlay::line_t{.text = std::format("{}: {} on sale, {} wanted", name, on_sale, wanted), .color = colour_heading}
   );
+  if(not owner.empty())
+    market_lines_.push_back(overlay::line_t{.text = std::format("  {}", owner), .color = colour_first});
 
   // surowca, ktorego nikt nie sprzedaje, handlarz nie przywiezie - stacja moze za niego placic
   // swietnie i to nadal bedzie slepy zaulek, wiec idzie na koniec i pod wlasnym naglowkiem
