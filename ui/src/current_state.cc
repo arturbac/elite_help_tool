@@ -795,7 +795,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           }
         else if constexpr(std::same_as<T, events::scan_bary_centre_t>)
           {
-          system.bary_centre.emplace_back(
+          system.put_bary_centre(
             bary_centre_t{
               .body_id = event.BodyID,
               .semi_major_axis = event.SemiMajorAxis,

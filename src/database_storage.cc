@@ -1777,6 +1777,21 @@ auto database_storage_t::store_system_location(uint64_t system_address, std::arr
 
 auto database_storage_t::store(uint64_t system_address, bary_centre_t const & bc) -> expected_ec<void>
   {
+  // a rescan repeats the barycentre with the mean anomaly of the moment - same orbit, one row
+  if(
+    auto res{sqlite::execute_query_no_result(
+      db_->db,
+      std::format(
+        "DELETE FROM {} WHERE ref_system_address={} AND body_id={}",
+        sql_iface::tables::bary_centre,
+        system_address,
+        bc.body_id
+      )
+    )};
+    not res
+  ) [[unlikely]]
+    return res;
+
   return sqlite::insert_into(
     db_->db, "oid"sv, sql_iface::tables::bary_centre, sql_iface::to_db_fromat(system_address, bc)
   );

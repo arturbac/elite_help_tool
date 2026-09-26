@@ -429,7 +429,7 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
         }
       else if constexpr(std::same_as<T, events::scan_bary_centre_t>)
         {
-        state.system.bary_centre.emplace_back(
+        auto const & bc{state.system.put_bary_centre(
           bary_centre_t{
             .body_id = event.BodyID,
             .semi_major_axis = event.SemiMajorAxis,
@@ -440,8 +440,7 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
             .ascending_node = event.AscendingNode,
             .mean_anomaly = event.MeanAnomaly
           }
-        );
-        auto const & bc{state.system.bary_centre.back()};
+        )};
         if(auto res{state.db_.store(state.system.system_address, bc)}; not res)
           critical_abort("failed to store bary_centre {}: {}", state.system.system_address, bc.body_id);
         }

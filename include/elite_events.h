@@ -1502,6 +1502,15 @@ struct star_system_t
   [[nodiscard]]
   auto body_by_name(this auto && self, std::string_view name) noexcept
     { return std::ranges::find(self.bodies, name, body_body_name_proj); }
+
+  ///\brief the game repeats ScanBaryCentre on every rescan with the mean anomaly of that moment, so
+  /// a barycentre seen again takes the place of the old reading rather than standing beside it
+  auto put_bary_centre(bary_centre_t const & bc) -> bary_centre_t const &
+    {
+    if(auto it{std::ranges::find(bary_centre, bc.body_id, &bary_centre_t::body_id)}; it != bary_centre.end())
+      return *it = bc;
+    return bary_centre.emplace_back(bc);
+    }
   };
 
 struct generic_state_t
