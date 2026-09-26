@@ -30,11 +30,18 @@ private:
   ///\brief influence nie siedzi w stanie, trzeba po nie do bazy - wlasne polaczenie jak w oknach
   auto refresh_factions(current_state_t const & state) -> void;
 
+  ///\brief rynek znamy tylko dla stacji w ktorej stoimy i tylko dopoki nie odlecimy
+  auto refresh_market(uint64_t market_id) -> void;
+
   std::unique_ptr<overlay::server_t> server_;
   database_storage_t db_;
   uint64_t factions_system_{};
   std::chrono::steady_clock::time_point factions_loaded_{};
   std::vector<overlay::line_t> faction_lines_;
+  std::vector<overlay::line_t> conflict_lines_;
+
+  uint64_t market_id_{};
+  std::vector<overlay::line_t> market_lines_;
   overlay::frame_t last_;
   std::chrono::steady_clock::time_point last_sent_{};
   uint64_t sequence_{};

@@ -15,6 +15,7 @@ constexpr uint32_t colour_plain{0xddddddu};
 constexpr uint32_t colour_alert{0xd9a34au};
 ///\brief nieodkryte przez nikogo - to jest ten przypadek, dla ktorego warto sie zatrzymac
 constexpr uint32_t colour_first{0x3cb371u};
+constexpr uint32_t colour_expiring{0xd9534fu};
 
 ///\brief bloki gasna gdy narzedzie zamilknie - lepiej brak napisu niz napis sprzed godziny
 constexpr uint32_t block_ttl_ms{10000u};
@@ -26,6 +27,14 @@ constexpr uint32_t minimum_body_value{300000u};
 ///\brief pas boczny ma swoje granice, dluga lista i tak nie zostanie przeczytana w locie
 constexpr size_t listed_bodies{5u};
 constexpr size_t listed_factions{5u};
+constexpr size_t listed_missions{6u};
+constexpr size_t listed_commodities{3u};
+///\brief ponizej tej rezerwy czasu misja jest juz problemem, a nie planem
+constexpr std::chrono::hours expiry_warning{3};
+///\brief mniejszych odchylek od sredniej galaktycznej nie warto pokazywac
+constexpr double interesting_deviation{0.25};
+///\brief procent bez kwoty klamie - 93% taniej na towarze za 20 Cr to oszczednosc bez znaczenia
+constexpr uint32_t interesting_margin{500u};
 ///\brief influence aktualizuje sie raz na dobe, czesciej pytac nie ma po co
 constexpr std::chrono::seconds faction_refresh{60};
 
@@ -132,6 +141,88 @@ auto describe_exploration(star_system_t const & system) -> std::vector<overlay::
   return lines;
   }
 
+///\brief zostalo mniej niz godzina to inny rodzaj wiadomosci niz zostalo pare dni
+[[nodiscard]]
+auto format_remaining(std::chrono::seconds left) -> std::string
+  {
+  if(left <= std::chrono::seconds::zero())
+    return "expired";
+
+  auto const days{std::chrono::duration_cast<std::chrono::days>(left)};
+  auto const hours{std::chrono::duration_cast<std::chrono::hours>(left - days)};
+  if(days.count() != 0)
+    return std::format("{}d {}h", days.count(), hours.count());
+
+  auto const minutes{std::chrono::duration_cast<std::chrono::minutes>(left - hours)};
+  if(hours.count() != 0)
+    return std::format("{}h {}m", hours.count(), minutes.count());
+
+  return std::format("{}m", minutes.count());
+  }
+
+///\brief misja przekierowana jest zrobiona i czeka tylko na oddanie - to inna kategoria niz reszta
+[[nodiscard]]
+auto describe_missions(std::vector<info::mission_t> const & missions) -> std::vector<overlay::line_t>
+  {
+  std::vector<info::mission_t const *> open;
+  for(info::mission_t const & mission: missions)
+    if(mission.status == info::mission_status_e::accepted or mission.status == info::mission_status_e::redirected)
+      open.push_back(&mission);
+
+  if(open.empty())
+    return {};
+
+  std::ranges::sort(open, {}, [](info::mission_t const * mission) { return mission->expiry; });
+
+  auto const ready{std::ranges::count_if(
+    open, [](info::mission_t const * mission) { return mission->status == info::mission_status_e::redirected; }
+  )};
+
+  auto const now{std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())};
+
+  std::vector<overlay::line_t> lines;
+  lines.push_back(
+    overlay::line_t{
+      .text = ready == 0 ? std::format("missions: {} open", open.size())
+                         : std::format("missions: {} open, {} to hand in", open.size(), ready),
+      .color = colour_heading
+    }
+  );
+
+  for(info::mission_t const * mission: open | std::views::take(listed_missions))
+    {
+    auto const left{std::chrono::duration_cast<std::chrono::seconds>(mission->expiry - now)};
+    bool const done{mission->status == info::mission_status_e::redirected};
+
+    auto const where{
+      done ? (mission->redirected_station.empty() ? mission->redirected_system : mission->redirected_station)
+           : (mission->destination_station.empty() ? mission->destination_system : mission->destination_station)
+    };
+
+    lines.push_back(
+      overlay::line_t{
+        .text = std::format(
+          "{}{}  {}{}{}",
+          done ? "> " : "  ",
+          mission->faction,
+          where.empty() ? std::string{"-"} : where,
+          "  ",
+          format_remaining(left)
+        ),
+        // zielone jest do oddania, czerwone zaraz przepadnie
+        .color = left < expiry_warning ? colour_expiring : (done ? colour_first : colour_plain)
+      }
+    );
+    }
+
+  if(open.size() > listed_missions)
+    lines.push_back(
+      overlay::line_t{.text = std::format("... and {} more", open.size() - listed_missions), .color = colour_plain}
+    );
+
+  return lines;
+  }
+
 [[nodiscard]]
 auto describe_system(star_system_t const & system, bool with_controlling) -> std::vector<overlay::line_t>
   {
@@ -200,9 +291,56 @@ auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
   factions_system_ = state.current_system_address_;
   factions_loaded_ = now;
   faction_lines_.clear();
+  conflict_lines_.clear();
 
   if(factions_system_ == 0u)
     return;
+
+  if(auto conflicts{db_.load_conflicts(factions_system_)}; conflicts)
+    {
+    // baza trzyma cala historie wpisow, a na ekranie ma byc obecny stan kazdej pary frakcji
+    std::map<std::pair<std::string, std::string>, info::conflict_t const *> latest_conflict;
+    for(info::conflict_t const & conflict: *conflicts)
+      {
+      auto & slot{latest_conflict[{conflict.faction1, conflict.faction2}]};
+      if(slot == nullptr or slot->timestamp < conflict.timestamp)
+        slot = &conflict;
+      }
+
+    for(auto const & [pair, entry]: latest_conflict)
+      {
+      info::conflict_t const & conflict{*entry};
+      // zakonczone i dopiero zapowiedziane nie zmieniaja tego, co mam robic teraz
+      if(conflict.status != "active")
+        continue;
+
+      conflict_lines_.push_back(
+        overlay::line_t{
+          .text = std::format(
+            "{}: {} {} - {} {}",
+            conflict.war_type,
+            conflict.faction1,
+            conflict.won_days1,
+            conflict.won_days2,
+            conflict.faction2
+          ),
+          .color = colour_alert
+        }
+      );
+
+      if(not conflict.stake1.empty() or not conflict.stake2.empty())
+        conflict_lines_.push_back(
+          overlay::line_t{
+            .text = std::format(
+              "  stake: {} / {}",
+              conflict.stake1.empty() ? "-" : conflict.stake1,
+              conflict.stake2.empty() ? "-" : conflict.stake2
+            ),
+            .color = colour_plain
+          }
+        );
+      }
+    }
 
   auto history{db_.load_influence_history(factions_system_)};
   if(not history)
@@ -269,12 +407,95 @@ auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
     );
   }
 
+auto overlay_feed_t::refresh_market(uint64_t market_id) -> void
+  {
+  if(market_id == market_id_)
+    return;
+
+  market_id_ = market_id;
+  market_lines_.clear();
+
+  if(market_id == 0u)
+    return;
+
+  auto entries{db_.load_market_entries(market_id)};
+  if(not entries or entries->empty())
+    return;
+
+  auto station{db_.load_station(market_id)};
+  std::string const name{station and *station ? (*station)->name : std::string{"station"}};
+
+  // odchylenie od sredniej galaktycznej to jedyna liczba mowiaca czy cena jest okazja
+  auto const sell_gain{
+    [](info::market_entry_t const & entry) -> double
+    {
+      if(entry.mean_price == 0u or entry.demand == 0u)
+        return 0.0;
+      return (double(entry.sell_price) - double(entry.mean_price)) / double(entry.mean_price);
+    }
+  };
+  auto const buy_gain{
+    [](info::market_entry_t const & entry) -> double
+    {
+      if(entry.mean_price == 0u or entry.stock == 0u or entry.buy_price == 0u)
+        return 0.0;
+      return (double(entry.mean_price) - double(entry.buy_price)) / double(entry.mean_price);
+    }
+  };
+
+  std::vector<info::market_entry_t const *> sells;
+  std::vector<info::market_entry_t const *> buys;
+  for(info::market_entry_t const & entry: *entries)
+    {
+    if(sell_gain(entry) >= interesting_deviation and entry.sell_price > entry.mean_price + interesting_margin)
+      sells.push_back(&entry);
+    if(buy_gain(entry) >= interesting_deviation and entry.buy_price + interesting_margin < entry.mean_price)
+      buys.push_back(&entry);
+    }
+
+  std::ranges::sort(sells, std::ranges::greater{}, [&](info::market_entry_t const * e) { return sell_gain(*e); });
+  std::ranges::sort(buys, std::ranges::greater{}, [&](info::market_entry_t const * e) { return buy_gain(*e); });
+
+  market_lines_.push_back(
+    overlay::line_t{.text = std::format("{}: {} commodities", name, entries->size()), .color = colour_heading}
+  );
+
+  if(not sells.empty())
+    {
+    market_lines_.push_back(overlay::line_t{.text = "pays above average:", .color = colour_plain});
+    for(info::market_entry_t const * entry: sells | std::views::take(listed_commodities))
+      market_lines_.push_back(
+        overlay::line_t{
+          .text = std::format(
+            "  {}  {} Cr  +{:.0f}%", entry->name, format_credits_value(entry->sell_price), sell_gain(*entry) * 100.0
+          ),
+          .color = colour_first
+        }
+      );
+    }
+
+  if(not buys.empty())
+    {
+    market_lines_.push_back(overlay::line_t{.text = "sells below average:", .color = colour_plain});
+    for(info::market_entry_t const * entry: buys | std::views::take(listed_commodities))
+      market_lines_.push_back(
+        overlay::line_t{
+          .text = std::format(
+            "  {}  {} Cr  -{:.0f}%", entry->name, format_credits_value(entry->buy_price), buy_gain(*entry) * 100.0
+          ),
+          .color = colour_plain
+        }
+      );
+    }
+  }
+
 auto overlay_feed_t::publish(current_state_t const & state) -> void
   {
   if(not server_->listening())
     return;
 
   refresh_factions(state);
+  refresh_market(state.settlement_market_id_);
 
   overlay::frame_t frame{};
 
@@ -282,6 +503,7 @@ auto overlay_feed_t::publish(current_state_t const & state) -> void
     {
     auto lines{describe_system(state.system, faction_lines_.empty())};
     lines.insert(lines.end(), faction_lines_.begin(), faction_lines_.end());
+    lines.insert(lines.end(), conflict_lines_.begin(), conflict_lines_.end());
     frame.blocks.push_back(
       overlay::block_t{.corner = overlay::corner_e::top_left, .ttl_ms = block_ttl_ms, .lines = std::move(lines)}
     );
@@ -292,6 +514,16 @@ auto overlay_feed_t::publish(current_state_t const & state) -> void
       overlay::block_t{
         .corner = overlay::corner_e::bottom_right, .ttl_ms = block_ttl_ms, .lines = std::move(exploration)
       }
+    );
+
+  if(not market_lines_.empty())
+    frame.blocks.push_back(
+      overlay::block_t{.corner = overlay::corner_e::top_right, .ttl_ms = block_ttl_ms, .lines = market_lines_}
+    );
+
+  if(auto missions{describe_missions(state.active_missions)}; not missions.empty())
+    frame.blocks.push_back(
+      overlay::block_t{.corner = overlay::corner_e::bottom_left, .ttl_ms = block_ttl_ms, .lines = std::move(missions)}
     );
 
   if(not state.next_target.Name.empty() and state.next_target.Name != state.system.name)
