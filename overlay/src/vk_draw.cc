@@ -78,20 +78,26 @@ namespace
     return ratio;
     }
 
-  ///\brief how far below the top edge the head-up readouts sit
+  ///\brief the line the head-up readouts stand on, which they grow upwards from
+  ///\detail the game's own weapon panels begin about a third of the way down, and the space above
+  /// them is empty - so the readouts are hung from a line just above where those panels start, and
+  /// rise as far as they need. Anchoring them by the bottom is what keeps them there whether they
+  /// carry two lines or eight
   [[nodiscard]]
-  auto hud_top() noexcept -> float
+  auto hud_bottom(ImVec2 display) noexcept -> float
     {
-    static float const top{env_float("EHT_OVERLAY_HUD_TOP", 100.f)};
-    return top;
+    static float const told{env_float("EHT_OVERLAY_HUD_BOTTOM", 0.f)};
+    return told > 0.f ? told : display.y * 0.33f;
     }
 
   ///\brief half the corridor left clear down the middle, where the fighting happens
+  ///\detail measured off the game's interface rather than chosen: SECONDARY and PRIMARY sit about a
+  /// quarter of the middle screen's width either side of its centre, so the readouts stand over them
   [[nodiscard]]
-  auto hud_gap() noexcept -> float
+  auto hud_gap(ImVec2 display) noexcept -> float
     {
-    static float const gap{env_float("EHT_OVERLAY_HUD_GAP", 400.f)};
-    return gap;
+    static float const told{env_float("EHT_OVERLAY_HUD_GAP", 0.f)};
+    return told > 0.f ? told : centre_screen_width(display) * 0.245f;
     }
 
   ///\brief on wide screens the middle belongs to the game; the overlay lives in the side bands
@@ -176,10 +182,12 @@ namespace
       case bottom_left:  return {ImVec2{corner_margin, display.y - corner_margin}, ImVec2{0.f, 1.f}};
       case bottom_right: return {ImVec2{display.x - corner_margin, display.y - corner_margin}, ImVec2{1.f, 1.f}};
 
-      // both grow away from the middle, so the corridor between them stays the width it was set to
-      // however much text arrives
-      case centre_top_left:  return {ImVec2{display.x * 0.5f - hud_gap(), hud_top()}, ImVec2{1.f, 0.f}};
-      case centre_top_right: return {ImVec2{display.x * 0.5f + hud_gap(), hud_top()}, ImVec2{0.f, 0.f}};
+      // both stand on the same line and grow upwards and outwards from it, so the corridor between
+      // them keeps its width and the weapon panels below keep their room however much text arrives
+      case centre_top_left:
+        return {ImVec2{display.x * 0.5f - hud_gap(display), hud_bottom(display)}, ImVec2{1.f, 1.f}};
+      case centre_top_right:
+        return {ImVec2{display.x * 0.5f + hud_gap(display), hud_bottom(display)}, ImVec2{0.f, 1.f}};
       }
     return {ImVec2{corner_margin, corner_margin}, ImVec2{0.f, 0.f}};
     }
