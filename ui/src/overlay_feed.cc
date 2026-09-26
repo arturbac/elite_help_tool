@@ -1119,13 +1119,18 @@ auto overlay_feed_t::build_settlement_lines(current_state_t const & state) const
       auto const left{std::chrono::duration_cast<std::chrono::seconds>(mission->expiry - now)};
       auto const count{mission->mission_count()};
 
+      // the game's own wording, which the journal hands over as LocalisedName - "Exterminate Cartel
+      // of HIP 83983 members" is what the player reads on the mission board, while the type behind
+      // it is a token meant for the game. The token is only a fallback for rows stored before the
+      // field was kept
+      std::string const what{
+        mission->description.empty() ? info::transform_mission_name(mission->type) : mission->description
+      };
+
       lines.push_back(
         overlay::line_t{
           .text = std::format(
-            "  {}{}  {}",
-            info::transform_mission_name(mission->type),
-            count > 1u ? std::format("  x{}", count) : std::string{},
-            format_remaining(left)
+            "  {}{}  {}", what, count > 1u ? std::format("  x{}", count) : std::string{}, format_remaining(left)
           ),
           .color = left < expiry_warning ? colour_expiring : colour
         }
