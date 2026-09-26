@@ -1071,18 +1071,18 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
             {
             std::optional<int64_t> carrier_oid{*res};
 
-            // znacznik wlasnego flotowca ustawia uzytkownik, odczyt cen nie ma prawa go zdjac
-            bool tracked{};
+            // Wiersz bierzemy w calosci z bazy i nadpisujemy tylko to, co niesie odczyt polki.
+            // update_carrier zapisuje wszystkie kolumny, wiec zbudowanie go od zera skasowaloby
+            // stan z CarrierStats - i znacznik wlasnego flotowca, ktory nalezy do uzytkownika
+            info::carrier_t carrier{};
             if(auto known{db_.load_carrier(fcmat.CarrierID)}; known and *known)
-              tracked = (*known)->tracked;
+              carrier = std::move(**known);
+            else
+              carrier.oid = carrier_oid.value_or(-1);
 
-            info::carrier_t carrier{
-              .oid = carrier_oid.value_or(-1),
-              .market_id = fcmat.MarketID,
-              .carrier_name = fcmat.CarrierName,
-              .carrier_id = fcmat.CarrierID,
-              .tracked = tracked
-            };
+            carrier.market_id = fcmat.MarketID;
+            carrier.carrier_name = fcmat.CarrierName;
+            carrier.carrier_id = fcmat.CarrierID;
             if(auto res{db_.update_carrier(carrier)}; not res)
               spdlog::error("failed to update carrier info for {}", fcmat.CarrierID);
             else
