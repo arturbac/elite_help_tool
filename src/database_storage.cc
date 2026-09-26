@@ -103,21 +103,19 @@ struct genus_t
 
   std::string genus;
   std::string species;
-  bool sampled;
   };
 
 [[nodiscard]]
 auto to_db_fromat(uint64_t ref_body_oid, events::genus_t const & v) noexcept -> sql_iface::genus_t
   {
-  return sql_iface::genus_t{
-    .ref_body_oid = ref_body_oid, .genus = v.Genus_Localised, .species = v.Species_Localised, .sampled = v.Sampled
-  };
+  return sql_iface::genus_t{.ref_body_oid = ref_body_oid, .genus = v.Genus_Localised, .species = v.Species_Localised};
   }
 
+///\brief Sampled zostaje puste - probka nalezy do postaci i przychodzi z genus_progress
 [[nodiscard]]
 auto to_native_fromat(sql_iface::genus_t const & v) noexcept -> events::genus_t
   {
-  return events::genus_t{.Genus_Localised = v.genus, .Species_Localised = v.species, .Sampled = v.sampled};
+  return events::genus_t{.Genus_Localised = v.genus, .Species_Localised = v.species, .Sampled = {}};
   }
 
 struct ring_t
@@ -188,8 +186,6 @@ struct planet_details_t
   bool tidal_lock;
   bool was_mapped;
   bool was_footfalled;
-  bool mapped;
-  bool footfalled;
   };
 
 [[nodiscard]]
@@ -216,12 +212,11 @@ auto to_db_fromat(uint64_t ref_body_oid, ::planet_details_t const & v) noexcept 
     .landable = v.landable,
     .tidal_lock = v.tidal_lock,
     .was_mapped = v.was_mapped,
-    .was_footfalled = v.was_footfalled,
-    .mapped = v.mapped,
-    .footfalled = v.footfalled
+    .was_footfalled = v.was_footfalled
   };
   }
 
+///\brief mapped i footfalled zostaja puste - to czyny postaci, przychodza z body_progress
 [[nodiscard]]
 auto to_native_fromat(sql_iface::planet_details_t const & v) noexcept -> ::planet_details_t
   {
@@ -246,8 +241,8 @@ auto to_native_fromat(sql_iface::planet_details_t const & v) noexcept -> ::plane
     .tidal_lock = v.tidal_lock,
     .was_mapped = v.was_mapped,
     .was_footfalled = v.was_footfalled,
-    .mapped = v.mapped,
-    .footfalled = v.footfalled
+    .mapped = {},
+    .footfalled = {}
   };
   }
 
@@ -347,7 +342,6 @@ struct star_system_t
   double loc_x;
   double loc_y;
   double loc_z;
-  bool fss_complete;
   std::string economy;
   std::string second_economy;
   std::string government;
@@ -367,7 +361,6 @@ auto to_db_fromat(::star_system_t const & system) noexcept -> sql_iface::star_sy
     .loc_x = system.system_location[0],
     .loc_y = system.system_location[1],
     .loc_z = system.system_location[2],
-    .fss_complete = system.fss_complete,
     .economy = system.economy,
     .second_economy = system.second_economy,
     .government = system.government,
@@ -386,7 +379,7 @@ auto to_native_fromat(sql_iface::star_system_t && system) noexcept -> ::star_sys
     .name = std::move(system.name),
     .star_type = std::move(system.star_type),
     .system_location = std::array{system.loc_x, system.loc_y, system.loc_z},
-    .fss_complete = system.fss_complete,
+    .fss_complete = {},
     .economy = std::move(system.economy),
     .second_economy = std::move(system.second_economy),
     .government = std::move(system.government),
@@ -394,6 +387,42 @@ auto to_native_fromat(sql_iface::star_system_t && system) noexcept -> ::star_sys
     .security = std::move(system.security),
     .controlling_faction = std::move(system.controlling_faction),
     .population = system.population
+  };
+  }
+
+///\brief frakcja bez reputacji - ta jest osobista i siedzi w bazie glownej
+struct faction_info_t
+  {
+  int64_t oid{-1};
+  std::string name;
+  info::government_e government;
+  info::allegiance_e allegiance;
+  info::happiness_e happiness;
+  };
+
+[[nodiscard]]
+auto to_db_fromat(info::faction_info_t const & v) noexcept -> sql_iface::faction_info_t
+  {
+  return sql_iface::faction_info_t{
+    .oid = v.oid,
+    .name = v.name,
+    .government = v.government,
+    .allegiance = v.allegiance,
+    .happiness = v.happiness
+  };
+  }
+
+///\brief reputacja zostaje zerowa - dopelnia ja odczyt z faction_reputation
+[[nodiscard]]
+auto to_native_fromat(sql_iface::faction_info_t && v) noexcept -> info::faction_info_t
+  {
+  return info::faction_info_t{
+    .name = std::move(v.name),
+    .oid = v.oid,
+    .reputation = {},
+    .government = v.government,
+    .allegiance = v.allegiance,
+    .happiness = v.happiness
   };
   }
 
@@ -422,26 +451,31 @@ auto to_db_fromat(int64_t ref_fc, std::chrono::sys_seconds timestamp, events::fc
   
 namespace tables
   {
-  inline constexpr std::string_view star_system{"star_system"};
-  inline constexpr std::string_view bary_centre{"bary_centre"};
-  inline constexpr std::string_view star_details{"star_details"};
-  inline constexpr std::string_view atmosphere_element{"atmosphere_element"};
-  inline constexpr std::string_view signal{"signal"};
-  inline constexpr std::string_view genus{"genus"};
-  inline constexpr std::string_view ring{"ring"};
-  inline constexpr std::string_view body{"body"};
-  inline constexpr std::string_view planet_details{"planet_details"};
-  inline constexpr std::string_view faction_info{"faction_info"};
-  inline constexpr std::string_view faction_influence{"faction_influence"};
-  inline constexpr std::string_view faction_presence{"faction_presence"};
-  inline constexpr std::string_view system_conflict{"system_conflict"};
-  inline constexpr std::string_view system_signal{"system_signal"};
-  // tozsamosc stacji odtworzymy z journali, wiec zostaje w bazie glownej
-  inline constexpr std::string_view station{"station"};
+  // fakty o galaktyce - te same dla kazdej postaci, wiec moga byc wspolne dla dwoch kont
+  inline constexpr std::string_view star_system{"galaxy.star_system"};
+  inline constexpr std::string_view bary_centre{"galaxy.bary_centre"};
+  inline constexpr std::string_view star_details{"galaxy.star_details"};
+  inline constexpr std::string_view atmosphere_element{"galaxy.atmosphere_element"};
+  inline constexpr std::string_view signal{"galaxy.signal"};
+  inline constexpr std::string_view genus{"galaxy.genus"};
+  inline constexpr std::string_view ring{"galaxy.ring"};
+  inline constexpr std::string_view body{"galaxy.body"};
+  inline constexpr std::string_view planet_details{"galaxy.planet_details"};
+  inline constexpr std::string_view faction_info{"galaxy.faction_info"};
+  inline constexpr std::string_view faction_influence{"galaxy.faction_influence"};
+  inline constexpr std::string_view faction_presence{"galaxy.faction_presence"};
+  inline constexpr std::string_view system_conflict{"galaxy.system_conflict"};
+  inline constexpr std::string_view system_signal{"galaxy.system_signal"};
+  inline constexpr std::string_view station{"galaxy.station"};
   // to czego nie da sie odtworzyc siedzi w osobnym pliku podpietym jako schemat live
   inline constexpr std::string_view market{"live.market"};
   inline constexpr std::string_view commodity{"live.commodity"};
   inline constexpr std::string_view market_item{"live.market_item"};
+  // co zrobila TA postac - zostaje w bazie osobistej, klucze naturalne zeby przezyly przebudowe galaxy
+  inline constexpr std::string_view system_progress{"system_progress"};
+  inline constexpr std::string_view body_progress{"body_progress"};
+  inline constexpr std::string_view genus_progress{"genus_progress"};
+  inline constexpr std::string_view faction_reputation{"faction_reputation"};
   inline constexpr std::string_view mission{"mission"};
   inline constexpr std::string_view mission_cargo{"mission_cargo"};
   inline constexpr std::string_view micro_resource{"live.micro_resource"};
@@ -928,6 +962,32 @@ static auto execute_query_no_result(sqlite3 * db, std::string_view query) -> exp
   spdlog::debug("[sql] {}", query);
   return {};
   }
+
+///\brief indeks na tabeli, ktora moze siedziec w podpietym schemacie
+///\detail w CREATE INDEX schemat stoi przy nazwie indeksu, a nie przy tabeli - podanie
+/// "galaxy.body" w obu miejscach to blad skladni, wiec nazwa rozchodzi sie tutaj
+[[nodiscard]]
+static auto create_index(
+  sqlite3 * db, std::string_view table, std::string_view columns, std::string_view suffix = "key", bool unique = false
+) -> expected_ec<void>
+  {
+  auto const dot{table.find('.')};
+  std::string_view const schema{dot == std::string_view::npos ? std::string_view{} : table.substr(0, dot + 1)};
+  std::string_view const bare{dot == std::string_view::npos ? table : table.substr(dot + 1)};
+
+  return execute_query_no_result(
+    db,
+    std::format(
+      "CREATE {}INDEX IF NOT EXISTS {}{}_{} ON {} ({});",
+      unique ? "UNIQUE " : "",
+      schema,
+      bare,
+      suffix,
+      bare,
+      columns
+    )
+  );
+  }
   }  // namespace sqlite
 
 struct sqlite3_handle_t
@@ -958,10 +1018,12 @@ database_storage_t::database_storage_t(std::string_view db_path) :
     db_path_{db_path},
     db_{std::make_unique<sqlite3_handle_t>()}
   {
-  // plik z danymi zbieranymi na zywo lezy obok bazy glownej i zyje wlasnym zyciem
-  std::filesystem::path live_path{db_path};
-  live_path.replace_filename("live.sqlite");
-  live_db_path_ = live_path.string();
+  // pliki poboczne leza obok bazy glownej i kazdy zyje wlasnym zyciem
+  std::filesystem::path sibling{db_path};
+  sibling.replace_filename("live.sqlite");
+  live_db_path_ = sibling.string();
+  sibling.replace_filename("galaxy.sqlite");
+  galaxy_db_path_ = sibling.string();
   }
 
 database_storage_t::~database_storage_t() { close(); }
@@ -976,14 +1038,16 @@ auto database_storage_t::open(storage_mode_e mode) -> expected_ec<void>
   // czytanie z gui i zapis z watku sledzacego to osobne polaczenia, czekamy zamiast dostac SQLITE_BUSY
   sqlite3_busy_timeout(db_->db, 3000);
 
-  // dane zbierane na zywo w osobnym pliku - ATTACH zaklada go gdy nie istnieje
-  if(
-    auto res{sqlite::execute_query_no_result(
-      db_->db, std::format("ATTACH DATABASE '{}' AS live;", sqlite::escape_sql_quotes(live_db_path_))
-    )};
-    not res
-  ) [[unlikely]]
-    return res;
+  // dane zbierane na zywo i wiedza o galaktyce w osobnych plikach - ATTACH zaklada je gdy nie istnieja
+  for(auto const & [schema, path]:
+      {std::pair{"live"sv, std::cref(live_db_path_)}, std::pair{"galaxy"sv, std::cref(galaxy_db_path_)}})
+    if(
+      auto res{sqlite::execute_query_no_result(
+        db_->db, std::format("ATTACH DATABASE '{}' AS {};", sqlite::escape_sql_quotes(path.get()), schema)
+      )};
+      not res
+    ) [[unlikely]]
+      return res;
 
   if(mode == storage_mode_e::bulk_import)
     {
@@ -1005,7 +1069,8 @@ auto database_storage_t::open(storage_mode_e mode) -> expected_ec<void>
     // gui, okna narzedziowe i overlay czytaja z osobnych polaczen w trakcie zapisu z watku journala.
     // w dzienniku rollback taki czytelnik czeka na pisarza i po busy_timeout dostaje "database is
     // locked"; w WAL nie czeka wcale, bo czyta ostatni spojny obraz obok trwajacego zapisu
-    for(std::string_view pragma: {"PRAGMA journal_mode = WAL;"sv, "PRAGMA live.journal_mode = WAL;"sv})
+    for(std::string_view pragma:
+        {"PRAGMA journal_mode = WAL;"sv, "PRAGMA live.journal_mode = WAL;"sv, "PRAGMA galaxy.journal_mode = WAL;"sv})
       if(auto res{sqlite::execute_query_no_result(db_->db, pragma)}; not res) [[unlikely]]
         return res;
     }
@@ -1091,8 +1156,10 @@ auto database_storage_t::create_database() -> expected_ec<void>
      not res) [[unlikely]]
     return res;
 
-  if(auto res{sqlite::create_table<info::faction_info_t>(db_->db, "oid"sv, sql_iface::tables::faction_info)}; not res)
-    [[unlikely]]
+  if(
+    auto res{sqlite::create_table<sql_iface::faction_info_t>(db_->db, "oid"sv, sql_iface::tables::faction_info)};
+    not res
+  ) [[unlikely]]
     return res;
 
   if(
@@ -1160,21 +1227,12 @@ auto database_storage_t::create_database() -> expected_ec<void>
     return res;
 
   // wyszukiwanie frakcji po nazwie i ostatniego wpisu influence idzie przy kazdym odwiedzonym systemie
-  if(
-    auto res{sqlite::execute_query_no_result(
-      db_->db, std::format("CREATE INDEX IF NOT EXISTS {0}_name ON {0} (name);", sql_iface::tables::faction_info)
-    )};
-    not res
-  ) [[unlikely]]
+  if(auto res{sqlite::create_index(db_->db, sql_iface::tables::faction_info, "name", "name")}; not res) [[unlikely]]
     return res;
 
   if(
-    auto res{sqlite::execute_query_no_result(
-      db_->db,
-      std::format(
-        "CREATE INDEX IF NOT EXISTS {0}_key ON {0} (faction_oid, system_address, timestamp);",
-        sql_iface::tables::faction_influence
-      )
+    auto res{sqlite::create_index(
+      db_->db, sql_iface::tables::faction_influence, "faction_oid, system_address, timestamp"
     )};
     not res
   ) [[unlikely]]
@@ -1188,56 +1246,72 @@ auto database_storage_t::create_database() -> expected_ec<void>
 
   // klucz musi byc unikalny, bo upsert obecnosci opiera sie na ON CONFLICT
   if(
-    auto res{sqlite::execute_query_no_result(
-      db_->db,
-      std::format(
-        "CREATE UNIQUE INDEX IF NOT EXISTS {0}_key ON {0} (faction_oid, system_address);",
-        sql_iface::tables::faction_presence
-      )
-    )};
+    auto res{
+      sqlite::create_index(db_->db, sql_iface::tables::faction_presence, "faction_oid, system_address", "key", true)
+    };
     not res
   ) [[unlikely]]
     return res;
 
   if(
-    auto res{sqlite::execute_query_no_result(
-      db_->db,
-      std::format(
-        "CREATE INDEX IF NOT EXISTS {0}_key ON {0} (system_address, faction1, faction2, timestamp);",
-        sql_iface::tables::system_conflict
-      )
+    auto res{sqlite::create_index(
+      db_->db, sql_iface::tables::system_conflict, "system_address, faction1, faction2, timestamp"
     )};
     not res
   ) [[unlikely]]
     return res;
 
   // ten sam sygnal wraca przy kazdym skanie fss, wiec kazdy trafia najpierw w sprawdzenie
+  if(auto res{sqlite::create_index(db_->db, sql_iface::tables::system_signal, "system_address, name")}; not res)
+    [[unlikely]]
+    return res;
+
+  if(auto res{sqlite::create_index(db_->db, sql_iface::tables::market_item, "market_id")}; not res) [[unlikely]]
+    return res;
+
   if(
-    auto res{sqlite::execute_query_no_result(
-      db_->db,
-      std::format(
-        "CREATE INDEX IF NOT EXISTS {0}_key ON {0} (system_address, name);", sql_iface::tables::system_signal
-      )
+    auto res{sqlite::create_index(
+      db_->db, sql_iface::tables::carrier_materials, "carrier_id, material_id, timestamp"
     )};
     not res
   ) [[unlikely]]
     return res;
 
+  // postep tej postaci - osobny od wiedzy o galaktyce, wiec w bazie glownej
   if(
-    auto res{sqlite::execute_query_no_result(
-      db_->db,
-      // w CREATE INDEX schemat stoi przy nazwie indeksu, a nie przy tabeli
-      std::string{"CREATE INDEX IF NOT EXISTS live.market_item_key ON market_item (market_id);"}
-    )};
+    auto res{
+      sqlite::create_table<info::system_progress_t>(db_->db, "system_address"sv, sql_iface::tables::system_progress)
+    };
+    not res
+  ) [[unlikely]]
+    return res;
+
+  if(auto res{sqlite::create_table<info::body_progress_t>(db_->db, "oid"sv, sql_iface::tables::body_progress)};
+     not res) [[unlikely]]
+    return res;
+
+  if(auto res{sqlite::create_table<info::genus_progress_t>(db_->db, "oid"sv, sql_iface::tables::genus_progress)};
+     not res) [[unlikely]]
+    return res;
+
+  if(
+    auto res{
+      sqlite::create_table<info::faction_reputation_t>(db_->db, "faction"sv, sql_iface::tables::faction_reputation)
+    };
+    not res
+  ) [[unlikely]]
+    return res;
+
+  // upsert postepu opiera sie na ON CONFLICT, wiec klucze musza byc unikalne
+  if(
+    auto res{sqlite::create_index(db_->db, sql_iface::tables::body_progress, "system_address, body_id", "key", true)};
     not res
   ) [[unlikely]]
     return res;
 
   if(
-    auto res{sqlite::execute_query_no_result(
-      db_->db,
-      std::string{"CREATE INDEX IF NOT EXISTS live.carrier_materials_key ON carrier_materials "
-                  "(carrier_id, material_id, timestamp);"}
+    auto res{sqlite::create_index(
+      db_->db, sql_iface::tables::genus_progress, "system_address, body_id, genus", "key", true
     )};
     not res
   ) [[unlikely]]
@@ -1245,13 +1319,7 @@ auto database_storage_t::create_database() -> expected_ec<void>
 
   // kazda zdobycz sprawdza czy juz ja znamy, a jest ich sto kilkadziesiat tysiecy
   if(
-    auto res{sqlite::execute_query_no_result(
-      db_->db,
-      std::format(
-        "CREATE INDEX IF NOT EXISTS {0}_key ON {0} (timestamp, market_id, name);",
-        sql_iface::tables::micro_acquisition
-      )
-    )};
+    auto res{sqlite::create_index(db_->db, sql_iface::tables::micro_acquisition, "timestamp, market_id, name")};
     not res
   ) [[unlikely]]
     return res;
@@ -1556,6 +1624,10 @@ auto database_storage_t::store(star_system_t const & system) -> expected_ec<void
   if(auto res{sqlite::insert_into(db_->db, "oid"sv, sql_iface::tables::star_system, sql_iface::to_db_fromat(system))};
      not res) [[unlikely]]
     return res;
+
+  if(system.fss_complete)
+    if(auto res{store_fss_complete(system.system_address)}; not res) [[unlikely]]
+      return res;
   // auto const star_system_oid{sqlite3_last_insert_rowid(db_->db)};
   for(bary_centre_t const & bc: system.bary_centre)
     if(auto res{store(system.system_address, bc)}; not res) [[unlikely]]
@@ -1569,9 +1641,13 @@ auto database_storage_t::store(star_system_t const & system) -> expected_ec<void
 
 auto database_storage_t::store_fss_complete(uint64_t system_address) -> expected_ec<void>
   {
-  std::string query{
-    std::format("UPDATE {} SET fss_complete=1  WHERE system_address={}", sql_iface::tables::star_system, system_address)
-  };
+  // skan nalezy do postaci, nie do systemu - dlatego osobna tabela w bazie glownej
+  std::string query{std::format(
+    "INSERT INTO {0} (system_address, fss_complete) VALUES ({1}, 1)"
+    " ON CONFLICT(system_address) DO UPDATE SET fss_complete = 1",
+    sql_iface::tables::system_progress,
+    system_address
+  )};
   return sqlite::execute_query_no_result(db_->db, query);
   }
 
@@ -1614,6 +1690,11 @@ auto database_storage_t::store(uint64_t system_address, body_t const & value) ->
        not res)
       return cxx23::unexpected{res.error()};
 
+    // stan z pamieci moze juz nosic slad mapowania - ten nalezy do postaci, nie do ciala
+    if(pd.mapped)
+      if(auto res{store_dss_complete(system_address, value.body_id)}; not res)
+        return cxx23::unexpected{res.error()};
+
     for(events::signal_t const & sig: pd.signals_)
       if(auto res{store(body_oid, sig)}; not res)
         return cxx23::unexpected{res.error()};
@@ -1643,13 +1724,14 @@ auto database_storage_t::store(uint64_t system_address, body_t const & value) ->
 
 auto database_storage_t::store_dss_complete(uint64_t system_address, events::body_id_t body_id) -> expected_ec<void>
   {
-  auto oidres{oid_for_body(system_address, body_id)};
-  if(not oidres)
-    return cxx23::unexpected{oidres.error()};
-  std::optional<uint64_t> boid_oid{*oidres};
-  std::string query{
-    std::format("UPDATE {} SET mapped=1  WHERE ref_body_oid={}", sql_iface::tables::planet_details, *boid_oid)
-  };
+  // klucz to system i numer ciala z gry, a nie oid - ten zmienia sie przy kazdej przebudowie galaxy
+  std::string query{std::format(
+    "INSERT INTO {0} (system_address, body_id, mapped, footfalled) VALUES ({1}, {2}, 1, 0)"
+    " ON CONFLICT(system_address, body_id) DO UPDATE SET mapped = 1",
+    sql_iface::tables::body_progress,
+    system_address,
+    body_id
+  )};
   return sqlite::execute_query_no_result(db_->db, query);
   }
 
@@ -1694,16 +1776,30 @@ auto database_storage_t::store_genus_species(
   if(not *body_oid)
     return {};
 
-  // znacznika probki nigdy nie zdejmujemy - kolejny Log tego samego rodzaju nie cofa pobrania
+  // gatunek rosnie tam niezaleznie od tego, kto go probkowal
   std::string query{std::format(
-    "UPDATE {} SET species='{}'{} WHERE ref_body_oid={} AND genus='{}'",
+    "UPDATE {} SET species='{}' WHERE ref_body_oid={} AND genus='{}'",
     sql_iface::tables::genus,
     sqlite::escape_sql_quotes(species),
-    sampled ? ", sampled=1" : "",
     **body_oid,
     sqlite::escape_sql_quotes(genus)
   )};
-  return sqlite::execute_query_no_result(db_->db, query);
+  if(auto res{sqlite::execute_query_no_result(db_->db, query)}; not res) [[unlikely]]
+    return res;
+
+  if(not sampled)
+    return {};
+
+  // znacznika probki nigdy nie zdejmujemy - kolejny Log tego samego rodzaju nie cofa pobrania
+  std::string progress{std::format(
+    "INSERT INTO {0} (system_address, body_id, genus, sampled) VALUES ({1}, {2}, '{3}', 1)"
+    " ON CONFLICT(system_address, body_id, genus) DO UPDATE SET sampled = 1",
+    sql_iface::tables::genus_progress,
+    system_address,
+    body_id,
+    sqlite::escape_sql_quotes(genus)
+  )};
+  return sqlite::execute_query_no_result(db_->db, progress);
   }
 
 auto database_storage_t::store(uint64_t system_address, ring_t const & value) -> expected_ec<void>
@@ -1781,7 +1877,7 @@ auto database_storage_t::faction_oid(std::string_view name) -> expected_ec<std::
 [[nodiscard]]
 auto database_storage_t::load_faction(std::string_view name) -> expected_ec<std::optional<info::faction_info_t>>
   {
-  auto res{sqlite::select_from<info::faction_info_t>(
+  auto res{sqlite::select_from<sql_iface::faction_info_t>(
     db_->db, sql_iface::tables::faction_info, std::format(" WHERE name='{}'", sqlite::escape_sql_quotes(name))
   )};
   if(not res) [[unlikely]]
@@ -1790,7 +1886,16 @@ auto database_storage_t::load_faction(std::string_view name) -> expected_ec<std:
     {
     if(res->size() != 1) [[unlikely]]
       spdlog::error("multiple faction records for {}", name);
-    return std::move(res->front());
+
+    info::faction_info_t faction{sql_iface::to_native_fromat(std::move(res->front()))};
+    auto rep{sqlite::select_from<info::faction_reputation_t>(
+      db_->db, sql_iface::tables::faction_reputation, std::format(" WHERE faction='{}'", sqlite::escape_sql_quotes(name))
+    )};
+    if(not rep) [[unlikely]]
+      return cxx23::unexpected{rep.error()};
+    if(not rep->empty())
+      faction.reputation = rep->front().reputation;
+    return faction;
     }
   return {};
   }
@@ -2204,15 +2309,48 @@ auto database_storage_t::load_systems_with_influence() -> expected_ec<std::vecto
 
 auto database_storage_t::load_factions() -> expected_ec<std::vector<info::faction_info_t>>
   {
-  return sqlite::select_from<info::faction_info_t>(db_->db, sql_iface::tables::faction_info, {});
+  auto res{sqlite::select_from<sql_iface::faction_info_t>(db_->db, sql_iface::tables::faction_info, {})};
+  if(not res) [[unlikely]]
+    return cxx23::unexpected{res.error()};
+
+  // reputacja jest osobista, wiec dochodzi z bazy glownej, a nie ze wspolnej wiedzy o frakcjach
+  auto reputations{sqlite::select_from<info::faction_reputation_t>(db_->db, sql_iface::tables::faction_reputation, {})};
+  if(not reputations) [[unlikely]]
+    return cxx23::unexpected{reputations.error()};
+
+  std::map<std::string, double, std::less<>> known;
+  for(info::faction_reputation_t & entry: *reputations)
+    known.emplace(std::move(entry.faction), entry.reputation);
+
+  std::vector<info::faction_info_t> factions;
+  factions.reserve(res->size());
+  for(sql_iface::faction_info_t & row: *res)
+    {
+    factions.emplace_back(sql_iface::to_native_fromat(std::move(row)));
+    if(auto const it{known.find(factions.back().name)}; it != known.end())
+      factions.back().reputation = it->second;
+    }
+  return factions;
   }
 
 auto database_storage_t::update_faction_info(info::faction_info_t const & faction) -> expected_ec<void>
   {
+  // reputacja idzie do bazy osobistej, reszta do wspolnej - nazwa laczy jedno z drugim
+  std::string reputation{std::format(
+    "INSERT INTO {0} (faction, reputation) VALUES ('{1}', {2})"
+    " ON CONFLICT(faction) DO UPDATE SET reputation = excluded.reputation",
+    sql_iface::tables::faction_reputation,
+    sqlite::escape_sql_quotes(faction.name),
+    faction.reputation
+  )};
+  if(auto res{sqlite::execute_query_no_result(db_->db, reputation)}; not res) [[unlikely]]
+    return res;
+
+  auto const row{sql_iface::to_db_fromat(faction)};
   if(faction.oid != -1)
-    return sqlite::update_pk(db_->db, "oid"sv, sql_iface::tables::faction_info, faction, faction.oid);
+    return sqlite::update_pk(db_->db, "oid"sv, sql_iface::tables::faction_info, row, faction.oid);
   else
-    return sqlite::insert_into(db_->db, "oid"sv, sql_iface::tables::faction_info, faction);
+    return sqlite::insert_into(db_->db, "oid"sv, sql_iface::tables::faction_info, row);
   }
 
 auto database_storage_t::load_carrier(std::string_view carrier_id) -> expected_ec<std::optional<info::carrier_t>>
@@ -2367,6 +2505,27 @@ auto database_storage_t::load_system(uint64_t system_address)
     assert(res->size() == 1);
     star_system_t system{to_native_fromat(std::move((*res)[0]))};
 
+    // postep tej postaci dochodzi osobno - galaxy nie wie, kto co zeskanowal
+    if(auto progress{sqlite::select_from<info::system_progress_t>(
+         db_->db, sql_iface::tables::system_progress, std::format(" WHERE system_address={}", system_address)
+       )};
+       progress)
+      system.fss_complete = not progress->empty() and progress->front().fss_complete;
+    else [[unlikely]]
+      return cxx23::unexpected{progress.error()};
+
+    auto mapped{sqlite::select_from<info::body_progress_t>(
+      db_->db, sql_iface::tables::body_progress, std::format(" WHERE system_address={}", system_address)
+    )};
+    if(not mapped) [[unlikely]]
+      return cxx23::unexpected{mapped.error()};
+
+    auto sampled{sqlite::select_from<info::genus_progress_t>(
+      db_->db, sql_iface::tables::genus_progress, std::format(" WHERE system_address={}", system_address)
+    )};
+    if(not sampled) [[unlikely]]
+      return cxx23::unexpected{sampled.error()};
+
     if(auto signals{load_system_signals(system_address)}; signals)
       system.system_signals = std::move(*signals);
     else [[unlikely]]
@@ -2396,6 +2555,13 @@ auto database_storage_t::load_system(uint64_t system_address)
           out_body.details = sql_iface::to_native_fromat((*res3)[0]);
           planet_details_t & details{std::get<planet_details_t>(out_body.details)};
 
+          if(auto it{std::ranges::find(*mapped, out_body.body_id, &info::body_progress_t::body_id)};
+             it != mapped->end())
+            {
+            details.mapped = it->mapped;
+            details.footfalled = it->footfalled;
+            }
+
             {
             auto res4{sqlite::select_from<sql_iface::signal_t>(
               db_->db, sql_iface::tables::signal, std::format(" WHERE ref_body_oid='{}'", body.oid)
@@ -2420,7 +2586,17 @@ auto database_storage_t::load_system(uint64_t system_address)
               std::ranges::transform(
                 *res4,
                 std::back_inserter(details.genuses_),
-                [](sql_iface::genus_t & sig) -> events::genus_t { return sql_iface::to_native_fromat(std::move(sig)); }
+                [&sampled, id = out_body.body_id](sql_iface::genus_t & sig) -> events::genus_t
+                {
+                  events::genus_t gen{sql_iface::to_native_fromat(std::move(sig))};
+                  auto const it{std::ranges::find_if(
+                    *sampled,
+                    [&](info::genus_progress_t const & pr)
+                    { return pr.body_id == id and pr.genus == gen.Genus_Localised; }
+                  )};
+                  gen.Sampled = it != sampled->end() and it->sampled;
+                  return gen;
+                }
               );
             }
           }

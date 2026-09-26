@@ -58,6 +58,42 @@ consteval auto adl_enum_bounds(happiness_e)
   return simple_enum::adl_info{unknown, despondent};
   }
 
+///\brief co TA postac zrobila w galaktyce - tego nie wolno dzielic miedzy konta
+///\detail swiat jest wspolny, ale skan i mapowanie nalezy do konkretnego commandera. pokazanie
+/// jednej postaci, ze cos zmapowala, gdy zrobila to druga, prowadzi wprost do zlej decyzji przy
+/// planowaniu lotu - dlatego te tabele zostaja w bazie osobistej i kluczuja sie naturalnie,
+/// nazwami i numerami z gry, a nie oid-ami, ktore zmieniaja sie przy kazdej przebudowie galaxy
+struct system_progress_t
+  {
+  uint64_t system_address;
+  bool fss_complete;
+  };
+
+struct body_progress_t
+  {
+  int64_t oid{-1};
+  uint64_t system_address;
+  uint32_t body_id;
+  bool mapped;
+  bool footfalled;
+  };
+
+struct genus_progress_t
+  {
+  int64_t oid{-1};
+  uint64_t system_address;
+  uint32_t body_id;
+  std::string genus;
+  bool sampled;
+  };
+
+///\brief reputacja jest osobista, a frakcja wspolna - dlatego kluczem jest nazwa, nie oid frakcji
+struct faction_reputation_t
+  {
+  std::string faction;
+  double reputation;
+  };
+
 struct faction_info_t
   {
   std::string name;

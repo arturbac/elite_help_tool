@@ -36,6 +36,11 @@ struct database_storage_t
   /// journali nie da sie ich odtworzyc; przebudowa bazy glownej ich nie rusza, a journal_tailer
   /// zaklada ten plik tylko gdy go nie ma
   std::string live_db_path_;
+  ///\brief fakty o galaktyce, wspolne dla wszystkich postaci - systemy, ciala, stacje, frakcje
+  ///\detail odtwarzalne z journali dowolnej postaci, bo opisuja swiat a nie gracza. dzieki temu
+  /// dwa konta moga wskazywac ten sam plik i dzielic wiedze o Bubble, zachowujac wlasne misje,
+  /// reputacje i postep skanowania w bazie glownej
+  std::string galaxy_db_path_;
   std::unique_ptr<sqlite3_handle_t> db_;
 
   explicit database_storage_t(std::string_view db_path);

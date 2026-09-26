@@ -609,12 +609,12 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
         info::mission_t mission{
           .mission_id = event.MissionID,
           .status = info::mission_status_e::accepted,
-          .market_id = state.settlement_market_id,
           .expiry = event.Expiry,
           .faction = event.Faction,
           .type = event.Name,
           .description = event.LocalisedName,
           .reward = event.Reward,
+          .market_id = state.settlement_market_id,
           .target = event.Target,
           .target_type = event.TargetType_Localised,
           .target_faction = event.TargetFaction,
