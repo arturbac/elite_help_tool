@@ -455,6 +455,18 @@ struct bgs_effort_t
   /// i nie wolno jej dopowiadac
   std::optional<double> influence_before;
   std::optional<double> influence_after;
+
+  ///\brief cala praca w gore wlozona tej doby w ten system, po wszystkich frakcjach razem
+  ///
+  /// Wplyw jest udzialem procentowym, wiec frakcje pchane tego samego dnia dziela miedzy siebie
+  /// jedna pule: +30 dla jednej i +10 dla drugiej to 75% i 25% tego samego przyrostu, a nie dwa
+  /// niezalezne wyniki. Liczenie przelicznika osobno dla kazdej frakcji zawyza go tym bardziej,
+  /// im wiecej frakcji robiono naraz - dlatego koszt punktu jest wielkoscia systemu, nie frakcji
+  int32_t system_pushed_up;
+  ///\brief laczny przyrost wplywow frakcji pchanych tej doby w gore, w punktach procentowych.
+  /// Puste takze wtedy, gdy ktorejkolwiek z nich brakuje odczytu - podzial musi obejmowac calosc
+  /// albo nie ma go wcale
+  std::optional<double> system_gain;
   };
 
 ///\brief jak pozno po zapowiedzi wojna naprawde ruszyla

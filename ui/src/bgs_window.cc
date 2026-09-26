@@ -34,17 +34,23 @@ auto bgs_effort_model_t::data(QModelIndex const & index, int role) const -> QVar
   info::bgs_effort_t const & row{rows_[size_t(index.row())]};
   auto const column{column_e(index.column())};
 
-  // przelicznik ma sens tylko gdy praca szla w gore i wplyw naprawde sie ruszyl
+  // Koszt punktu jest wielkoscia systemu i doby, nie frakcji: procenty sumuja sie do stu, wiec
+  // frakcje pchane tego samego dnia dziela miedzy siebie jeden przyrost
   auto const rate = [&]() -> std::optional<double>
   {
-    if(not row.influence_before or not row.influence_after or row.pushed_up <= 0)
+    if(not row.system_gain or row.system_pushed_up <= 0 or *row.system_gain < smallest_readable_move)
       return std::nullopt;
 
-    double const moved{*row.influence_after - *row.influence_before};
-    if(moved < smallest_readable_move)
+    return double(row.system_pushed_up) / *row.system_gain;
+  }();
+
+  ///\brief jaka czesc calej pracy w gore wlozonej tej doby w ten system poszla na te frakcje
+  auto const share = [&]() -> std::optional<double>
+  {
+    if(row.pushed_up <= 0 or row.system_pushed_up <= 0)
       return std::nullopt;
 
-    return double(row.pushed_up) / moved;
+    return 100.0 * double(row.pushed_up) / double(row.system_pushed_up);
   }();
 
   if(role == Qt::DisplayRole)
@@ -61,6 +67,8 @@ auto bgs_effort_model_t::data(QModelIndex const & index, int role) const -> QVar
       case column_e::missions:    return row.missions;
       case column_e::pushed_up:   return row.pushed_up != 0 ? QVariant{row.pushed_up} : QVariant{QString{"-"}};
       case column_e::pushed_down: return row.pushed_down != 0 ? QVariant{row.pushed_down} : QVariant{QString{"-"}};
+      case column_e::share:
+        return share ? QString::fromStdString(std::format("{:.0f}%", *share)) : QString{"-"};
       case column_e::influence:
         if(not row.influence_before or not row.influence_after)
           return QString{"-"};
@@ -79,6 +87,7 @@ auto bgs_effort_model_t::data(QModelIndex const & index, int role) const -> QVar
       case column_e::missions:    return row.missions;
       case column_e::pushed_up:   return row.pushed_up;
       case column_e::pushed_down: return row.pushed_down;
+      case column_e::share:       return share ? *share : 0.0;
       case column_e::influence:
         return row.influence_before and row.influence_after ? *row.influence_after - *row.influence_before : 0.0;
       case column_e::rate:        return rate ? *rate : 0.0;
@@ -87,9 +96,19 @@ auto bgs_effort_model_t::data(QModelIndex const & index, int role) const -> QVar
 
   if(role == Qt::ToolTipRole and column == column_e::rate)
     return QString{
-      "Plusow na jeden punkt procentowy w TYM systemie.\n"
+      "Plusow na jeden punkt procentowy w TYM systemie i TEJ dobie.\n"
+      "Liczone dla calego systemu, nie dla pojedynczej frakcji: wplywy sumuja sie\n"
+      "do stu procent, wiec frakcje pchane tego samego dnia dziela jeden przyrost,\n"
+      "a kolumna Udzial mowi, jaka czesc pracy poszla na ktora.\n"
       "Gra dzieli wplyw misji przez wielkosc systemu, wiec tej liczby\n"
       "nie wolno porownywac miedzy systemami o roznej populacji."
+    };
+
+  if(role == Qt::ToolTipRole and column == column_e::share)
+    return QString{
+      "Czesc calej pracy w gore wlozonej tej doby w ten system,\n"
+      "ktora poszla wlasnie na te frakcje. Przy +30 dla jednej\n"
+      "i +10 dla drugiej bedzie to 75% i 25% tego samego przyrostu."
     };
 
   if(role == Qt::TextAlignmentRole)
@@ -99,6 +118,7 @@ auto bgs_effort_model_t::data(QModelIndex const & index, int role) const -> QVar
       case column_e::missions:
       case column_e::pushed_up:
       case column_e::pushed_down:
+      case column_e::share:
       case column_e::rate:        return int(Qt::AlignRight | Qt::AlignVCenter);
       default:                    break;
       }
@@ -120,8 +140,9 @@ auto bgs_effort_model_t::headerData(int section, Qt::Orientation orientation, in
     case column_e::missions:    return QString{"Misje"};
     case column_e::pushed_up:   return QString{"W gore"};
     case column_e::pushed_down: return QString{"W dol"};
+    case column_e::share:       return QString{"Udzial"};
     case column_e::influence:   return QString{"Wplyw przed -> po"};
-    case column_e::rate:        return QString{"Plus/pp"};
+    case column_e::rate:        return QString{"Plus/pp systemu"};
     case column_e::column_max:  break;
     }
 

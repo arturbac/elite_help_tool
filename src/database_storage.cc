@@ -2517,7 +2517,9 @@ auto database_storage_t::load_bgs_effort(uint32_t within_days, uint64_t system_a
         .pushed_down = {},
         .missions = {},
         .influence_before = {},
-        .influence_after = {}
+        .influence_after = {},
+        .system_pushed_up = {},
+        .system_gain = {}
       };
 
     if(row.pluses > 0)
@@ -2554,6 +2556,41 @@ auto database_storage_t::load_bgs_effort(uint32_t within_days, uint64_t system_a
 
     result.push_back(std::move(bucket.effort));
     }
+
+  // Przyrost wplywow dzieli sie miedzy frakcje pchane tej samej doby w tym samym systemie, bo
+  // procenty sumuja sie do stu. Koszt punktu jest wiec wielkoscia systemu i doby, a nie frakcji;
+  // udzial pojedynczej frakcji wynika z tego, jaka czesc calej pracy w gore na nia poszla
+  struct pool_t
+    {
+    int32_t pushed_up;
+    double gain;
+    bool complete;
+    };
+  std::map<std::pair<uint64_t, sys_seconds>, pool_t> pools;
+
+  for(info::bgs_effort_t const & row: result)
+    {
+    if(row.pushed_up <= 0)
+      continue;
+
+    auto & pool{pools.try_emplace({row.system_address, row.closed_by}, pool_t{0, 0.0, true}).first->second};
+    pool.pushed_up += row.pushed_up;
+
+    // bez odczytu po obu stronach fali nie wiadomo, ile ta frakcja wziela z puli, a wtedy nie da
+    // sie uczciwie rozdzielic reszty - caly podzial tej doby przepada
+    if(not row.influence_before or not row.influence_after)
+      pool.complete = false;
+    else
+      pool.gain += *row.influence_after - *row.influence_before;
+    }
+
+  for(info::bgs_effort_t & row: result)
+    if(auto const found{pools.find({row.system_address, row.closed_by})}; found != pools.end())
+      {
+      row.system_pushed_up = found->second.pushed_up;
+      if(found->second.complete)
+        row.system_gain = found->second.gain;
+      }
 
   // najswiezsze doby na gorze, a w obrebie doby najwieksza praca pierwsza
   std::ranges::sort(

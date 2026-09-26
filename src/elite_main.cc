@@ -110,7 +110,7 @@ void print_bgs_effort(database_storage_t & db, uint32_t within_days)
 
   std::println("\n=== PRACA BGS === {} pozycji z ostatnich {} dni", effort->size(), within_days);
   std::println(
-    "{:<12}{:<24}{:>9}  {:<24}{:>5}{:>7}{:>7}{:>16}{:>9}",
+    "{:<12}{:<24}{:>9}  {:<24}{:>5}{:>7}{:>7}{:>8}{:>17}{:>12}",
     "zamknieta",
     "system",
     "populacja",
@@ -118,8 +118,9 @@ void print_bgs_effort(database_storage_t & db, uint32_t within_days)
     "msn",
     "w gore",
     "w dol",
+    "udzial",
     "wplyw przed/po",
-    "plus/pp"
+    "sys plus/pp"
   );
 
   for(info::bgs_effort_t const & row: *effort)
@@ -129,20 +130,23 @@ void print_bgs_effort(database_storage_t & db, uint32_t within_days)
     };
 
     std::string moved{"-"};
-    std::string rate{"-"};
     if(row.influence_before and row.influence_after)
-      {
-      double const delta{*row.influence_after - *row.influence_before};
       moved = std::format("{:.1f}->{:.1f}", *row.influence_before, *row.influence_after);
 
-      // Przy ruchu rzedu dziesiatych czesci punktu przelicznik mowi juz tylko o zaokragleniu -
-      // i o tym, co tej doby zrobili inni gracze, bo wplyw jest suma zerowa
-      if(delta >= 0.3 and row.pushed_up > 0)
-        rate = std::format("{:.1f}", double(row.pushed_up) / delta);
-      }
+    // jaka czesc calej pracy w gore wlozonej tej doby w ten system poszla wlasnie na te frakcje
+    std::string share{"-"};
+    if(row.pushed_up > 0 and row.system_pushed_up > 0)
+      share = std::format("{:.0f}%", 100.0 * double(row.pushed_up) / double(row.system_pushed_up));
+
+    // Koszt punktu jest wielkoscia systemu, nie frakcji - procenty sumuja sie do stu, wiec frakcje
+    // pchane tej samej doby dziela miedzy siebie jeden przyrost. Przy ruchu rzedu dziesiatych czesci
+    // punktu i tak mowi juz tylko o zaokragleniu oraz o tym, co zrobili inni gracze
+    std::string rate{"-"};
+    if(row.system_gain and *row.system_gain >= 0.3 and row.system_pushed_up > 0)
+      rate = std::format("{:.1f}", double(row.system_pushed_up) / *row.system_gain);
 
     std::println(
-      "{:<12}{:<24}{:>9}  {:<24}{:>5}{:>7}{:>7}{:>16}{:>9}",
+      "{:<12}{:<24}{:>9}  {:<24}{:>5}{:>7}{:>7}{:>8}{:>17}{:>12}",
       closed,
       row.system_name.substr(0, 23),
       info::format_population(row.population),
@@ -150,6 +154,7 @@ void print_bgs_effort(database_storage_t & db, uint32_t within_days)
       row.missions,
       row.pushed_up,
       row.pushed_down,
+      share,
       moved,
       rate
     );

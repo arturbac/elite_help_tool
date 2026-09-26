@@ -25,6 +25,7 @@ class bgs_effort_model_t final : public QAbstractTableModel
     missions,
     pushed_up,
     pushed_down,
+    share,
     influence,
     rate,
     column_max
