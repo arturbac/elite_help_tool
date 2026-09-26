@@ -2354,9 +2354,12 @@ auto database_storage_t::load_system_ticks(uint64_t system_address, info::tick_k
     db_->db,
     sql_iface::tables::tick_observation,
     std::format(
-      // ten sam prog szerokosci co przy falach - szerokie okno nie mowi o porze niczego
+      // Bez progu szerokosci, inaczej niz przy falach. Tam waskie okna sa potrzebne, bo chodzi
+      // o PORE przeliczenia i skladaja sie na nia obserwacje z wielu systemow. Tutaj pytanie jest
+      // inne - CZY i KIEDY mniej wiecej przeliczyl sie ten jeden system - a na to odpowiada takze
+      // okno kilkunastogodzinne. Przy odwiedzinach raz dziennie prog 3h odrzucal wszystko swieze
+      // i kazal pokazywac obserwacje sprzed tygodnia
       " WHERE kind='{0}' AND system_address={1}"
-      " AND (julianday(window_end) - julianday(window_begin)) * 24 <= 3"
       " AND window_end >="
       " (SELECT strftime('%Y-%m-%dT%H:%M:%SZ', max(window_end), '-{2} days') FROM {3} WHERE kind='{0}'){4}"
       " ORDER BY window_end DESC",

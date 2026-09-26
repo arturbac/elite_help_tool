@@ -1232,8 +1232,18 @@ auto describe_tick(
   if(not mine->empty())
     {
     auto const & last{mine->front()};
+
+    // Szerokosc okna musi byc widoczna, bo bez niej "13:51" wyglada jak pomiar, a bywa koncem
+    // osiemnastogodzinnego przedzialu - tick wypadl gdzies w nim, nie na jego brzegu
+    auto const width{
+      std::chrono::duration_cast<std::chrono::minutes>(last.window_end - last.window_begin).count() / 60.0
+    };
     view.here = std::format(
-      "{:%d.%m %H:%M}-{:%H:%M}, {} temu", last.window_begin, last.window_end, hours_ago(last.window_end, now)
+      "{:%d.%m %H:%M}-{:%H:%M} (okno {:.0f}h), {} temu",
+      last.window_begin,
+      last.window_end,
+      width,
+      hours_ago(last.window_end, now)
     );
     }
 
