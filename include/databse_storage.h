@@ -164,12 +164,15 @@ struct database_storage_t
   auto load_recent_ticks(info::tick_kind_e kind, uint32_t within_days)
     -> expected_ec<std::vector<info::tick_fact_t>>;
 
-  ///\brief przeliczenia zaobserwowane w jednym systemie, od najswiezszego
-  ///\detail sasiednie systemy przelicza sie o roznych porach, wiec to jest ta pora, ktora obowiazuje
-  /// przy oddawaniu misji akurat tutaj - globalna fala mowi tylko, w jakim zakresie szukac
+  ///\brief kiedy w tym systemie ostatnio zmienilo sie to, co przelicza tick
+  ///
+  /// Na pytanie "czy tu juz przeliczylo" odpowiada sama zmiana, bez zadnego bracketowania: wplyw
+  /// rusza sie wylacznie przy ticku, wiec data ostatniej zmiany JEST data ostatniego przeliczenia
+  /// widzianego w tym systemie. Okna sa potrzebne dopiero do ustalenia GODZINY fali galaktycznej,
+  /// bo tam chodzi o chwile, a nie o fakt
   [[nodiscard]]
-  auto load_system_ticks(uint64_t system_address, info::tick_kind_e kind, uint32_t within_days)
-    -> expected_ec<std::vector<info::tick_observation_t>>;
+  auto last_local_tick(uint64_t system_address, info::tick_kind_e kind)
+    -> expected_ec<std::optional<std::chrono::sys_seconds>>;
 
   ///\brief jak regularnie przeliczenie przychodzi - z tych samych fal, co load_recent_ticks
   [[nodiscard]]

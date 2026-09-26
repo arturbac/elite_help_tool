@@ -2347,29 +2347,24 @@ auto database_storage_t::load_recent_ticks(info::tick_kind_e kind, uint32_t with
   return facts;
   }
 
-auto database_storage_t::load_system_ticks(uint64_t system_address, info::tick_kind_e kind, uint32_t within_days)
-  -> expected_ec<std::vector<info::tick_observation_t>>
+auto database_storage_t::last_local_tick(uint64_t system_address, info::tick_kind_e kind)
+  -> expected_ec<std::optional<std::chrono::sys_seconds>>
   {
-  return sqlite::select_from<info::tick_observation_t>(
+  // wplywy zmieniaja sie przy ticku wplywow, dni wygrane przy ticku wojen - kazdy zegar ma wiec
+  // wlasna tabele i wlasna ostatnia zmiane
+  auto res{sqlite::select_signle_from<std::chrono::sys_seconds>(
     db_->db,
-    sql_iface::tables::tick_observation,
     std::format(
-      // Bez progu szerokosci, inaczej niz przy falach. Tam waskie okna sa potrzebne, bo chodzi
-      // o PORE przeliczenia i skladaja sie na nia obserwacje z wielu systemow. Tutaj pytanie jest
-      // inne - CZY i KIEDY mniej wiecej przeliczyl sie ten jeden system - a na to odpowiada takze
-      // okno kilkunastogodzinne. Przy odwiedzinach raz dziennie prog 3h odrzucal wszystko swieze
-      // i kazal pokazywac obserwacje sprzed tygodnia
-      " WHERE kind='{0}' AND system_address={1}"
-      " AND window_end >="
-      " (SELECT strftime('%Y-%m-%dT%H:%M:%SZ', max(window_end), '-{2} days') FROM {3} WHERE kind='{0}'){4}"
-      " ORDER BY window_end DESC",
-      simple_enum::enum_name(kind),
-      system_address,
-      within_days,
-      sql_iface::tables::tick_observation,
-      settled_colony_clause()
+      "SELECT timestamp FROM {} WHERE system_address={} ORDER BY timestamp DESC LIMIT 1",
+      kind == info::tick_kind_e::influence ? sql_iface::tables::faction_influence
+                                           : sql_iface::tables::system_conflict,
+      system_address
     )
-  );
+  )};
+  if(not res) [[unlikely]]
+    return cxx23::unexpected{res.error()};
+
+  return *res;
   }
 
 namespace

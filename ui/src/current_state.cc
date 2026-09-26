@@ -1221,7 +1221,7 @@ auto describe_tick(
   tick_view_t view{.here = "brak obserwacji", .galaxy = {}, .awaiting = false};
 
   auto waves{db.load_recent_ticks(kind, window_days)};
-  auto mine{db.load_system_ticks(system_address, kind, window_days)};
+  auto mine{db.last_local_tick(system_address, kind)};
   auto stats{db.load_tick_stats(kind, window_days)};
   if(not waves or not mine or not stats)
     {
@@ -1229,31 +1229,19 @@ auto describe_tick(
     return view;
     }
 
-  if(not mine->empty())
-    {
-    auto const & last{mine->front()};
-
-    // Szerokosc okna musi byc widoczna, bo bez niej "13:51" wyglada jak pomiar, a bywa koncem
-    // osiemnastogodzinnego przedzialu - tick wypadl gdzies w nim, nie na jego brzegu
-    auto const width{
-      std::chrono::duration_cast<std::chrono::minutes>(last.window_end - last.window_begin).count() / 60.0
-    };
-    view.here = std::format(
-      "{:%d.%m %H:%M}-{:%H:%M} (okno {:.0f}h), {} temu",
-      last.window_begin,
-      last.window_end,
-      width,
-      hours_ago(last.window_end, now)
-    );
-    }
+  // Data ostatniej zmiany, nie przedzial - to co sie przelicza rusza sie wylacznie przy ticku,
+  // wiec sama zmiana jest dowodem, ze tick tu byl. Widzimy ja z opoznieniem wlasnej wizyty,
+  // dlatego to "nie wczesniej niz", a nie "dokladnie wtedy"
+  if(*mine)
+    view.here = std::format("zmiana {:%d.%m %H:%M}, {} temu", **mine, hours_ago(**mine, now));
 
   if(not waves->empty())
     {
     auto const & wave{waves->front()};
 
-    // system przelicza sie wlasnym zegarem, wiec brak go w najswiezszej fali znaczy tylko tyle,
-    // ze jeszcze do niego nie doszla albo ze jeszcze tam nie zagladalismy
-    view.awaiting = mine->empty() or mine->front().window_end < wave.start_begin;
+    // System przelicza sie wlasnym zegarem, wiec brak zmiany od poczatku najswiezszej fali znaczy
+    // tyle, ze jeszcze do niego nie doszla albo ze jeszcze tam nie zagladalismy po ticku
+    view.awaiting = not *mine or **mine < wave.start_begin;
 
     std::string regularity{"za malo fal"};
     if(stats->waves > 2u)
