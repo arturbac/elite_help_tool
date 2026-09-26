@@ -462,7 +462,9 @@ auto system_window_t::update_labels() -> void
   {
   target_label_->setText(
     QString::fromStdString(
-      std::format("Next: {} [{}] {}", state_.next_target.Name, state_.next_target.StarClass, model_->bodies_.size())
+      state_.next_target.Name.empty()
+        ? std::format("Next: - {}", model_->bodies_.size())
+        : std::format("Next: {} [{}] {}", state_.next_target.Name, state_.next_target.StarClass, model_->bodies_.size())
     )
   );
   planet_value_e const value{exploration::system_approx_value(state_.system.star_type, state_.system.name)};

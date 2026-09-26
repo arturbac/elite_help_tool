@@ -284,6 +284,9 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           route_changed = true;
           current_system_address_ = system_address;
           route_system_visited(system_address);
+          // reaching the target ends it, whether or not a NavRouteClear comes to say so
+          if(next_target.SystemAddress == system_address)
+            next_target = {};
         };
 
         using T = std::decay_t<decltype(event)>;
@@ -1147,7 +1150,11 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
         else if constexpr(std::same_as<T, events::nav_route_clear_t>)
           {
           route_.clear();
+          // the target goes with the route: the game clears both on arrival, and a taxi flight writes no
+          // FSDTarget of its own, so a kept one would go on naming a system long since reached
+          next_target = {};
           route_changed = true;
+          update_system = true;
           }
         // The crosshairs and the fighter, both live only. None of this is written down: a target is
       // gone the moment it is let go, and seventy thousand of them a year would tell a database
