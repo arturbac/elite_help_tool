@@ -5,6 +5,7 @@
 #include <overlay_ipc.h>
 
 #include <chrono>
+#include <map>
 #include <memory>
 #include <span>
 #include <vector>
@@ -51,6 +52,9 @@ private:
   [[nodiscard]]
   auto build_settlement_lines(current_state_t const & state) const -> std::vector<overlay::line_t>;
 
+  ///\brief who holds the places the open missions point at - the journal does not say
+  auto refresh_mission_places(current_state_t const & state) -> void;
+
   ///\brief the next hops of both routes - a side band holds only what comes next, not the whole list
   [[nodiscard]]
   auto build_route_lines(current_state_t const & state, plotted_route_t const & plotted) const
@@ -81,6 +85,11 @@ private:
   std::string station_name_;
   std::string station_faction_;
   std::string station_type_;
+
+  ///\brief the faction holding each place a mission points at, keyed by system and name
+  std::map<std::pair<std::string, std::string>, std::string> place_owner_;
+  ///\brief what the open missions looked like when those owners were resolved
+  uint64_t missions_signature_{};
 
   std::chrono::steady_clock::time_point supply_loaded_{};
   ///\brief raw data, because the lines also depend on the hold, which changes more often than the database

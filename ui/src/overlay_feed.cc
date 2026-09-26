@@ -330,7 +330,10 @@ auto mission_wording(info::mission_t const & mission) -> std::string
 /// stop, its name joins the heading instead of repeating on every row. A redirected mission is done
 /// and waits only to be handed in, which is a different errand from the rest and carries a mark.
 [[nodiscard]]
-auto describe_missions(std::vector<info::mission_t> const & missions) -> std::vector<overlay::line_t>
+auto describe_missions(
+  std::vector<info::mission_t> const & missions,
+  std::map<std::pair<std::string, std::string>, std::string> const & owners
+) -> std::vector<overlay::line_t>
   {
   std::vector<info::mission_t const *> open;
   for(info::mission_t const & mission: missions)
@@ -357,6 +360,19 @@ auto describe_missions(std::vector<info::mission_t> const & missions) -> std::ve
            : (mission.destination_settlement.empty() ? mission.destination_station : mission.destination_settlement)
     };
     return {system, place};
+  };
+
+  // Who holds the place a mission points at. The journal does not say: "Kill Casey Sanders" comes
+  // with a settlement and a name and nothing else, yet the killing counts against the faction that
+  // holds the settlement - which is the whole reason for going, or for not going
+  auto const with_owner = [&owners, &destination](info::mission_t const & mission, std::string const & place)
+    -> std::string
+  {
+    if(place.empty())
+      return {};
+
+    auto const it{owners.find(std::pair{destination(mission).first, place})};
+    return it == owners.end() or it->second.empty() ? place : std::format("{} ({})", place, it->second);
   };
 
   struct group_t
@@ -408,7 +424,8 @@ auto describe_missions(std::vector<info::mission_t> const & missions) -> std::ve
     bool const single_place{places.size() == 1u};
     lines.push_back(
       overlay::line_t{
-        .text = single_place ? std::format("{}  -  {}", group.system, *places.begin()) : group.system,
+        .text = single_place ? std::format("{}  -  {}", group.system, with_owner(*group.rows.front(), *places.begin()))
+                             : group.system,
         .color = colour_heading
       }
     );
@@ -430,7 +447,7 @@ auto describe_missions(std::vector<info::mission_t> const & missions) -> std::ve
             done ? "> " : "  ",
             format_remaining(left),
             mission->faction,
-            place.empty() ? std::string{} : std::format("  {}", place),
+            place.empty() ? std::string{} : std::format("  {}", with_owner(*mission, place)),
             mission_wording(*mission)
           ),
           // green is ready to hand in, red is about to be lost
@@ -1133,6 +1150,53 @@ auto overlay_feed_t::refresh_supply() -> void
 /// a theft, a download, an assassination at a settlement given by name. The other names a faction
 /// and no place at all - exterminating that faction's members counts at any settlement it holds,
 /// this one included, and nothing in the mission says so. Standing on the pad both are the same
+///\brief who holds the places the open missions point at
+///
+/// A mission names its destination with two strings and no address, and never names the faction that
+/// holds it - yet that faction is the one the work counts against. Resolved only when the set of
+/// open missions changes, because it never changes between two jumps and the answer costs a join.
+auto overlay_feed_t::refresh_mission_places(current_state_t const & state) -> void
+  {
+  uint64_t signature{1469598103934665603ull};
+  for(info::mission_t const & mission: state.active_missions)
+    {
+    signature ^= mission.mission_id + static_cast<uint64_t>(mission.status);
+    signature *= 1099511628211ull;
+    }
+
+  if(signature == missions_signature_)
+    return;
+
+  missions_signature_ = signature;
+  place_owner_.clear();
+
+  auto const resolve = [this](std::string const & system, std::string const & place)
+  {
+    if(system.empty() or place.empty() or place_owner_.contains(std::pair{system, place}))
+      return;
+
+    if(auto owner{db_.load_place_owner(system, place)}; owner and *owner)
+      place_owner_.emplace(std::pair{system, place}, **owner);
+  };
+
+  for(info::mission_t const & mission: state.active_missions)
+    {
+    if(
+      mission.status != info::mission_status_e::accepted and mission.status != info::mission_status_e::redirected
+    )
+      continue;
+
+    resolve(
+      mission.destination_system,
+      mission.destination_settlement.empty() ? mission.destination_station : mission.destination_settlement
+    );
+    resolve(
+      mission.redirected_system,
+      mission.redirected_settlement.empty() ? mission.redirected_station : mission.redirected_settlement
+    );
+    }
+  }
+
 /// question, which is why they are answered together and above everything else on this side.
 auto overlay_feed_t::build_settlement_lines(current_state_t const & state) const -> std::vector<overlay::line_t>
   {
@@ -1491,6 +1555,7 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
     return;
 
   refresh_factions(state);
+  refresh_mission_places(state);
   refresh_market(state.settlement_market_id_, state.ship_loadout.CargoCapacity);
   refresh_supply();
 
@@ -1554,7 +1619,7 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
       overlay::block_t{.corner = overlay::corner_e::bottom_left, .ttl_ms = block_ttl_ms, .lines = std::move(cargo)}
     );
 
-  if(auto missions{describe_missions(state.active_missions)}; not missions.empty())
+  if(auto missions{describe_missions(state.active_missions, place_owner_)}; not missions.empty())
     frame.blocks.push_back(
       overlay::block_t{.corner = overlay::corner_e::bottom_left, .ttl_ms = block_ttl_ms, .lines = std::move(missions)}
     );

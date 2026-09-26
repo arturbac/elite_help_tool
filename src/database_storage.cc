@@ -2981,6 +2981,23 @@ auto database_storage_t::load_owner() -> expected_ec<std::optional<info::db_owne
   return std::optional<info::db_owner_t>{std::move((*res)[0])};
   }
 
+auto database_storage_t::load_place_owner(std::string_view system_name, std::string_view place)
+  -> expected_ec<std::optional<std::string>>
+  {
+  // the two tables live in the same attached schema, so the join costs nothing beyond the index
+  return sqlite::select_signle_from<std::string>(
+    db_->db,
+    std::format(
+      "SELECT st.controlling_faction FROM {0} st JOIN {1} sy ON sy.system_address = st.system_address"
+      " WHERE sy.name='{2}' AND st.name='{3}' LIMIT 1",
+      sql_iface::tables::station,
+      sql_iface::tables::star_system,
+      sqlite::escape_sql_quotes(system_name),
+      sqlite::escape_sql_quotes(place)
+    )
+  );
+  }
+
 auto database_storage_t::load_stations(uint64_t system_address) -> expected_ec<std::vector<info::station_t>>
   {
   return sqlite::select_from<info::station_t>(

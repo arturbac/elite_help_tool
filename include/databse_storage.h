@@ -357,6 +357,14 @@ struct database_storage_t
   [[nodiscard]]
   auto load_station(uint64_t system_address, std::string_view name) -> expected_ec<std::optional<info::station_t>>;
 
+  ///\brief the faction holding a place that is known only by name
+  ///\detail a mission names its destination with two strings and no address - "Kohli's Industrial"
+  /// in "Bleia Eohn CD-I a64-0" - while the faction that place belongs to, and that therefore takes
+  /// the damage done there, is never in the mission at all
+  [[nodiscard]]
+  auto load_place_owner(std::string_view system_name, std::string_view place)
+    -> expected_ec<std::optional<std::string>>;
+
   ///\brief the account this personal database belongs to
   [[nodiscard]]
   auto store_owner(info::db_owner_t const & owner) -> expected_ec<void>;
