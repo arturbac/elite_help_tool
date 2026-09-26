@@ -712,6 +712,20 @@ auto load_market(std::string journal_dir_path) -> cxx23::expected<events::market
   return result;
   }
 
+auto load_cargo(std::string journal_dir_path) -> cxx23::expected<events::cargo_file_t, std::error_code>
+  {
+  events::cargo_file_t result;
+  std::string buffer;
+  std::filesystem::path cargo_json{journal_dir_path};
+  cargo_json /= "Cargo.json";
+
+  if(auto res{glz::read_file_json<glz::opts{.error_on_unknown_keys = false}>(result, cargo_json.string(), buffer)}; res)
+    [[unlikely]]
+    return cxx23::unexpected(std::make_error_code(std::errc::resource_unavailable_try_again));
+
+  return result;
+  }
+
 auto generic_state_t::discovery(std::string_view input) -> void
   {
   std::string buffer{input};

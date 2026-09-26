@@ -675,8 +675,18 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           }
         else if constexpr(std::same_as<T, events::cargo_t>)
           {
+          // SRV ma wlasna ladownie, a zapomniany ladunek to ten, ktory zostaje na statku
+          if(event.Vessel == "SRV")
+            return;
+
           ship_loadout.CargoUsed = event.Count;
           update_ship = true;
+
+          // licznik jest w evencie, ale co konkretnie wiozimy mowi dopiero Cargo.json
+          if(auto file{load_cargo(journal_dir_path_)}; file and file->Vessel != "SRV")
+            cargo = std::move(*file);
+          else
+            spdlog::warn("failed to read Cargo.json");
           }
         else if constexpr(std::same_as<T, events::mission_accepted_t>)
           {

@@ -224,6 +224,8 @@ struct docking_requested_t
 
 struct cargo_t
   {
+  ///\brief Ship albo SRV - liczy sie tylko to, co zostaje na statku
+  std::string Vessel;
   uint32_t Count;
   };
 
@@ -957,6 +959,24 @@ struct market_t
   std::string StarSystem;
   };
 
+///\brief pozycja z Cargo.json
+struct cargo_item_t
+  {
+  std::string Name;
+  std::string Name_Localised;
+  uint32_t Count;
+  uint32_t Stolen;
+  };
+
+///\brief zawartosc Cargo.json, plik nadpisywany przy kazdej zmianie ladunku
+struct cargo_file_t
+  {
+  std::chrono::sys_seconds timestamp;
+  std::string Vessel;
+  uint32_t Count;
+  std::vector<cargo_item_t> Inventory;
+  };
+
 ///\brief pozycja rynku z Market.json
 struct market_commodity_t
   {
@@ -1454,6 +1474,10 @@ auto micro_resource_key(std::string_view name) -> std::string;
 ///\brief wczytuje Market.json lezacy obok journali
 [[nodiscard]]
 auto load_market(std::string journal_dir_path) -> cxx23::expected<events::market_file_t, std::error_code>;
+
+///\brief Cargo.json obok journali, nadpisywany - mowi co jest na pokladzie w tej chwili
+[[nodiscard]]
+auto load_cargo(std::string journal_dir_path) -> cxx23::expected<events::cargo_file_t, std::error_code>;
 
 [[nodiscard]]
 auto body_short_name(std::string_view system, std::string_view name) -> std::string_view;

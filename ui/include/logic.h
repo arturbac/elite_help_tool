@@ -24,7 +24,10 @@ struct current_state_t : public generic_state_t
   ship_loadout_t ship_loadout;
   database_storage_t db_;
   std::vector<buffered_signal_t> buffered_signals;
-  
+
+  ///\brief co jest w ladowni teraz - stan przejsciowy, Cargo.json jest nadpisywany
+  events::cargo_file_t cargo;
+
   events::fsd_jump_t jump_info;
   events::fsd_target_t next_target;
   

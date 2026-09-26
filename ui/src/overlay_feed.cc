@@ -4,6 +4,7 @@
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <cctype>
 #include <format>
 #include <map>
 #include <ranges>
@@ -28,6 +29,7 @@ constexpr uint32_t minimum_body_value{300000u};
 constexpr size_t listed_bodies{5u};
 constexpr size_t listed_factions{5u};
 constexpr size_t listed_missions{6u};
+constexpr size_t listed_cargo{4u};
 constexpr size_t listed_commodities{3u};
 ///\brief ponizej tej rezerwy czasu misja jest juz problemem, a nie planem
 constexpr std::chrono::hours expiry_warning{3};
@@ -138,6 +140,60 @@ auto describe_exploration(star_system_t const & system) -> std::vector<overlay::
   if(candidates.size() > listed_bodies)
     lines.push_back(
       overlay::line_t{.text = std::format("... and {} more", candidates.size() - listed_bodies), .color = colour_plain}
+    );
+
+  return lines;
+  }
+
+///\brief nazwa wewnetrzna jest czytelna, ale brzydka - wielka litera wystarczy gdy brak tlumaczenia
+[[nodiscard]]
+auto readable_name(events::cargo_item_t const & item) -> std::string
+  {
+  if(not item.Name_Localised.empty())
+    return item.Name_Localised;
+
+  std::string name{item.Name};
+  if(not name.empty())
+    name[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(name[0])));
+  return name;
+  }
+
+///\brief ladunek zostawiony na pokladzie blokuje wezwanie statku na lądowisko osady
+[[nodiscard]]
+auto describe_cargo(events::cargo_file_t const & cargo) -> std::vector<overlay::line_t>
+  {
+  if(cargo.timestamp == std::chrono::sys_seconds{})
+    return {};
+
+  std::vector<overlay::line_t> lines;
+
+  if(cargo.Count == 0u)
+    {
+    lines.push_back(overlay::line_t{.text = "cargo: empty", .color = colour_plain});
+    return lines;
+    }
+
+  lines.push_back(overlay::line_t{.text = std::format("cargo: {} t", cargo.Count), .color = colour_alert});
+
+  auto sorted{cargo.Inventory};
+  std::ranges::sort(sorted, std::ranges::greater{}, &events::cargo_item_t::Count);
+
+  for(events::cargo_item_t const & item: sorted | std::views::take(listed_cargo))
+    lines.push_back(
+      overlay::line_t{
+        .text = std::format(
+          "  {}  {} t{}",
+          readable_name(item),
+          item.Count,
+          item.Stolen != 0u ? std::format("  {} stolen", item.Stolen) : ""
+        ),
+        .color = item.Stolen != 0u ? colour_expiring : colour_plain
+      }
+    );
+
+  if(sorted.size() > listed_cargo)
+    lines.push_back(
+      overlay::line_t{.text = std::format("... and {} more", sorted.size() - listed_cargo), .color = colour_plain}
     );
 
   return lines;
@@ -525,6 +581,11 @@ auto overlay_feed_t::publish(current_state_t const & state) -> void
   if(not market_lines_.empty())
     frame.blocks.push_back(
       overlay::block_t{.corner = overlay::corner_e::top_right, .ttl_ms = block_ttl_ms, .lines = market_lines_}
+    );
+
+  if(auto cargo{describe_cargo(state.cargo)}; not cargo.empty())
+    frame.blocks.push_back(
+      overlay::block_t{.corner = overlay::corner_e::bottom_left, .ttl_ms = block_ttl_ms, .lines = std::move(cargo)}
     );
 
   if(auto missions{describe_missions(state.active_missions)}; not missions.empty())
