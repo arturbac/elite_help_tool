@@ -1,5 +1,6 @@
 #include <main_window.h>
 #include <spdlog/spdlog.h>
+#include <spdlog/cfg/env.h>
 
 #include <qapplication.h>
 #include <qguiapplication.h>
@@ -339,6 +340,9 @@ auto main(int argc, char * argv[]) -> int
   {
   QApplication app(argc, argv);
   apply_dark_theme();
+
+  // podglad zapytan bez przebudowy - SPDLOG_LEVEL=debug
+  spdlog::cfg::load_env_levels();
 
   main_window_t window{"ehtdb.sqlite", "journal-dir"};
   if(not window.state_.db_.open())

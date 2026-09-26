@@ -1930,11 +1930,10 @@ auto database_storage_t::load_mission_stats(std::chrono::sys_seconds since, uint
 auto database_storage_t::load_acquisition_summary(std::chrono::sys_seconds since)
   -> expected_ec<std::vector<info::acquisition_summary_t>>
   {
-  // ekonomia miejsca przychodzi ze stacji, wiec pojedyncze zdobycze zyskuja ja wstecz
-  std::string const query{std::format(
-    " WHERE a.timestamp >= '{:%Y-%m-%dT%H:%M:%SZ}' GROUP BY a.name ORDER BY collected + from_missions DESC",
-    since
-  )};
+  // ekonomia miejsca przychodzi ze stacji, wiec pojedyncze zdobycze zyskuja ja wstecz.
+  // liczona jest raz, jednym przebiegiem po historii - to samo per wiersz kosztowalo sekunde
+  // "Mostly from" idzie za wybranym okresem - inaczej mowiloby o miejscu sprzed pol roku
+  std::string const window{std::format(" WHERE b.timestamp >= '{:%Y-%m-%dT%H:%M:%SZ}'", since)};
 
   return sqlite::select_from<info::acquisition_summary_t>(
     db_->db,
@@ -1942,15 +1941,24 @@ auto database_storage_t::load_acquisition_summary(std::chrono::sys_seconds since
       "(SELECT a.name AS name, r.localised AS localised, r.category AS category,"
       " sum(CASE WHEN a.source = 'collected' THEN a.count ELSE 0 END) AS collected,"
       " sum(CASE WHEN a.source = 'mission_reward' THEN a.count ELSE 0 END) AS from_missions,"
-      " (SELECT coalesce(nullif(st.economy, ''), '?') FROM {} b LEFT JOIN {} st ON st.market_id = b.market_id"
-      "  WHERE b.name = a.name GROUP BY st.economy ORDER BY sum(b.count) DESC LIMIT 1) AS top_economy,"
+      " coalesce(e.economy, '?') AS top_economy,"
       " max(a.timestamp) AS last_seen"
-      " FROM {} a LEFT JOIN {} r ON r.name = a.name",
+      " FROM {0} a"
+      " LEFT JOIN {1} r ON r.name = a.name"
+      " LEFT JOIN (SELECT name, economy FROM"
+      "   (SELECT b.name AS name, coalesce(nullif(st.economy, ''), '?') AS economy,"
+      "           row_number() OVER (PARTITION BY b.name ORDER BY sum(b.count) DESC) AS pick"
+      "    FROM {0} b LEFT JOIN {2} st ON st.market_id = b.market_id{3}"
+      "    GROUP BY b.name, st.economy)"
+      "   WHERE pick = 1) e ON e.name = a.name"
+      " WHERE a.timestamp >= '{4:%Y-%m-%dT%H:%M:%SZ}'"
+      " GROUP BY a.name ORDER BY collected + from_missions DESC)",
       sql_iface::tables::micro_acquisition,
+      sql_iface::tables::micro_resource,
       sql_iface::tables::station,
-      sql_iface::tables::micro_acquisition,
-      sql_iface::tables::micro_resource
-    ) + query + ")",
+      window,
+      since
+    ),
     ""
   );
   }

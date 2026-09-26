@@ -149,6 +149,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
     bool update_ship{};
     bool update_mission_info{};
     bool update_factions{};
+    bool update_micro_resources{};
     bool route_changed{};
     std::visit(
       [&](auto && event)
@@ -355,6 +356,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           }
       else if constexpr(std::same_as<T, events::sell_micro_resources_t>)
           {
+          update_micro_resources = true;
           info::micro_sale_t sale{
             .timestamp = timestamp,
             .market_id = event.MarketID,
@@ -419,6 +421,8 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           settlement_market_id_ = 0;
         else if constexpr(std::same_as<T, events::backpack_change_t>)
           {
+          if(not event.Added.empty())
+            update_micro_resources = true;
           for(events::backpack_item_t const & item: event.Added)
             {
             auto key{micro_resource_key(item.Name)};
@@ -769,6 +773,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
                  not res)
                 spdlog::error("failed to store micro resource {}", reward.Name);
         
+              update_micro_resources = true;
               if(auto res{db_.store(info::micro_acquisition_t{
                    .timestamp = timestamp,
                    .market_id = settlement_market_id_,
@@ -865,6 +870,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           }
         else if constexpr(std::same_as<T, events::fcmaterials_t>)
           {
+          update_micro_resources = true;
           events::fcmaterials_t fcmat{std::move(event)};
           spdlog::info("Carrier: {} mats: {}", fcmat.CarrierID, fcmat.Items.size());
           // carrier_oid( std::string_view name ) -> expected_ec<std::optional<uint64_t>
@@ -1011,12 +1017,23 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
             target->faction_view_->refresh_ui();
           if(target->faction_state_view_)
             target->faction_state_view_->refresh_ui();
+        },
+        Qt::QueuedConnection
+      );
+      }
+
+    // podsumowanie zdobyczy to przebieg przez cala historie - warto je liczyc tylko gdy przybylo zdobyczy,
+    // a nie przy kazdej zmianie wplywow frakcji
+    if(update_micro_resources)
+      QMetaObject::invokeMethod(
+        parent,
+        [target = parent]() mutable
+        {
           if(target->micro_resource_view_)
             target->micro_resource_view_->refresh_ui();
         },
         Qt::QueuedConnection
       );
-      }
     }
   }
 
