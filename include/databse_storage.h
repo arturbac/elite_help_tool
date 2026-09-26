@@ -221,6 +221,15 @@ struct database_storage_t
   auto last_influence(int64_t faction_oid, uint64_t system_address)
     -> expected_ec<std::optional<info::faction_influence_t>>;
 
+  ///\brief odnotowuje ze frakcja byla w systemie przy tym odczycie, nawet gdy nic sie nie zmienilo
+  [[nodiscard]]
+  auto store_faction_seen(int64_t faction_oid, uint64_t system_address, std::chrono::sys_seconds when)
+    -> expected_ec<void>;
+
+  ///\brief frakcje obecne przy najswiezszym odczycie systemu - reszta juz z niego wyleciala
+  [[nodiscard]]
+  auto load_present_factions(uint64_t system_address) -> expected_ec<std::vector<info::faction_ref_t>>;
+
   /// cala historia influence w systemie, wszystkie frakcje, rosnaco wg czasu
   [[nodiscard]]
   auto load_influence_history(uint64_t system_address) -> expected_ec<std::vector<info::faction_influence_t>>;

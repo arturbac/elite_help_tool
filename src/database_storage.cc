@@ -433,6 +433,7 @@ namespace tables
   inline constexpr std::string_view planet_details{"planet_details"};
   inline constexpr std::string_view faction_info{"faction_info"};
   inline constexpr std::string_view faction_influence{"faction_influence"};
+  inline constexpr std::string_view faction_presence{"faction_presence"};
   inline constexpr std::string_view system_conflict{"system_conflict"};
   inline constexpr std::string_view system_signal{"system_signal"};
   // tozsamosc stacji odtworzymy z journali, wiec zostaje w bazie glownej
@@ -1124,6 +1125,25 @@ auto database_storage_t::create_database() -> expected_ec<void>
     return res;
 
   if(
+    auto res{sqlite::create_table<info::faction_presence_t>(db_->db, "oid"sv, sql_iface::tables::faction_presence)};
+    not res
+  ) [[unlikely]]
+    return res;
+
+  // klucz musi byc unikalny, bo upsert obecnosci opiera sie na ON CONFLICT
+  if(
+    auto res{sqlite::execute_query_no_result(
+      db_->db,
+      std::format(
+        "CREATE UNIQUE INDEX IF NOT EXISTS {0}_key ON {0} (faction_oid, system_address);",
+        sql_iface::tables::faction_presence
+      )
+    )};
+    not res
+  ) [[unlikely]]
+    return res;
+
+  if(
     auto res{sqlite::execute_query_no_result(
       db_->db,
       std::format(
@@ -1283,6 +1303,36 @@ auto database_storage_t::load_supply_options() -> expected_ec<std::vector<info::
       sql_iface::tables::market_item,
       sql_iface::tables::station,
       sql_iface::tables::star_system
+    ),
+    ""
+  );
+  }
+
+auto database_storage_t::store_faction_seen(int64_t faction_oid, uint64_t system_address, std::chrono::sys_seconds when)
+  -> expected_ec<void>
+  {
+  // jeden wiersz na pare frakcja/system, przesuwany do przodu przy kazdym odczycie systemu
+  std::string query{std::format(
+    "INSERT INTO {0} (faction_oid, system_address, last_seen) VALUES ({1}, {2}, '{3:%Y-%m-%dT%H:%M:%SZ}')"
+    " ON CONFLICT(faction_oid, system_address) DO UPDATE SET last_seen = excluded.last_seen",
+    sql_iface::tables::faction_presence,
+    faction_oid,
+    system_address,
+    when
+  )};
+  return sqlite::execute_query_no_result(db_->db, query);
+  }
+
+auto database_storage_t::load_present_factions(uint64_t system_address) -> expected_ec<std::vector<info::faction_ref_t>>
+  {
+  // obecne sa te, ktore widzielismy przy najswiezszym odczycie tego systemu
+  return sqlite::select_from<info::faction_ref_t>(
+    db_->db,
+    std::format(
+      "(SELECT faction_oid AS faction_oid FROM {0} WHERE system_address = {1}"
+      " AND last_seen = (SELECT max(last_seen) FROM {0} WHERE system_address = {1}))",
+      sql_iface::tables::faction_presence,
+      system_address
     ),
     ""
   );

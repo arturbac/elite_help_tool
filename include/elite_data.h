@@ -326,6 +326,22 @@ struct micro_acquisition_t
   acquisition_source_e source;
 };
 
+///\brief slad "frakcja byla obecna przy tym odczycie systemu"
+///
+/// influence zapisujemy tylko gdy sie zmienilo, wiec data ostatniego wpisu mowi o ostatniej zmianie,
+/// nie o ostatnim widzeniu. Bez osobnego sladu frakcja, ktora wyleciala z systemu, zostaje na liscie
+struct faction_presence_t
+  {
+  int64_t oid{-1};
+  int64_t faction_oid;
+  uint64_t system_address;
+  std::chrono::sys_seconds last_seen;
+  };
+
+///\brief lekka projekcja do listy obecnych
+struct faction_ref_t
+  { int64_t faction_oid; };
+
 ///\brief towar wymagany przez misje - osobna tabela, zeby nie ruszac schematu misji
 struct mission_cargo_t
   {

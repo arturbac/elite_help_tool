@@ -16,6 +16,7 @@
 #include <spdlog/spdlog.h>
 #include <algorithm>
 #include <map>
+#include <set>
 #include <limits>
 #include <cmath>
 
@@ -798,10 +799,22 @@ auto faction_state_window_t::show_system(uint64_t system_address) -> void
 
   history_ = std::move(*res);
 
+  // frakcja, ktora wyleciala z systemu, przestaje pojawiac sie w odczytach, ale jej ostatni wpis
+  // influence zostaje - dlatego liste zawezamy do tych widzianych przy najswiezszym odczycie
+  std::set<int64_t> present;
+  if(auto refs{db_.load_present_factions(system_address)}; refs)
+    for(info::faction_ref_t const & ref: *refs)
+      present.insert(ref.faction_oid);
+
   // ostatni wpis kazdej frakcji to jej obecny stan w systemie
   std::map<int64_t, info::faction_influence_t const *> latest;
   for(info::faction_influence_t const & entry: history_)
+    {
+    // pusty zbior znaczy ze dla tego systemu nie mamy jeszcze sladu obecnosci - wtedy pokazujemy wszystko
+    if(not present.empty() and not present.contains(entry.faction_oid))
+      continue;
     latest[entry.faction_oid] = &entry;
+    }
 
   std::vector<faction_presence_t> presence;
   presence.reserve(latest.size());

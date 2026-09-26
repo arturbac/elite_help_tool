@@ -26,6 +26,11 @@ void store_influence(
   if(faction_oid == -1) [[unlikely]]
     critical_abort("missing faction oid for {}", event_faction.Name);
 
+  // obecnosc notujemy zawsze, nawet gdy nic sie nie zmienilo - inaczej frakcja ktora wyleciala
+  // z systemu zostaje na liscie na zawsze, bo jej ostatni wpis mowi tylko o ostatniej zmianie
+  if(auto res{db.store_faction_seen(faction_oid, system_address, timestamp)}; not res) [[unlikely]]
+    spdlog::error("failed to record presence of {} in {}", event_faction.Name, system_address);
+
   auto last{db.last_influence(faction_oid, system_address)};
   if(not last)
     critical_abort("failed to load influence for {} in {}", event_faction.Name, system_address);
