@@ -1084,6 +1084,16 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           }
         else if constexpr(std::same_as<T, events::missions_t>)
           {
+          // Replayed after a restart, the snapshot is older than missions taken since - and the
+          // MissionAccepted that would open them again is walked past as already written. Its verdict
+          // is in the database from the first time round, so all it is needed for now is the list
+          if(already_written)
+            {
+            load_missions();
+            update_mission_info = true;
+            return;
+            }
+
           for(events::mission_failed_t const & mission: event.Failed)
             if(auto res{db_.change_mission_status(mission.MissionID, info::mission_status_e::failed, timestamp)}; not res)
               [[unlikely]]
