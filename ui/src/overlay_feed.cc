@@ -313,6 +313,16 @@ auto format_remaining(std::chrono::seconds left) -> std::string
   return std::format("{}m", minutes.count());
   }
 
+///\brief the game's own wording for a mission, as the journal hands it over in LocalisedName
+///\detail "Exterminate Cartel of HIP 83983 members" is what the player reads on the board, while the
+/// type behind it is a token meant for the game. The token is only a fallback for rows stored before
+/// the field was kept
+[[nodiscard]]
+auto mission_wording(info::mission_t const & mission) -> std::string
+  {
+  return mission.description.empty() ? info::transform_mission_name(mission.type) : mission.description;
+  }
+
 ///\brief a redirected mission is done and only waits to be handed in - a different category from the rest
 [[nodiscard]]
 auto describe_missions(std::vector<info::mission_t> const & missions) -> std::vector<overlay::line_t>
@@ -354,13 +364,15 @@ auto describe_missions(std::vector<info::mission_t> const & missions) -> std::ve
 
     lines.push_back(
       overlay::line_t{
+        // the objective after the time, because the first three say where and by when, and this one
+        // says what - reading it is what turns a row into a decision
         .text = std::format(
-          "{}{}  {}{}{}",
+          "{}{}  {}  {}  {}",
           done ? "> " : "  ",
           mission->faction,
           where.empty() ? std::string{"-"} : where,
-          "  ",
-          format_remaining(left)
+          format_remaining(left),
+          mission_wording(*mission)
         ),
         // green is ready to hand in, red is about to be lost
         .color = left < expiry_warning ? colour_expiring : (done ? colour_first : colour_plain)
@@ -1119,18 +1131,13 @@ auto overlay_feed_t::build_settlement_lines(current_state_t const & state) const
       auto const left{std::chrono::duration_cast<std::chrono::seconds>(mission->expiry - now)};
       auto const count{mission->mission_count()};
 
-      // the game's own wording, which the journal hands over as LocalisedName - "Exterminate Cartel
-      // of HIP 83983 members" is what the player reads on the mission board, while the type behind
-      // it is a token meant for the game. The token is only a fallback for rows stored before the
-      // field was kept
-      std::string const what{
-        mission->description.empty() ? info::transform_mission_name(mission->type) : mission->description
-      };
-
       lines.push_back(
         overlay::line_t{
           .text = std::format(
-            "  {}{}  {}", what, count > 1u ? std::format("  x{}", count) : std::string{}, format_remaining(left)
+            "  {}{}  {}",
+            mission_wording(*mission),
+            count > 1u ? std::format("  x{}", count) : std::string{},
+            format_remaining(left)
           ),
           .color = left < expiry_warning ? colour_expiring : colour
         }
