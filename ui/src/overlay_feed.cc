@@ -393,7 +393,9 @@ auto describe_system(star_system_t const & system, bool with_controlling) -> std
   }
 
 ///\brief how far back the influence chart reaches
-constexpr std::chrono::days chart_window{10};
+///\detail ten days left the days far apart in the band's width; twenty fit the same rectangle and
+/// carry more of the story - a faction's climb usually takes longer than a week to show as a climb
+constexpr std::chrono::days chart_window{20};
 ///\brief the height of the plot itself, without the caption and the legend
 constexpr uint32_t chart_height{130u};
 ///\brief the shapes handed out in the order of the legend
