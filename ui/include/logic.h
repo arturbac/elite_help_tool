@@ -52,6 +52,11 @@ struct current_state_t : public generic_state_t
   events::ship_targeted_t target;
   ///\brief the last kill that paid, kept only long enough to be read off the screen
   events::bounty_t last_bounty;
+  ///\brief when that kill reached us, by a clock that is ours
+  ///\detail the journal is stamped by the game's clock, which need not agree with this machine's
+  /// even when both call themselves UTC - so how long ago something happened is measured by the
+  /// only clock both ends of the question share, the one counting since this process started
+  std::chrono::steady_clock::time_point last_bounty_at{};
 
   ///\brief where the hired fighter is
   enum struct fighter_e : uint8_t

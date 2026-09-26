@@ -47,7 +47,11 @@ constexpr auto journal_check_interval{std::chrono::seconds(2)};
 ///\param give_up checked once the end of the file is reached; following stops when it returns true
 ///\returns false when the file could not be opened
 auto tail_until(
-  fs::path const & path, process_callback const & cb, std::stop_token stoken, std::function<bool()> const & give_up
+  fs::path const & path,
+  process_callback const & cb,
+  std::stop_token stoken,
+  std::function<bool()> const & give_up,
+  caught_up_callback const & on_caught_up
 ) -> bool
   {
   // the "shared" mode on POSIX systems is the standard fstream.
@@ -65,6 +69,10 @@ auto tail_until(
     // std::println("{}", line);
     cb(line);
   file.clear();  // clear the EOF flag so that reading can go on
+
+  // from here on the lines arrive as the game writes them; everything above was the past
+  if(on_caught_up)
+    on_caught_up();
 
   // the loop that watches for changes
   while(not stoken.stop_requested())
@@ -93,11 +101,15 @@ auto tail_until(
 
 auto tail_file(fs::path const & path, process_callback const & cb, std::stop_token stoken) -> void
   {
-  static_cast<void>(tail_until(path, cb, stoken, {}));
+  static_cast<void>(tail_until(path, cb, stoken, {}, {}));
   }
 
 auto tail_journal_dir(
-  fs::path const & dir, process_callback const & cb, std::stop_token stoken, journal_switch_callback const & on_switch
+  fs::path const & dir,
+  process_callback const & cb,
+  std::stop_token stoken,
+  journal_switch_callback const & on_switch,
+  caught_up_callback const & on_caught_up
 ) -> void
   {
   while(not stoken.stop_requested())
@@ -128,7 +140,7 @@ auto tail_journal_dir(
       return newest and *newest != current;
     };
 
-    if(not tail_until(current, cb, stoken, newer_journal_available))
+    if(not tail_until(current, cb, stoken, newer_journal_available, on_caught_up))
       std::this_thread::sleep_for(journal_check_interval);
     }
   }

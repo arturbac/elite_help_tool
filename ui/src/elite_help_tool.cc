@@ -79,8 +79,22 @@ auto main_window_t::publish_overlay() -> void
   overlay_feed_->publish(state_, plotted);
   }
 
+auto main_window_t::choose_opening_window(bool inhabited) -> void
+  {
+  // once only: after this the windows are the user's business, and the ship moving from one system
+  // to another is no reason to take the view away from whatever they were reading
+  if(std::exchange(opening_settled_, true))
+    return;
+
+  // Where there are factions there is something to read about them; where there are none there is
+  // nothing but what the scanner found, and the faction window would open on an empty table
+  spdlog::debug("opening on {}", inhabited ? "system info" : "exploration");
+  activate_window(inhabited ? window_type_e::faction_state : window_type_e::system);
+  }
+
 auto main_window_t::start_monitoring() -> void
   {
+  monitoring_started_ = std::chrono::steady_clock::now();
   // the thread touches db_, so it starts only once that is open
   worker_thread_ = std::jthread([this](std::stop_token stoken) { background_worker(stoken); });
   }
@@ -311,6 +325,17 @@ auto main_window_t::background_worker(std::stop_token stoken) -> void
       state_.forget_live_combat();
       QMetaObject::invokeMethod(
         this, [this, path]() { file_to_monitor = path; }, Qt::QueuedConnection
+      );
+    },
+    [this]()
+    {
+      // the replay has reached the present. Whatever it said about a target was true at the time and
+      // is not true now, and only from here is the state a picture of where the ship actually is -
+      // which is the first moment the choice of window can be made on anything but a guess
+      state_.forget_live_combat();
+      bool const inhabited{not state_.system_factions.empty()};
+      QMetaObject::invokeMethod(
+        this, [this, inhabited]() { choose_opening_window(inhabited); }, Qt::QueuedConnection
       );
     }
   );

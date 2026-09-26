@@ -12,6 +12,7 @@
 #include <overlay_feed.h>
 
 #include <simple_enum/simple_enum.hpp>
+#include <chrono>
 #include <qmainwindow.h>
 #include <qmdiarea.h>
 #include <thread>
@@ -80,8 +81,14 @@ public:
   ///\brief shows a tool window and brings it to the front of the MDI
   auto activate_window(window_type_e type) -> void;
 
-  ///\brief przepisuje biezacy stan do overlaya, wolane z watku gui
+  ///\brief copies the current state over to the overlay; called from the gui thread
   auto publish_overlay() -> void;
+
+  ///\brief opens the window that suits where we are, until the journal replay settles
+  ///\detail starting the tool walks through every system the newest journal passed through before
+  /// reaching the one we are actually in, so the choice has to be allowed to change its mind - and
+  /// then to stop, rather than following the ship around for the rest of the evening
+  auto choose_opening_window(bool inhabited) -> void;
 
 private:
   [[nodiscard]]
@@ -92,6 +99,10 @@ private:
 
   /// the filter that stops tool windows from being closed
   QObject * close_blocker_{};
+
+  std::chrono::steady_clock::time_point monitoring_started_{};
+  ///\brief set once the replay has settled, after which the windows are the user's business
+  bool opening_settled_{};
 
   auto background_worker(std::stop_token stoken) -> void;
 

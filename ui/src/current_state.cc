@@ -226,6 +226,7 @@ void current_state_t::forget_live_combat()
   {
   target = {};
   last_bounty = {};
+  last_bounty_at = {};
   fighter = fighter_e::stowed;
   fighter_crewed = false;
   }
@@ -1103,7 +1104,10 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
         target = event.TargetLocked ? event : events::ship_targeted_t{};
         }
       else if constexpr(std::same_as<T, events::bounty_t>)
+        {
         last_bounty = event;
+        last_bounty_at = std::chrono::steady_clock::now();
+        }
       else if constexpr(std::same_as<T, events::launch_fighter_t>)
         {
         fighter = fighter_e::deployed;

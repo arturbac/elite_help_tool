@@ -56,10 +56,6 @@ constexpr std::chrono::milliseconds status_refresh{500};
 ///\detail 5 station services, 6 galaxy map, 7 system map, 8 orrery, 9 FSS, 10 surface scanner,
 /// 11 codex. The cockpit panels below 5 leave the middle of the screen alone, and so may we
 constexpr uint32_t first_fullscreen_interface{5u};
-///\brief a lock does not outlive this without the game saying anything more about it
-///\detail the event that lets a target go is written, but a game that simply ends writes nothing,
-/// and the last thing in the journal stays true for ever unless something disbelieves it
-constexpr std::chrono::minutes target_stale{10};
 constexpr size_t listed_sources{2u};
 ///\brief the band is not a mission log - beyond this the list stops being read at a glance
 constexpr size_t listed_settlement_work{4u};
@@ -1280,10 +1276,14 @@ auto overlay_feed_t::build_target_lines(current_state_t const & state) const -> 
 
   std::vector<overlay::line_t> lines;
 
-  // a kill stands for a few seconds after it is made, because the money it paid is the answer to
-  // the question the scan asked
-  auto const wall{std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())};
-  if(state.last_bounty.TotalReward != 0u and wall - state.last_bounty.timestamp < kill_shown)
+  // A kill stands for a few seconds after it is made, because the money it paid is the answer to the
+  // question the scan asked. How long ago it was is counted on our own clock rather than by
+  // subtracting the game's stamp from this machine's time: the two need not agree even when both
+  // call themselves UTC, and a few minutes of drift would either hide every kill or never let one go
+  if(
+    state.last_bounty.TotalReward != 0u and state.last_bounty_at != std::chrono::steady_clock::time_point{}
+    and std::chrono::steady_clock::now() - state.last_bounty_at < kill_shown
+  )
     {
     lines.push_back(
       overlay::line_t{
@@ -1306,9 +1306,9 @@ auto overlay_feed_t::build_target_lines(current_state_t const & state) const -> 
       );
     }
 
-  // a lock that nothing has said anything about for this long is not a lock any more, whatever the
-  // last line of the journal claims
-  if(not target.TargetLocked or wall - target.timestamp > target_stale)
+  // nothing is asked of the clock here: what was replayed from before the tool started was dropped
+  // the moment the reader reached the present, so a lock still standing is one that was made since
+  if(not target.TargetLocked)
     return lines;
 
   std::string const pilot{target.PilotName_Localised.empty() ? target.PilotName : target.PilotName_Localised};
