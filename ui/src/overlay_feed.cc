@@ -555,7 +555,7 @@ auto describe_system(star_system_t const & system, bool with_controlling) -> std
 /// carry more of the story - a faction's climb usually takes longer than a week to show as a climb
 constexpr std::chrono::days chart_window{20};
 ///\brief the height of the plot itself, without the caption and the legend
-constexpr uint32_t chart_height{130u};
+constexpr uint32_t chart_height{98u};
 ///\brief the shapes handed out in the order of the legend
 ///\detail three independent factions share one colour, so without distinct shapes their lines
 /// could not be told apart
@@ -688,6 +688,99 @@ auto build_influence_chart(
     return {};
 
   return {std::move(chart)};
+  }
+
+///\brief how far back the tick chart reaches
+constexpr std::chrono::days tick_chart_window{30};
+constexpr uint32_t tick_chart_height{90u};
+constexpr uint32_t colour_tick_influence{0xddddddu};
+constexpr uint32_t colour_tick_war{0xd9534fu};
+
+///\brief when the recalculation came, day by day, as the hour of the day it came at
+///
+/// A tick has no fixed hour - Frontier moves it every few days - so the useful picture is the drift:
+/// the days along, the hour of the day up. Each wave is a vertical stroke from the first reading that
+/// saw it to the last that had not, so a stroke's length is how little is known about that day, not
+/// how long the tick took. Influence and war are separate clocks and each is drawn at the end that
+/// matters for it: the start of an influence wave is the deadline for handing missions in, the end of
+/// a war wave is when the bonds start selling the new way.
+[[nodiscard]]
+auto build_tick_chart(
+  std::span<info::tick_fact_t const> influence, std::span<info::tick_fact_t const> war, std::chrono::sys_seconds now
+) -> std::optional<overlay::chart_t>
+  {
+  using std::chrono::sys_seconds;
+
+  sys_seconds const from{now - tick_chart_window};
+  double const span{static_cast<double>((now - from).count())};
+  constexpr double day{86400.0};
+  // a window read to the minute would be a dot too short to see, so every stroke gets at least this much
+  constexpr float shortest{0.035f};
+
+  overlay::chart_t chart{
+    .caption = std::format("ticks, {} days, UTC hour, red war", tick_chart_window.count()),
+    .height = tick_chart_height
+  };
+  for(int hour{}; hour <= 24; hour += 6)
+    chart.grid.push_back(
+      overlay::grid_line_t{
+        .y = static_cast<float>(hour) / 24.f, .label = hour == 0 or hour == 24 ? std::string{} : std::format("{:02}h", hour)
+      }
+    );
+
+  auto const hour_of = [](sys_seconds t) -> float
+  {
+    auto const since_midnight{t - std::chrono::floor<std::chrono::days>(t)};
+    return static_cast<float>(static_cast<double>(since_midnight.count()) / day);
+  };
+
+  auto const add_stroke = [&](float x, float y0, float y1, uint32_t colour)
+  {
+    if(y1 - y0 < shortest)
+      {
+      float const mid{(y0 + y1) / 2.f};
+      y0 = std::max(0.f, mid - shortest / 2.f);
+      y1 = std::min(1.f, y0 + shortest);
+      }
+    chart.series.push_back(
+      overlay::series_t{
+        .name = {},
+        .color = colour,
+        .marker = overlay::marker_e::none,
+        .points = {overlay::point_t{.x = x, .y = y0}, overlay::point_t{.x = x, .y = y1}}
+      }
+    );
+  };
+
+  auto const add = [&](sys_seconds begin, sys_seconds end, uint32_t colour)
+  {
+    if(end < from or begin > now)
+      return;
+    // the stroke stands where the window's middle falls, since that is the best single guess of the day
+    sys_seconds const mid{begin + (end - begin) / 2};
+    float const x{static_cast<float>(static_cast<double>((mid - from).count()) / span)};
+    float const y0{hour_of(begin)};
+    float const y1{hour_of(end)};
+    // a window across midnight is drawn in two pieces, the evening at the top and the small hours at the bottom
+    if(end - begin >= std::chrono::days{1})
+      add_stroke(x, 0.f, 1.f, colour);
+    else if(y1 >= y0)
+      add_stroke(x, y0, y1, colour);
+    else
+      {
+      add_stroke(x, y0, 1.f, colour);
+      add_stroke(x, 0.f, y1, colour);
+      }
+  };
+
+  for(info::tick_fact_t const & wave: influence)
+    add(wave.start_begin, wave.start_end, colour_tick_influence);
+  for(info::tick_fact_t const & wave: war)
+    add(wave.end_begin, wave.end_end, colour_tick_war);
+
+  if(chart.series.empty())
+    return std::nullopt;
+  return chart;
   }
   }  // namespace
 
@@ -957,6 +1050,19 @@ auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
     }
 
   faction_charts_ = build_influence_chart(*history, charted, wall_clock);
+
+  // the ticks are the same for every system, but they belong under the chart whose steps they explain
+  auto influence_waves{db_.load_recent_ticks(info::tick_kind_e::influence, tick_chart_window.count())};
+  auto war_waves{db_.load_recent_ticks(info::tick_kind_e::war, tick_chart_window.count())};
+  if(
+    auto chart{build_tick_chart(
+      influence_waves ? std::span<info::tick_fact_t const>{*influence_waves} : std::span<info::tick_fact_t const>{},
+      war_waves ? std::span<info::tick_fact_t const>{*war_waves} : std::span<info::tick_fact_t const>{},
+      wall_clock
+    )};
+    chart
+  )
+    faction_charts_.push_back(std::move(*chart));
   }
 
 auto overlay_feed_t::refresh_market(
