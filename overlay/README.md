@@ -30,16 +30,18 @@ Kopiuje warstwę do `~/.local/lib`, opakowanie do `~/.local/bin`, manifest do
 `~/.local/share/vulkan/implicit_layer.d`. Musi to być katalog domowy — kontener Steam Linux Runtime
 nie widzi katalogu budowania.
 
-W opcjach uruchamiania Steam dla Elite Dangerous:
-
-```
-eht-overlay-run %command%
-```
-
-Albo bez opakowania, skoro manifest leży w standardowej ścieżce:
+W opcjach uruchamiania Steam dla Elite Dangerous najprościej bez opakowania, bo manifest leży
+w standardowej ścieżce, której loader i tak szuka:
 
 ```
 ENABLE_EHT_OVERLAY=1 %command%
+```
+
+Z opakowaniem **konieczna jest pełna ścieżka**. Steam uruchamia opcje przez `/bin/sh`, które nie ma
+`~/.local/bin` w `PATH`, a sama nazwa kończy się `command not found` i gra nie startuje wcale:
+
+```
+/home/artur/.local/bin/eht-overlay-run %command%
 ```
 
 Elite startuje przez własny launcher, a zmienne środowiskowe dziedziczą procesy potomne, więc gra
