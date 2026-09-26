@@ -698,9 +698,12 @@ auto overlay_feed_t::build_supply_lines(events::cargo_file_t const & cargo) cons
   std::map<std::string, uint32_t> aboard;
   for(events::cargo_item_t const & item: cargo.Inventory)
     {
-    aboard[key(item.Name)] += item.Count;
-    if(not item.Name_Localised.empty())
-      aboard[key(item.Name_Localised)] += item.Count;
+    auto const internal{key(item.Name)};
+    aboard[internal] += item.Count;
+
+    // obie nazwy potrafia sprowadzic sie do tego samego klucza i wtedy ilosc liczylaby sie dwa razy
+    if(auto const localised{key(item.Name_Localised)}; not localised.empty() and localised != internal)
+      aboard[localised] += item.Count;
     }
 
   auto const held{
