@@ -369,11 +369,12 @@ auto route_window_t::show_route() -> void
   // przeczytac po kazdym skoku; nazwa trasy jest tu najmniej pilna
   info_label_->setText(
     next.empty() ? QString{"Na miejscu | %1"}.arg(name)
-                 : QString{"Nastepny: %1%2 | zostalo %3 z %4 | %5"}
+                 // licznik i mianownik w tych samych jednostkach - przystankach, nie skokach
+                 : QString{"Nastepny: %1%2 | zostalo %3 z %4 przystankow | %5"}
                      .arg(QString::fromStdString(next))
                      .arg(copied ? "  (w schowku)" : "")
                      .arg(neutron_route_.size() - reached)
-                     .arg(neutron_route_.size() - 1u)
+                     .arg(neutron_route_.size())
                      .arg(name)
   );
 

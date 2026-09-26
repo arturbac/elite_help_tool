@@ -6,6 +6,7 @@
 
 #include <chrono>
 #include <memory>
+#include <span>
 #include <vector>
 
 ///\brief zasila warstwe rysujaca w oknie gry
@@ -23,8 +24,18 @@ public:
   [[nodiscard]]
   auto clients() const noexcept -> unsigned;
 
+  ///\brief trasa wyznaczona poza gra razem z postepem
+  ///\detail overlay nie siegnie po nia sam - zyje w oknie Route, ktore jedyne wie, ktory
+  /// przystanek mamy juz za soba
+  struct plotted_route_t
+    {
+    std::span<info::neutron_waypoint_t const> waypoints;
+    size_t reached{};
+    std::string_view name;
+    };
+
   ///\brief buduje obraz ze stanu i wysyla go, o ile cokolwiek sie zmienilo
-  auto publish(current_state_t const & state) -> void;
+  auto publish(current_state_t const & state, plotted_route_t const & plotted) -> void;
 
 private:
   ///\brief influence nie siedzi w stanie, trzeba po nie do bazy - wlasne polaczenie jak w oknach
@@ -35,6 +46,11 @@ private:
 
   ///\brief skad wziac towar wymagany przez otwarte misje
   auto refresh_supply() -> void;
+
+  ///\brief najblizsze skoki obu tras - w pasie bocznym mieszcza sie tylko nastepne, nie cala lista
+  [[nodiscard]]
+  auto build_route_lines(current_state_t const & state, plotted_route_t const & plotted) const
+    -> std::vector<overlay::line_t>;
 
   ///\brief laczy wymagania z zawartoscia ladowni - bez tego trzeba porownywac dwa rogi ekranu
   [[nodiscard]]

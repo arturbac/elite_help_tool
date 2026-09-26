@@ -924,7 +924,85 @@ auto overlay_feed_t::build_supply_lines(events::cargo_file_t const & cargo) cons
   return lines;
   }
 
-auto overlay_feed_t::publish(current_state_t const & state) -> void
+auto overlay_feed_t::build_route_lines(current_state_t const & state, plotted_route_t const & plotted) const
+  -> std::vector<overlay::line_t>
+  {
+  // trasa bywa na czterdziesci skokow, a pas boczny ma kilkanascie linii - dalsze i tak nic nie
+  // zmieniaja w tym, co robie teraz
+  constexpr size_t listed_hops{10};
+
+  ///\brief przy ktorych gwiazdach da sie zatankowac
+  ///\detail KGBFOAM; klasa bywa podana z podtypem, wiec liczy sie pierwsza litera
+  auto const scoopable = [](std::string_view star_class) -> bool
+  {
+    return not star_class.empty() and std::string_view{"KGBFOAM"}.find(star_class.front()) != std::string_view::npos;
+  };
+
+  std::vector<overlay::line_t> lines;
+
+  if(not plotted.waypoints.empty())
+    {
+    // oba licznik i mianownik licza przystanki - mieszanie ich ze skokami dawalo "8 of 7"
+    auto const left{plotted.waypoints.size() - std::min(plotted.reached, plotted.waypoints.size())};
+    lines.push_back(
+      overlay::line_t{
+        .text = std::format("plotted route: {} of {} stops left", left, plotted.waypoints.size()),
+        .color = colour_heading
+      }
+    );
+
+    for(size_t ix{plotted.reached}; ix < plotted.waypoints.size() and ix < plotted.reached + listed_hops; ++ix)
+      {
+      info::neutron_waypoint_t const & waypoint{plotted.waypoints[ix]};
+      lines.push_back(
+        overlay::line_t{
+          // gwiazda neutronowa nie tankuje, a klasy pozostalych plik nie podaje
+          .text = std::format(
+            "  {}. {}  {}  {:.0f} ly",
+            ix - plotted.reached + 1u,
+            waypoint.system,
+            waypoint.neutron ? "N no fuel" : "?",
+            waypoint.distance
+          ),
+          .color = ix == plotted.reached ? colour_first : colour_plain
+        }
+      );
+      }
+    }
+
+  auto pending{state.route_ | std::views::filter([](info::route_item_t const & item) { return not item.visited; })};
+  if(std::ranges::distance(pending) != 0)
+    {
+    lines.push_back(
+      overlay::line_t{
+        .text = std::format("game route: {} jumps", std::ranges::distance(pending)), .color = colour_heading
+      }
+    );
+
+    size_t shown{};
+    for(info::route_item_t const & item: pending | std::views::take(listed_hops))
+      {
+      bool const fuel{scoopable(item.star_class)};
+      lines.push_back(
+        overlay::line_t{
+          .text = std::format(
+            "  {}. {}  {}{}  {:.0f} ly",
+            ++shown,
+            item.system,
+            item.star_class.empty() ? "?" : item.star_class,
+            fuel ? " fuel" : "",
+            item.distance
+          ),
+          .color = fuel ? colour_first : colour_plain
+        }
+      );
+      }
+    }
+
+  return lines;
+  }
+
+auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t const & plotted) -> void
   {
   if(not server_->listening())
     return;
@@ -961,6 +1039,12 @@ auto overlay_feed_t::publish(current_state_t const & state) -> void
   if(not market_lines_.empty())
     frame.blocks.push_back(
       overlay::block_t{.corner = overlay::corner_e::top_right, .ttl_ms = block_ttl_ms, .lines = market_lines_}
+    );
+
+  // trasa po lewej, nad ladownia - w locie to ona jest tym, na co sie patrzy
+  if(auto route{build_route_lines(state, plotted)}; not route.empty())
+    frame.blocks.push_back(
+      overlay::block_t{.corner = overlay::corner_e::bottom_left, .ttl_ms = block_ttl_ms, .lines = std::move(route)}
     );
 
   if(auto cargo{describe_cargo(state.cargo)}; not cargo.empty())

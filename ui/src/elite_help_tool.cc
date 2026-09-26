@@ -66,8 +66,17 @@ main_window_t::main_window_t(std::string db_path, std::string journal_path, QWid
 
 auto main_window_t::publish_overlay() -> void
   {
-  if(overlay_feed_)
-    overlay_feed_->publish(state_);
+  if(not overlay_feed_)
+    return;
+
+  // trase wyznaczona poza gra zna tylko okno Route - overlay nie ma po nia skad siegnac sam
+  overlay_feed_t::plotted_route_t plotted{};
+  if(route_view_)
+    plotted = overlay_feed_t::plotted_route_t{
+      .waypoints = route_view_->neutron_route_, .reached = route_view_->reached_, .name = route_view_->neutron_name_
+    };
+
+  overlay_feed_->publish(state_, plotted);
   }
 
 auto main_window_t::start_monitoring() -> void
