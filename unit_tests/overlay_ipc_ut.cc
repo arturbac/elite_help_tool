@@ -13,12 +13,12 @@ using namespace std::chrono_literals;
 
 namespace
   {
-///\brief sciezka gniazda unixowego miesci sie w 108 bajtach, wiec trzyma sie krotko
+///\brief a unix socket path fits in 108 bytes, so it is kept short
 [[nodiscard]]
 auto scratch_socket(std::string_view tag) -> std::string
   { return std::format("/tmp/eht_ovl_{}_{}.sock", tag, ::getpid()); }
 
-///\brief czeka az warunek bedzie spelniony, ale nie dluzej niz limit - testy nie moga wisiec
+///\brief waits until the condition holds, but no longer than the limit - tests must not hang
 template<typename predicate_t>
 [[nodiscard]]
 auto wait_until(predicate_t predicate, std::chrono::milliseconds limit = 3000ms) -> bool
@@ -52,14 +52,14 @@ auto sample_frame(uint64_t sequence) -> overlay::frame_t
 
 auto main() -> int
   {
-  "ramka dociera do klienta w calosci"_test = []
+  "a frame reaches the client whole"_test = []
   {
     auto const path{scratch_socket("roundtrip")};
     overlay::server_t server{path};
     expect(server.listening());
 
     overlay::client_t client{path};
-    expect(wait_until([&] { return server.clients() == 1u; })) << "klient sie nie podlaczyl";
+    expect(wait_until([&] { return server.clients() == 1u; })) << "the client did not connect";
 
     expect(wait_until(
       [&]
@@ -67,7 +67,7 @@ auto main() -> int
         server.publish(sample_frame(7u));
         return client.snapshot() != nullptr;
       }
-    )) << "ramka nie dotarla";
+    )) << "the frame did not arrive";
 
     auto const received{client.snapshot()};
     expect(received != nullptr);
@@ -83,8 +83,8 @@ auto main() -> int
       }
   };
 
-  // typowa kolejnosc: narzedzie chodzi od dawna, gra wstaje pozniej
-  "klient podlaczony po publikacji dostaje ostatni obraz"_test = []
+  // the usual order: the tool has been running for a while, the game comes up later
+  "a client connecting after a publish gets the last picture"_test = []
   {
     auto const path{scratch_socket("retained")};
     overlay::server_t server{path};
@@ -93,7 +93,7 @@ auto main() -> int
     server.publish(sample_frame(42u));
 
     overlay::client_t client{path};
-    expect(wait_until([&] { return client.snapshot() != nullptr; })) << "zapamietana ramka nie dotarla";
+    expect(wait_until([&] { return client.snapshot() != nullptr; })) << "the remembered frame did not arrive";
 
     auto const received{client.snapshot()};
     expect(received != nullptr);
@@ -101,8 +101,8 @@ auto main() -> int
       expect(received->frame.seq == 42_ul);
   };
 
-  // gra potrafi wystartowac przed narzedziem - brak serwera nie moze niczego zepsuc
-  "klient bez serwera zyje i nic nie zwraca"_test = []
+  // the game can start before the tool - no server must break anything
+  "a client with no server lives on and returns nothing"_test = []
   {
     overlay::client_t client{scratch_socket("noserver")};
     std::this_thread::sleep_for(200ms);
@@ -111,8 +111,8 @@ auto main() -> int
     expect(client.received() == 0_ul);
   };
 
-  // narzedzie mozna zrestartowac w trakcie gry, klient ma sam wrocic
-  "klient wraca po restarcie serwera"_test = []
+  // the tool can be restarted mid game; the client is to come back on its own
+  "the client comes back after a server restart"_test = []
   {
     auto const path{scratch_socket("restart")};
     overlay::client_t client{path};
@@ -120,7 +120,7 @@ auto main() -> int
       {
       overlay::server_t first{path};
       expect(first.listening());
-      expect(wait_until([&] { return first.clients() == 1u; })) << "pierwsze polaczenie nie doszlo";
+      expect(wait_until([&] { return first.clients() == 1u; })) << "the first connection did not happen";
       expect(wait_until(
         [&]
         {
@@ -130,11 +130,11 @@ auto main() -> int
       ));
       }
 
-    expect(wait_until([&] { return not client.connected(); })) << "klient nie zauwazyl zniknięcia serwera";
+    expect(wait_until([&] { return not client.connected(); })) << "the client did not notice the server go away";
 
     overlay::server_t second{path};
     expect(second.listening());
-    expect(wait_until([&] { return second.clients() == 1u; }, 5000ms)) << "klient nie wrocil";
+    expect(wait_until([&] { return second.clients() == 1u; }, 5000ms)) << "the client did not come back";
 
     auto const before{client.received()};
     expect(wait_until(
@@ -143,11 +143,11 @@ auto main() -> int
         second.publish(sample_frame(2u));
         return client.received() > before;
       }
-    )) << "po powrocie nie przychodza ramki";
+    )) << "no frames arrive after the return";
   };
 
-  // serwer moze dzialac bez zadnej gry, publish nie ma prawa na tym polec
-  "serwer bez klientow przyjmuje publikacje"_test = []
+  // the server can run with no game at all; publish has no business failing on that
+  "a server with no clients accepts a publish"_test = []
   {
     overlay::server_t server{scratch_socket("noclient")};
     expect(server.listening());

@@ -60,7 +60,7 @@ public:
   [[nodiscard]]
   auto headerData(int section, Qt::Orientation orientation, int role) const -> QVariant override;
 
-  // Funkcja wywoływana przed modyfikacją vectora w state_
+  // the function called before the vector in state_ is modified
   // auto notify_update() -> void;
   auto clear() 
   {

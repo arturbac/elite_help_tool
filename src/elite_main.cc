@@ -26,11 +26,11 @@ namespace po = boost::program_options;
 
 
 
-///\brief jak pozno po zapowiedzi wojna ruszala - z historii wszystkich konfliktow w bazie
+///\brief how late after the announcement a war started - from the history of every conflict in the database
 ///
-/// Gra nie zapisuje w journalu momentu, w ktorym wojna sie zaczyna; w panelu wsparcia frakcji widac
-/// to od razu, w logach dopiero przy nastepnym odczycie systemu. Dlatego kazdy wiersz jest
-/// przedzialem, a nie chwila - a osady wchodza w stan wojny jeszcze pozniej niz sam konflikt
+/// The game does not write the moment a war begins into the journal; the faction support panel shows it
+/// at once, the logs only at the next reading of the system. That is why every row is a span rather than
+/// a moment - and settlements enter the war state later still than the conflict itself
 void print_war_onsets(database_storage_t & db)
   {
   auto onsets{db.load_war_onsets()};
@@ -75,7 +75,7 @@ void print_war_onsets(database_storage_t & db)
   for(size_t ix{}; ix < onsets->size() and ix < 25u; ++ix)
     {
     info::war_onset_t const & onset{(*onsets)[ix]};
-    // pusty status znaczy, ze wojna sie zamknela - dopiero wtedy wynik jest ostateczny
+    // an empty status means the war has closed - only then is the result final
     std::string const state{
       onset.status == "pending"
         ? std::string{"announced"}
@@ -96,11 +96,11 @@ void print_war_onsets(database_storage_t & db)
     }
   }
 
-///\brief praca w plusach zestawiona z tym, co dala - doba BGS po dobie
+///\brief effort in pluses set against what it gave - BGS day by BGS day
 ///
-/// Przelicznik plusow na punkt procentowy liczony jest osobno dla kazdego systemu i nigdzie nie
-/// jest usredniany, bo gra dzieli wplyw misji przez wielkosc systemu: te same dziesiec plusow daje
-/// w systemie czterdziestomilionowym ulamek tego, co w czterdziestotysiecznym
+/// The pluses per percentage point are counted separately for every system and averaged nowhere,
+/// because the game divides mission influence by the size of the system: the same ten pluses give,
+/// in a forty-million system, a fraction of what they give in a forty-thousand one
 void print_bgs_effort(database_storage_t & db, uint32_t within_days)
   {
   auto effort{db.load_bgs_effort(within_days, 0u)};
@@ -136,14 +136,14 @@ void print_bgs_effort(database_storage_t & db, uint32_t within_days)
     if(row.influence_before and row.influence_after)
       moved = std::format("{:.1f}->{:.1f}", *row.influence_before, *row.influence_after);
 
-    // jaka czesc calej pracy w gore wlozonej tej doby w ten system poszla wlasnie na te frakcje
+    // what part of all the upward work put into this system that day went to this faction
     std::string share{"-"};
     if(row.pushed_up > 0 and row.system_pushed_up > 0)
       share = std::format("{:.0f}%", 100.0 * double(row.pushed_up) / double(row.system_pushed_up));
 
-    // Koszt punktu jest wielkoscia systemu, nie frakcji - procenty sumuja sie do stu, wiec frakcje
-    // pchane tej samej doby dziela miedzy siebie jeden przyrost. Przy ruchu rzedu dziesiatych czesci
-    // punktu i tak mowi juz tylko o zaokragleniu oraz o tym, co zrobili inni gracze
+    // The cost of a point is a property of the system, not of the faction - the percentages add up to a
+    // hundred, so factions pushed on the same day share one gain between them. At movements of tenths of
+    // a point it says nothing but the rounding and what other players did anyway
     std::string rate{"-"};
     if(row.system_gain and *row.system_gain >= 0.3 and row.system_pushed_up > 0)
       rate = std::format("{:.1f}", double(row.system_pushed_up) / *row.system_gain);
@@ -165,11 +165,11 @@ void print_bgs_effort(database_storage_t & db, uint32_t within_days)
     }
   }
 
-///\brief wypisuje zaobserwowane fale przeliczen - osobno wplywy, osobno wojny
+///\brief prints the observed recalculation waves - influence apart, wars apart
 ///
-/// Zadna z tych liczb nie jest prognoza. Tick przesuwa sie co kilka dni, w weekend potrafi nie
-/// przyjsc przez prawie dwie doby, a po aktualizacji gry gubi sie zupelnie - wiec wypisujemy
-/// wylacznie to, co zostalo zobaczone
+/// None of these numbers is a forecast. The tick drifts every few days, over a weekend it can stay away
+/// for almost two days, and after a game update it gets lost altogether - so we print nothing but what
+/// has been seen
 void print_tick_history(database_storage_t & db, uint32_t within_days)
   {
   for(info::tick_kind_e const kind: {info::tick_kind_e::influence, info::tick_kind_e::war})
@@ -250,16 +250,16 @@ void signal_handler(int signal)
 auto main(int argc, char ** argv) -> int
   {
   spdlog::set_pattern("[%^%l%$] %v");
-  // Rejestracja handlera dla std::terminate
+  // register the handler for std::terminate
   std::set_terminate(terminate_handler);
 
-  // Rejestracja handlera dla sygnałów (SIGABRT, SIGTERM, itp.)
+  // register the handler for signals (SIGABRT, SIGTERM and so on)
   std::signal(SIGABRT, signal_handler);
   std::signal(SIGTERM, signal_handler);
 
   // spdlog::set_level(spdlog::level::debug);
 
-  // FID stoi w zdarzeniu Commander zaraz na poczatku pliku, wiec nie trzeba czytac calosci
+  // the FID sits in the Commander event right at the start of the file, so there is no need to read it all
   auto commander_of = [](fs::path const & journal) -> events::commander_t
   {
     std::ifstream file{journal};
@@ -324,17 +324,17 @@ auto main(int argc, char ** argv) -> int
 
   auto const path = fs::path{vm["dir"].as<std::string>()};
 
-  // import buduje obie odtwarzalne bazy od zera i wstawia zwyklym INSERT, wiec pozostawienie
-  // poprzedniej zawartosci konczy sie konfliktem klucza albo zdublowanymi wierszami.
-  // live.sqlite zostaje nietkniety - jego zawartosci nie da sie odtworzyc z journali
+  // the import builds both rebuildable databases from scratch and writes with a plain INSERT, so leaving
+  // the previous contents in place ends in a key conflict or in doubled rows.
+  // live.sqlite is left untouched - its contents cannot be rebuilt from journals
   for(char const * rebuildable: {"ehtdb.sqlite", "galaxy.sqlite"})
     {
     if(not fs::exists(rebuildable))
       continue;
 
-    // galaxy.sqlite bywa dowiazaniem do pliku dzielonego z drugim kontem - skasowanie samego
-    // dowiazania zerwaloby to po cichu, wiec kasujemy zawartosc, a dowiazanie zostaje.
-    // sqlite otwiera z O_CREAT, wiec zaklada plik z powrotem po drugiej stronie dowiazania
+    // galaxy.sqlite is sometimes a link to a file shared with the second account - removing the link
+    // itself would break that silently, so we remove the contents and the link stays.
+    // sqlite opens with O_CREAT, so it creates the file again on the other side of the link
     std::error_code ec;
     fs::path const target{fs::weakly_canonical(rebuildable, ec)};
     fs::remove(ec ? fs::path{rebuildable} : target);
@@ -346,8 +346,8 @@ auto main(int argc, char ** argv) -> int
   dbimport.state = &state;
   std::vector<fs::path> journals{find_all_journals(path)};
 
-  // katalog bywa mieszany - prefix kopiowany na drugie konto zabiera ze soba cudze journale.
-  // swiat bierzemy ze wszystkich, ale kariere tylko od wlasciciela tej bazy
+  // the directory is sometimes mixed - a prefix copied to a second account brings somebody else's
+  // journals with it. the world we take from all of them, the career only from this database's owner
   if(auto const & chosen{vm["commander"].as<std::string>()}; chosen == "all")
     std::println("importing without distinguishing accounts");
   else if(not chosen.empty())

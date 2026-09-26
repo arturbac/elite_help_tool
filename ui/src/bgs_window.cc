@@ -11,11 +11,11 @@
 
 namespace
   {
-///\brief ile dni wstecz pokazuje kazda pozycja listy okresow
+///\brief how many days back each entry of the period list shows
 constexpr std::array<uint32_t, 3> periods{7u, 14u, 30u};
 
-///\brief ruch wplywow ponizej tego progu mowi juz tylko o zaokragleniu i o tym, co tej doby
-/// zrobili inni gracze - wplyw jest suma zerowa, wiec przelicznik z takiej doby bylby zmyslony
+///\brief a movement of influence below this threshold says nothing but the rounding and what other
+/// players did that day - influence is zero sum, so a rate from such a day would be made up
 constexpr double smallest_readable_move{0.3};
   }  // namespace
 
@@ -36,8 +36,8 @@ auto bgs_effort_model_t::data(QModelIndex const & index, int role) const -> QVar
   info::bgs_effort_t const & row{rows_[size_t(index.row())]};
   auto const column{column_e(index.column())};
 
-  // Koszt punktu jest wielkoscia systemu i doby, nie frakcji: procenty sumuja sie do stu, wiec
-  // frakcje pchane tego samego dnia dziela miedzy siebie jeden przyrost
+  // The cost of a point is a property of the system and the day, not of the faction: the percentages add
+  // up to a hundred, so factions pushed on the same day share one gain between them
   auto const rate = [&]() -> std::optional<double>
   {
     if(not row.system_gain or row.system_pushed_up <= 0 or *row.system_gain < smallest_readable_move)
@@ -46,7 +46,7 @@ auto bgs_effort_model_t::data(QModelIndex const & index, int role) const -> QVar
     return double(row.system_pushed_up) / *row.system_gain;
   }();
 
-  ///\brief jaka czesc calej pracy w gore wlozonej tej doby w ten system poszla na te frakcje
+  ///\brief what part of all the upward work put into this system that day went to this faction
   auto const share = [&]() -> std::optional<double>
   {
     if(row.pushed_up <= 0 or row.system_pushed_up <= 0)
@@ -59,7 +59,7 @@ auto bgs_effort_model_t::data(QModelIndex const & index, int role) const -> QVar
     switch(column)
       {
       case column_e::closed_by:
-        // zerowy znacznik znaczy, ze fala jeszcze nie przyszla i doba trwa
+        // a zero marker means the wave has not come yet and the day is still running
         return row.closed_by == std::chrono::sys_seconds{}
                  ? QString{"running"}
                  : QString::fromStdString(std::format("{:%d.%m %H:%M}", row.closed_by));
@@ -70,8 +70,8 @@ auto bgs_effort_model_t::data(QModelIndex const & index, int role) const -> QVar
       case column_e::missions:      return row.missions;
       case column_e::pluses:
         {
-        // jedna kolumna na obie dzwignie - "w dol" bywa puste w niemal kazdym wierszu, a zabieralo
-        // tyle samo szerokosci co reszta
+        // one column for both levers - "down" is empty in almost every row, yet it took as much
+        // width as the rest
         if(row.pushed_up != 0 and row.pushed_down != 0)
           return QString::fromStdString(std::format("+{} -{}", row.pushed_up, row.pushed_down));
         if(row.pushed_up != 0)
@@ -202,7 +202,7 @@ auto war_onset_model_t::data(QModelIndex const & index, int role) const -> QVari
            / 60.0;
   };
 
-  // pusty status znaczy, ze wojna sie zamknela - dopiero wtedy wynik jest ostateczny
+  // an empty status means the war has closed - only then is the result final
   auto const state = [&]() -> std::string
   {
     if(row.status == "pending")
@@ -211,8 +211,8 @@ auto war_onset_model_t::data(QModelIndex const & index, int role) const -> QVari
     return std::format("{} : {}{}", row.won_days1, row.won_days2, row.status.empty() ? "" : " running");
   };
 
-  ///\brief zielony gdy ta strona prowadzi, czerwony gdy przegrywa, bez koloru przy remisie
-  ///\detail te same dwa odcienie nosi tabela reputacji - jedyne, ktore czytaja sie na ciemnym tle
+  ///\brief green when this side leads, red when it is losing, no colour on a draw
+  ///\detail the reputation table wears the same two shades - the only ones that read on a dark background
   auto const side_color = [](uint32_t mine, uint32_t theirs) -> QVariant
   {
     if(mine > theirs)
@@ -340,7 +340,7 @@ auto bgs_window_t::setup_ui() -> void
 
   auto * tabs = new QTabWidget(central_widget);
 
-  // --- praca w plusach ---
+  // --- effort in pluses ---
   auto * effort_page = new QWidget(tabs);
   auto * effort_layout = new QVBoxLayout(effort_page);
   effort_layout->addWidget(tick_header_);
@@ -352,8 +352,8 @@ auto bgs_window_t::setup_ui() -> void
   view_->verticalHeader()->setVisible(false);
   view_->horizontalHeader()->setStretchLastSection(false);
 
-  // Same liczby dostaja tyle, ile potrzebuja, a nazwy oddaja lub biora reszte - przy samym
-  // ResizeToContents tabela zadala wiecej szerokosci niz okno i ostatnia kolumna wypadala poza kadr
+  // The numbers alone get what they need and the names give up or take the rest - with ResizeToContents
+  // on its own the table asked for more width than the window had and the last column fell out of frame
   view_->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
   view_->horizontalHeader()->setSectionResizeMode(int(bgs_effort_model_t::stretch_column), QHeaderView::Stretch);
   view_->horizontalHeader()->setSectionResizeMode(
@@ -363,7 +363,7 @@ auto bgs_window_t::setup_ui() -> void
   effort_layout->addWidget(view_, 1);
   tabs->addTab(effort_page, "Effort");
 
-  // --- kiedy wojny naprawde ruszaly ---
+  // --- when wars really started ---
   auto * war_page = new QWidget(tabs);
   auto * war_layout = new QVBoxLayout(war_page);
 
@@ -471,8 +471,8 @@ auto bgs_window_t::show_wars() -> void
     return;
     }
 
-  // okres nie zaweza tej zakladki - rozrzut liczy sie tym pewniej, im wiecej wojen go zlozylo,
-  // a wybrany system owszem, bo o niego zwykle chodzi przy planowaniu wyprawy
+  // the period does not narrow this tab - the spread counts the more surely the more wars went into it,
+  // whereas the chosen system does, because it is usually what a trip is being planned around
   if(auto const chosen{system_combo_->currentData().toULongLong()}; chosen != 0u)
     std::erase_if(*onsets, [chosen](info::war_onset_t const & row) { return row.system_address != chosen; });
 

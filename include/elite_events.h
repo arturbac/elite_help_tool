@@ -224,7 +224,7 @@ struct docking_requested_t
 
 struct cargo_t
   {
-  ///\brief Ship albo SRV - liczy sie tylko to, co zostaje na statku
+  ///\brief Ship or SRV - only what stays on the ship counts
   std::string Vessel;
   uint32_t Count;
   };
@@ -251,9 +251,9 @@ struct carrier_finance_t
 
 struct carrier_stats_t
   {
-  ///\brief numer, nie sygnatura - to samo co MarketID tego flotowca. FCMaterials.json nazywa
-  /// swoje pole tak samo, ale trzyma tam sygnature, wiec laczyc te dwa zrodla wolno wylacznie
-  /// przez Callsign
+  ///\brief a number, not the callsign - the same as this carrier's MarketID. FCMaterials.json names
+  /// its own field the same way but keeps the callsign in it, so the two sources may be joined
+  /// through Callsign alone
   uint64_t CarrierID;
   std::string Callsign;
   std::string Name;
@@ -270,7 +270,7 @@ struct carrier_stats_t
 struct fcmaterial_t
 {
   uint64_t id;
-  ///\brief nazwa wewnetrzna, wspolny klucz ze sprzedaza mikrozasobow
+  ///\brief the internal name, the key shared with micro resource sales
   std::string Name;
   std::string Name_Localised;
   uint32_t Price;
@@ -337,7 +337,7 @@ struct mission_accepted_t
   uint16_t KillCount;  //
   };
 
-///\brief nagroda materialowa za misje - idzie do lockera, w plecaku sie nie pojawia
+///\brief a material reward for a mission - it goes to the locker, it never shows in the backpack
 struct material_reward_t
   {
   std::string Name;
@@ -345,9 +345,9 @@ struct material_reward_t
   uint32_t Count;
   };
 
-///\brief ruch wplywow jednej frakcji w jednym systemie, oplacony ta misja
-///\detail gra nie podaje liczby, tylko ciag "+", "++" albo "+++" - jego dlugosc jest cala miara.
-/// Trend mowi w ktora strone poszla frakcja: UpGood rosnie, DownBad spada
+///\brief the influence one faction gained in one system, paid for by this mission
+///\detail the game gives no number, only a run of "+", "++" or "+++" - its length is the whole measure.
+/// Trend says which way the faction went: UpGood rises, DownBad falls
 struct influence_effect_t
   {
   uint64_t SystemAddress;
@@ -355,8 +355,8 @@ struct influence_effect_t
   std::string Influence;
   };
 
-///\brief skutki jednej misji dla jednej frakcji - oddana misja rusza zwykle kilka frakcji naraz,
-/// a kazda z nich moze poczuc to w wiecej niz jednym systemie
+///\brief one mission's effect on one faction - a handed-in mission usually moves several factions at once,
+/// and each of them may feel it in more than one system
 struct faction_effect_t
   {
   std::string Faction;
@@ -366,12 +366,12 @@ struct faction_effect_t
 struct mission_completed_t
   {
   uint64_t MissionID;
-  ///\brief faktyczna wyplata, rozna od obiecanej przy braniu misji
+  ///\brief the actual payout, different from the one promised when the mission was taken
   uint64_t Reward;
-  ///\brief nagrody materialowe - najwiekszy pojedynczy zrodlo danych, dwa razy wiekszy niz porty
+  ///\brief material rewards - the single largest source of them, twice as large as data ports
   std::vector<material_reward_t> MaterialsReward;
-  ///\brief kogo ta misja ruszyla i o ile - jedyny slad wplywu oddanej misji w calym journalu.
-  /// Bez tego nie da sie powiedziec ile pracy kosztowal punkt procentowy w systemie
+  ///\brief who the mission moved and by how much - the only trace of a handed-in mission's influence in the whole journal.
+  /// Without it there is no saying how much work a percentage point cost in the system
   std::vector<faction_effect_t> FactionEffects;
   };
 
@@ -389,14 +389,14 @@ struct mission_redirected_t
   };
 
 ///\brief kto gra w tej sesji - kazdy journal otwiera to zdarzenie zaraz po naglowku
-///\detail FID jest stalym identyfikatorem konta, nazwa bywa zmieniana - dlatego rozstrzyga FID
+///\detail the FID is the account's fixed identifier while the name can change - so the FID decides
 struct commander_t
   {
   std::string FID;
   std::string Name;
   };
 
-///\brief pozycja z listy misji ktore gra uwaza za otwarte
+///\brief a row from the list of missions the game considers open
 struct mission_active_t
   { uint64_t MissionID; };
 
@@ -418,8 +418,8 @@ enum struct scan_type_e
   AutoScan,
   NavBeaconDetail,
   Detailed,
-  // ScanType pojawia sie tez w Scanned i ScanOrganic, nieznana wartosc wywalala parsowanie
-  // generic_event_t czyli cala linie journala, nie tylko te eventy
+  // ScanType also appears in Scanned and ScanOrganic; an unknown value used to break the parsing of
+  // generic_event_t, that is of the whole journal line, not only of those events
   Cargo,
   Crime,
   Log,
@@ -529,7 +529,7 @@ struct faction_state_trend_t
 // Neutral	-3 do +3
 // Unfriendly	-34 do -4
 // Hostile	-100 do -35
-///\brief wpis listy stanow frakcji, Trend wystepuje tylko przy czesci z nich
+///\brief an entry in a faction's state list; Trend appears on only some of them
 struct faction_state_entry_t
   {
   std::string State;
@@ -551,7 +551,7 @@ struct faction_info_t
   std::vector<faction_state_entry_t> RecoveringStates;
   };
 
-///\brief strona konfliktu w systemie
+///\brief one side of a conflict in the system
 struct conflict_faction_t
   {
   std::string Name;
@@ -559,7 +559,7 @@ struct conflict_faction_t
   uint32_t WonDays;
   };
 
-///\brief wojna, wojna domowa lub wybory w systemie
+///\brief a war, a civil war or an election in the system
 struct conflict_t
   {
   std::string WarType;
@@ -894,9 +894,9 @@ struct signal_t
 struct genus_t
   {
   std::string Genus_Localised;
-  ///\brief uzupelniane dopiero po probkowaniu, mapowanie podaje sam rodzaj
+  ///\brief filled in only after sampling; mapping alone gives just the genus
   std::string Species_Localised;
-  ///\brief probka kompletna - gra konczy sekwencje Log, Sample, Sample, Analyse wlasnie tym ostatnim
+  ///\brief the sample is complete - the game ends the Log, Sample, Sample, Analyse sequence with that last one
   bool Sampled;
   };
 
@@ -911,8 +911,8 @@ struct scan_organic_t
   body_id_t Body;
   };
 
-///\brief sygnal wykryty skanem FSS - stacja, instalacja, POI, zjawisko
-///\brief zblizenie do osady - stad bierze sie kontekst zdobywania: ekonomia i rzad miejsca
+///\brief a signal found by an FSS scan - a station, an installation, a POI, a phenomenon
+///\brief approaching a settlement - this is where the context for collecting comes from: the economy and government of the place
 struct approach_settlement_t
   {
   uint64_t MarketID;
@@ -920,11 +920,11 @@ struct approach_settlement_t
   std::string Name;
   std::string StationEconomy_Localised;
   std::string StationGovernment_Localised;
-  ///\brief frakcja wladajaca miejscem - journal podaje ja zagniezdzona, nie jako goly napis
+  ///\brief the faction holding the place - the journal gives it nested, not as a bare string
   system_faction_t StationFaction;
   };
 
-///\brief wyjscie z pojazdu - bywa jedynym sladem miejsca gdy przylot byl taksowka
+///\brief leaving the vehicle - sometimes the only trace of the place when the arrival was by taxi
 struct disembark_t
   {
   uint64_t MarketID;
@@ -933,29 +933,29 @@ struct disembark_t
   std::string StationType;
   };
 
-///\brief wejscie w supercruise - konczy pobyt w osadzie
+///\brief entering supercruise - it ends the stay at a settlement
 struct supercruise_entry_t
   {
   uint64_t SystemAddress;
   };
 
-///\brief pozycja plecaka
+///\brief a backpack row
 struct backpack_item_t
   {
   std::string Name;
   std::string Name_Localised;
-  ///\brief Data, Item, Component albo Consumable
+  ///\brief Data, Item, Component or Consumable
   std::string Type;
   uint32_t Count;
   };
 
-///\brief zmiana zawartosci plecaka - Added to zdobycz z osady, portu danych czy misji
+///\brief a change to the backpack's contents - Added is a find from a settlement, a data port or a mission
 struct backpack_change_t
   {
   std::vector<backpack_item_t> Added;
   };
 
-///\brief pozycja sprzedazy mikrozasobow
+///\brief a micro resource sale row
 struct sold_micro_resource_t
   {
   std::string Name;
@@ -964,7 +964,7 @@ struct sold_micro_resource_t
   uint32_t Count;
   };
 
-///\brief sprzedaz mikrozasobow bartenderowi - na stacji albo na flotowcu gracza
+///\brief selling micro resources to a bartender - at a station or on a player's carrier
 struct sell_micro_resources_t
   {
   uint64_t MarketID;
@@ -973,9 +973,9 @@ struct sell_micro_resources_t
   std::vector<sold_micro_resource_t> MicroResources;
   };
 
-///\brief zadokowanie - stad bierze sie tozsamosc stacji, wraz z typem
-///\detail StationType rozroznia flotowiec gracza od zwyklej stacji, co odroznia sprzedaz
-/// mikrozasobow graczom od zrzutu na stacji
+///\brief docking - this is where a station's identity comes from, its type included
+///\detail StationType tells a player's carrier from an ordinary station, which is what tells selling
+/// micro resources to players from dropping them at a station
 struct docked_t
   {
   uint64_t MarketID;
@@ -985,39 +985,39 @@ struct docked_t
   std::string StarSystem;
   std::string StationEconomy_Localised;
   std::string StationGovernment_Localised;
-  ///\brief frakcja wladajaca miejscem - journal podaje ja zagniezdzona, nie jako goly napis
+  ///\brief the faction holding the place - the journal gives it nested, not as a bare string
   system_faction_t StationFaction;
   };
 
-///\brief zamowienie przerzutu statku miedzy portami
+///\brief an order to move a ship between ports
 ///
-/// Jedyna chwila, w ktorej gra mowi, kiedy statek dojdzie - potem nie przypomni o tym ani razu,
-/// a samo przybycie nie ma wlasnego zdarzenia
+/// The one moment the game says when the ship will arrive - afterwards it never mentions it again,
+/// and the arrival itself has no event of its own
 struct shipyard_transfer_t
   {
   std::string ShipType;
   std::string ShipType_Localised;
   uint64_t ShipID;
-  ///\brief system, z ktorego statek leci
+  ///\brief the system the ship flies from
   std::string System;
-  ///\brief rynek, z ktorego leci - przy flotowcu to jego MarketID
+  ///\brief the market it flies from - for a carrier that is its MarketID
   uint64_t ShipMarketID;
   double Distance;
   uint64_t TransferPrice;
-  ///\brief czas dostawy w sekundach
+  ///\brief delivery time in seconds
   uint64_t TransferTime;
-  ///\brief rynek docelowy, czyli ten, w ktorym akurat stoimy
+  ///\brief the destination market, that is the one we are standing in
   uint64_t MarketID;
   };
 
-///\brief odlot z ladowiska - od tej chwili rynek tego miejsca przestaje nas dotyczyc
+///\brief lifting off the pad - from this moment the market of that place stops concerning us
 struct undocked_t
   {
   uint64_t MarketID;
   std::string StationName;
   };
 
-///\brief event Market z journala - niesie tylko naglowek, zawartosc idzie do Market.json
+///\brief the Market event from the journal - it carries only a header, the contents go to Market.json
 struct market_t
   {
   uint64_t MarketID;
@@ -1026,7 +1026,7 @@ struct market_t
   std::string StarSystem;
   };
 
-///\brief pozycja z Cargo.json
+///\brief a row from Cargo.json
 struct cargo_item_t
   {
   std::string Name;
@@ -1035,7 +1035,7 @@ struct cargo_item_t
   uint32_t Stolen;
   };
 
-///\brief zawartosc Cargo.json, plik nadpisywany przy kazdej zmianie ladunku
+///\brief the contents of Cargo.json, a file overwritten on every change of cargo
 struct cargo_file_t
   {
   std::chrono::sys_seconds timestamp;
@@ -1044,7 +1044,7 @@ struct cargo_file_t
   std::vector<cargo_item_t> Inventory;
   };
 
-///\brief pozycja rynku z Market.json
+///\brief a market row from Market.json
 struct market_commodity_t
   {
   uint64_t id;
@@ -1052,16 +1052,16 @@ struct market_commodity_t
   std::string Category_Localised;
   uint32_t BuyPrice;
   uint32_t SellPrice;
-  ///\brief srednia galaktyczna, stala dla towaru - punkt odniesienia dla ceny
+  ///\brief the galactic average, a constant of the commodity - the reference point for a price
   uint32_t MeanPrice;
   uint32_t Stock;
   uint32_t Demand;
-  ///\brief sama cena nic nie znaczy - stacja podaje ja tez dla towarow, ktorymi nie handluje
+  ///\brief a price alone means nothing - a station quotes one for commodities it does not trade either
   bool Producer;
   bool Consumer;
   };
 
-///\brief zawartosc Market.json, plik nadpisywany przy kazdym dokowaniu
+///\brief the contents of Market.json, a file overwritten at every docking
 struct market_file_t
   {
   std::chrono::sys_seconds timestamp;
@@ -1079,7 +1079,7 @@ struct fss_signal_discovered_t
   std::string SignalName_Localised;
   std::string SignalType;
   bool IsStation;
-  ///\brief obecne tylko przy USS, ktore wygasaja po kilku minutach
+  ///\brief present only for USS signals, which expire after a few minutes
   std::optional<double> TimeRemaining;
   };
 
@@ -1300,7 +1300,7 @@ struct bary_centre_t
   double mean_anomaly;
   };
 
-///\brief trwaly sygnal w systemie, jeden wpis na nazwe
+///\brief a lasting signal in the system, one row per name
 struct system_signal_t
   {
   int64_t oid{-1};
@@ -1308,13 +1308,13 @@ struct system_signal_t
   std::string name;
   std::string signal_type;
   bool is_station;
-  ///\brief ostatnie zgloszenie przez skan - place budowy i sygnaly tymczasowe przestaja wracac
+  ///\brief the last time a scan reported it - construction sites and temporary signals stop coming back
   std::chrono::sys_seconds last_seen;
   };
 
-///\brief zostawia sygnaly widziane podczas ostatniej wizyty w systemie
-///\detail gra zglasza sygnaly partiami, ktore bywaja niepelne - ta sama stacja potrafi wypasc
-/// z jednej partii i wrocic w nastepnej - wiec wizyta to suma partii, a nie pojedyncza partia
+///\brief keeps the signals seen during the last visit to the system
+///\detail the game reports signals in batches that are sometimes incomplete - the same station can drop out
+/// in one batch and come back in the next - so a visit is the sum of the batches, not a single batch
 [[nodiscard]]
 auto filter_current_visit(std::vector<system_signal_t> signals) -> std::vector<system_signal_t>;
 
@@ -1322,14 +1322,14 @@ auto filter_current_visit(std::vector<system_signal_t> signals) -> std::vector<s
 auto to_system_signal(events::fss_signal_discovered_t const & signal, std::chrono::sys_seconds seen)
   -> system_signal_t;
 
-///\brief do ktorego okna nalezy sygnal
+///\brief which window a signal belongs to
 enum struct signal_class_e : uint8_t
   {
-  ///\brief zjawiska i punkty orientacyjne - okno eksploracyjne
+  ///\brief phenomena and landmarks - the exploration window
   exploration,
-  ///\brief stacje, outposty, instalacje, flotowce - okno systemu zasiedlonego
+  ///\brief stations, outposts, installations, carriers - the inhabited system window
   station,
-  ///\brief strefy konfliktu i miejsca wydobycia, zapisywane ale jeszcze nie pokazywane
+  ///\brief conflict zones and mining sites, stored but not yet shown
   other
   };
 
@@ -1348,8 +1348,8 @@ struct star_system_t
   std::string name;
   std::string star_type;
   // absolute location in galaxy in LY
-  // X	East / West	Wartości dodatnie rosną w prawo od Sol (patrząc na mapę z góry).
-  // Y	Up / Down	Wysokość nad lub pod płaszczyzną galaktyki. Sol leży prawie na 0.
+  // X	East / West	Positive values run to the right of Sol (looking at the map from above).
+  // Y	Up / Down	Height above or below the galactic plane. Sol sits almost at 0.
   // Z	North / South
   std::array<double, 3> system_location;
   std::vector<bary_centre_t> bary_centre;
@@ -1358,7 +1358,7 @@ struct star_system_t
   bool fss_complete;
   std::vector<system_signal_t> system_signals;
 
-  // opis systemu z eventu Location/FSDJump
+  // the system described, from the Location/FSDJump event
   std::string economy;
   std::string second_economy;
   std::string government;
@@ -1392,8 +1392,8 @@ struct generic_state_t
   virtual auto handle(std::chrono::sys_seconds timestamp, events::event_holder_t && event) -> void = 0;
   };
 
-///\brief przepisuje opis systemu z eventu Location/FSDJump
-///\returns true gdy ktores z pol sie zmienilo
+///\brief copies the system description over from a Location/FSDJump event
+///\returns true when any of the fields changed
 template<typename event_t>
 [[nodiscard]]
 auto apply_system_info(star_system_t & system, event_t const & event) -> bool
@@ -1423,14 +1423,14 @@ struct planet_value_info_t
   double terraform_bonus{0.0};
   };
 
-///rief wartosc probki organicznej po analizie, w kredytach
+///\brief the value of an organic sample after analysis, in credits
 struct organic_value_t
   {
   std::string_view species;
   uint32_t value;
   };
 
-///rief cennik gatunkow, nazwy jak w Species_Localised z eventu ScanOrganic
+///\brief the species price list, names as in Species_Localised of the ScanOrganic event
 static constexpr std::array<organic_value_t, 96> organic_values{
   {
    {"Aleoida Arcus", 7'252'500},
@@ -1532,23 +1532,23 @@ static constexpr std::array<organic_value_t, 96> organic_values{
   }
 };
 
-///rief zakres wartosci dla nazwy z journala
-///\detail dla gatunku (po ScanOrganic) wychodzi jedna wartosc, dla samego rodzaju rozpietosc calej rodziny.
-/// Nazwy rodzajow z journala nie zawsze pokrywaja sie z cennikiem - "Brain Trees" kontra "Brain Tree",
-/// "Luteolum Anemone" kontra "Anemone" - wiec dopasowanie schodzi po kolejnych regulach.
+///\brief the range of values for a name out of the journal
+///\detail for a species (after ScanOrganic) this is a single value, for a genus alone the span of the whole family.
+/// Genus names from the journal do not always match the price list - "Brain Trees" against "Brain Tree",
+/// "Luteolum Anemone" against "Anemone" - so the match falls through successive rules.
 [[nodiscard]]
 auto organic_value_range(std::string_view name) noexcept -> std::optional<std::pair<uint32_t, uint32_t>>;
 
-///\brief nazwa wewnetrzna mikrozasobu, wspolny klucz obu zrodel
-///\detail "$weaponschematic_name;" i "weaponschematic" to ten sam material
+///\brief a micro resource's internal name, the key shared by both sources
+///\detail "$weaponschematic_name;" and "weaponschematic" are the same material
 [[nodiscard]]
 auto micro_resource_key(std::string_view name) -> std::string;
 
-///\brief wczytuje Market.json lezacy obok journali
+///\brief loads the Market.json sitting next to the journals
 [[nodiscard]]
 auto load_market(std::string journal_dir_path) -> cxx23::expected<events::market_file_t, std::error_code>;
 
-///\brief Cargo.json obok journali, nadpisywany - mowi co jest na pokladzie w tej chwili
+///\brief Cargo.json beside the journals, overwritten - it says what is aboard right now
 [[nodiscard]]
 auto load_cargo(std::string journal_dir_path) -> cxx23::expected<events::cargo_file_t, std::error_code>;
 
@@ -1560,7 +1560,7 @@ auto planet_name_from_ring_name(std::string_view system, std::string_view name) 
 
 static constexpr std::array<planet_value_info_t, 19> exploration_values{
   {{"Metal rich body", 21'790.0},
-   {"High metal content body", 9'693.0, 93'328.0},  // Bonus dodawany jeśli terraformowalna
+   {"High metal content body", 9'693.0, 93'328.0},  // the bonus added when terraformable
    {"Rocky body", 300.0, 93'328.0},
    {"Icy body", 300.0},
    {"Rocky ice body", 300.0},

@@ -28,14 +28,14 @@ namespace exploration
 auto is_high_value_star(std::string_view star_class) noexcept -> bool
   {
   using namespace std::literals;
-  // Gwiazdy typu A, F, G, K mają najlepszą "Goldilocks Zone"
+  // stars of type A, F, G, K have the best "Goldilocks zone"
   return star_class == "A"sv || star_class == "F"sv || star_class == "G"sv || star_class == "K"sv;
   }
 
 auto extract_mass_code(std::string_view name) noexcept -> char
   {
-  // Proceduralne nazwy kończą się schematem: [Litery]-[Litera] [MassCode][Liczba]-[Liczba]
-  // Szukamy ostatniej spacji, Mass Code to pierwszy znak po niej (jeśli to litera)
+  // procedural names end with the pattern: [Letters]-[Letter] [MassCode][Number]-[Number]
+  // look for the last space; the mass code is the first character after it, if it is a letter
   auto const last_space = name.find_last_of(' ');
   if(last_space == std::string_view::npos || last_space + 1 >= name.size())
     return 'a';  // Fallback
@@ -48,17 +48,17 @@ auto system_approx_value(std::string_view star_class, std::string_view system_na
   {
   auto const mass_code = extract_mass_code(system_name);
 
-  // Logika aproksymacji:
-  // Kod 'd' przy gwiazdach F/G/A to najczęściej "high" (Terraformables)
-  // Kody 'e' i wyżej to zazwyczaj bardzo cenne układy (Neutron/BlackHoles)
-  // Kody 'a' i 'b' to zazwyczaj tanie lodowe planety
+  // how the approximation goes:
+  // code 'd' with an F/G/A star is most often "high" (terraformables)
+  // codes 'e' and above are usually very valuable systems (neutron stars, black holes)
+  // codes 'a' and 'b' are usually cheap icy planets
 
   if(mass_code >= 'e')
     return planet_value_e::high;
 
   if(mass_code == 'd')
     {
-    // Gwiazdy typu A, F, G w kodzie 'd' mają najwyższą szansę na drogie planety
+    // stars of type A, F, G under code 'd' have the best chance of expensive planets
     if(is_high_value_star(star_class))
       return planet_value_e::high;
     return planet_value_e::medium;
@@ -189,13 +189,13 @@ auto order_calculation(std::span<bary_centre_t const> barycentres, std::vector<b
       s->details
     );
 
-    // Uzupełnianie hierarchii dla barycentrów na podstawie ścieżki rodziców skanu
+    // filling in the hierarchy of barycentres from the scan's path of parents
     // for(size_t i = 0; i + 1 < s->parents.size(); ++i)
     //   {
     //   auto parent_id = s->parents[i].id();
     //   if(registry.contains(parent_id) and registry[parent_id].parents.empty())
     //     {
-    //     // Skoro s.Parents[i] to nasze barycentrum, to s.Parents[i+1] jest jego rodzicem
+    //     // since s.Parents[i] is our barycentre, s.Parents[i+1] is its parent
     //     registry[parent_id].parents.push_back(s->parents[i + 1]);
     //     }
     //   }
@@ -216,7 +216,7 @@ auto order_calculation(std::span<bary_centre_t const> barycentres, std::vector<b
     double abs_x = 0.0, abs_y = 0.0, abs_z = 0.0;
     body_id_t current_id = s->body_id;
 
-    // Iterujemy w górę drzewa, aż do gwiazdy głównej (brak rodziców)
+    // walk up the tree as far as the main star (no parents left)
     while(true)
       {
       if(rel_coords.contains(current_id))
@@ -273,15 +273,14 @@ auto order_calculation(std::span<bary_centre_t const> barycentres, std::vector<b
   return path;
   }
 
-// Implementacja algorytmu 2-opt (zamiana krawędzi) pozwoli na optymalizację trasy wyznaczonej przez algorytm
-// najbliższego sąsiada. Jest to szczególnie przydatne w systemach z wieloma ciałami niebieskimi, gdzie zachłanne
-// podejście często generuje krzyżujące się ścieżki i niepotrzebne powroty.
+// The 2-opt algorithm (swapping edges) improves the route the nearest neighbour algorithm laid out. It pays
+// off above all in systems with many bodies, where the greedy approach often produces crossing paths and
+// pointless returns.
 //
-// W tej wersji wymuszamy, aby punkt startowy (indeks 0) pozostał niezmieniony, ponieważ reprezentuje on Twoją aktualną
-// pozycję po wejściu do systemu.
+// Here the starting point (index 0) is forced to stay where it is, because it stands for your actual
+// position on entering the system.
 //
-// Optymalizacja Trasy: Algorytm 2-opt w C++23
-// C++
+// Route optimisation: the 2-opt algorithm in C++23
 
 [[nodiscard]]
 auto calculate_distance(body_location_t const & a, body_location_t const & b) noexcept -> double
@@ -299,7 +298,7 @@ auto order_calculation_2_opt(body_location_t const player_pos, std::span<body_lo
   if(targets.empty())
     return {};
 
-  // 1. Inicjalizacja: Budujemy ścieżkę zaczynając od gracza (Nearest Neighbor)
+  // 1. start off: build the path beginning at the player (nearest neighbour)
   std::vector<body_location_t> path;
   path.reserve(targets.size() + 1);
   path.push_back(player_pos);
@@ -319,7 +318,7 @@ auto order_calculation_2_opt(body_location_t const player_pos, std::span<body_lo
     remaining.erase(closest_it);
     }
 
-  // 2. Optymalizacja 2-opt (Open TSP)
+  // 2. the 2-opt optimisation (open TSP)
   if(path.size() < 3)
     return path;
 
@@ -329,16 +328,16 @@ auto order_calculation_2_opt(body_location_t const player_pos, std::span<body_lo
   while(improved)
     {
     improved = false;
-    // i = 1: Blokujemy pozycję gracza na indeksie 0
+    // i = 1: the player's position at index 0 is held in place
     for(size_t i = 1; i < n - 1; ++i)
       {
       for(size_t j = i + 1; j < n; ++j)
         {
-        // Koszt obecny: (i-1 -> i) + (j -> j+1 jeśli istnieje)
+        // the cost as it stands: (i-1 -> i) + (j -> j+1, if there is one)
         double const d_i_prev_i = calculate_distance(path[i - 1], path[i]);
         double const d_j_j_next = (j < n - 1) ? calculate_distance(path[j], path[j + 1]) : 0.0;
 
-        // Koszt nowy po odwróceniu: (i-1 -> j) + (i -> j+1 jeśli istnieje)
+        // the cost after the reversal: (i-1 -> j) + (i -> j+1, if there is one)
         double const d_i_prev_j = calculate_distance(path[i - 1], path[j]);
         double const d_i_j_next = (j < n - 1) ? calculate_distance(path[i], path[j + 1]) : 0.0;
 
@@ -353,7 +352,7 @@ auto order_calculation_2_opt(body_location_t const player_pos, std::span<body_lo
       }
     }
 
-  // Opcjonalnie: usuwamy pozycję gracza z przodu, jeśli wynik ma zawierać tylko cele
+  // optional: drop the player's position from the front, when the result is to hold only the targets
   path.erase(path.begin());
   return path;
   }
@@ -403,39 +402,39 @@ auto calculate_value(
   bool efficiency_bonus
 ) -> uint32_t
   {
-  // 1. Współczynnik masy (min 0.3)
+  // 1. the mass factor (0.3 at least)
   double const q = std::max(0.3, std::pow(mass_em, 0.2));
 
-  // 2. Wartość podstawowa (K)
+  // 2. the base value (K)
   double const base_value = info.base_value + (is_terraformable ? info.terraform_bonus : 0.0);
   double const fss_value = base_value * q;
 
-  // 3. Obliczenie mapowania (DSS)
-  // Mapowanie to baza * 3.333333, a bonus za wydajność to +25%
+  // 3. what mapping gives (DSS)
+  // mapping is the base * 3.333333, and the efficiency bonus is a further +25%
   double const mapping_multiplier = efficiency_bonus ? 1.25 : 1.0;
   double const dss_value = (fss_value * 3.333333) * mapping_multiplier;
 
   double final_value = 0.0;
 
-  // 4. Logika bonusów "First"
+  // 4. how the "first" bonuses work
   if(is_first_discoverer && is_first_mapper)
     {
-    // Jeśli jesteś pierwszy w obu kategoriach, dostajesz mnożnik ~3.695x na CAŁOŚĆ
+    // being first in both categories gives a multiplier of ~3.695x on the WHOLE sum
     final_value = (fss_value + dss_value) * 3.695244;
     }
   else if(is_first_discoverer)
     {
-    // Tylko pierwszy odkrywca (FSS)
+    // first discoverer only (FSS)
     final_value = (fss_value * 2.6) + dss_value;
     }
   else if(is_first_mapper)
     {
-    // Tylko pierwszy mapujący (DSS)
+    // first mapper only (DSS)
     final_value = fss_value + (dss_value * 3.695244);
     }
   else
     {
-    // Brak bonusów "First"
+    // no "first" bonuses at all
     final_value = fss_value + dss_value;
     }
 
@@ -453,29 +452,29 @@ auto aprox_value(body_t const & body) noexcept -> uint32_t
     {
       using namespace std::literals;
 
-      // Białe karły
+      // white dwarfs
       if(type.starts_with("D"sv))
         return 14057.0;
 
-      // Gwiazdy neutronowe i Czarne dziury
+      // neutron stars and black holes
       if(type == "Neutron"sv)
         return 22628.0;
       if(type == "BlackHole"sv)
         return 22628.0;
 
-      // Supergiganty
+      // supergiants
       if(type.find("SuperGiant"sv) != std::string_view::npos)
         return 33.0;
 
-      // Standardowe gwiazdy ciągu głównego i inne (K, G, B, F, O, A, M)
-      // Większość ma tę samą bazę, różnią się masą
+      // ordinary main sequence stars and the rest (K, G, B, F, O, A, M)
+      // most share the same base and differ by mass
       return 1200.0;
     };
 
     auto const k = get_base_value(details.star_type);
     auto const mass = details.stellar_mass;
 
-    // Standardowy wzór FDEV dla gwiazd
+    // FDEV's standard formula for stars
     result = k + (mass * k / 66.25);
     }
   else
@@ -533,7 +532,7 @@ auto to_system_signal(events::fss_signal_discovered_t const & signal, std::chron
   {
   return system_signal_t{
     .system_address = signal.SystemAddress,
-    // nazwy stacji przychodza wprost, reszta ma postac identyfikatora z tlumaczeniem obok
+    // station names come through as they are, the rest as an identifier with the translation beside it
     .name = signal.SignalName_Localised.empty() ? signal.SignalName : signal.SignalName_Localised,
     .signal_type = signal.SignalType,
     .is_station = signal.IsStation,
@@ -569,7 +568,7 @@ auto classify_signal(std::string_view signal_type) noexcept -> signal_class_e
   {
   using enum signal_class_e;
 
-  // stacje przychodza jako StationCoriolis, StationONeilOrbis i podobne
+  // stations come through as StationCoriolis, StationONeilOrbis and the like
   if(signal_type.starts_with("Station"))
     return station;
 
@@ -577,8 +576,8 @@ auto classify_signal(std::string_view signal_type) noexcept -> signal_class_e
     if(signal_type == type)
       return station;
 
-  // Generic zostaje poza eksploracja - siedza tam glownie sygnaly ulotne w rodzaju
-  // Pirate Activity Detected czy Debris field, a nie punkty orientacyjne
+  // Generic stays out of exploration - what sits there is mostly fleeting signals such as
+  // Pirate Activity Detected or a debris field, not landmarks
   for(std::string_view type: {"Codex"sv, "TouristBeacon"sv, "Titan"sv})
     if(signal_type == type)
       return exploration;
@@ -602,11 +601,11 @@ auto organic_value_range(std::string_view name) noexcept -> std::optional<std::p
     return result;
   };
 
-  // gatunek po ScanOrganic trafia wprost w cennik
+  // a species after ScanOrganic hits the price list directly
   if(auto it{std::ranges::find(organic_values, name, &organic_value_t::species)}; it != organic_values.end())
     return std::pair{it->value, it->value};
 
-  // sam rodzaj - cala rodzina, czyli wszystko co zaczyna sie od jego nazwy
+  // the genus alone - the whole family, that is everything starting with its name
   if(auto res{range_of(
        organic_values | std::views::filter([name](organic_value_t const & entry)
                                            { return entry.species.starts_with(name) and entry.species != name; })
@@ -614,7 +613,7 @@ auto organic_value_range(std::string_view name) noexcept -> std::optional<std::p
      res)
     return res;
 
-  // "Brain Trees" w journalu, "Brain Tree" w cenniku
+  // "Brain Trees" in the journal, "Brain Tree" in the price list
   if(name.ends_with('s'))
     {
     auto const singular{name.substr(0, name.size() - 1)};
@@ -622,7 +621,7 @@ auto organic_value_range(std::string_view name) noexcept -> std::optional<std::p
       return std::pair{it->value, it->value};
     }
 
-  // "Luteolum Anemone" w journalu, "Anemone" w cenniku
+  // "Luteolum Anemone" in the journal, "Anemone" in the price list
   if(auto const space{name.rfind(' ')}; space != std::string_view::npos)
     {
     auto const last_word{name.substr(space + 1)};
@@ -819,8 +818,8 @@ auto generic_state_t::discovery(std::string_view input) -> void
     case CarrierStats:      parse_and_handle.template operator()<events::carrier_stats_t>(); break;
     case FCMaterials:
         {
-        // gra zapisuje FCMaterials.json dokladnie przy otwarciu bartendera, czyli przy tym evencie
-        // - wczesniej odczyt wisial na CarrierStats i gubil co trzeci zestaw cen
+        // the game writes FCMaterials.json exactly when the bartender is opened, which is this event
+        // - before, the reading hung on CarrierStats and lost every third set of prices
         events::fcmaterials_t evt{};
         if(auto res{glz::read<glz::opts{.error_on_unknown_keys = false, .error_on_missing_keys = false}>(evt, buffer)};
            res) [[unlikely]]

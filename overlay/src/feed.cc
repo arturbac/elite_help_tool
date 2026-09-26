@@ -5,7 +5,7 @@
 #include <format>
 #include <thread>
 
-///\brief zrodlo testowe - dowodzi ze gniazdo przechodzi przez granice kontenera pressure-vessel
+///\brief a test source - it proves the socket crosses the pressure-vessel container boundary
 ///
 /// in the end elite_help_tool sends these frames; this tool exists so that the path itself and the
 /// layout of the text can be checked without dragging the whole application, database and game into it.

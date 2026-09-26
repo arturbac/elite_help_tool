@@ -250,7 +250,7 @@ mission_window_t::mission_window_t(current_state_t const & state, QWidget * pare
   {
   setup_ui();
 
-  // Ustawiamy tytuł okna MDI
+  // set the title of the MDI window
   setWindowTitle(QStringLiteral("Active Missions List"));
   setAttribute(Qt::WA_DeleteOnClose);
   }

@@ -16,13 +16,13 @@ static auto new_system_def(uint64_t system_address, std::string_view name, std::
   };
   }
 
-///\brief najdluzsze okno, ktore jeszcze cos mowi o porze ticku
+///\brief the longest window that still says anything about when the tick came
 ///
-/// Przy dluzszej przerwie miedzy odczytami przedzial obejmuje pol doby i przeciecie z nim niczego
-/// nie zawezi, a zasmieca tabele
+/// With a longer gap between readings the span covers half a day; intersecting with it narrows nothing
+/// and only litters the table
 constexpr std::chrono::hours max_tick_window{24};
 
-///\brief zapisuje slad po ticku, gdy sledzona wartosc zmienila sie miedzy dwoma odczytami systemu
+///\brief records the trace of a tick when the watched value changed between two readings of the system
 void note_tick(
   database_storage_t & db,
   info::tick_kind_e kind,
@@ -31,7 +31,7 @@ void note_tick(
   std::chrono::sys_seconds timestamp
 )
   {
-  // bez poprzedniego odczytu nie ma czym ograniczyc okna - pierwsze spojrzenie na system nic nie mowi
+  // without a previous reading there is nothing to bound the window with - a first look at a system says nothing
   if(not previously_seen or *previously_seen >= timestamp or timestamp - *previously_seen > max_tick_window)
     return;
 
@@ -44,10 +44,10 @@ void note_tick(
     spdlog::error("failed to store tick observation for {}", system_address);
   }
 
-///\brief czy ktoras z wojen w tym systemie wlasnie sie rozstrzygnela
+///\brief whether one of the wars in this system has just been settled
 ///
-/// Koniec wojny rozdziela udzialy pokonanej frakcji od razu, poza dobowym przeliczeniem, wiec
-/// zmiana wplywow widziana w tym samym odczycie nie jest sladem ticku i nie wolno jej tak liczyc
+/// The end of a war shares out the beaten faction's holding at once, outside the daily recalculation, so
+/// a change of influence seen in the same reading is no trace of a tick and must not be counted as one
 [[nodiscard]]
 auto war_settled_now(
   database_storage_t & db, uint64_t system_address, std::span<events::conflict_t const> conflicts
@@ -57,7 +57,7 @@ auto war_settled_now(
     {
     auto const record{info::to_conflict(system_address, {}, conflict)};
 
-    // pusty status znaczy "juz po wojnie"; interesuje nas tylko przejscie w ten stan
+    // an empty status means "the war is over"; only the passage into that state matters here
     if(not record.status.empty())
       continue;
 
@@ -69,7 +69,7 @@ auto war_settled_now(
   return false;
   }
 
-///\brief rejestruje influence frakcji w systemie, tylko gdy zmienila sie wzgledem ostatniego wpisu
+///\brief records a faction's influence in the system, only when it has changed against the last row
 void store_influence(
   database_storage_t & db,
   std::chrono::sys_seconds timestamp,
@@ -86,8 +86,8 @@ void store_influence(
     return;
     }
 
-  // obecnosc notujemy zawsze, nawet gdy nic sie nie zmienilo - inaczej frakcja ktora wyleciala
-  // z systemu zostaje na liscie na zawsze, bo jej ostatni wpis mowi tylko o ostatniej zmianie
+  // presence is always noted, even when nothing changed - otherwise a faction that was thrown out of the
+  // system stays on the list forever, because its last row speaks only of the last change
   if(auto res{db.store_faction_seen(faction_oid, system_address, timestamp)}; not res) [[unlikely]]
     spdlog::error("failed to record presence of {} in {}", event_faction.Name, system_address);
 
@@ -116,7 +116,7 @@ void store_influence(
     spdlog::error("failed to store influence for {} in {}", event_faction.Name, system_address);
   }
 
-///\brief rejestruje konflikty w systemie, tylko gdy ich stan sie zmienil
+///\brief records the conflicts in the system, only when their state has changed
 void process_conflicts(
   database_storage_t & db,
   std::chrono::sys_seconds timestamp,
@@ -139,8 +139,8 @@ void process_conflicts(
     if(*last and **last == record)
       continue;
 
-    // dni wygrane przelicza tick wojen, ktory chodzi wlasnym zegarem - 4 sierpnia 2026 wypadl
-    // dwie godziny przed tickiem wplywow, siodmego piec godzin przed nim
+    // days won are recalculated by the war tick, which runs on its own clock - on 4 August 2026 it fell
+    // two hours before the influence tick, on the seventh five hours before it
     if(*last and ((*last)->won_days1 != record.won_days1 or (*last)->won_days2 != record.won_days2))
       note_tick(db, info::tick_kind_e::war, system_address, previously_seen, timestamp);
 
@@ -164,7 +164,7 @@ auto process_factions(
 
   for(events::faction_info_t & f: factions)
     {
-    // influence jest per system i rejestrowane w czasie, wiec f nie moze byc skonsumowane
+    // influence is per system and recorded over time, so f must not be consumed
     info::faction_info_t new_faction_data{info::to_native(events::faction_info_t{f})};
     auto res{db.load_faction(new_faction_data.name)};
     if(not res)
@@ -214,9 +214,9 @@ void current_state_t::route_system_visited(uint64_t system_address)
 static ///\brief czy do tego miejsca dokuje sie statkiem
 ///
 /// Kapsula ratunkowa na flotowcu odsyla do ostatniego PORTU, a nie do ostatniego miejsca postoju.
-/// Osady piesze odpadaja, bo nie ma w nich ladowiska dla statku. Flotowiec odpada mimo ladowiska -
-/// sprawdzone 26.09.2026: po postoju przy W1V-NXM o 14:33 kapsula odeslala do Arkush City,
-/// gdzie postoj byl o 14:16
+/// On-foot settlements are out, because they have no landing pad for a ship. A carrier is out despite its
+/// pads - checked on 26.09.2026: after a stop at W1V-NXM at 14:33 the pod sent us to Arkush City,
+/// where the stop had been at 14:16
 auto is_port(std::string_view station_type) -> bool
   {
   return station_type != "OnFootSettlement" and station_type != "FleetCarrier" and not station_type.empty();
@@ -314,8 +314,8 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
             if(auto res2{db_.store(system)}; not res2) [[unlikely]]
               spdlog::error("error string system {} {}", event.SystemAddress, event.StarSystem);
             }
-          // kiedy ostatnio patrzylismy na ten system - musi byc odczytane zanim zapis obecnosci
-          // przesunie znacznik do przodu, bo to ono zamyka okno ticku od dolu
+          // when we last looked at this system - it has to be read before recording presence moves the
+          // marker forward, because it is what closes the tick window from below
           std::optional<std::chrono::sys_seconds> previously_seen;
           if(auto seen{db_.last_system_seen(event.SystemAddress)}; seen)
             previously_seen = *seen;
@@ -323,8 +323,8 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
             spdlog::error("failed to read last visit of {}", event.SystemAddress);
 
           // add/update factions database
-          // rozstrzygniecie wojny trzeba znac zanim policzymy wplywy, bo to ono, a nie tick,
-          // tlumaczy zmiane widziana w tym samym odczycie
+          // the settling of a war has to be known before influence is counted, because it, and not the
+          // tick, explains the change seen in the same reading
           bool const war_settled{war_settled_now(db_, event.SystemAddress, event.Conflicts)};
 
           if(not event.Factions.empty())
@@ -339,7 +339,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
             process_conflicts(db_, timestamp, event.SystemAddress, event.Conflicts, previously_seen);
             update_factions = true;
             }
-          // opis systemu przychodzi tylko z tych dwoch eventow
+          // the system description comes from these two events only
           if(apply_system_info(system, event))
             {
             if(auto res{db_.update_system_info(system)}; not res)
@@ -362,16 +362,16 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           jump_info = event;
           ship_loadout.FuelLevel = event.FuelLevel;
 
-          // kiedy ostatnio patrzylismy na ten system - musi byc odczytane zanim zapis obecnosci
-          // przesunie znacznik do przodu, bo to ono zamyka okno ticku od dolu
+          // when we last looked at this system - it has to be read before recording presence moves the
+          // marker forward, because it is what closes the tick window from below
           std::optional<std::chrono::sys_seconds> previously_seen;
           if(auto seen{db_.last_system_seen(event.SystemAddress)}; seen)
             previously_seen = *seen;
           else
             spdlog::error("failed to read last visit of {}", event.SystemAddress);
 
-          // rozstrzygniecie wojny trzeba znac zanim policzymy wplywy, bo to ono, a nie tick,
-          // tlumaczy zmiane widziana w tym samym odczycie
+          // the settling of a war has to be known before influence is counted, because it, and not the
+          // tick, explains the change seen in the same reading
           bool const war_settled{war_settled_now(db_, event.SystemAddress, event.Conflicts)};
 
           if(not event.Factions.empty())
@@ -386,7 +386,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
             process_conflicts(db_, timestamp, event.SystemAddress, event.Conflicts, previously_seen);
             update_factions = true;
             }
-          // opis systemu przychodzi tylko z tych dwoch eventow
+          // the system description comes from these two events only
           if(apply_system_info(system, event))
             {
             if(auto res{db_.update_system_info(system)}; not res)
@@ -457,10 +457,10 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           }
         else if constexpr(std::same_as<T, events::scan_organic_t>)
           {
-          // gra konczy pobranie probki typem Analyse, wczesniejsze Log i Sample tylko ja zapowiadaja
+          // the game ends the taking of a sample with the Analyse type; the earlier Log and Sample only announce it
           bool const analysed{event.ScanType == events::scan_type_e::Analyse};
 
-          // mapowanie daje tylko rodzaj, probka dopowiada gatunek
+          // mapping gives the genus alone, the sample fills in the species
           if(auto it{system.body_by_id(event.Body)}; it != system.bodies.end())
             if(std::holds_alternative<planet_details_t>(it->details))
               {
@@ -502,7 +502,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           for(events::sold_micro_resource_t const & sold: event.MicroResources)
             {
             auto key{micro_resource_key(sold.Name)};
-            // kategoria przychodzi tylko tutaj, id i nazwa czytelna od bartendera
+            // the category comes only from here, the id and the readable name from the bartender
             if(auto res{db_.store(info::micro_resource_t{
                  .name = key, .id = {}, .localised = sold.Name_Localised, .category = sold.Category
                })};
@@ -532,7 +532,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           }
         else if constexpr(std::same_as<T, events::disembark_t>)
           {
-          // przylot taksowka bywa jedynym sladem, ze jestesmy w tej osadzie
+          // arriving by taxi is sometimes the only trace that we are at this settlement
           if(event.MarketID != 0)
             {
             settlement_market_id_ = event.MarketID;
@@ -550,7 +550,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           }
         else if constexpr(std::same_as<T, events::supercruise_entry_t>)
           settlement_market_id_ = 0;
-        // odlot z ladowiska konczy nasza obecnosc w tym miejscu tak samo jak wejscie w supercruise
+        // leaving the pad ends our presence at the place just as entering supercruise does
         else if constexpr(std::same_as<T, events::undocked_t>)
           settlement_market_id_ = 0;
         else if constexpr(std::same_as<T, events::backpack_change_t>)
@@ -567,7 +567,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
                not res)
               spdlog::error("failed to store micro resource {}", item.Name);
 
-            // miejsce zapisujemy jako market_id, wiec ekonomia dojdzie sama gdy ja poznamy
+            // the place is stored as a market_id, so the economy follows on its own once we learn it
             if(auto res{db_.store(info::micro_acquisition_t{
                  .timestamp = timestamp,
                  .market_id = settlement_market_id_,
@@ -608,7 +608,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
                not res)
               spdlog::error("failed to store port visit {}", event.MarketID);
 
-          // tozsamosc stacji odtwarzamy z journali - typ rozroznia flotowiec od stacji
+          // a station's identity is rebuilt from journals - the type tells a carrier from a station
           settlement_market_id_ = event.MarketID;
           info::station_t station{
             .market_id = event.MarketID,
@@ -634,7 +634,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
             .government = {}
           };
 
-          // zawartosc rynku istnieje tylko w Market.json obok journali i tylko na zywo
+          // a market's contents exist only in the Market.json beside the journals, and only live
           auto market{load_market(journal_dir_path_)};
           if(not market or market->MarketID != event.MarketID)
             {
@@ -685,7 +685,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           }
         else if constexpr(std::same_as<T, events::fss_signal_discovered_t>)
           {
-          // USS wygasa po kilku minutach, w bazie bylby tylko smieciem
+          // a USS expires after a few minutes, in the database it would be nothing but litter
           if(event.TimeRemaining)
             return;
 
@@ -862,7 +862,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           ship_loadout.CargoUsed = event.Count;
           update_ship = true;
 
-          // licznik jest w evencie, ale co konkretnie wiozimy mowi dopiero Cargo.json
+          // the count is in the event, but what exactly is being carried only Cargo.json says
           if(auto file{load_cargo(journal_dir_path_)}; file and file->Vessel != "SRV")
             cargo = std::move(*file);
           else
@@ -870,7 +870,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           }
         else if constexpr(std::same_as<T, events::mission_accepted_t>)
           {
-          // powtorne odtworzenie journala trafia na te sama misje - wtedy wystarczy ja otworzyc
+          // replaying the journal meets the same mission again - then it is enough to open it
           if(auto known{db_.mission_exists(event.MissionID)}; known and *known)
             {
             if(auto res{db_.reopen_mission(event.MissionID, event.Expiry)}; not res) [[unlikely]]
@@ -921,8 +921,9 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           {
           if(auto res{db_.complete_mission(event.MissionID, timestamp, event.Reward)}; not res) [[unlikely]]
             spdlog::error("failed to change mission status for {}", event.MissionID);
-          // kogo ta misja ruszyla i o ile - plusy ze znakiem, zeby wypychanie obcych frakcji dalo sie
-          // policzyc osobno od budowania wlasnych. Gra nie podaje liczby, miara jest dlugosc ciagu
+          // whom this mission moved and by how much - pluses with a sign, so that pushing strangers out
+          // can be counted apart from building one's own up. The game gives no number, the measure is the
+          // string's length
           for(events::faction_effect_t const & effect: event.FactionEffects)
             for(events::influence_effect_t const & influence: effect.Influence)
               {
@@ -1067,8 +1068,8 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           else
             carrier.oid = -1;
 
-          // znacznik wlasnego flotowca nalezy do uzytkownika - odczyt stanu nie ma prawa go zdjac,
-          // wiec zostaje taki, jaki przyszedl z bazy
+          // the mark of one's own carrier belongs to the user - a reading of the state has no business
+          // taking it off, so it stays as it came from the database
           carrier.market_id = event.CarrierID;
           carrier.carrier_name = event.Name;
           carrier.carrier_id = event.Callsign;
@@ -1109,9 +1110,9 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
             {
             std::optional<int64_t> carrier_oid{*res};
 
-            // Wiersz bierzemy w calosci z bazy i nadpisujemy tylko to, co niesie odczyt polki.
-            // update_carrier zapisuje wszystkie kolumny, wiec zbudowanie go od zera skasowaloby
-            // stan z CarrierStats - i znacznik wlasnego flotowca, ktory nalezy do uzytkownika
+            // The row is taken whole from the database and only what the shelf reading carries is
+            // overwritten. update_carrier writes every column, so building it from scratch would erase the
+            // state from CarrierStats - and the mark of one's own carrier, which belongs to the user
             info::carrier_t carrier{};
             if(auto known{db_.load_carrier(fcmat.CarrierID)}; known and *known)
               carrier = std::move(**known);
@@ -1283,7 +1284,7 @@ void current_state_t::load_missions()
 
 namespace
   {
-///\brief odstep w godzinach z jednym miejscem po przecinku - minuty przy tickach sa nieczytelne
+///\brief the gap in hours to one decimal place - minutes are unreadable where ticks are concerned
 [[nodiscard]]
 auto hours_ago(std::chrono::sys_seconds from, std::chrono::sys_seconds to) -> std::string
   {
@@ -1310,19 +1311,19 @@ auto describe_tick(
     return view;
     }
 
-  // Data ostatniej zmiany, nie przedzial - to co sie przelicza rusza sie wylacznie przy ticku,
-  // wiec sama zmiana jest dowodem, ze tick tu byl. Widzimy ja z opoznieniem wlasnej wizyty,
-  // dlatego to "nie wczesniej niz", a nie "dokladnie wtedy"
+  // The date of the last change, not a span - what gets recalculated moves at the tick and nowhere else,
+  // so the change alone is proof that the tick was here. We see it delayed by our own visit, which is why
+  // it reads "no earlier than" rather than "exactly then"
   if(*mine)
-    // strefa przy kazdej godzinie - journal i gra chodza na UTC, zegar na pasku nie
+    // the zone with every hour - the journal and the game run on UTC, the clock on the bar does not
     view.here = std::format("changed {:%d.%m %H:%M} UTC, {} ago", **mine, hours_ago(**mine, now));
 
   if(not waves->empty())
     {
     auto const & wave{waves->front()};
 
-    // System przelicza sie wlasnym zegarem, wiec brak zmiany od poczatku najswiezszej fali znaczy
-    // tyle, ze jeszcze do niego nie doszla albo ze jeszcze tam nie zagladalismy po ticku
+    // A system recalculates on a clock of its own, so no change since the start of the newest wave means
+    // either that it has not reached the system yet or that we have not looked in there since the tick
     view.awaiting = not *mine or **mine < wave.start_begin;
 
     std::string regularity{"too few waves"};

@@ -16,9 +16,9 @@ auto tail_file(fs::path const & path, process_callback const & cb, std::stop_tok
 
 using journal_switch_callback = std::function<void(fs::path const &)>;
 
-///\brief sledzi najnowszy journal w katalogu i przelacza sie na nowszy gdy gra go utworzy
-///\detail restart gry zamyka stary journal i zaklada nowy, sledzenie samego pliku zawisa na
-/// nieuzywanym juz logu. on_switch jest wolane z watku sledzacego przy kazdej zmianie pliku.
+///\brief follows the newest journal in the directory and switches to a newer one when the game creates it
+///\detail restarting the game closes the old journal and starts a new one; following the file alone hangs on a
+/// log that is no longer used. on_switch is called from the following thread on every change of file.
 auto tail_journal_dir(
   fs::path const & dir,
   process_callback const & cb,

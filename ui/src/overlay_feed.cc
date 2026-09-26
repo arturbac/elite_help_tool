@@ -21,35 +21,35 @@ constexpr uint32_t colour_alert{0xd9a34au};
 constexpr uint32_t colour_first{0x3cb371u};
 constexpr uint32_t colour_expiring{0xd9534fu};
 
-///\brief bloki gasna gdy narzedzie zamilknie - lepiej brak napisu niz napis sprzed godziny
+///\brief the blocks go out when the tool falls silent - better no text than text from an hour ago
 constexpr uint32_t block_ttl_ms{10000u};
-///\brief niezmieniony obraz i tak trzeba powtarzac, inaczej wygasnie graczowi stojacemu w miejscu
+///\brief an unchanged picture has to be repeated anyway, or it expires on a player standing still
 constexpr std::chrono::seconds heartbeat{3};
 
-///\brief ponizej tego progu schodzenie do ciala nie zwraca sie czasowo
+///\brief below this threshold going down to a body does not pay for the time it takes
 constexpr uint32_t minimum_body_value{300000u};
-///\brief pas boczny ma swoje granice, dluga lista i tak nie zostanie przeczytana w locie
+///\brief the side band has its limits, and a long list will not be read in flight anyway
 constexpr size_t listed_bodies{5u};
 constexpr size_t listed_factions{5u};
 constexpr size_t listed_missions{6u};
 constexpr size_t listed_cargo{4u};
 constexpr size_t listed_commodities{3u};
-///\brief ponizej tej rezerwy czasu misja jest juz problemem, a nie planem
+///\brief below this much time in hand a mission is a problem, not a plan
 constexpr std::chrono::hours expiry_warning{3};
-///\brief mniejszych odchylek od sredniej galaktycznej nie warto pokazywac
+///\brief smaller departures from the galactic average are not worth showing
 constexpr double interesting_deviation{0.25};
-///\brief procent bez kwoty klamie - 93% taniej na towarze za 20 Cr to oszczednosc bez znaczenia
+///\brief a percentage without an amount lies - 93% off a commodity worth 20 Cr saves nothing that matters
 constexpr uint32_t interesting_margin{500u};
-///\brief influence aktualizuje sie raz na dobe, czesciej pytac nie ma po co
+///\brief influence updates once a day; asking more often serves nothing
 constexpr std::chrono::seconds faction_refresh{60};
-///\brief rynek moze pojawic sie w kazdej chwili, gdy gracz go otworzy
+///\brief a market can appear at any moment, as soon as the player opens it
 constexpr std::chrono::seconds market_refresh{5};
-///\brief misje dochodza rzadko, a zapytanie idzie przez obie bazy
+///\brief missions arrive rarely, and the query goes across both databases
 constexpr std::chrono::seconds supply_refresh{10};
 constexpr size_t listed_sources{2u};
 constexpr unsigned listed_trades{3u};
 
-///\brief port w kosmosie ma najwiecej towaru, osada najmniej - taka jest kolejnosc oplacalnosci
+///\brief a port in space carries the most goods, a settlement the least - that is the order of worth
 [[nodiscard]]
 auto station_rank(std::string_view station_type) -> int
   {
@@ -77,7 +77,7 @@ auto station_rank(std::string_view station_type) -> int
   return 3;
   }
 
-///\brief te same barwy co w oknie reputacji - czerwony federacja, niebieski imperium, zielony alians
+///\brief the same colours as in the reputation window - red federation, blue empire, green alliance
 [[nodiscard]]
 auto allegiance_colour(info::allegiance_e allegiance) -> uint32_t
   {
@@ -180,7 +180,7 @@ auto describe_exploration(star_system_t const & system) -> std::vector<overlay::
   return lines;
   }
 
-///\brief nazwa wewnetrzna jest czytelna, ale brzydka - wielka litera wystarczy gdy brak tlumaczenia
+///\brief the internal name is readable but ugly - a capital letter is enough where there is no translation
 [[nodiscard]]
 auto readable_name(events::cargo_item_t const & item) -> std::string
   {
@@ -193,7 +193,7 @@ auto readable_name(events::cargo_item_t const & item) -> std::string
   return name;
   }
 
-///\brief ladunek zostawiony na pokladzie blokuje wezwanie statku na lądowisko osady
+///\brief cargo left on board blocks calling the ship down to a settlement's pad
 [[nodiscard]]
 auto describe_cargo(events::cargo_file_t const & cargo) -> std::vector<overlay::line_t>
   {
@@ -322,7 +322,7 @@ auto describe_system(star_system_t const & system, bool with_controlling) -> std
   std::vector<overlay::line_t> lines;
   lines.push_back(overlay::line_t{.text = system.name, .color = colour_heading});
 
-  // gdy mamy influence, frakcja kontrolujaca jest tam oznaczona gwiazdka i nie ma po co jej powtarzac
+  // with influence at hand the controlling faction is marked there with a star, so repeating it serves nothing
   if(with_controlling and not system.controlling_faction.empty())
     lines.push_back(overlay::line_t{.text = system.controlling_faction, .color = colour_plain});
 
@@ -339,7 +339,7 @@ auto describe_system(star_system_t const & system, bool with_controlling) -> std
   if(not system.security.empty())
     lines.push_back(overlay::line_t{.text = std::format("security: {}", system.security), .color = colour_plain});
 
-  // system bez zakonczonego FSS to powod zeby zostac, a nie lecieć dalej
+  // a system with the FSS unfinished is a reason to stay, not to fly on
   if(not system.fss_complete and not system.bodies.empty())
     lines.push_back(
       overlay::line_t{
@@ -382,7 +382,7 @@ auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
   auto const now{std::chrono::steady_clock::now()};
   bool const same_system{state.current_system_address_ == factions_system_};
 
-  // influence rusza sie raz na dobe, wiec odpytywanie bazy co ramke byloby marnotrawstwem
+  // influence moves once a day, so asking the database every frame would be a waste
   if(same_system and now - factions_loaded_ < faction_refresh)
     return;
 
@@ -394,8 +394,8 @@ auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
   if(factions_system_ == 0u)
     return;
 
-  // w pasie bocznym miesci sie jedna linia, wiec zostaje sama godzina i to, czy fala juz tu doszla -
-  // rozklad na systemy i statystyke widac w oknie systemu
+  // one line fits in the side band, so what is left is the hour alone and whether the wave has reached
+  // here - the spread across systems and the statistics are visible in the system window
   auto const wall_clock{std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())};
   auto const tick_line = [&](info::tick_kind_e kind, std::string_view caption) -> overlay::line_t
   {
@@ -422,7 +422,7 @@ auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
     for(auto const & [pair, entry]: latest_conflict)
       {
       info::conflict_t const & conflict{*entry};
-      // zakonczone i dopiero zapowiedziane nie zmieniaja tego, co mam robic teraz
+      // the finished ones and the merely announced ones change nothing about what to do now
       if(conflict.status != "active")
         continue;
 
@@ -457,8 +457,8 @@ auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
   // zegar wojen pokazujemy tylko gdy cos trwa - to po nim sprzedaje sie bondy
   if(not conflict_lines_.empty())
     {
-    // konflikt rozstrzyga sie przy czwartym wygranym dniu, wiec koniec da sie odliczyc bez
-    // znajomosci pory przeliczenia - a wlasnie wtedy bondy sa najwiecej warte
+    // a conflict is settled at the fourth day won, so the end can be counted down without knowing when
+    // the recalculation falls - and that is exactly when bonds are worth the most
     if(auto countdown{db_.load_war_countdown(factions_system_)}; countdown)
       for(info::war_countdown_t const & war: *countdown)
         {
@@ -486,18 +486,18 @@ auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
     return;
     }
 
-  // frakcja, ktora wyleciala z systemu, przestaje pojawiac sie w odczytach, ale jej ostatni wpis
-  // influence zostaje - dlatego liste zawezamy do tych widzianych przy najswiezszym odczycie
+  // a faction thrown out of the system stops appearing in the readings, but its last influence row stays
+  // behind - which is why the list is narrowed to the ones seen at the newest reading
   std::set<int64_t> present;
   if(auto refs{db_.load_present_factions(factions_system_)}; refs)
     for(info::faction_ref_t const & ref: *refs)
       present.insert(ref.faction_oid);
 
-  // ostatni wpis kazdej frakcji to jej obecny stan w systemie
+  // each faction's last row is its present state in the system
   std::map<int64_t, info::faction_influence_t const *> latest;
   for(info::faction_influence_t const & entry: *history)
     {
-    // pusty zbior znaczy ze dla tego systemu nie mamy jeszcze sladu obecnosci - wtedy pokazujemy wszystko
+    // an empty set means we have no trace of presence for this system yet - then everything is shown
     if(not present.empty() and not present.contains(entry.faction_oid))
       continue;
     latest[entry.faction_oid] = &entry;
@@ -558,8 +558,8 @@ auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
 
 auto overlay_feed_t::refresh_market(uint64_t market_id, uint32_t cargo_capacity) -> void
   {
-  // samo miejsce nie wystarczy jako klucz: w osadzie jestesmy od wejscia, a towary poznajemy
-  // dopiero gdy gracz otworzy rynek, wiec pytanie raz przy zmianie miejsca zawsze trafialo w pustke
+  // the place alone will not do as a key: we are at a settlement from the moment we enter, but the goods
+  // are known only once the player opens the market, so asking once on a change of place always found nothing
   auto const now{std::chrono::steady_clock::now()};
   if(market_id == market_id_ and now - market_loaded_ < market_refresh)
     return;
@@ -573,15 +573,15 @@ auto overlay_feed_t::refresh_market(uint64_t market_id, uint32_t cargo_capacity)
 
   auto station{db_.load_station(market_id)};
   std::string const name{station and *station ? (*station)->name : std::format("market {}", market_id)};
-  // wlasciciel miejsca decyduje, czyje wplywy rosna od oddanych tu misji - bez tego nazwa portu
-  // sama w sobie niewiele mowi przy planowaniu pracy dla frakcji
+  // the owner of the place decides whose influence grows from missions handed in here - without it a
+  // port's name on its own says little when planning work for a faction
   std::string const owner{station and *station ? (*station)->controlling_faction : std::string{}};
 
   auto entries{db_.load_market_entries(market_id)};
   if(not entries or entries->empty())
     {
-    // zdarzenie Market powstaje dopiero po otwarciu ekranu towarow - milczenie w tym miejscu
-    // wygladaloby jak brak okazji, a znaczy tylko tyle, ze nie mielismy czego zapisac
+    // the Market event appears only once the commodities screen is opened - silence here would look like
+    // there being no opportunity, when it means nothing but that we had nothing to record
     market_lines_.push_back(overlay::line_t{.text = std::format("{}: no market data", name), .color = colour_alert});
     if(not owner.empty())
       market_lines_.push_back(overlay::line_t{.text = std::format("  {}", owner), .color = colour_first});
@@ -607,7 +607,7 @@ auto overlay_feed_t::refresh_market(uint64_t market_id, uint32_t cargo_capacity)
     }
   };
 
-  // rynek odczytany przed dolozeniem flag ma wszedzie zera - wtedy flagom nie mozna wierzyc
+  // a market read before the flags were added has zeros everywhere - then the flags cannot be trusted
   bool const flags_known{
     std::ranges::any_of(*entries, [](info::market_entry_t const & entry) { return entry.producer or entry.consumer; })
   };
@@ -616,9 +616,9 @@ auto overlay_feed_t::refresh_market(uint64_t market_id, uint32_t cargo_capacity)
   std::vector<info::market_entry_t const *> buys;
   for(info::market_entry_t const & entry: *entries)
     {
-    // gra podaje cene takze dla towarow, ktorymi stacja nie handluje - bez tych flag Platinum
-    // ze Scott View wygladal jak okazja, choc nie byl ani sprzedawany, ani skupowany.
-    // rynki zapisane przed dolozeniem flag maja je zerowe, wiec dla nich wracamy do zapasu i popytu
+    // the game gives a price for commodities the station does not trade in as well - without these flags
+    // Platinum at Scott View looked like an opportunity, though it was neither sold nor bought there.
+    // markets stored before the flags were added have them at zero, so for those we fall back on stock and demand
     bool const buys_it{flags_known ? entry.consumer : entry.demand > 0u};
     bool const sells_it{flags_known ? entry.producer : entry.stock > 0u};
 
@@ -632,7 +632,7 @@ auto overlay_feed_t::refresh_market(uint64_t market_id, uint32_t cargo_capacity)
       buys.push_back(&entry);
     }
 
-  // ladownia ma stala pojemnosc, wiec o wyborze decyduje kwota na tonie, nie procent
+  // the hold has a fixed capacity, so what decides the choice is the amount per tonne, not the percentage
   std::ranges::sort(
     sells, std::ranges::greater{}, [](info::market_entry_t const * e) { return e->sell_price - e->mean_price; }
   );
@@ -655,8 +655,8 @@ auto overlay_feed_t::refresh_market(uint64_t market_id, uint32_t cargo_capacity)
   if(not owner.empty())
     market_lines_.push_back(overlay::line_t{.text = std::format("  {}", owner), .color = colour_first});
 
-  // surowca, ktorego nikt nie sprzedaje, handlarz nie przywiezie - stacja moze za niego placic
-  // swietnie i to nadal bedzie slepy zaulek, wiec idzie na koniec i pod wlasnym naglowkiem
+  // a trader will not bring in a raw material nobody sells - a station may pay splendidly for it and it
+  // stays a dead end all the same, so it goes at the end and under a heading of its own
   auto const mined{[](info::market_entry_t const * entry) { return info::is_mining_only(entry->name); }};
   auto const tradeable{std::ranges::partition(sells, std::not_fn(mined))};
   std::vector<info::market_entry_t const *> const dug_up(tradeable.begin(), tradeable.end());
@@ -713,7 +713,7 @@ auto overlay_feed_t::refresh_market(uint64_t market_id, uint32_t cargo_capacity)
       );
     }
 
-  // srednia galaktyczna mowi czy cena jest dobra, ale zarobek bierze sie z roznicy miedzy rynkami
+  // the galactic average says whether a price is good, but the earnings come from the difference between markets
   auto const add_trades{
     [this, cargo_capacity](bool bring_here, char const * heading)
     {
@@ -786,7 +786,7 @@ auto overlay_feed_t::build_supply_lines(events::cargo_file_t const & cargo) cons
   if(needs_.empty())
     return {};
 
-  // nazwy w ladowni sa wewnetrzne, w misjach czytelne - porownujemy po samych literach i cyfrach
+  // the names in the hold are internal, in missions readable - we compare by letters and digits alone
   auto const key{[](std::string_view text)
                  {
                    std::string out;
@@ -858,7 +858,7 @@ auto overlay_feed_t::build_supply_lines(events::cargo_file_t const & cargo) cons
     return lines;
     }
 
-  // jedno miejsce na kilka brakujacych towarow oszczedza caly kurs, dopiero potem liczy sie rodzaj portu
+  // one place for several missing goods saves a whole run; only after that does the kind of port count
   struct place_t
     {
     std::string station;
@@ -927,12 +927,12 @@ auto overlay_feed_t::build_supply_lines(events::cargo_file_t const & cargo) cons
 auto overlay_feed_t::build_route_lines(current_state_t const & state, plotted_route_t const & plotted) const
   -> std::vector<overlay::line_t>
   {
-  // trasa bywa na czterdziesci skokow, a pas boczny ma kilkanascie linii - dalsze i tak nic nie
-  // zmieniaja w tym, co robie teraz
+  // a route can run to forty jumps and the side band holds a dozen or so lines - the further ones change
+  // nothing about what is being done right now
   constexpr size_t listed_hops{10};
 
-  ///\brief przy ktorych gwiazdach da sie zatankowac
-  ///\detail KGBFOAM; klasa bywa podana z podtypem, wiec liczy sie pierwsza litera
+  ///\brief at which stars one can refuel
+  ///\detail KGBFOAM; the class sometimes comes with a subtype, so what counts is the first letter
   auto const scoopable = [](std::string_view star_class) -> bool
   {
     return not star_class.empty() and std::string_view{"KGBFOAM"}.find(star_class.front()) != std::string_view::npos;
@@ -1009,8 +1009,8 @@ auto overlay_feed_t::build_logistics_lines() const -> std::vector<overlay::line_
 
   std::vector<overlay::line_t> lines;
 
-  // Ostatni port rozstrzyga, gdzie odesle kapsula ratunkowa - osady i flotowce sie nie licza,
-  // a po kilku postojach latwo stracic rachube, ktore z nich bylo portem
+  // The last port decides where an escape pod sends you - settlements and carriers do not count, and
+  // after a few stops it is easy to lose track of which of them was a port
   if(auto port{db.load_last_port()}; port and *port)
     lines.push_back(
       overlay::line_t{
@@ -1123,7 +1123,7 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
       }
     );
 
-  // gra dostaje ramke gdy sie zmienila albo gdy minal czas podtrzymania - nie co zdarzenie z journala
+  // the game gets a frame when it has changed or when the keep-alive time has passed - not on every journal event
   auto const now{std::chrono::steady_clock::now()};
   if(same_content(frame, last_) and now - last_sent_ < heartbeat)
     return;

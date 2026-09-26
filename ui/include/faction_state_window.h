@@ -14,7 +14,7 @@
 #include <QtCharts/qvalueaxis.h>
 #include <QtCharts/qlogvalueaxis.h>
 
-///\brief stan frakcji w jednym systemie, ostatni znany wpis kazdej z nich
+///\brief the state of the factions in one system, the last known row of each
 struct faction_presence_t
   {
   std::string name;
@@ -67,7 +67,7 @@ public:
   auto update_data(std::vector<faction_presence_t> && new_data) -> void;
   };
 
-///\brief konflikty w systemie - wojny, wojny domowe i wybory
+///\brief conflicts in the system - wars, civil wars and elections
 class system_conflict_model_t final : public QAbstractTableModel
   {
   Q_OBJECT
@@ -105,7 +105,7 @@ public:
   auto update_data(std::vector<info::conflict_t> && new_data) -> void;
   };
 
-///\brief stacje, instalacje i flotowce w systemie
+///\brief stations, installations and carriers in the system
 class system_station_model_t final : public QAbstractTableModel
   {
   Q_OBJECT
@@ -248,8 +248,8 @@ public:
   uint64_t ticks_system_{};
 
   ///\brief the system described in four lines, without captions - the value says what it is
-  ///\detail "Industrial / Agriculture", "Federation - Anarchy, Anarchy" po lewej, wlasciciel
-  /// z populacja i gwiazda ze wspolrzednymi po prawej
+  ///\detail "Industrial / Agriculture", "Federation - Anarchy, Anarchy" on the left, the owner
+  /// with the population and the star with its coordinates on the right
   QLabel * economy_label_{};
   QLabel * politics_label_{};
   QLabel * owner_label_{};
@@ -263,7 +263,7 @@ public:
   QLabel * conflicts_note_{};
   ///\brief the caption above the conflict table - hidden along with it when there is nothing to show
   QLabel * conflicts_caption_{};
-  ///\brief panel splittera z konfliktami - jego gorna granica oddaje miejsce liscie frakcji
+  ///\brief the splitter panel holding the conflicts - its top edge gives room back to the faction list
   QWidget * conflicts_container_{};
 
   QChartView * chart_view_{};
@@ -306,7 +306,7 @@ private:
   auto update_conflicts(uint64_t system_address) -> void;
   auto update_stations(uint64_t system_address) -> void;
 
-  ///\brief pokazuje rynek stacji klikietej na liscie i przelacza na jego zakladke
+  ///\brief shows the market of the station clicked in the list and switches to its tab
   auto show_market(std::string_view station_name) -> void;
 
   auto update_missions() -> void;

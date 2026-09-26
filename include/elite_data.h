@@ -59,19 +59,19 @@ consteval auto adl_enum_bounds(happiness_e)
   }
 
 ///\brief konto do ktorego nalezy ta baza osobista
-///\detail zapisywane przy imporcie; GUI czyta to i nie dopisuje kariery cudzej postaci, gdyby
-/// ktos zalogowal sie na drugie konto z tego samego profilu gry
+///\detail written during the import; the GUI reads it and refuses to add another commander's career, should
+/// somebody log into a second account from the same game profile
 struct db_owner_t
   {
   std::string fid;
   std::string name;
   };
 
-///\brief co TA postac zrobila w galaktyce - tego nie wolno dzielic miedzy konta
-///\detail swiat jest wspolny, ale skan i mapowanie nalezy do konkretnego commandera. pokazanie
-/// jednej postaci, ze cos zmapowala, gdy zrobila to druga, prowadzi wprost do zlej decyzji przy
-/// planowaniu lotu - dlatego te tabele zostaja w bazie osobistej i kluczuja sie naturalnie,
-/// nazwami i numerami z gry, a nie oid-ami, ktore zmieniaja sie przy kazdej przebudowie galaxy
+///\brief what THIS commander did in the galaxy - this must not be shared between accounts
+///\detail the world is shared, but a scan and a mapping belong to one commander. telling
+/// one commander that something is mapped when another did it leads straight to a bad decision when
+/// planning a flight - so these tables stay in the personal database and key themselves naturally,
+/// on names and numbers from the game rather than oids, which change with every galaxy rebuild
 struct system_progress_t
   {
   uint64_t system_address;
@@ -96,7 +96,7 @@ struct genus_progress_t
   bool sampled;
   };
 
-///\brief reputacja jest osobista, a frakcja wspolna - dlatego kluczem jest nazwa, nie oid frakcji
+///\brief reputation is personal while the faction is shared - hence the key is the name, not the faction oid
 struct faction_reputation_t
   {
   std::string faction;
@@ -120,7 +120,7 @@ struct faction_info_t
 [[nodiscard]]
 auto to_native(events::faction_info_t && faction) -> faction_info_t;
 
-/// influence jest wartoscia per system, rejestrowana w czasie wg daty eventu
+/// influence is a per-system value, recorded over time by the event's date
 struct faction_influence_t
   {
   int64_t oid{-1};
@@ -134,7 +134,7 @@ struct faction_influence_t
   std::string recovering_states;
   };
 
-///\brief konflikt w systemie zarejestrowany w czasie wg daty eventu
+///\brief a conflict in a system, recorded over time by the event's date
 struct conflict_t
   {
   int64_t oid{-1};
@@ -149,7 +149,7 @@ struct conflict_t
   std::string stake2;
   uint32_t won_days2;
 
-  ///\brief bez oid i czasu, do wykrycia czy stan konfliktu sie zmienil
+  ///\brief without oid and time, to detect whether the conflict state has changed
   [[nodiscard]]
   auto operator==(conflict_t const &) const noexcept -> bool;
   };
@@ -160,9 +160,9 @@ auto to_conflict(uint64_t system_address, std::chrono::sys_seconds timestamp, ev
 
 ///\brief populacja skrocona do rzedu wielkosci - 74k, 9.9M, 2.0B
 ///
-/// Przy porownywaniu systemow liczy sie rzad wielkosci, nie pojedyncze osoby: rozstrzyga, czy
-/// system jest czterdziestotysieczny czy czterdziestomilionowy, bo to od tego zalezy, ile pracy
-/// kosztuje punkt procentowy wplywow. Pelna liczba zabiera miejsce i nic nie wnosi
+/// When comparing systems the order of magnitude is what counts, not single people: what decides is whether
+/// the system is a forty-thousand or a forty-million one, because that governs how much work
+/// a percentage point of influence costs. The full number takes room and adds nothing
 [[nodiscard]]
 auto format_population(uint64_t value) -> std::string;
 
@@ -170,23 +170,23 @@ auto format_population(uint64_t value) -> std::string;
 [[nodiscard]]
 auto join_states(std::span<events::faction_state_entry_t const> states) -> std::string;
 
-///\brief tozsamosc stacji, jeden wpis na MarketID
-///\detail odtwarzalna z journali - zdarzenia Docked i Market - wiec mieszka w bazie glownej
+///\brief a station's identity, one row per MarketID
+///\detail rebuildable from journals - the Docked and Market events - so it lives in the main database
 struct station_t
   {
   uint64_t market_id;
   uint64_t system_address;
   std::string name;
   std::string station_type;
-  ///\brief ekonomia i rzad miejsca - to one mowia czego tam szukac, nie nazwa osady
+  ///\brief the economy and government of the place - they say what to look for there, the settlement's name does not
   std::string economy;
   std::string government;
-  ///\brief frakcja wladajaca miejscem - to jej wplywy rosna od oddanych tu misji
+  ///\brief the faction holding the place - its influence is what missions handed in here raise
   std::string controlling_faction;
   };
 
-///\brief kiedy ostatnio odczytalismy rynek tej stacji
-///\detail sama zawartosc pochodzi z Market.json, ktorego nie da sie odtworzyc, wiec i czas
+///\brief when we last read this station's market
+///\detail the contents themselves come from Market.json, which cannot be rebuilt, so the time of
 /// odczytu nalezy do bazy zbieranej na zywo
 struct market_info_t
   {
@@ -194,7 +194,7 @@ struct market_info_t
   std::chrono::sys_seconds updated;
   };
 
-///\brief slownik towarow, mean_price to srednia galaktyczna czyli stala towaru
+///\brief the commodity dictionary; mean_price is the galactic average, a constant of the commodity
 struct commodity_t
   {
   uint64_t id;
@@ -203,7 +203,7 @@ struct commodity_t
   uint32_t mean_price;
   };
 
-///\brief najswiezszy odczyt rynku, jeden wiersz na towar
+///\brief the newest market reading, one row per commodity
 struct market_item_t
   {
   int64_t oid{-1};
@@ -213,12 +213,12 @@ struct market_item_t
   uint32_t sell_price;
   uint32_t stock;
   uint32_t demand;
-  ///\brief czy stacja ten towar naprawde wytwarza i skupuje - zerowy zapas to moze byc chwilowa pustka
+  ///\brief whether the station really produces and buys this commodity - zero stock may be a passing gap
   bool producer;
   bool consumer;
   };
 
-///\brief pozycja rynku juz zlaczona ze slownikiem towarow, do pokazania w oknie
+///\brief a market row already joined with the commodity dictionary, ready for the window
 struct market_entry_t
   {
   std::string name;
@@ -228,12 +228,12 @@ struct market_entry_t
   uint32_t mean_price;
   uint32_t stock;
   uint32_t demand;
-  ///\brief czy stacja ten towar naprawde wytwarza i skupuje
+  ///\brief whether the station really produces and buys this commodity
   bool producer;
   bool consumer;
   };
 
-///\brief lekka projekcja star_system do list wyboru, nazwy pol musza zgadzac sie z kolumnami
+///\brief a light projection of star_system for pick lists; field names must match the columns
 struct system_ref_t
   {
   uint64_t system_address;
@@ -255,7 +255,7 @@ enum struct mission_status_e : uint8_t
   completed,
   failed,
   abandoned,
-  ///\brief gra przestala ja wykazywac jako otwarta, a my nie widzielismy jak sie zamknela
+  ///\brief the game stopped listing it as open and we never saw it close
   expired
   };
 
@@ -274,9 +274,9 @@ struct mission_t
   std::string type;
   std::string description;
   uint64_t reward;
-  ///\brief stacja w ktorej misja zostala wzieta, zero gdy nieznana
+  ///\brief the station the mission was taken at, zero when unknown
   uint64_t market_id;
-  ///\brief kiedy misja sie zamknela - bez tego nie da sie liczyc statystyk tygodniowych
+  ///\brief when the mission closed - without it weekly statistics cannot be counted
   std::chrono::sys_seconds closed;
 
   std::string target;
@@ -333,13 +333,13 @@ struct carrier_t
   uint64_t market_id;
   std::string carrier_name;
   std::string carrier_id;
-  ///\brief flotowiec ktory mnie interesuje - bartendera obcych tez widzimy, ale to tylko tlo
+  ///\brief a carrier that concerns me - a stranger's bartender is visible too, but that is only background
   bool tracked;
 
-  ///\brief stan z ostatniego CarrierStats - puste dopoki go nie widzielismy
+  ///\brief the state from the last CarrierStats - empty until we have seen one
   ///
-  /// Zdarzenie przychodzi przy dokowaniu i przy zarzadzaniu flotowcem, wiec te liczby sa zawsze
-  /// z ostatniej takiej chwili, nie z teraz - stad znacznik czasu obok nich
+  /// The event arrives on docking and on managing the carrier, so these numbers always come
+  /// from the last such moment rather than from now - hence the timestamp beside them
   std::string carrier_type;
   std::string docking_access;
   uint32_t fuel_level;
@@ -353,10 +353,10 @@ struct carrier_t
   std::chrono::sys_seconds stats_seen;
 };
 
-///\brief slownik mikrozasobow, sklejany z dwoch zrodel o roznej wiedzy
-///\detail FCMaterials.json podaje numeryczne id i nazwe czytelna, SellMicroResources kategorie,
-/// a wspolnym kluczem jest nazwa wewnetrzna - "$weaponschematic_name;" i "weaponschematic" to ten
-/// sam material
+///\brief the micro resource dictionary, glued together from two sources that know different things
+///\detail FCMaterials.json gives a numeric id and a readable name, SellMicroResources the category,
+/// and the shared key is the internal name - "$weaponschematic_name;" and "weaponschematic" are the
+/// same material
 struct micro_resource_t
 {
   std::string name;
@@ -365,8 +365,8 @@ struct micro_resource_t
   std::string category;
 };
 
-///\brief sprzedaz mikrozasobow - zrzut u bartendera na stacji albo dostawa na flotowiec gracza
-///\detail zdarzenie journala, wiec odtwarzalne wstecz; o ktory przypadek chodzi mowi typ stacji
+///\brief a micro resource sale - dropped at a station's bartender or delivered to a player's carrier
+///\detail a journal event, so rebuildable after the fact; the station type says which case it is
 struct micro_sale_t
 {
   int64_t oid{-1};
@@ -376,12 +376,12 @@ struct micro_sale_t
   uint32_t total_count;
 };
 
-///\brief zdobyty mikrozasob wraz z miejscem, z ktorego pochodzi
-///\detail market_id wskazuje osade, a przez nia jej ekonomie; zero gdy zdobyte poza osada
-///\brief skad wzial sie mikrozasob
+///\brief a collected micro resource together with the place it came from
+///\detail market_id points at the settlement, and through it at its economy; zero when found outside one
+///\brief where the micro resource came from
 enum struct acquisition_source_e : uint8_t
 {
-  ///\brief podniesione w osadzie, porcie danych albo z pojemnika
+  ///\brief picked up at a settlement, a data port or a container
   collected,
   ///\brief nagroda za misje, trafia wprost do lockera z pominieciem plecaka
   mission_reward
@@ -403,10 +403,10 @@ struct micro_acquisition_t
   acquisition_source_e source;
 };
 
-///\brief slad "frakcja byla obecna przy tym odczycie systemu"
+///\brief a trace of "the faction was present at this reading of the system"
 ///
-/// influence zapisujemy tylko gdy sie zmienilo, wiec data ostatniego wpisu mowi o ostatniej zmianie,
-/// nie o ostatnim widzeniu. Bez osobnego sladu frakcja, ktora wyleciala z systemu, zostaje na liscie
+/// influence is stored only when it changed, so the last entry's date speaks of the last change,
+/// not of the last sighting. Without a separate trace a faction that left the system stays on the list
 struct faction_presence_t
   {
   int64_t oid{-1};
@@ -419,95 +419,95 @@ struct faction_presence_t
 struct faction_ref_t
   { int64_t faction_oid; };
 
-///\brief towar wymagany przez misje - osobna tabela, zeby nie ruszac schematu misji
+///\brief a commodity a mission requires - a separate table, so the mission schema stays untouched
 struct mission_cargo_t
   {
   uint64_t mission_id;
-  ///\brief nazwa czytelna, taka sama jak w slowniku towarow
+  ///\brief the readable name, the same as in the commodity dictionary
   std::string commodity;
   uint32_t count;
   };
 
-///\brief ile wplywu jedna oddana misja dolozyla jednej frakcji w jednym systemie
+///\brief how much influence one handed-in mission added for one faction in one system
 ///
-/// gra liczy to plusami, nie procentami - "+++" znaczy tyle, ze dostala trzy razy tyle co "+",
-/// ale ile to punktow procentowych zalezy od systemu i od tego co w tej dobie zrobili inni.
+/// the game counts this in pluses, not percent - "+++" means it got three times what "+" gets,
+/// but how many percentage points that is depends on the system and on what others did that day.
 /// Dlatego trzymamy surowa liczbe plusow, a przelicznik na procenty wychodzi dopiero z zestawienia
-/// z [[faction_influence_t]] po ticku
+/// against [[faction_influence_t]] after the tick
 struct mission_influence_t
   {
   int64_t oid{-1};
   uint64_t mission_id;
-  ///\brief kiedy misja zostala oddana - to ta chwila decyduje do ktorej doby BGS wpadnie
+  ///\brief when the mission was handed in - that moment decides which BGS day it falls into
   std::chrono::sys_seconds timestamp;
   std::string faction;
   uint64_t system_address;
-  ///\brief ze znakiem: dodatnie gdy frakcja rosnie, ujemne gdy ja ta misja spycha w dol
+  ///\brief signed: positive when the faction rises, negative when this mission pushes it down
   int32_t pluses;
   };
 
-///\brief praca wlozona w jedna frakcje w jednym systemie przez jedna dobe BGS, zestawiona z tym
-/// co ta doba faktycznie dala
+///\brief the work put into one faction in one system over one BGS day, set against
+/// against what that day actually produced
 struct bgs_effort_t
   {
   uint64_t system_address;
   std::string system_name;
-  ///\brief populacja systemu - bez niej liczba plusow nic nie znaczy
+  ///\brief the system's population - without it a count of pluses means nothing
   ///
-  /// gra dzieli wplyw misji przez wielkosc systemu, wiec te same 10 plusow daje w systemie
-  /// czterdziestomilionowym ulamek tego, co w czterdziestotysiecznym. Przelicznik ma sens wylacznie
-  /// w obrebie jednego systemu i nigdy nie wolno go usredniac miedzy systemami
+  /// the game divides a mission's influence by the size of the system, so the same 10 pluses give in a
+  /// forty-million system a fraction of what they give in a forty-thousand one. The rate only makes sense
+  /// within a single system and must never be averaged across systems
   uint64_t population;
   std::string faction;
-  ///\brief fala, ktora te dobe zamknela - plusy oddane przed nia licza sie wlasnie do niej.
-  /// Granica jest wykryta, nie wyliczona z godziny, bo tick przesuwa sie co kilka dni
+  ///\brief the wave that closed this day - pluses handed in before it count towards it.
+  /// The boundary is detected, not derived from an hour, because the tick moves every few days
   std::chrono::sys_seconds closed_by;
-  ///\brief plusy pchajace frakcje w gore i te spychajace ja w dol, osobno - to dwie rozne dzwignie
+  ///\brief pluses pushing a faction up and those pushing it down, kept apart - two different levers
   int32_t pushed_up;
   int32_t pushed_down;
   int32_t missions;
-  ///\brief wplyw z ostatniej probki przed zamykajaca fala i z pierwszej po niej, w procentach.
-  /// Puste gdy nie bylo nas w systemie po jednej ze stron - wtedy tej doby nie da sie rozliczyc
-  /// i nie wolno jej dopowiadac
+  ///\brief influence from the last sample before the closing wave and the first after it, in percent.
+  /// Empty when we were not in the system on one side of it - that day cannot then be settled
+  /// and must not be guessed at
   std::optional<double> influence_before;
   std::optional<double> influence_after;
 
-  ///\brief stan frakcji z odczytu sprzed zamykajacej fali, czyli ten obowiazujacy w tej dobie
+  ///\brief the faction's state from the reading before the closing wave, the one in force that day
   ///
-  /// Bez niego przelicznik bywa nieczytelny, bo stan zmienia obie strony rownania. Najmocniej
-  /// **Retreat**: misje dla frakcji w odwrocie sa znacznie skuteczniejsze, a przy tym traci ona
-  /// okolo dwoch punktow procentowych na dobe - zmierzony przyrost jest wiec tym, co zostalo po
-  /// odjeciu tego odplywu, a prawdziwa skutecznosc pracy byla jeszcze wyzsza
+  /// Without it the rate can be unreadable, because the state changes both sides of the equation. Most of all
+  /// **Retreat**: missions for a faction in retreat are far more effective, and at the same time it loses
+  /// about two percentage points a day - the measured gain is therefore what survived
+  /// that drain, and the work was more effective still
   std::string faction_state;
 
-  ///\brief cala praca w gore wlozona tej doby w ten system, po wszystkich frakcjach razem
+  ///\brief all the upward work put into this system that day, across every faction together
   ///
-  /// Wplyw jest udzialem procentowym, wiec frakcje pchane tego samego dnia dziela miedzy siebie
-  /// jeden przyrost, a nie dostaja dwoch niezaleznych. Liczenie przelicznika osobno dla kazdej
-  /// zawyza go tym bardziej, im wiecej frakcji robiono naraz - dlatego koszt punktu jest
-  /// wielkoscia systemu, nie frakcji.
+  /// Influence is a percentage share, so factions pushed on the same day divide one gain between
+  /// them rather than getting two independent ones. Working the rate out for each separately
+  /// inflates it the more factions were worked at once - which is why the cost of a point is a
+  /// property of the system, not of the faction.
   ///
-  /// **Podzial pracy nie jest podzialem przyrostu.** Te same piec punktow podnosi frakcje lezaca
-  /// na dnie znacznie mocniej niz taka, ktora ma juz dziewiecdziesiat procent - bo procenty licza
-  /// sie wzgledem sumy, a ta u gory jest juz prawie cala jej wlasna. Udzial w pracy mowi wiec, ile
-  /// wysilku gdzie poszlo, a nie ile punktow procentowych z tego wyjdzie; o tym decyduje jeszcze
-  /// to, gdzie frakcja stoi w stawce - dlatego przy kazdym wierszu widac jej wplyw sprzed fali
+  /// **A split of work is not a split of the gain.** The same five points lift a faction lying
+  /// at the bottom far more than one already holding ninety percent - because percentages are measured
+  /// against the total, and at the top that total is already mostly its own. The share of work therefore says how much
+  /// effort went where, not how many percentage points will come of it; that also depends on
+  /// where the faction stands in the field - which is why every row shows its influence before the wave
   int32_t system_pushed_up;
-  ///\brief laczny przyrost wplywow frakcji pchanych tej doby w gore, w punktach procentowych.
-  /// Puste takze wtedy, gdy ktorejkolwiek z nich brakuje odczytu - podzial musi obejmowac calosc
-  /// albo nie ma go wcale.
+  ///\brief the combined influence gain of the factions pushed up that day, in percentage points.
+  /// Also empty when any one of them lacks a reading - the split must cover the whole
+  /// or there is no split at all.
   ///
-  /// Koszt punktu policzony z tego jest srednia po tym, kogo akurat tej doby pchano: dzien pracy
-  /// dla frakcji z dolu stawki wyjdzie taniej niz ten sam wysilek wlozony w lidera systemu
+  /// The cost of a point worked out from this is an average over whoever was pushed that day: a day spent
+  /// on a faction at the bottom comes out cheaper than the same effort put into the system's leader
   std::optional<double> system_gain;
   };
 
-///\brief jak pozno po zapowiedzi wojna naprawde ruszyla
+///\brief how late after the announcement the war actually started
 ///
-/// Panel wsparcia frakcji pokazuje przejscie w stan wojny od razu, ale do journala nie trafia nic -
-/// jedynym sladem jest status konfliktu przy kolejnym odczycie systemu. Dlatego oba znaczniki sa
-/// ograniczeniami, nie chwilami: wojna ruszyla gdzies miedzy nimi, a osady wchodza w stan wojny
-/// jeszcze pozniej. Rozrzut z wielu wojen mowi, na kiedy planowac wyprawe
+/// The faction support panel shows the transition into the war state at once, but nothing reaches the journal -
+/// the only trace is the conflict status at the next reading of the system. Both marks are therefore
+/// bounds, not moments: the war started somewhere between them, and settlements enter the war state
+/// later still. The spread across many wars says when to plan the trip for
 struct war_onset_t
   {
   uint64_t system_address;
@@ -515,23 +515,23 @@ struct war_onset_t
   std::string war_type;
   std::string faction1;
   std::string faction2;
-  ///\brief ostatni odczyt, w ktorym wojna byla jeszcze tylko zapowiedziana
+  ///\brief the last reading in which the war was still only announced
   std::chrono::sys_seconds pending_last;
-  ///\brief pierwszy, w ktorym juz trwala
+  ///\brief the first in which it was already running
   std::chrono::sys_seconds active_first;
-  ///\brief wynik z ostatniego odczytu tej wojny - dni wygrane przez kazda ze stron
+  ///\brief the result from the last reading of this war - days won by each side
   uint32_t won_days1;
   uint32_t won_days2;
-  ///\brief status z ostatniego odczytu; pusty znaczy, ze wojna sie juz skonczyla
+  ///\brief the status from the last reading; empty means the war is already over
   std::string status;
   };
 
-///\brief ile jeszcze zostalo trwajacemu konfliktowi
+///\brief how much is left of a running conflict
 ///
-/// Konflikt rozstrzyga sie, gdy jedna ze stron uzbiera cztery wygrane dni - w danych Artura konczy
-/// tak 53 z 90 zamknietych konfliktow, reszta to ostatnie odczyty sprzed zniknienia z systemu.
-/// Dzieki temu koniec wojny daje sie odliczyc z samego won_days, bez znajomosci pory przeliczenia;
-/// pora mowi juz tylko, o ktorej tego dnia
+/// A conflict is decided once one side gathers four won days - in this database 53 of 90 closed
+/// conflicts end that way, the rest being last readings from before we left the system.
+/// That lets the end of a war be counted down from won_days alone, without knowing the hour of the recalculation;
+/// the hour only says when in that day
 struct war_countdown_t
   {
   uint64_t system_address;
@@ -540,21 +540,21 @@ struct war_countdown_t
   std::string faction2;
   uint32_t won_days1;
   uint32_t won_days2;
-  ///\brief zero znaczy, ze konflikt rozstrzyga sie najblizszym przeliczeniem wojen - wtedy warto
-  /// miec bondy na reku, bo po wygranej ida z premia
+  ///\brief zero means the conflict is decided at the next war recalculation - worth having
+  /// bonds in hand by then, because after a win they pay a premium
   uint32_t ticks_left;
-  ///\brief czy konflikt juz trwa - zapowiedziany dopiero sie zacznie i ma pelne cztery dni przed soba
+  ///\brief whether the conflict is already running - an announced one is yet to start and has four full days ahead
   bool active;
   };
 
-///\brief ktory z dziennych przeliczen gry - to sa dwa osobne zegary
-///\detail zwykle chodza razem, ale nie zawsze: 4 sierpnia 2026 wplywy przeliczyly sie o 16:30,
+///\brief which of the game's daily recalculations - these are two separate clocks
+///\detail they usually run together, but not always: on 4 August 2026 influence recalculated at 16:30
 /// a wojny o 14:30, siodmego wplywy o 16:30 a wojny o 11:30
 enum struct tick_kind_e : uint8_t
   {
-  ///\brief przeliczenie wplywow frakcji
+  ///\brief the recalculation of faction influence
   influence,
-  ///\brief przeliczenie dni wygranych w konfliktach
+  ///\brief the recalculation of days won in conflicts
   war
   };
 
@@ -567,82 +567,82 @@ consteval auto adl_enum_bounds(tick_kind_e)
 ///\brief slad po jednym ticku: przedzial miedzy ostatnim odczytem ze stara wartoscia a pierwszym
 /// z nowa
 ///
-/// Gra nie oglasza ticku. Jedyne co widac to ze miedzy dwoma spojrzeniami na system wartosc sie
-/// zmienila - a to znaczy tyle, ze tick wypadl gdzies w tym przedziale. Im wiecej systemow
-/// odwiedzonych blisko siebie w czasie, tym ciasniej przedzialy sie przecinaja
+/// The game announces no tick. All that can be seen is that between two looks at a system the value
+/// changed - which means only that the tick fell somewhere in that interval. The more systems
+/// visited close together in time, the tighter the intervals intersect
 struct tick_observation_t
   {
   int64_t oid{-1};
   tick_kind_e kind;
   uint64_t system_address;
-  ///\brief ostatni odczyt, ktory pokazywal jeszcze stara wartosc
+  ///\brief the last reading that still showed the old value
   std::chrono::sys_seconds window_begin;
-  ///\brief pierwszy odczyt z nowa wartoscia
+  ///\brief the first reading with the new value
   std::chrono::sys_seconds window_end;
   };
 
-///\brief jedna fala przeliczenia, zlozona z obserwacji po kolejnych systemach
+///\brief one recalculation wave, made of observations across successive systems
 ///
-/// Tick nie jest chwila. Galaktyka przelicza sie systemami, sasiednie potrafia sie rozjechac
-/// o godziny, wiec przecinanie okien z roznych systemow dawaloby zbior pusty - a nie daje, bo
-/// kazdy system ma wlasny moment. Dlatego zamiast jednej godziny trzymamy oba konce fali:
+/// A tick is not a moment. The galaxy recalculates system by system, and neighbours can drift apart
+/// by hours, so intersecting windows from different systems would give the empty set - and it does not, because
+/// each system has a moment of its own. So instead of one hour we keep both ends of the wave:
 ///
-/// - **poczatek** jest tym, co liczy sie dla wplywow: misje trzeba oddac przed nim, bo po nim
-///   plusy ida juz na nastepna dobe,
-/// - **koniec** jest tym, co liczy sie dla wojen: dopiero po nim bondy sprzedaja sie po nowemu.
+/// - the **start** is what matters for influence: missions must be handed in before it, because after it
+///   the pluses go towards the next day,
+/// - the **end** is what matters for wars: only after it do bonds sell the new way.
 ///
-/// Fale nie chodza co 24h - w weekendy potrafi nie byc ticku przez prawie dwie doby, a po
-/// aktualizacji gry serwery gubia go zupelnie. Dlatego zadne pole nie jest prognoza
+/// Waves do not come every 24h - at weekends there can be no tick for nearly two days, and after
+/// a game update the servers lose it entirely. No field here is a forecast
 struct tick_fact_t
   {
   tick_kind_e kind;
-  ///\brief okno, w ktorym przeliczyl sie pierwszy system - tu fala sie zaczela
+  ///\brief the window in which the first system recalculated - the wave began here
   std::chrono::sys_seconds start_begin;
   std::chrono::sys_seconds start_end;
-  ///\brief okno, w ktorym przeliczyl sie ostatni - tu fala doszla do konca
+  ///\brief the window in which the last one recalculated - the wave ended here
   std::chrono::sys_seconds end_begin;
   std::chrono::sys_seconds end_end;
-  ///\brief ile obserwacji i ilu roznych systemow zlozylo sie na te fale
+  ///\brief how many observations, and how many distinct systems, went into this wave
   uint32_t samples;
   uint32_t systems;
   };
 
-///\brief jak regularnie przeliczenie w ogole przychodzi
+///\brief how regularly the recalculation comes at all
 ///
-/// Odpowiada na pytanie "czy tick dzisiaj byl" inaczej niz przez doliczanie doby: pokazuje typowa
-/// i najdluzsza zaobserwowana przerwe, wiec od razu widac, ze w weekend potrafi nie przyjsc
+/// It answers "has the tick come today" other than by adding a day: it shows the typical
+/// and the longest gap observed, so it is plain at once that at a weekend it may not come
 struct tick_stats_t
   {
   tick_kind_e kind;
   uint32_t waves;
-  ///\brief mediana i najdluzsza przerwa miedzy poczatkami kolejnych fal
+  ///\brief the median and the longest gap between the starts of successive waves
   std::chrono::minutes typical_gap;
   std::chrono::minutes longest_gap;
-  ///\brief ile fal widzialo wiecej niz jeden system - tylko one mowia cos o szerokosci propagacji
+  ///\brief how many waves were seen in more than one system - only those say anything about the spread
   uint32_t multi_system_waves;
   ///\brief najszersza zaobserwowana propagacja, od poczatku fali do jej konca
   std::chrono::minutes widest_spread;
   ///\brief mediana szerokosci okna, czyli jak dokladnie to w ogole zmierzono
   ///
-  /// Okno to odstep miedzy odczytem ze stara i z nowa wartoscia, wiec rzadsze wizyty w systemie
-  /// rozszerzaja je. Tick nie przesuwa sie przez to na wykresie - po prostu wiadomo o nim mniej,
-  /// i wlasnie ta liczba o tym mowi
+  /// The window is the gap between a reading with the old value and one with the new, so rarer visits
+  /// widen it. That does not move the tick - it simply means less is known about it,
+  /// and this number is what says so
   std::chrono::minutes typical_window;
   };
 
-///\brief przystanek zapisanej trasy neutronowej
+///\brief a waypoint of a stored neutron route
 ///
-/// Trasa wyznaczona na zewnatrz (spansh) i wczytana z pliku - gra nie zapisuje jej nigdzie, a
-/// NavRoute nadpisuje przy kazdym wyznaczeniu kursu, wiec skoki neutronowe wyznaczane pojedynczo
-/// kasowalyby ja bez przerwy. Trasa, ktora lata sie regularnie, ma zostac zapamietana, a ze nie da
-/// sie jej odtworzyc z journali, mieszka w bazie zbieranej na zywo
+/// A route plotted outside the game (spansh) and loaded from a file - the game stores it nowhere, and
+/// NavRoute is overwritten with every course set, so neutron jumps plotted one at a time
+/// would wipe it constantly. A route flown regularly should be remembered, and since it cannot
+/// be rebuilt from journals, it lives in the database gathered live
 struct neutron_waypoint_t
   {
   int64_t oid{-1};
-  ///\brief nazwa trasy, ta sama we wszystkich jej przystankach - zapamietana jest jedna, ta latana
-  /// regularnie; trasy jednorazowe zyja tylko do zamkniecia okna i nigdzie nie trafiaja
+  ///\brief the route's name, the same on all its waypoints - one is remembered, the one flown
+  /// regularly; one-off routes live only until the window closes and reach nowhere
   std::string route_name;
-  ///\brief kolejnosc lotu - juz po ewentualnym odwroceniu, wiec zero to pierwszy skok
+  ///\brief flight order - after any reversal, so zero is the first hop
   uint32_t position;
   std::string system;
   uint64_t system_address;
@@ -651,14 +651,14 @@ struct neutron_waypoint_t
   double loc_z;
   ///\brief czy to gwiazda neutronowa, czyli przystanek na doladowanie
   bool neutron;
-  ///\brief odleglosc od poprzedniego przystanku w latach swietlnych
+  ///\brief the distance from the previous waypoint in light years
   double distance;
   };
 
-///\brief statek w drodze miedzy portami
+///\brief a ship in transit between ports
 ///
-/// Gra podaje czas dostawy raz, przy zamowieniu, i nigdy o nim nie przypomina - przybycia nie
-/// oglasza zadnym zdarzeniem. Bez zapisania tej jednej chwili informacja przepada
+/// The game gives the delivery time once, at the order, and never mentions it again - arrival has
+/// no event of its own. Unless that one moment is stored, the information is lost
 struct ship_transfer_t
   {
   int64_t oid{-1};
@@ -669,15 +669,15 @@ struct ship_transfer_t
   double distance;
   uint64_t price;
   std::chrono::sys_seconds ordered;
-  ///\brief wyliczone przy zamowieniu: chwila zamowienia plus czas dostawy
+  ///\brief worked out at the order: the moment of ordering plus the delivery time
   std::chrono::sys_seconds arrives;
   };
 
-///\brief port, w ktorym stanelismy statkiem
+///\brief a port we stood at with a ship
 ///
-/// Liczy sie wylacznie miejsce, do ktorego dokuje sie statkiem - osady piesze i flotowce nie sa
-/// portami w rozumieniu kapsuly ratunkowej, ktora odsyla do ostatniego portu, a nie do ostatniego
-/// miejsca. Typ stacji zostaje zapisany, bo to on rozstrzyga
+/// Only a place one docks at with a ship counts - on-foot settlements and carriers are not
+/// ports in the sense of the escape pod, which returns you to the last port, not to the last
+/// place. The station type is stored, because it is what decides
 struct port_visit_t
   {
   uint64_t market_id;
@@ -687,14 +687,14 @@ struct port_visit_t
   std::chrono::sys_seconds visited;
   };
 
-///\brief ile czego trzeba przywiezc lacznie, po zsumowaniu otwartych misji
+///\brief how much of what has to be brought in total, once open missions are summed
 struct cargo_need_t
   {
   std::string commodity;
   uint32_t count;
   };
 
-///\brief miejsce w ktorym da sie kupic to, czego wymaga misja
+///\brief a place where what a mission requires can be bought
 struct supply_option_t
   {
   uint64_t market_id;
@@ -707,14 +707,14 @@ struct supply_option_t
   uint32_t buy_price;
   };
 
-///\brief czy towaru nie da sie kupic, a jedynie wykopac
+///\brief whether the commodity cannot be bought, only mined
 ///
-/// stacja potrafi placic za taki surowiec bardzo dobrze, ale dla handlarza to slepy zaulek -
-/// nikt mu go nie sprzeda. Lista jest stala wiedza o grze, wiec siedzi w kodzie, nie w bazie
+/// a station can pay very well for such a resource, but for a trader it is a dead end -
+/// nobody will sell it to him. The list is fixed knowledge about the game, so it sits in code, not in the database
 [[nodiscard]]
 auto is_mining_only(std::string_view commodity) noexcept -> bool;
 
-///\brief kurs handlowy: kupic tam, sprzedac tutaj
+///\brief a trade rate: buy there, sell here
 struct trade_option_t
   {
   uint64_t market_id;
@@ -727,17 +727,17 @@ struct trade_option_t
   uint32_t demand;
   };
 
-///\brief ile i jakich misji zrobilem dla frakcji w danym okresie
+///\brief how many missions, and of what kind, were done for a faction in a given period
 struct mission_stat_t
   {
   std::string faction;
   uint32_t missions;
   uint64_t rewards;
-  ///\brief najczestszy rodzaj, np Mission_Massacre
+  ///\brief the most frequent kind, Mission_Massacre for instance
   std::string top_type;
   };
 
-///\brief pozycja polki bartendera po zlaczeniu ze slownikiem
+///\brief a bartender shelf row after joining with the dictionary
 struct carrier_stock_t
 {
   std::string name;
@@ -749,7 +749,7 @@ struct carrier_stock_t
   std::chrono::sys_seconds timestamp;
 };
 
-///\brief zdobycze jednego materialu, z podzialem na sposob i miejsce
+///\brief the finds of one material, split by method and place
 struct acquisition_summary_t
 {
   std::string name;
@@ -761,7 +761,7 @@ struct acquisition_summary_t
   std::chrono::sys_seconds last_seen;
 };
 
-///\brief pozycja transakcji, laczy sie ze slownikiem przez nazwe wewnetrzna
+///\brief a transaction row, joined to the dictionary by the internal name
 struct micro_sale_item_t
 {
   int64_t oid{-1};

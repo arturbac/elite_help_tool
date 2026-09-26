@@ -391,7 +391,7 @@ auto to_native_fromat(sql_iface::star_system_t && system) noexcept -> ::star_sys
   };
   }
 
-///\brief frakcja bez reputacji - ta jest osobista i siedzi w bazie glownej
+///\brief a faction without reputation - that one is personal and sits in the main database
 struct faction_info_t
   {
   int64_t oid{-1};
@@ -413,7 +413,7 @@ auto to_db_fromat(info::faction_info_t const & v) noexcept -> sql_iface::faction
   };
   }
 
-///\brief reputacja zostaje zerowa - dopelnia ja odczyt z faction_reputation
+///\brief the reputation stays at zero - a read from faction_reputation fills it in
 [[nodiscard]]
 auto to_native_fromat(sql_iface::faction_info_t && v) noexcept -> info::faction_info_t
   {
@@ -452,7 +452,7 @@ auto to_db_fromat(int64_t ref_fc, std::chrono::sys_seconds timestamp, events::fc
   
 namespace tables
   {
-  // fakty o galaktyce - te same dla kazdej postaci, wiec moga byc wspolne dla dwoch kont
+  // facts about the galaxy - the same for every character, so two accounts can share them
   inline constexpr std::string_view star_system{"galaxy.star_system"};
   inline constexpr std::string_view bary_centre{"galaxy.bary_centre"};
   inline constexpr std::string_view star_details{"galaxy.star_details"};
@@ -468,13 +468,13 @@ namespace tables
   inline constexpr std::string_view system_conflict{"galaxy.system_conflict"};
   inline constexpr std::string_view system_signal{"galaxy.system_signal"};
   inline constexpr std::string_view station{"galaxy.station"};
-  // tick jest wlasnoscia gry, nie postaci - i odtwarza sie z journali razem z reszta galaktyki
+  // the tick belongs to the game, not to a character - and rebuilds from journals with the rest of the galaxy
   inline constexpr std::string_view tick_observation{"galaxy.tick_observation"};
-  // to czego nie da sie odtworzyc siedzi w osobnym pliku podpietym jako schemat live
+  // what cannot be rebuilt sits in a separate file attached as the live schema
   inline constexpr std::string_view market{"live.market"};
   inline constexpr std::string_view commodity{"live.commodity"};
   inline constexpr std::string_view market_item{"live.market_item"};
-  // co zrobila TA postac - zostaje w bazie osobistej, klucze naturalne zeby przezyly przebudowe galaxy
+  // what THIS character did - it stays in the personal database, with natural keys so it survives a galaxy rebuild
   inline constexpr std::string_view db_owner{"db_owner"};
   inline constexpr std::string_view system_progress{"system_progress"};
   inline constexpr std::string_view body_progress{"body_progress"};
@@ -483,11 +483,11 @@ namespace tables
   inline constexpr std::string_view mission{"mission"};
   inline constexpr std::string_view mission_cargo{"mission_cargo"};
   inline constexpr std::string_view mission_influence{"mission_influence"};
-  // jedno i drugie odtwarza sie z journali, wiec miejsce jest w bazie osobistej, nie w live
+  // both rebuild from journals, so their place is in the personal database, not in live
   inline constexpr std::string_view ship_transfer{"ship_transfer"};
   inline constexpr std::string_view port_visit{"port_visit"};
   inline constexpr std::string_view micro_resource{"live.micro_resource"};
-  // sprzedaz mikrozasobow to zdarzenie journala, wiec odtwarzalna
+  // selling micro resources is a journal event, so it is rebuildable
   inline constexpr std::string_view micro_sale{"micro_sale"};
   inline constexpr std::string_view micro_sale_item{"micro_sale_item"};
   inline constexpr std::string_view micro_acquisition{"micro_acquisition"};
@@ -537,7 +537,7 @@ constexpr auto reflection_type_name() -> std::string_view
     static_assert(false);
   }
 
-///\brief sqlite nie zawsze ustawia opis bledu, formatowanie nullptr jako {} konczy sie strlen(nullptr)
+///\brief sqlite does not always set an error text, and formatting nullptr as {} ends in strlen(nullptr)
 [[nodiscard]]
 auto sql_error_text(char const * err_msg) noexcept -> char const *
   {
@@ -632,13 +632,13 @@ static auto fmt_join(std::vector<std::string> const & values) -> std::string
 
 static int collect_column_names(void * d, int argc, char ** argv, char **)
   {
-  // PRAGMA table_info zwraca kolumny opisu, nazwa stoi na drugiej pozycji
+  // PRAGMA table_info returns descriptive columns; the name stands in the second position
   if(argc > 1 and argv[1] != nullptr)
     static_cast<std::vector<std::string> *>(d)->emplace_back(argv[1]);
   return 0;
   }
 
-///\brief nazwy kolumn istniejacej tabeli, dziala tez dla nazw z przedrostkiem schematu
+///\brief the column names of an existing table; it works for schema-prefixed names as well
 [[nodiscard]]
 static auto table_columns(sqlite3 * db, std::string_view name) -> expected_ec<std::vector<std::string>>
   {
@@ -655,9 +655,9 @@ static auto table_columns(sqlite3 * db, std::string_view name) -> expected_ec<st
   return columns;
   }
 
-///\brief sprawdza czy istniejaca tabela ma ksztalt jakiego oczekuje kod
-///\detail CREATE TABLE IF NOT EXISTS milczy gdy tabela istnieje w innym ksztalcie, a baza zbierana
-/// na zywo nigdy nie jest kasowana - bez tej kontroli kazdy zapis sypalby sie osobno w trakcie pracy
+///\brief checks whether an existing table has the shape the code expects
+///\detail CREATE TABLE IF NOT EXISTS says nothing when the table exists in another shape, and the database
+/// gathered live is never dropped - without this check every write would fail on its own during work
 template<typename table_type>
 static auto verify_table(sqlite3 * db, std::string_view name) -> expected_ec<void>
   {
@@ -982,9 +982,9 @@ static auto execute_query_no_result(sqlite3 * db, std::string_view query) -> exp
   return {};
   }
 
-///\brief indeks na tabeli, ktora moze siedziec w podpietym schemacie
-///\detail w CREATE INDEX schemat stoi przy nazwie indeksu, a nie przy tabeli - podanie
-/// "galaxy.body" w obu miejscach to blad skladni, wiec nazwa rozchodzi sie tutaj
+///\brief an index on a table that may sit in an attached schema
+///\detail in CREATE INDEX the schema stands with the index name, not with the table - giving
+/// "galaxy.body" in both places is a syntax error, so the name is split apart here
 [[nodiscard]]
 static auto create_index(
   sqlite3 * db, std::string_view table, std::string_view columns, std::string_view suffix = "key", bool unique = false
@@ -1037,7 +1037,7 @@ database_storage_t::database_storage_t(std::string_view db_path) :
     db_path_{db_path},
     db_{std::make_unique<sqlite3_handle_t>()}
   {
-  // pliki poboczne leza obok bazy glownej i kazdy zyje wlasnym zyciem
+  // the side files lie next to the main database and each lives its own life
   std::filesystem::path sibling{db_path};
   sibling.replace_filename("live.sqlite");
   live_db_path_ = sibling.string();
@@ -1057,7 +1057,7 @@ auto database_storage_t::open(storage_mode_e mode) -> expected_ec<void>
   // czytanie z gui i zapis z watku sledzacego to osobne polaczenia, czekamy zamiast dostac SQLITE_BUSY
   sqlite3_busy_timeout(db_->db, 3000);
 
-  // dane zbierane na zywo i wiedza o galaktyce w osobnych plikach - ATTACH zaklada je gdy nie istnieja
+  // data gathered live and knowledge of the galaxy in separate files - ATTACH creates them when they do not exist
   for(auto const & [schema, path]:
       {std::pair{"live"sv, std::cref(live_db_path_)}, std::pair{"galaxy"sv, std::cref(galaxy_db_path_)}})
     if(
@@ -1070,16 +1070,16 @@ auto database_storage_t::open(storage_mode_e mode) -> expected_ec<void>
 
   if(mode == storage_mode_e::bulk_import)
     {
-    // kazdy insert to osobna transakcja, a przy imporcie calosci logow jest ich setki tysiecy
-    // - bez fsync na wiersz i z dziennikiem w pamieci import idzie wielokrotnie szybciej.
-    // Awaria konczy sie uszkodzona baza, ale import i tak buduje ja od zera.
+    // every insert is a transaction of its own, and importing the whole of the logs makes hundreds of
+    // thousands of them - without an fsync per row and with the journal in memory the import runs many
+    // times faster. A crash ends in a damaged database, but the import builds it from scratch anyway.
     //
-    // przedrostek schematu nie jest ozdobnikiem: niekwalifikowane journal_mode i synchronous siegaja
-    // WSZYSTKICH podpietych baz, wiec zdjelyby te zabezpieczenia takze z live.sqlite - a tego pliku
-    // nie da sie odtworzyc i bywa wspoldzielony z druga, dzialajaca instancja. main i galaxy import
-    // buduje od zera, wiec tam skroty sa na miejscu - i konieczne, bo wiekszosc wierszy idzie
-    // wlasnie do galaxy; zostawienie jej z fsync na wiersz spowalnia caly import kilkunastokrotnie.
-    // temp_store dotyczy polaczenia, nie bazy, wiec zostaje bez przedrostka
+    // the schema prefix is no ornament: an unqualified journal_mode and synchronous reach EVERY attached
+    // database, so they would take these safeguards off live.sqlite as well - and that file cannot be
+    // rebuilt and is sometimes shared with a second, running instance. main and galaxy the import builds
+    // from scratch, so the shortcuts belong there - and are necessary, because most rows go to galaxy;
+    // leaving it with an fsync per row slows the whole import down more than tenfold.
+    // temp_store belongs to the connection, not to a database, so it stays without a prefix
     for(std::string_view pragma:
         {"PRAGMA main.synchronous = OFF;"sv,
          "PRAGMA main.journal_mode = MEMORY;"sv,
@@ -1091,16 +1091,17 @@ auto database_storage_t::open(storage_mode_e mode) -> expected_ec<void>
     }
   else
     {
-    // gui, okna narzedziowe i overlay czytaja z osobnych polaczen w trakcie zapisu z watku journala.
-    // w dzienniku rollback taki czytelnik czeka na pisarza i po busy_timeout dostaje "database is
-    // locked"; w WAL nie czeka wcale, bo czyta ostatni spojny obraz obok trwajacego zapisu
+    // the gui, the tool windows and the overlay read from separate connections while the journal thread
+    // writes. With a rollback journal such a reader waits for the writer and after busy_timeout gets
+    // "database is locked"; under WAL it does not wait at all, reading the last consistent image beside
+    // the write in progress
     for(std::string_view pragma:
         {"PRAGMA journal_mode = WAL;"sv, "PRAGMA live.journal_mode = WAL;"sv, "PRAGMA galaxy.journal_mode = WAL;"sv})
       if(auto res{sqlite::execute_query_no_result(db_->db, pragma)}; not res) [[unlikely]]
         return res;
     }
 
-  // najpierw migracja, bo create_database sprawdza ksztalt tabel i na starej odmowilby otwarcia
+  // migration first, because create_database checks the shape of the tables and would refuse to open an old one
   if(auto res{migrate_live_schema()}; not res) [[unlikely]]
     return res;
 
@@ -1124,7 +1125,7 @@ auto database_storage_t::migrate_live_schema() -> expected_ec<void>
       {addition_t{sql_iface::tables::market_item, "producer"sv, "INTEGER DEFAULT 0"sv},
        addition_t{sql_iface::tables::market_item, "consumer"sv, "INTEGER DEFAULT 0"sv},
        addition_t{sql_iface::tables::station, "controlling_faction"sv, "TEXT DEFAULT ''"sv},
-       // stan flotowca z CarrierStats - dokladany w miejscu, bo live.sqlite nie powstaje od nowa
+       // the carrier's state from CarrierStats - added in place, because live.sqlite is never created anew
        addition_t{sql_iface::tables::carrier, "carrier_type"sv, "TEXT DEFAULT ''"sv},
        addition_t{sql_iface::tables::carrier, "docking_access"sv, "TEXT DEFAULT ''"sv},
        addition_t{sql_iface::tables::carrier, "fuel_level"sv, "INTEGER DEFAULT 0"sv},
@@ -1141,7 +1142,7 @@ auto database_storage_t::migrate_live_schema() -> expected_ec<void>
     if(not known) [[unlikely]]
       return cxx23::unexpected{known.error()};
 
-    // pusta lista znaczy ze tabeli jeszcze nie ma - powstanie od razu w docelowym ksztalcie
+    // an empty list means the table is not there yet - it will be created in its final shape at once
     if(known->empty() or std::ranges::find(*known, add.column) != known->end())
       continue;
 
@@ -1299,7 +1300,7 @@ auto database_storage_t::create_database() -> expected_ec<void>
     [[unlikely]]
     return res;
 
-  // wyszukiwanie frakcji po nazwie i ostatniego wpisu influence idzie przy kazdym odwiedzonym systemie
+  // looking a faction up by name and finding its last influence row happens at every system visited
   if(auto res{sqlite::create_index(db_->db, sql_iface::tables::faction_info, "name", "name")}; not res) [[unlikely]]
     return res;
 
@@ -1334,7 +1335,7 @@ auto database_storage_t::create_database() -> expected_ec<void>
   ) [[unlikely]]
     return res;
 
-  // ten sam sygnal wraca przy kazdym skanie fss, wiec kazdy trafia najpierw w sprawdzenie
+  // the same signal comes back with every fss scan, so each one meets a check first
   if(auto res{sqlite::create_index(db_->db, sql_iface::tables::system_signal, "system_address, name")}; not res)
     [[unlikely]]
     return res;
@@ -1354,7 +1355,7 @@ auto database_storage_t::create_database() -> expected_ec<void>
     [[unlikely]]
     return res;
 
-  // postep tej postaci - osobny od wiedzy o galaktyce, wiec w bazie glownej
+  // this character's progress - apart from knowledge of the galaxy, so in the main database
   if(
     auto res{
       sqlite::create_table<info::system_progress_t>(db_->db, "system_address"sv, sql_iface::tables::system_progress)
@@ -1401,8 +1402,8 @@ auto database_storage_t::create_database() -> expected_ec<void>
   ) [[unlikely]]
     return res;
 
-  // misja rusza kilka frakcji naraz, wiec wpisow jest wielokrotnie wiecej niz misji. Ten sam klucz
-  // sluzy odsiewaniu powtorek przy przebudowie i wyszukiwaniu po systemie
+  // a mission moves several factions at once, so there are many times more rows than missions. The same
+  // key serves both to sift out repeats during a rebuild and to search by system
   if(
     auto res{sqlite::create_index(
       db_->db, sql_iface::tables::mission_influence, "mission_id, faction, system_address", "key", true
@@ -1420,7 +1421,7 @@ auto database_storage_t::create_database() -> expected_ec<void>
   ) [[unlikely]]
     return res;
 
-  // wyszukiwanie ostatnich ticków idzie po koncu okna
+  // the search for the last ticks goes by the end of the window
   if(auto res{sqlite::create_index(db_->db, sql_iface::tables::tick_observation, "kind, window_end", "recent")};
      not res) [[unlikely]]
     return res;
@@ -1441,8 +1442,8 @@ auto database_storage_t::load_missions() -> expected_ec<std::vector<info::missio
   return sqlite::select_from<info::mission_t>(
     db_->db,
     sql_iface::tables::mission,
-    // redirected znaczy zrobiona i czekajaca na oddanie - po terminie jest zamknieta tak samo
-    // jak nieoddana, bo albo przepadla albo fakt oddania nie trafil do journala
+    // redirected means done and waiting to be handed in - past its deadline it is closed just as an
+    // unhanded one is, because either it was lost or the handing-in never reached the journal
     std::format(
       " WHERE expiry > '{:%Y-%m-%dT%H:%M:%SZ}' AND (status='accepted' OR status='redirected')",
       std::chrono::system_clock::now()
@@ -1474,7 +1475,7 @@ auto database_storage_t::change_mission_status(
 
 auto database_storage_t::store(info::mission_cargo_t const & value) -> expected_ec<void>
   {
-  // ponowne odtwarzanie journala trafia na te sama misje, wiec wpis ma byc jeden
+  // replaying the journal meets the same mission again, so there is to be one row only
   return sqlite::insert_into<info::mission_cargo_t, true>(
     db_->db, "mission_id"sv, sql_iface::tables::mission_cargo, value
   );
@@ -1500,8 +1501,8 @@ auto database_storage_t::load_cargo_needs() -> expected_ec<std::vector<info::car
 
 auto database_storage_t::load_producers() -> expected_ec<std::vector<info::supply_option_t>>
   {
-  // to samo co load_supply_options, ale bez warunku na zapas - interesuje nas sam fakt,
-  // ze rynek tym handluje, zeby odroznic chwilowa pustke od braku jakiegokolwiek zrodla
+  // the same as load_supply_options, but without the condition on stock - what matters is the bare fact
+  // that the market trades in it, so as to tell a momentary emptiness from having no source at all
   return sqlite::select_from<info::supply_option_t>(
     db_->db,
     std::format(
@@ -1536,7 +1537,7 @@ auto database_storage_t::load_producers() -> expected_ec<std::vector<info::suppl
 
 auto database_storage_t::load_supply_options() -> expected_ec<std::vector<info::supply_option_t>>
   {
-  // slownik towarow i zapasy siedza w bazie live, misje w glownej - dlatego jedno zapytanie przez oba
+  // the commodity dictionary and the stock sit in the live database, the missions in the main one - hence one query across both
   return sqlite::select_from<info::supply_option_t>(
     db_->db,
     std::format(
@@ -1586,7 +1587,7 @@ auto database_storage_t::store_faction_seen(int64_t faction_oid, uint64_t system
 
 auto database_storage_t::load_present_factions(uint64_t system_address) -> expected_ec<std::vector<info::faction_ref_t>>
   {
-  // obecne sa te, ktore widzielismy przy najswiezszym odczycie tego systemu
+  // present are the ones seen at the newest reading of this system
   return sqlite::select_from<info::faction_ref_t>(
     db_->db,
     std::format(
@@ -1603,10 +1604,10 @@ auto database_storage_t::load_trade_options(uint64_t market_id, unsigned limit, 
   -> expected_ec<std::vector<info::trade_option_t>>
   {
   // rynek "here" to ten w ktorym stoimy, "other" to dowolny inny ktory kiedys widzielismy.
-  // kierunek decyduje tylko o tym, ktora strona kupuje a ktora sprzedaje
+  // the direction decides nothing but which side buys and which sells
   std::string_view const buy_side{bring_here ? "other" : "here"};
   std::string_view const sell_side{bring_here ? "here" : "other"};
-  // kurs na jedna tone nie jest kursem - ponizej tego progu podpowiedz tylko zasmieca ekran
+  // a rate on a single tonne is no rate - below this threshold the hint only litters the screen
   constexpr unsigned minimum_quantity{50u};
 
   return sqlite::select_from<info::trade_option_t>(
@@ -1628,7 +1629,7 @@ auto database_storage_t::load_trade_options(uint64_t market_id, unsigned limit, 
       " WHERE here.market_id = {4}"
       "   AND {6}.stock >= {8} AND {6}.buy_price > 0"
       "   AND {7}.demand >= {8} AND {7}.sell_price > {6}.buy_price"
-      // ladownia ma skonczona pojemnosc, wiec o zarobku decyduje marza na tonie, nie procent
+      // the hold has a finite capacity, so what decides the earnings is the margin per tonne, not the percentage
       " ORDER BY ({7}.sell_price - {6}.buy_price) DESC"
       " LIMIT {5})",
       sql_iface::tables::market_item,
@@ -1685,7 +1686,7 @@ auto database_storage_t::expire_missions_outside(std::span<uint64_t const> activ
     listed += std::to_string(mission_id);
     }
 
-  // pusta lista tez niesie informacje - znaczy ze gra nie ma juz zadnej otwartej misji
+  // an empty list carries information too - it means the game has no open mission left
   std::string const exclusion{listed.empty() ? std::string{} : std::format(" AND mission_id NOT IN ({})", listed)};
 
   std::string query{std::format(
@@ -1873,11 +1874,11 @@ auto database_storage_t::store_genus_species(
   if(not body_oid) [[unlikely]]
     return cxx23::unexpected{body_oid.error()};
 
-  // probka moze przyjsc dla ciala, ktorego jeszcze nie zmapowalismy
+  // a sample can arrive for a body we have not mapped yet
   if(not *body_oid)
     return {};
 
-  // gatunek rosnie tam niezaleznie od tego, kto go probkowal
+  // the species grows there whoever sampled it
   std::string query{std::format(
     "UPDATE {} SET species='{}' WHERE ref_body_oid={} AND genus='{}'",
     sql_iface::tables::genus,
@@ -1891,7 +1892,7 @@ auto database_storage_t::store_genus_species(
   if(not sampled)
     return {};
 
-  // znacznika probki nigdy nie zdejmujemy - kolejny Log tego samego rodzaju nie cofa pobrania
+  // the sampled mark is never taken off - a further Log of the same genus does not undo the taking
   std::string progress{std::format(
     "INSERT INTO {0} (system_address, body_id, genus, sampled) VALUES ({1}, {2}, '{3}', 1)"
     " ON CONFLICT(system_address, body_id, genus) DO UPDATE SET sampled = 1",
@@ -2052,9 +2053,9 @@ auto database_storage_t::store(info::station_t const & value) -> expected_ec<voi
   if(not *known)
     return sqlite::insert_into<info::station_t, true>(db_->db, "market_id"sv, sql_iface::tables::station, value);
 
-  // zrodla opisuja miejsce roznie - Docked zna typ stacji, ApproachSettlement ekonomie osady.
-  // puste pole nie kasuje tego co juz wiemy, ale niepuste nadpisuje: ukonczona konstrukcja
-  // zmienia nazwe i journal jest jedynym zrodlem prawdy o tym, jak nazywa sie teraz
+  // the sources describe a place differently - Docked knows the station type, ApproachSettlement the
+  // settlement's economy. An empty field does not erase what we know, a non-empty one overwrites: a
+  // finished construction changes the name and the journal is the only source of truth on what it is called now
   info::station_t merged{**known};
   auto const fill = [](std::string & target, std::string const & source)
   {
@@ -2083,7 +2084,7 @@ auto database_storage_t::load_carriers() -> expected_ec<std::vector<info::carrie
 auto database_storage_t::load_carrier_stock(std::string_view carrier_id)
   -> expected_ec<std::vector<info::carrier_stock_t>>
   {
-  // liczy sie ostatni odczyt, wczesniejsze sa historia sprzedazy
+  // what counts is the last reading, the earlier ones are the history of sales
   std::string const where{std::format(
     " WHERE c.carrier_id = '{}' AND m.timestamp = (SELECT max(timestamp) FROM {} WHERE carrier_id = c.oid)"
     " ORDER BY r.category, r.localised",
@@ -2106,8 +2107,8 @@ auto database_storage_t::load_carrier_stock(std::string_view carrier_id)
 auto database_storage_t::load_mission_stats(std::chrono::sys_seconds since, uint64_t system_address)
   -> expected_ec<std::vector<info::mission_stat_t>>
   {
-  // zawezenie do systemu idzie przez stacje w ktorej misja zostala wzieta,
-  // kazde zrodlo ma wlasny alias stacji wiec warunek budujemy osobno dla kazdego
+  // narrowing to a system goes through the station the mission was taken at,
+  // and each source has its own station alias, so the condition is built separately for each
   auto const scope_for{
     [system_address](std::string_view alias) -> std::string
     {
@@ -2142,9 +2143,9 @@ auto database_storage_t::load_mission_stats(std::chrono::sys_seconds since, uint
 auto database_storage_t::load_acquisition_summary(std::chrono::sys_seconds since)
   -> expected_ec<std::vector<info::acquisition_summary_t>>
   {
-  // ekonomia miejsca przychodzi ze stacji, wiec pojedyncze zdobycze zyskuja ja wstecz.
-  // liczona jest raz, jednym przebiegiem po historii - to samo per wiersz kosztowalo sekunde
-  // "Mostly from" idzie za wybranym okresem - inaczej mowiloby o miejscu sprzed pol roku
+  // a place's economy comes from the station, so single finds gain it in hindsight.
+  // it is counted once, in a single pass over the history - the same per row cost a second
+  // "Mostly from" follows the chosen period - otherwise it would speak of a place from half a year ago
   std::string const window{std::format(" WHERE b.timestamp >= '{:%Y-%m-%dT%H:%M:%SZ}'", since)};
 
   return sqlite::select_from<info::acquisition_summary_t>(
@@ -2177,7 +2178,7 @@ auto database_storage_t::load_acquisition_summary(std::chrono::sys_seconds since
 
 auto database_storage_t::store(info::micro_acquisition_t const & value) -> expected_ec<void>
   {
-  // odtwarzanie journala powtarza zdobycze, rozroznia je czas, miejsce i material
+  // replaying the journal repeats the finds; time, place and material tell them apart
   std::string known_query{std::format(
     "SELECT count(*) FROM {} WHERE timestamp='{:%Y-%m-%dT%H:%M:%SZ}' AND market_id={} AND name='{}'",
     sql_iface::tables::micro_acquisition,
@@ -2197,7 +2198,7 @@ auto database_storage_t::store(info::micro_acquisition_t const & value) -> expec
 
 auto database_storage_t::store(info::mission_influence_t const & value) -> expected_ec<void>
   {
-  // przebudowa z journali powtarza kazda misje - rozroznia je misja, frakcja i system
+  // a rebuild from journals repeats every mission - mission, faction and system tell them apart
   std::string known_query{std::format(
     "SELECT count(*) FROM {} WHERE mission_id={} AND faction='{}' AND system_address={}",
     sql_iface::tables::mission_influence,
@@ -2218,9 +2219,9 @@ auto database_storage_t::store(info::mission_influence_t const & value) -> expec
 auto database_storage_t::last_system_seen(uint64_t system_address)
   -> expected_ec<std::optional<std::chrono::sys_seconds>>
   {
-  // odczyt systemu obejmuje wszystkie obecne frakcje naraz, wiec najswiezszy wpis dowolnej z nich
-  // mowi kiedy ostatnio na ten system patrzylismy
-  // bez agregatu - przy nieodwiedzonym systemie ma nie byc zadnego wiersza, a nie wiersz z NULL
+  // a reading of a system covers every faction present at once, so the newest row of any of them says
+  // when we last looked at this system
+  // no aggregate - for a system never visited there is to be no row at all, not a row of NULL
   auto res{sqlite::select_signle_from<std::chrono::sys_seconds>(
     db_->db,
     std::format(
@@ -2258,25 +2259,25 @@ auto database_storage_t::store(info::tick_observation_t const & value) -> expect
 
 namespace
   {
-///\brief najdluzsza przerwa miedzy zmianami, ktora jeszcze uchodzi za te sama fale przeliczenia
+///\brief the longest gap between changes that still passes for the same recalculation wave
 ///
-/// Galaktyka przelicza sie systemami i rozjazd miedzy nimi siega godzin, wiec fala musi miec
-/// luz. Z drugiej strony kolejna przychodzi zwykle po dobie, a w weekend po dwoch, wiec prog
-/// w okolicach polowy doby rozdziela je pewnie
+/// The galaxy recalculates system by system and the spread between them reaches hours, so a wave needs
+/// room. On the other hand the next one usually comes after a day, over a weekend after two, so a
+/// threshold around half a day separates them reliably
 constexpr std::chrono::hours same_wave_gap{8};
 
-///\brief o tyle przesuwamy poczatek fali wstecz wzgledem tego, co zobaczylismy
+///\brief by this much the start of a wave is moved back against what we saw
 ///
-/// Odczyt ze stara wartoscia nie dowodzi, ze serwer jeszcze nie przeliczyl - dowodzi tylko, ze do
-/// nas jeszcze nie doszlo. Widac to w danych: okna potrafia zaczynac sie rowno o pelnej albo
-/// polowie godziny, czyli tam, gdzie tick najpewniej naprawde wypadl. Przy oddawaniu misji blad
-/// w te strone jest bezpieczny - lepiej uznac, ze doba zamknela sie wczesniej, niz oddac za pozno
+/// A reading with the old value does not prove the server has not recalculated - it proves only that it
+/// has not reached us yet. The data shows it: windows sometimes start exactly on the hour or the half
+/// hour, which is where the tick most likely really fell. When handing missions in, an error in this
+/// direction is the safe one - better to take the day as having closed earlier than to hand in too late
 constexpr std::chrono::minutes client_lag{5};
 
-///\brief najblizszy czwartek 07:00 UTC po podanej chwili, czyli tygodniowe przeliczenie gry
+///\brief the nearest Thursday 07:00 UTC after the given moment, that is the game's weekly recalculation
 ///
-/// %w liczy dni od niedzieli, wiec czwartek to 4. Gdy juz jest czwartek, ale po godzinie, wlasciwy
-/// jest dopiero nastepny tydzien
+/// %w counts days from Sunday, so Thursday is 4. When it is Thursday already but past the hour, the right
+/// one is next week's
 /// modulo zapisane jest pojedynczym znakiem procenta - w std::format nie jest on specjalny,
 /// wiec podwojenie trafiloby wprost do SQL i wywrocilo zapytanie
 constexpr std::string_view next_weekly_tick{
@@ -2286,11 +2287,11 @@ constexpr std::string_view next_weekly_tick{
   ") || ' days'), '+7 hours'))"
 };
 
-///\brief czas po kolonizacji, w ktorym wplywy chodza wlasnym rytmem
+///\brief the time after colonisation in which influence runs to a rhythm of its own
 ///
-/// Swiezo skolonizowany system ma wplywy ustawione z gory i do pierwszego **tygodniowego**
-/// przeliczenia - czwartek 07:00 UTC, czyli 09:00 czasu lokalnego - albo stoja, albo skacza
-/// o ulamek punktu na frakcji glownej. Ani jedno, ani drugie nie jest sladem dobowego ticku
+/// A freshly colonised system has its influence set from above, and until the first **weekly**
+/// recalculation - Thursday 07:00 UTC, that is 09:00 local time - it either stands still or jumps by a
+/// fraction of a point on the main faction. Neither of the two is a trace of the daily tick
 inline auto settled_colony_clause() -> std::string
   {
   std::string const first_seen{
@@ -2316,8 +2317,8 @@ auto database_storage_t::load_recent_ticks(info::tick_kind_e kind, uint32_t with
     db_->db,
     sql_iface::tables::tick_observation,
     std::format(
-      // okno szersze niz kilka godzin powstaje po dluzszej nieobecnosci w systemie i nie mowi nic
-      // o porze przeliczenia, a rozbija fale na osobne pozycje - do klastrowania nie wchodzi
+      // a window wider than a few hours comes of a longer absence from the system and says nothing about
+      // when the recalculation fell, while breaking the wave into separate rows - it stays out of the clustering
       " WHERE kind='{0}' AND (julianday(window_end) - julianday(window_begin)) * 24 <= 3"
       " AND window_end >="
       " (SELECT strftime('%Y-%m-%dT%H:%M:%SZ', max(window_end), '-{1} days') FROM {2} WHERE kind='{0}'){3}"
@@ -2331,9 +2332,9 @@ auto database_storage_t::load_recent_ticks(info::tick_kind_e kind, uint32_t with
   if(not rows) [[unlikely]]
     return cxx23::unexpected{rows.error()};
 
-  // Fale rozdziela przerwa, nie doba kalendarzowa i nie wspolna czesc okien. Okna z roznych
-  // systemow nie musza sie przecinac, bo kazdy system przelicza sie u siebie - probowanie ich
-  // przeciecia dawalo zbior pusty i gubilo wiekszosc dni
+  // What separates waves is a gap, not a calendar day and not an overlap of windows. Windows from
+  // different systems need not intersect at all, because every system recalculates on its own - trying to
+  // intersect them gave an empty set and lost most of the days
   std::vector<info::tick_fact_t> facts;
   for(auto it{rows->begin()}; it != rows->end();)
     {
@@ -2342,8 +2343,8 @@ auto database_storage_t::load_recent_ticks(info::tick_kind_e kind, uint32_t with
     for(; it != rows->end() and it->window_end - last_end <= same_wave_gap; ++it)
       last_end = it->window_end;
 
-    // posortowane po koncu okna, wiec pierwszy element fali przeliczyl sie najwczesniej,
-    // a ostatni najpozniej
+    // sorted by the end of the window, so the first element of a wave recalculated earliest
+    // and the last one latest
     auto const & first{*wave_begin};
     auto const & last{*std::prev(it)};
 
@@ -2373,8 +2374,8 @@ auto database_storage_t::load_recent_ticks(info::tick_kind_e kind, uint32_t with
 auto database_storage_t::last_local_tick(uint64_t system_address, info::tick_kind_e kind)
   -> expected_ec<std::optional<std::chrono::sys_seconds>>
   {
-  // wplywy zmieniaja sie przy ticku wplywow, dni wygrane przy ticku wojen - kazdy zegar ma wiec
-  // wlasna tabele i wlasna ostatnia zmiane
+  // influence changes at the influence tick, days won at the war tick - so each clock has a table
+  // of its own and a last change of its own
   auto res{sqlite::select_signle_from<std::chrono::sys_seconds>(
     db_->db,
     std::format(
@@ -2392,7 +2393,7 @@ auto database_storage_t::last_local_tick(uint64_t system_address, info::tick_kin
 
 namespace
   {
-///\brief wplyw frakcji wedlug ostatniej probki nie pozniejszej niz podana chwila, w procentach
+///\brief a faction's influence by the last sample no later than the given moment, in percent
 [[nodiscard]]
 auto influence_at(sqlite3 * db, uint64_t system_address, std::string_view faction, std::chrono::sys_seconds when)
   -> std::optional<double>
@@ -2416,7 +2417,7 @@ auto influence_at(sqlite3 * db, uint64_t system_address, std::string_view factio
   return *res;
   }
 
-///\brief stan frakcji wedlug tej samej probki, z ktorej czytamy wplyw sprzed fali
+///\brief a faction's state by the same sample the pre-wave influence is read from
 [[nodiscard]]
 auto state_at(sqlite3 * db, uint64_t system_address, std::string_view faction, std::chrono::sys_seconds when)
   -> std::string
@@ -2441,10 +2442,10 @@ auto state_at(sqlite3 * db, uint64_t system_address, std::string_view faction, s
   return **res == "None" ? std::string{} : **res;
   }
 
-///\brief pierwsza zmiana wplywow w systemie po podanej chwili, dowolnej frakcji
+///\brief the first change of influence in the system after the given moment, of any faction
 ///
-/// Sluzy za dowod, ze po fali naprawde tam bylismy. Brak takiej zmiany znaczy albo ze nie bylismy,
-/// albo ze nic sie nie ruszylo - w obu wypadkach doby nie wolno rozliczyc
+/// It serves as proof that we really were there after the wave. No such change means either that we were
+/// not, or that nothing moved - in both cases the day must not be settled
 [[nodiscard]]
 auto first_change_after(sqlite3 * db, uint64_t system_address, std::chrono::sys_seconds when)
   -> std::optional<std::chrono::sys_seconds>
@@ -2469,9 +2470,9 @@ auto first_change_after(sqlite3 * db, uint64_t system_address, std::chrono::sys_
 
 namespace bgs_detail
   {
-///\brief surowy plus z misji razem z opisem systemu - nazwy pol musza zgadzac sie z aliasami
-/// zapytania, a sama struktura potrzebuje wiazania zewnetrznego, bo refleksja glaze nie siega
-/// do przestrzeni anonimowej
+///\brief a raw plus from a mission together with the system described - the field names must match the
+/// query's aliases, and the struct itself needs external linkage, because glaze reflection does not reach
+/// into an anonymous namespace
 struct effort_row_t
   {
   uint64_t system_address;
@@ -2493,14 +2494,14 @@ auto database_storage_t::load_bgs_effort(uint32_t within_days, uint64_t system_a
   if(not waves) [[unlikely]]
     return cxx23::unexpected{waves.error()};
 
-  // fale przychodza od najswiezszej, a granice dob wygodniej szukac rosnaco. Pusta lista nie jest
-  // bledem - na bazie jeszcze nieprzebudowanej zadna fala nie zostala wykryta, a praca mimo to
-  // zostala wykonana i ma sie pokazac, tyle ze w calosci jako doba jeszcze nierozliczona
+  // waves come newest first, and the boundaries of days are easier to look for ascending. An empty list is
+  // no error - on a database not yet rebuilt no wave has been detected, and the work was done all the same
+  // and is to be shown, only as a single day not yet settled
   std::vector<info::tick_fact_t> ordered{*waves};
   std::ranges::reverse(ordered);
 
-  // Okres liczony od ostatniej zapisanej pracy, nie od zegara - baza bywa starsza niz dzis, a pusty
-  // raport nie powiedzialby, czy pracy nie bylo, czy tylko jest sprzed tygodnia
+  // The period is counted from the last recorded work, not from the clock - the database is sometimes
+  // older than today, and an empty report would not say whether there was no work or only older work
   auto cutoff{sqlite::select_signle_from<std::chrono::sys_seconds>(
     db_->db,
     std::format(
@@ -2515,9 +2516,9 @@ auto database_storage_t::load_bgs_effort(uint32_t within_days, uint64_t system_a
   if(not *cutoff)
     return std::vector<info::bgs_effort_t>{};
 
-  // Doba BGS nie konczy sie na granicy okresu, wiec ciecie rowno w niej zabraloby czesc plusow
-  // najstarszej doby i zaniziloby jej przelicznik - ta sama doba wygladalaby inaczej przy wyborze
-  // 7 i 14 dni. Zamiast tego cofamy sie do przeliczenia, ktore te dobe otworzylo
+  // A BGS day does not end at the period's boundary, so cutting straight through it would take away part
+  // of the oldest day's pluses and understate its rate - the same day would look different at 7 days and
+  // at 14. Instead we step back to the recalculation that opened that day
   std::chrono::sys_seconds since{**cutoff};
   for(info::tick_fact_t const & wave: ordered)
     if(wave.start_end <= **cutoff)
@@ -2556,7 +2557,7 @@ auto database_storage_t::load_bgs_effort(uint32_t within_days, uint64_t system_a
     auto const closing{std::ranges::find_if(ordered, [&](info::tick_fact_t const & w)
                                             { return w.start_end >= row.timestamp; })};
 
-    // po ostatniej fali siedzi doba jeszcze nierozliczona - zerowy znacznik mowi "trwa"
+    // after the last wave sits a day not yet settled - a zero marker says "still running"
     sys_seconds const closed_by{closing != ordered.end() ? closing->start_end : sys_seconds{}};
 
     auto & bucket{buckets[{row.system_address, row.faction, closed_by}]};
@@ -2604,7 +2605,7 @@ auto database_storage_t::load_bgs_effort(uint32_t within_days, uint64_t system_a
         bucket.effort.faction_state
           = state_at(db_->db, bucket.effort.system_address, bucket.effort.faction, closing->start_begin);
 
-        // wartosc po fali wolno pokazac tylko gdy mamy dowod, ze po niej tam bylismy
+        // the value after the wave may be shown only with proof that we were there afterwards
         if(auto seen{first_change_after(db_->db, bucket.effort.system_address, closing->end_end)}; seen)
           bucket.effort.influence_after
             = influence_at(db_->db, bucket.effort.system_address, bucket.effort.faction, *seen);
@@ -2614,9 +2615,9 @@ auto database_storage_t::load_bgs_effort(uint32_t within_days, uint64_t system_a
     result.push_back(std::move(bucket.effort));
     }
 
-  // Przyrost wplywow dzieli sie miedzy frakcje pchane tej samej doby w tym samym systemie, bo
-  // procenty sumuja sie do stu. Koszt punktu jest wiec wielkoscia systemu i doby, a nie frakcji;
-  // udzial pojedynczej frakcji wynika z tego, jaka czesc calej pracy w gore na nia poszla
+  // The gain in influence is shared among the factions pushed on the same day in the same system, because
+  // the percentages add up to a hundred. The cost of a point is therefore a property of the system and the
+  // day, not of the faction; a single faction's share follows from how much of all the upward work went to it
   struct pool_t
     {
     int32_t pushed_up;
@@ -2633,8 +2634,8 @@ auto database_storage_t::load_bgs_effort(uint32_t within_days, uint64_t system_a
     auto & pool{pools.try_emplace({row.system_address, row.closed_by}, pool_t{0, 0.0, true}).first->second};
     pool.pushed_up += row.pushed_up;
 
-    // bez odczytu po obu stronach fali nie wiadomo, ile ta frakcja wziela z puli, a wtedy nie da
-    // sie uczciwie rozdzielic reszty - caly podzial tej doby przepada
+    // without a reading on both sides of the wave there is no telling how much this faction took from the
+    // pool, and then the rest cannot be shared out fairly - the whole split of that day is lost
     if(not row.influence_before or not row.influence_after)
       pool.complete = false;
     else
@@ -2649,9 +2650,9 @@ auto database_storage_t::load_bgs_effort(uint32_t within_days, uint64_t system_a
         row.system_gain = found->second.gain;
       }
 
-  // Najswiezsze doby na gorze, a w obrebie doby najwieksza praca pierwsza. Doba jeszcze
-  // nierozliczona jest najswiezsza z mozliwych, a jej znacznikiem jest zero - bez podmiany
-  // ladowalaby na samym koncu, czyli najdalej od tego, co robimy teraz
+  // The newest days on top, and within a day the largest effort first. A day not yet settled is the
+  // newest there can be, and its marker is zero - without the substitution it would land at the very
+  // end, that is furthest from what we are doing now
   auto const freshness = [](info::bgs_effort_t const & row)
   { return row.closed_by == sys_seconds{} ? sys_seconds::max() : row.closed_by; };
 
@@ -2670,7 +2671,7 @@ auto database_storage_t::load_bgs_effort(uint32_t within_days, uint64_t system_a
 
 auto database_storage_t::store_neutron_route(std::span<info::neutron_waypoint_t const> route) -> expected_ec<void>
   {
-  // jedna zapamietana trasa - wczytanie nowej zastepuje poprzednia w calosci
+  // one remembered route - loading a new one replaces the previous one entirely
   if(auto res{sqlite::execute_query_no_result(db_->db, std::format("DELETE FROM {}", sql_iface::tables::neutron_route))};
      not res) [[unlikely]]
     return res;
@@ -2692,7 +2693,7 @@ auto database_storage_t::load_neutron_route() -> expected_ec<std::vector<info::n
 
 auto database_storage_t::store(info::ship_transfer_t const & value) -> expected_ec<void>
   {
-  // przebudowa z journali powtarza kazde zamowienie - rozroznia je statek i chwila zamowienia
+  // a rebuild from journals repeats every order - the ship and the moment of ordering tell them apart
   auto known{sqlite::select_signle_from<uint64_t>(
     db_->db,
     std::format(
@@ -2723,8 +2724,8 @@ auto database_storage_t::load_transfers_in_flight(std::chrono::sys_seconds now)
 
 auto database_storage_t::store(info::port_visit_t const & value) -> expected_ec<void>
   {
-  // Jeden wiersz na port, znacznik przesuwany przy kazdym kolejnym postoju - a postoje sie
-  // powtarzaja, wiec zwykly INSERT wywalalby sie na kluczu i zostawial date pierwszej wizyty
+  // One row per port, with the marker moved at every further stop - and stops do repeat, so a plain
+  // INSERT would fail on the key and leave the date of the first visit behind
   return sqlite::execute_query_no_result(
     db_->db,
     std::format(
@@ -2758,7 +2759,7 @@ auto database_storage_t::load_last_port() -> expected_ec<std::optional<info::por
 
 auto database_storage_t::load_bgs_systems() -> expected_ec<std::vector<info::system_ref_t>>
   {
-  // BGS robi sie tam, gdzie sie oddaje misje - lista bierze sie z samej pracy, bez osobnego ustawienia
+  // BGS is done where missions are handed in - the list comes from the work itself, with no separate setting
   return sqlite::select_from<info::system_ref_t>(
     db_->db,
     std::format(
@@ -2774,16 +2775,16 @@ auto database_storage_t::load_bgs_systems() -> expected_ec<std::vector<info::sys
 
 auto database_storage_t::load_war_onsets() -> expected_ec<std::vector<info::war_onset_t>>
   {
-  // oba znaczniki sa ograniczeniami z jednej strony: wojna ruszyla po ostatnim "pending"
-  // i nie pozniej niz pierwszy "active", a ile z tego to opoznienie gry, a ile nasza nieobecnosc,
-  // widac dopiero po szerokosci tego przedzialu
+  // both markers bound it from one side each: the war started after the last "pending" and no later than
+  // the first "active", and how much of that is the game's delay and how much our absence shows only in
+  // the width of that span
   return sqlite::select_from<info::war_onset_t>(
     db_->db,
     std::format(
-      // te same frakcje bija sie ze soba wiecej niz raz, wiec kazda zapowiedz szuka najblizszego
-      // po niej przejscia w stan wojny, a nie najwczesniejszego w calej historii tej pary
-      // wynik dopinany na koncu, z najswiezszego odczytu tej samej wojny - dopiero on mowi,
-      // kto ja wygral i jakim stosunkiem dni
+      // the same factions fight each other more than once, so every announcement looks for the passage
+      // into war nearest after it, not the earliest in the whole history of that pair
+      // the result is attached at the end, from the newest reading of the same war - only that says
+      // who won it and by what ratio of days
       "(SELECT o.system_address AS system_address, o.system_name AS system_name, o.war_type AS war_type,"
       " o.faction1 AS faction1, o.faction2 AS faction2, o.pending_last AS pending_last,"
       " o.active_first AS active_first,"
@@ -2834,7 +2835,7 @@ auto database_storage_t::load_war_countdown(uint64_t system_address)
       slot = &conflict;
     }
 
-  ///\brief tyle wygranych dni rozstrzyga konflikt
+  ///\brief this many days won settles a conflict
   constexpr uint32_t days_to_win{4};
 
   std::vector<info::war_countdown_t> result;
@@ -2842,7 +2843,7 @@ auto database_storage_t::load_war_countdown(uint64_t system_address)
     {
     info::conflict_t const & conflict{*entry};
 
-    // pusty status znaczy, ze konflikt juz sie zamknal - nie ma czego odliczac
+    // an empty status means the conflict has already closed - there is nothing left to count down
     if(conflict.status.empty())
       continue;
 
@@ -2856,7 +2857,7 @@ auto database_storage_t::load_war_countdown(uint64_t system_address)
       .faction2 = conflict.faction2,
       .won_days1 = conflict.won_days1,
       .won_days2 = conflict.won_days2,
-      // zapowiedziany potrzebuje jeszcze jednego przeliczenia, zeby w ogole ruszyc
+      // an announced one needs one more recalculation just to start
       .ticks_left = (active ? 0u : 1u) + (won >= days_to_win ? 0u : days_to_win - won),
       .active = active
     });
@@ -2911,7 +2912,7 @@ auto database_storage_t::load_tick_stats(info::tick_kind_e kind, uint32_t within
     stats.widest_spread = std::max(stats.widest_spread, duration_cast<minutes>(fact.end_end - fact.start_end));
     }
 
-  // fale ida od najswiezszej, wiec przerwa dzieli sasiadow na liscie
+  // waves run newest first, so the gap separates neighbours in the list
   for(size_t ix{1}; ix < facts->size(); ++ix)
     gaps.push_back(duration_cast<minutes>((*facts)[ix - 1u].start_end - (*facts)[ix].start_end));
 
@@ -2987,8 +2988,8 @@ auto database_storage_t::load_stations(uint64_t system_address) -> expected_ec<s
 
 auto database_storage_t::load_market_entries(uint64_t market_id) -> expected_ec<std::vector<info::market_entry_t>>
   {
-  // nazwy pol market_entry_t pokrywaja sie z kolumnami obu tabel, wiec zlaczenie idzie
-  // przez ten sam generator zapytan co zwykly odczyt
+  // the field names of market_entry_t coincide with the columns of both tables, so the join goes
+  // through the same query generator as an ordinary read
   return sqlite::select_from<info::market_entry_t>(
     db_->db,
     std::format("{} JOIN {} ON id = commodity_id", sql_iface::tables::market_item, sql_iface::tables::commodity),
@@ -3003,7 +3004,7 @@ auto database_storage_t::replace_market(
   std::span<info::market_item_t const> items
 ) -> expected_ec<void>
   {
-  // slownik towarow jest wspolny dla wszystkich rynkow, dopisujemy tylko nieznane
+  // the commodity dictionary is shared by every market; only the unknown ones are added
   for(info::commodity_t const & value: commodities)
     {
     auto known{sqlite::select_signle_from<uint64_t>(
@@ -3020,7 +3021,7 @@ auto database_storage_t::replace_market(
       return res;
     }
 
-  // rynek zmienia sie ciagle, trzymamy tylko ostatni odczyt
+  // a market changes all the time, we keep the last reading alone
   if(
     auto res{sqlite::execute_query_no_result(
       db_->db, std::format("DELETE FROM {} WHERE market_id={}", sql_iface::tables::market_item, market_id)
@@ -3033,7 +3034,7 @@ auto database_storage_t::replace_market(
     if(auto res{sqlite::insert_into(db_->db, "oid"sv, sql_iface::tables::market_item, item)}; not res) [[unlikely]]
       return res;
 
-  // czas odczytu trzymamy przy rynku, nie przy stacji - stacja jest odtwarzalna, odczyt nie
+  // the time of the reading is kept with the market, not with the station - a station is rebuildable, a reading is not
   if(
     auto res{sqlite::execute_query_no_result(
       db_->db, std::format("DELETE FROM {} WHERE market_id={}", sql_iface::tables::market, market_id)
@@ -3063,7 +3064,7 @@ auto database_storage_t::load_market_info(uint64_t market_id) -> expected_ec<std
 
 auto database_storage_t::store(system_signal_t const & value) -> expected_ec<void>
   {
-  // ten sam sygnal wraca przy kazdym skanie fss systemu
+  // the same signal comes back with every fss scan of the system
   std::string query{std::format(
     "SELECT count(*) FROM {} WHERE system_address={} AND name='{}'",
     sql_iface::tables::system_signal,
@@ -3076,7 +3077,7 @@ auto database_storage_t::store(system_signal_t const & value) -> expected_ec<voi
 
   if(*known and **known != 0)
     {
-    // sygnal juz znamy, liczy sie kiedy ostatnio zostal zgloszony
+    // the signal is known already; what counts is when it was last reported
     std::string update{std::format(
       "UPDATE {} SET last_seen='{:%Y-%m-%dT%H:%M:%SZ}' WHERE system_address={} AND name='{}'",
       sql_iface::tables::system_signal,
@@ -3099,7 +3100,7 @@ auto database_storage_t::load_system_signals(uint64_t system_address)
   if(not res) [[unlikely]]
     return res;
 
-  // plac budowy czy compromised nav beacon znikaja z systemu, ale wpis po nich zostaje
+  // a construction site or a compromised nav beacon disappears from the system, but the row stays behind
   return filter_current_visit(std::move(*res));
   }
 
@@ -3240,7 +3241,7 @@ auto database_storage_t::store(info::micro_resource_t const & value) -> expected
       db_->db, "name"sv, sql_iface::tables::micro_resource, value
     );
 
-  // kazde zrodlo zna inna czesc - id i nazwe czytelna bartender, kategorie sprzedaz
+  // each source knows a different part - the id and the readable name from the bartender, the category from a sale
   info::micro_resource_t merged{std::move((*known)[0])};
   bool changed{};
   if(merged.id == 0 and value.id != 0)
@@ -3276,7 +3277,7 @@ auto database_storage_t::store(info::micro_resource_t const & value) -> expected
 auto database_storage_t::store(info::micro_sale_t const & sale, std::span<info::micro_sale_item_t const> items)
   -> expected_ec<void>
   {
-  // odtwarzanie journala powtarza te same transakcje, para czas i rynek je rozroznia
+  // replaying the journal repeats the same transactions; the pair of time and market tells them apart
   std::string known_query{std::format(
     "SELECT count(*) FROM {} WHERE market_id={} AND timestamp='{:%Y-%m-%dT%H:%M:%SZ}'",
     sql_iface::tables::micro_sale,
@@ -3376,7 +3377,7 @@ auto database_storage_t::load_system(uint64_t system_address)
     assert(res->size() == 1);
     star_system_t system{to_native_fromat(std::move((*res)[0]))};
 
-    // postep tej postaci dochodzi osobno - galaxy nie wie, kto co zeskanowal
+    // this character's progress comes separately - galaxy does not know who scanned what
     if(auto progress{sqlite::select_from<info::system_progress_t>(
          db_->db, sql_iface::tables::system_progress, std::format(" WHERE system_address={}", system_address)
        )};

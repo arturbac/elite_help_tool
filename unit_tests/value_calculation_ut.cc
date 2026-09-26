@@ -12,37 +12,37 @@ auto main() -> int
   };
   "elite_dangerous_valuation"_test = []
   {
-    "A 1: High Metal Content (Nie-terraformowalna)"_test = []
+    "A 1: high metal content (non terraformable)"_test = []
     {
       // MassEM: 0.090840, TerraformState: "", First Disc/Map: true
       auto const val = exploration::calculate_value(hmc_info, 0.090840, false, true, true, true);
 
-      // Oczekiwana wartość: ok. 114k
+      // expected value: about 114k
       expect(val >= 110'000_u && val <= 120'000_u) << "Actual value:" << val;
     };
 
-    "A 5: High Metal Content (Terraformowalna)"_test = []
+    "A 5: high metal content (terraformable)"_test = []
     {
       // MassEM: 0.070008, TerraformState: "Terraformable", First Disc/Map: true
       auto const val = exploration::calculate_value(hmc_info, 0.070008, true, true, true, true);
 
-      // Oczekiwana wartość: > 1.1 mln CR
+      // expected value: > 1.1 million CR
       // (Base 103k * MassQ 0.587) * (1 + 3.33 * 1.25) * 3.695
       expect(val > 1'100'000_u) << "Value too low for terraformable! Actual:" << val;
     };
 
-    "A 6: High Metal Content (Terraformowalna)"_test = []
+    "A 6: high metal content (terraformable)"_test = []
     {
       // MassEM: 0.076945, TerraformState: "Terraformable", First Disc/Map: true
       auto const val = exploration::calculate_value(hmc_info, 0.076945, true, true, true, true);
 
-      // Oczekiwana wartość: > 1.15 mln CR
+      // expected value: > 1.15 million CR
       expect(val > 1'150'000_u) << "Value too low for terraformable! Actual:" << val;
     };
 
-    "Błąd logiki: Terraformable traktowana jako zwykła"_test = []
+    "logic error: a terraformable treated as an ordinary body"_test = []
     {
-      // Symulacja błędu, o którym wspominasz (zwraca 100k)
+      // a simulation of the bug mentioned (it returns 100k)
       auto const val_error = exploration::calculate_value(hmc_info, 0.070008, false, true, true, true);
 
       expect(val_error < 115'000_u) << "Value matches the '100k error' mentioned by user";
@@ -66,37 +66,37 @@ auto main() -> int
 
   "organic_values"_test = []
   {
-    "gatunek trafia wprost w cennik"_test = []
+    "a species hits the price list directly"_test = []
     {
       auto const value{organic_value_range("Cactoida Cortexum")};
       expect(value.has_value());
       expect(value->first == 3'667'600_u and value->second == 3'667'600_u);
     };
 
-    "rodzaj daje rozpietosc calej rodziny"_test = []
+    "a genus gives the span of the whole family"_test = []
     {
       auto const value{organic_value_range("Bacterium")};
       expect(value.has_value());
       expect(value->first == 1'000'000_u and value->second == 8'418'000_u);
     };
 
-    "liczba mnoga rodzaju z journala"_test = []
+    "the plural of a genus out of the journal"_test = []
     {
-      // journal podaje "Brain Trees", cennik zna "Brain Tree"
+      // the journal gives "Brain Trees", the price list knows "Brain Tree"
       auto const value{organic_value_range("Brain Trees")};
       expect(value.has_value());
       expect(value->first == 1'593'700_u and value->second == 1'593'700_u);
     };
 
-    "rodzaj z przedrostkiem wariantu"_test = []
+    "a genus with a variant prefix"_test = []
     {
-      // journal podaje "Luteolum Anemone", cennik zna sam "Anemone"
+      // the journal gives "Luteolum Anemone", the price list knows "Anemone" alone
       auto const value{organic_value_range("Luteolum Anemone")};
       expect(value.has_value());
       expect(value->first == 1'499'900_u);
     };
 
-    "nazwa spoza cennika nie zwraca nic"_test = []
+    "a name outside the price list returns nothing"_test = []
     { expect(not organic_value_range("Nieistniejacy Gatunek").has_value()); };
   };
   }

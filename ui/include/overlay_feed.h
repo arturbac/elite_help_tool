@@ -9,7 +9,7 @@
 #include <span>
 #include <vector>
 
-///\brief zasila warstwe rysujaca w oknie gry
+///\brief feeds the layer that draws inside the game window
 ///
 /// the layer knows neither database nor logic - it receives finished lines. every decision about what to show is made here,
 /// so changing the content requires touching nothing in the game process
@@ -44,7 +44,7 @@ private:
   ///\brief we know the market only for the station we stand in, and only until we leave
   auto refresh_market(uint64_t market_id, uint32_t cargo_capacity) -> void;
 
-  ///\brief skad wziac towar wymagany przez otwarte misje
+  ///\brief where to get the goods the open missions call for
   auto refresh_supply() -> void;
 
   ///\brief the next hops of both routes - a side band holds only what comes next, not the whole list

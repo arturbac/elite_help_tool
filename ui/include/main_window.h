@@ -72,12 +72,12 @@ public:
 
   std::string db_path_;
 
-  ///\brief startuje watek sledzacy journal, wolane po otwarciu bazy
+  ///\brief starts the journal following thread, called once the database is open
   auto start_monitoring() -> void;
 
   auto closeEvent(QCloseEvent * event) -> void override;
 
-  ///\brief pokazuje okno narzedziowe i wyciaga je na wierzch MDI
+  ///\brief shows a tool window and brings it to the front of the MDI
   auto activate_window(window_type_e type) -> void;
 
   ///\brief przepisuje biezacy stan do overlaya, wolane z watku gui
@@ -87,10 +87,10 @@ private:
   [[nodiscard]]
   auto subwindow_for(window_type_e type) const -> QMdiSubWindow *;
 
-  ///\brief wpina okno w MDI, znakuje typem i odbiera mu mozliwosc zamkniecia
+  ///\brief puts a window into the MDI, marks it with its type and takes away its close button
   auto add_tool_window(QMdiSubWindow * sub, window_type_e type) -> void;
 
-  /// filtr blokujacy zamykanie okien narzedziowych
+  /// the filter that stops tool windows from being closed
   QObject * close_blocker_{};
 
   auto background_worker(std::stop_token stoken) -> void;

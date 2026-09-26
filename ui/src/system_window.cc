@@ -13,7 +13,7 @@
 
 auto system_bodies_filter_proxy_t::filterAcceptsRow(int source_row, QModelIndex const & source_parent) const -> bool
   {
-  // 1. Pobierz indeks wiersza w oryginalnym modelu
+  // 1. take the row's index in the original model
   auto const idx = sourceModel()->index(source_row, 0, source_parent);
   if(!idx.isValid())
     return false;
@@ -68,15 +68,15 @@ auto system_bodies_model_t::hasChildren(QModelIndex const & parent) const -> boo
 
 auto system_bodies_model_t::rowCount(QModelIndex const & parent) const -> int
   {
-  // W modelach tabelarycznych/drzewiastych dzieci liczymy tylko dla pierwszej kolumny
+  // in table and tree models children are counted for the first column only
   if(parent.column() > 0)
     return 0;
 
-  // Jeśli root (parent invalid) -> zwróć liczbę gwiazd/głównych ciał
+  // the root (an invalid parent) -> return the number of stars and main bodies
   if(!parent.isValid())
     return static_cast<int>(root_nodes_.size());
 
-  // Jeśli element drzewa -> zwróć liczbę jego dzieci
+  // an element of the tree -> return the number of its children
   auto const * node = static_cast<body_info_t *>(parent.internalPointer());
   return node ? static_cast<int>(node->children.size()) : 0;
   }
@@ -133,7 +133,7 @@ auto system_bodies_model_t::data(QModelIndex const & index, int role) const -> Q
       using enum planet_value_e;
       case high:   return QColor(0x11, 0x66, 0xff);
       case medium: return QColor(0xff, 0xd7, 00);
-      // case low:    return QColor(160, 160, 160);  // Szary
+      // case low:    return QColor(160, 160, 160);  // grey
       default: return {};
       }
     }
@@ -256,7 +256,7 @@ system_bodies_signals_model_t::system_bodies_signals_model_t(body_signals_t cons
 [[nodiscard]]
 auto system_bodies_signals_model_t::pack_id(internal_id_t id) const noexcept -> quintptr
   {
-  // Pakowanie 3 wartości w 64-bitowy identyfikator dla QModelIndex
+  // packing 3 values into a 64 bit identifier for QModelIndex
   uint64_t packed = 0;
   packed |= (static_cast<uint64_t>(id.body_idx) & 0xFFFFFFFF);
   packed |= (static_cast<uint64_t>(id.type) << 32);
@@ -277,9 +277,9 @@ auto system_bodies_signals_model_t::unpack_id(quintptr id) const noexcept -> int
 
 namespace
   {
-///\brief czy pokazywac wezel sygnalow dla tego ciala
-///\detail lista rodzajow mowi to samo co licznik sygnalow biologicznych, tylko dokladniej,
-/// wiec gdy rodzaje sa znane sygnaly tylko dubluja informacje
+///\brief whether to show the signals node for this body
+///\detail the list of genera says the same as the count of biological signals, only more exactly,
+/// so once the genera are known the signals merely repeat the information
 [[nodiscard]]
 auto shows_signals(body_signal_t const & body) noexcept -> bool
   { return body.genuses_.empty() and not body.signals_.empty(); }
@@ -299,7 +299,7 @@ auto system_bodies_signals_model_t::rowCount(QModelIndex const & parent) const -
 
   switch(id.type)
     {
-    // wezly wykluczaja sie - rodzaje zastepuja licznik sygnalow
+    // the nodes exclude each other - the genera replace the signal count
     case node_type_t::body:             return (shows_signals(body) or not body.genuses_.empty()) ? 1 : 0;
     case node_type_t::category_signals: return static_cast<int>(body_signals_[id.body_idx].signals_.size());
     case node_type_t::category_genuses: return static_cast<int>(body_signals_[id.body_idx].genuses_.size());
@@ -324,7 +324,7 @@ auto system_bodies_signals_model_t::index(int row, int column, QModelIndex const
     return createIndex(row, column, pack_id({id.body_idx, category, -1}));
     }
 
-  // Reszta bez zmian (leaf nodes)
+  // the rest unchanged (leaf nodes)
   auto const type = (id.type == node_type_t::category_signals) ? node_type_t::signal_item : node_type_t::genus_item;
   return createIndex(row, column, pack_id({id.body_idx, type, row}));
   }
@@ -341,12 +341,12 @@ auto system_bodies_signals_model_t::parent(QModelIndex const & index) const -> Q
   if(id.type == node_type_t::category_signals || id.type == node_type_t::category_genuses)
     return createIndex(id.body_idx, 0, pack_id({id.body_idx, node_type_t::body, -1}));
 
-  // Dla elementów liści (signal_item / genus_item)
+  // for the leaf elements (signal_item / genus_item)
   if(id.type == node_type_t::signal_item)
     return createIndex(0, 0, pack_id({id.body_idx, node_type_t::category_signals, -1}));
 
   if(id.type == node_type_t::genus_item)
-    // rodzaje sa wtedy jedynym wezlem ciala
+    // the genera are then the body's only node
     return createIndex(0, 0, pack_id({id.body_idx, node_type_t::category_genuses, -1}));
 
   return {};
@@ -361,7 +361,7 @@ auto system_bodies_signals_model_t::data(QModelIndex const & index, int role) co
   auto const id = unpack_id(index.internalId());
   auto const & body = body_signals_[id.body_idx];
 
-  // ptaszek przy rodzaju mowi czy probka jest juz pobrana
+  // the tick next to a genus says whether the sample has been taken
   if(role == Qt::CheckStateRole)
     {
     if(id.type != node_type_t::genus_item)
@@ -387,11 +387,11 @@ auto system_bodies_signals_model_t::data(QModelIndex const & index, int role) co
     case node_type_t::genus_item:
         {
         events::genus_t const & genus{body.genuses_[id.item_idx]};
-        // nazwa gatunku zawiera juz rodzaj, wiec zastepuje go zamiast sie z nim dublowac
+        // a species name contains the genus already, so it replaces it instead of doubling it
         bool const known{not genus.Species_Localised.empty()};
         std::string const & name{known ? genus.Species_Localised : genus.Genus_Localised};
 
-        // po probce znamy dokladna cene, wczesniej tylko rozpietosc calej rodziny
+        // after a sample the exact price is known, before it only the span of the whole family
         auto const value{organic_value_range(name)};
         if(not value)
           return QString::fromStdString(name);
@@ -429,11 +429,11 @@ void system_bodies_signals_model_t::refresh(body_signals_t && new_data)
     }
   body_signals_ = std::move(new_data);
   endResetModel();
-  // Zawsze rozwinięte TreeView obsługuje się w widoku (QTreeView::expandAll()),
-  // ale wywołanie tego po każdym restarcie modelu jest kluczowe.
+  // a permanently expanded TreeView is handled in the view (QTreeView::expandAll()),
+  // but calling it after every reset of the model is what matters.
   }
 
-// Pozostałe metody standardowe
+// the remaining standard methods
 auto system_bodies_signals_model_t::hasChildren(QModelIndex const & parent) const -> bool
   { return rowCount(parent) > 0; }
 
@@ -454,7 +454,7 @@ static auto set_label_color(QLabel * label, planet_value_e val) -> void
   std::string_view color;
   switch(val)
     {
-    // case planet_value_e::low:    color = "#808080"; break;  // Szary
+    // case planet_value_e::low:    color = "#808080"; break;  // grey
     case planet_value_e::medium: color = "#FFD700"; break;
     case planet_value_e::high:   color = "#1144AA"; break;
     case planet_value_e::low:    break;
@@ -499,7 +499,7 @@ system_window_t::system_window_t(current_state_t const & state, QWidget * parent
   connect(signals_model_, &QAbstractItemModel::modelReset, signals_view, [tv = signals_view] { tv->expandAll(); });
   }
 
-// Funkcja do wywołania z main_window_t, gdy state_ zostanie zaktualizowany
+// the function to call from main_window_t once state_ has been updated
 auto system_window_t::refresh_ui() -> void
   {
   model_->bodies_ = state_.system.bodies;
@@ -534,7 +534,7 @@ auto system_window_t::setup_ui() -> void
   auto * central_widget = new QWidget();
   auto * main_layout = new QVBoxLayout(central_widget);
 
-  // Sekcja górna: Labele
+  // the upper section: labels
   auto * info_group = new QGroupBox("Status");
   auto * form = new QFormLayout(info_group);
 
@@ -553,7 +553,7 @@ auto system_window_t::setup_ui() -> void
   auto * splitter = new QSplitter(Qt::Vertical, central_widget);
   splitter->setObjectName("exploration_bodies");
 
-  // Sekcja dolna: TreeView
+  // the lower section: the TreeView
   tree_view = new QTreeView();
   model_ = new system_bodies_model_t(state_.system.bodies, this);
   proxy_model_ = new system_bodies_filter_proxy_t(this);
@@ -567,9 +567,9 @@ auto system_window_t::setup_ui() -> void
   header->setSectionResizeMode(0, QHeaderView::ResizeToContents);
   for(int i{2}; i != model_->columnCount(); ++i)
     header->setSectionResizeMode(i, QHeaderView::ResizeToContents);
-  header->setSectionResizeMode(1, QHeaderView::Stretch);  // Ostatnia kolumna wypełnia okno
+  header->setSectionResizeMode(1, QHeaderView::Stretch);  // the last column fills the window
 
-  // Dodaj etykietę "System Bodies:" do splittera (opcjonalnie jako widget w pionowym układzie)
+  // add the "System Bodies:" label to the splitter (optionally as a widget in a vertical layout)
   auto * tree_label = new QLabel("System Bodies:");
   auto * tree_container = new QWidget();
   auto * tree_layout = new QVBoxLayout(tree_container);
@@ -579,21 +579,21 @@ auto system_window_t::setup_ui() -> void
   // main_layout->addWidget(new QLabel("System Bodies:"));
   // main_layout->addWidget(tree_view);
 
-  // Sekcja dolna: Signals View
+  // the lower section: the signals view
   // main_layout->addWidget(new QLabel("Body Signals & Genuses:"));
   signals_view = new QTreeView();
   signals_model_ = new system_bodies_signals_model_t({}, this);
   signals_view->setModel(signals_model_);
   signals_view->setAlternatingRowColors(true);
   signals_view->header()->setSectionResizeMode(QHeaderView::Stretch);
-  // Dodaj etykietę "Body Signals & Genuses:" do splittera
+  // add the "Body Signals & Genuses:" label to the splitter
   auto * signals_label = new QLabel("Body Signals & Genuses:");
   auto * signals_container = new QWidget();
   auto * signals_layout = new QVBoxLayout(signals_container);
   signals_layout->addWidget(signals_label);
   signals_layout->addWidget(signals_view);
 
-  // Połączenie automatycznego rozwijania dla sygnałów
+  // wiring the automatic expansion for the signals
   connect(signals_model_, &QAbstractItemModel::modelReset, signals_view, [&] { signals_view->expandAll(); });
   // main_layout->addWidget(signals_view);
 
@@ -601,10 +601,10 @@ auto system_window_t::setup_ui() -> void
   splitter->addWidget(tree_container);
   splitter->addWidget(signals_container);
 
-  // Dodaj splitter do głównego layoutu
+  // add the splitter to the main layout
   main_layout->addWidget(splitter);
 
   setWidget(central_widget);
-  update_labels();  // Pierwsze wypełnienie
+  update_labels();  // the first filling
   setAttribute(Qt::WA_DeleteOnClose);
   }

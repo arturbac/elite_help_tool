@@ -19,7 +19,7 @@ auto text_or_dash(std::string const & value) -> QVariant
   return value.empty() ? QString::fromUtf8(no_data.data()) : QString::fromStdString(value);
   }
 
-///\brief nazwa czytelna gdy ja znamy, inaczej wewnetrzna - lepsza niz pusty wiersz
+///\brief the readable name when we know it, otherwise the internal one - better than an empty row
 [[nodiscard]]
 auto display_name(std::string const & localised, std::string const & name) -> QString
   { return QString::fromStdString(localised.empty() ? name : localised); }
@@ -193,7 +193,7 @@ auto micro_resource_window_t::setup_ui() -> void
   auto * layout = new QVBoxLayout(central_widget);
   auto * tabs = new QTabWidget(central_widget);
 
-  // --- polka flotowca ---
+  // --- the carrier's shelf ---
   auto * stock_page = new QWidget(tabs);
   auto * stock_layout = new QVBoxLayout(stock_page);
 
@@ -308,8 +308,8 @@ auto micro_resource_window_t::reload_carriers() -> void
     return;
     }
 
-  // Filtr ma sens dopiero wtedy, gdy cokolwiek jest oznaczone - inaczej zostawilby pusta liste
-  // i zadnej drogi powrotnej, bo oznaczyc mozna tylko flotowiec widoczny w liscie
+  // The filter only makes sense once something is marked - otherwise it would leave an empty list and no
+  // way back, because a carrier can only be marked while it is visible in the list
   bool const any_mine{std::ranges::any_of(*res, [](info::carrier_t const & c) { return c.tracked; })};
   only_mine_->setEnabled(any_mine);
   if(not any_mine)
@@ -333,7 +333,7 @@ auto micro_resource_window_t::reload_carriers() -> void
   if(auto const index{carrier_combo_->findData(previous)}; index >= 0)
     carrier_combo_->setCurrentIndex(index);
 
-  // znacznik dotyczy tego, co akurat wybrane
+  // the mark applies to whatever is selected right now
   auto const chosen{carrier_combo_->currentData().toString().toStdString()};
   QSignalBlocker const quiet{mark_mine_};
   mark_mine_->setEnabled(not chosen.empty());
@@ -342,12 +342,12 @@ auto micro_resource_window_t::reload_carriers() -> void
   ));
   }
 
-///\brief stan flotowca z ostatniego CarrierStats, gotowy do doklejenia pod naglowek
+///\brief the carrier's state from the last CarrierStats, ready to be put under the header
 ///
-/// Stan i polka bartendera to dwa niezalezne zrodla, przychodzace w roznych chwilach - flotowiec
-/// obcej eskadry potrafi miec stan bez ani jednego odczytu polki, wiec jedno nie moze warunkowac
-/// drugiego. Stad wlasny znacznik czasu: bez niego nie wiadomo, czy paliwo jest sprzed minuty
-/// czy sprzed tygodnia
+/// The state and the bartender's shelf are two independent sources arriving at different moments - a
+/// stranger's squadron carrier can have a state without a single reading of its shelf, so neither may be
+/// made to depend on the other. Hence a timestamp of its own: without it there is no telling whether the
+/// fuel figure is a minute old or a week old
 auto micro_resource_window_t::carrier_stats_line(std::string_view carrier_id) -> std::string
   {
   auto carrier{db_.load_carrier(carrier_id)};
@@ -378,7 +378,7 @@ auto micro_resource_window_t::refresh_ui() -> void
   if(carrier_combo_->count() == 0)
     {
     stock_model_->update_data({});
-    // stan polki znamy tylko z wizyty u bartendera, wiec przed pierwsza nie ma czego pokazac
+    // the shelf is known only from a visit to the bartender, so before the first one there is nothing to show
     stock_header_->setText("No bartender reading yet - dock at a carrier and open the bartender");
     }
   else
@@ -405,7 +405,7 @@ auto micro_resource_window_t::show_stock(std::string_view carrier_id) -> void
     return;
     }
 
-  // czas odczytu jest tu najwazniejsza liczba - mowi jak stary jest ten obraz
+  // the time of the reading is the most important number here - it says how old this picture is
   auto const seen{res->front().timestamp};
   uint32_t total{};
   for(info::carrier_stock_t const & item: *res)

@@ -13,12 +13,12 @@ auto ship_loadout_window_t::setup_ui() -> void
   auto * container = new QWidget(this);
   auto * layout = new QVBoxLayout(container);
 
-  // Nagłówek statku
+  // the ship's header
   ship_info_label = new QLabel("Waiting for Loadout Data...", container);
   ship_info_label->setStyleSheet("font-size: 15px; font-weight: bold; color: #ffad33;");
   layout->addWidget(ship_info_label);
 
-  // Sekcja parametrów głównych
+  // the section of main parameters
   auto * grid = new QGridLayout();
 
   auto create_bar = [&](QString const & label, QString const & color)
@@ -42,7 +42,7 @@ auto ship_loadout_window_t::setup_ui() -> void
   grid->addWidget(cargo_bar, 2, 1);
   layout->addLayout(grid);
 
-  // Obszar scrollowania dla modułów
+  // the scrolling area for the modules
   auto * scroll = new QScrollArea(container);
   scroll->setWidgetResizable(true);
   scroll->setFrameShape(QFrame::NoFrame);
@@ -78,10 +78,10 @@ auto ship_loadout_window_t::refresh_ui(ship_loadout_t const & load) -> void
   cargo_bar->setMaximum(loadout.CargoCapacity);
   cargo_bar->setValue(loadout.CargoUsed);
 
-  // 2. Synchronizacja modułów (Dynamic Rebuild if size changes)
+  // 2. synchronise the modules (rebuilt dynamically when the size changes)
   if(module_rows.size() != loadout.Modules.size())
     {
-    // Czyścimy layout
+    // clear the layout
     QLayoutItem * child;
     while((child = modules_layout->takeAt(0)) != nullptr)
       {
@@ -91,7 +91,7 @@ auto ship_loadout_window_t::refresh_ui(ship_loadout_t const & load) -> void
       }
     module_rows.clear();
 
-    // Budujemy od nowa
+    // build it anew
     for(auto const & mod: loadout.Modules)
       {
       auto * row = new QWidget();
@@ -122,7 +122,7 @@ auto ship_loadout_window_t::refresh_ui(ship_loadout_t const & load) -> void
       }
     }
 
-  // 3. Aktualizacja wartości wierszy (zawsze)
+  // 3. update the values of the rows (always)
   for(size_t i = 0; i < loadout.Modules.size(); ++i)
     {
     auto const & mod = loadout.Modules[i];

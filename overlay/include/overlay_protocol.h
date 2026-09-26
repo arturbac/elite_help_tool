@@ -27,14 +27,14 @@ consteval auto adl_enum_bounds(corner_e)
   return simple_enum::adl_info{top_left, bottom_right};
   }
 
-///\brief pojedyncza linia tekstu, kolor jako 0xRRGGBB
+///\brief a single line of text, the colour as 0xRRGGBB
 struct line_t
   {
   std::string text;
   uint32_t color{0xffffffu};
   };
 
-///\brief zawartosc jednego naroznika ekranu
+///\brief the contents of one corner of the screen
 struct block_t
   {
   corner_e corner{corner_e::top_left};

@@ -281,7 +281,7 @@ namespace
           ++it;
       }
 
-    // zasoby overlaya musza zniknac zanim zniknie urzadzenie, inaczej sterownik zglosi wyciek
+    // the overlay's resources must go before the device does, otherwise the driver reports a leak
     if(data != nullptr and data->DeviceWaitIdle != nullptr and not orphans.empty())
       data->DeviceWaitIdle(device);
     for(auto & orphan: orphans)
@@ -421,7 +421,7 @@ namespace
       return data->QueuePresentKHR(queue, present_info);
 
     std::array<VkSemaphore, max_swapchains_per_present> signalled{};
-    // po nieudanym present trzeba wiedziec czyj semafor sprzatnac
+    // after a failed present we need to know whose semaphore to clean up
     std::array<swapchain_data_t *, max_swapchains_per_present> owners{};
     std::array<uint32_t, max_swapchains_per_present> owner_images{};
     uint32_t signalled_count{};

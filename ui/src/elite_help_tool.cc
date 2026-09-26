@@ -24,9 +24,9 @@
 
 namespace
   {
-///\brief okna narzedziowe zyja przez caly czas dzialania aplikacji
-///\detail kazde istnieje w jednej instancji i ma swoj przycisk na toolbarze, zamkniecie zostawiloby
-/// przycisk bez okna, wiec zdarzenie zamkniecia jest polykane
+///\brief the tool windows live for as long as the application runs
+///\detail each exists in a single instance and has its own button on the toolbar; closing one would leave
+/// the button without a window, so the close event is swallowed
 class close_blocker_t final : public QObject
   {
 public:
@@ -55,7 +55,7 @@ main_window_t::main_window_t(std::string db_path, std::string journal_path, QWid
   setup_ui();
   load_settings();
 
-  // serwer wstaje niezaleznie od gry - ta moze wystartowac przed narzedziem albo wcale
+  // the server comes up independently of the game - which may start before the tool, or not at all
   overlay_feed_ = std::make_unique<overlay_feed_t>(overlay::default_socket_path(), db_path);
 
   overlay_timer_ = new QTimer(this);
@@ -69,7 +69,7 @@ auto main_window_t::publish_overlay() -> void
   if(not overlay_feed_)
     return;
 
-  // trase wyznaczona poza gra zna tylko okno Route - overlay nie ma po nia skad siegnac sam
+  // a route plotted outside the game is known only to the Route window - the overlay has nowhere to reach for it
   overlay_feed_t::plotted_route_t plotted{};
   if(route_view_)
     plotted = overlay_feed_t::plotted_route_t{
@@ -81,7 +81,7 @@ auto main_window_t::publish_overlay() -> void
 
 auto main_window_t::start_monitoring() -> void
   {
-  // watek dotyka db_, wiec startuje dopiero po jej otwarciu
+  // the thread touches db_, so it starts only once that is open
   worker_thread_ = std::jthread([this](std::stop_token stoken) { background_worker(stoken); });
   }
 
@@ -90,7 +90,7 @@ auto main_window_t::setup_ui() -> void
   resize(1200, 800);
   setWindowTitle("Elite Dangerous Help Tool");
 
-  // Centralny obszar dla okien podrzędnych
+  // the central area for the subwindows
   mdi_area_ = new QMdiArea(this);
   mdi_area_->setViewMode(QMdiArea::SubWindowView);
   setCentralWidget(mdi_area_);
@@ -133,7 +133,7 @@ auto main_window_t::add_tool_window(QMdiSubWindow * sub, window_type_e type) -> 
   sub->setProperty("window_type", QVariant::fromValue(type));
 
   // bez przycisku zamykania - okno jest jedno i ma zyc do konca sesji
-  // WindowSystemMenuHint dokladalby menu okna z pozycja zamknij, wiec go tu nie ma
+  // WindowSystemMenuHint would add the window menu with a close entry, so it is not here
   sub->setWindowFlags(Qt::SubWindow | Qt::WindowTitleHint | Qt::WindowMinMaxButtonsHint);
   sub->installEventFilter(close_blocker_);
   sub->show();
@@ -175,8 +175,8 @@ auto main_window_t::activate_window(window_type_e type) -> void
   sub->raise();
   mdi_area_->setActiveSubWindow(sub);
 
-  // praca BGS zmienia sie przy kazdej oddanej misji i przy kazdym przeliczeniu, a okno czyta baze
-  // wlasnym polaczeniem - siegniecie po nie z paska jest naturalnym momentem na odswiezenie
+  // BGS work changes with every mission handed in and every recalculation, and the window reads the
+  // database on a connection of its own - reaching for it from the bar is the natural moment to refresh
   if(type == window_type_e::bgs and bgs_view_)
     bgs_view_->refresh_ui();
   }
@@ -187,7 +187,7 @@ auto main_window_t::setup_toolbox() -> void
   toolbox_dock->setMovable(false);
   addToolBar(Qt::LeftToolBarArea, toolbox_dock);
 
-  // po jednym przycisku na okno, klikniecie wyciaga je na wierzch
+  // one button per window; clicking it brings the window to the front
   struct tool_button_t
     {
     window_type_e type;
@@ -236,8 +236,8 @@ auto main_window_t::save_settings() -> void
     }
   settings.endArray();
 
-  // podzial obszarow wewnatrz okien - zapisywany po nazwie splittera, wiec nowe okna dostaja
-  // to za darmo, o ile nazwa zostanie nadana
+  // how the areas inside the windows are divided - stored by the splitter's name, so new windows get
+  // this for free as long as a name is given
   settings.beginGroup("splitters");
   for(QSplitter const * splitter: findChildren<QSplitter *>())
     if(not splitter->objectName().isEmpty())
@@ -263,14 +263,14 @@ auto main_window_t::load_settings() -> void
     auto type_int = settings.value("type").toInt();
     auto type = static_cast<window_type_e>(type_int);
 
-    // zapisy sprzed przebudowy toolbaru moga zawierac okna zastepcze, ktorych juz nie ma
+    // settings from before a rebuild of the toolbar can hold stand-in windows that no longer exist
     QMdiSubWindow * sub{subwindow_for(type)};
     if(sub) [[likely]]
       {
       if(sub->mdiArea() == nullptr)
         mdi_area_->addSubWindow(sub);
 
-      // okna przelacza sie paskiem po lewej, wiec kazde ma zajmowac calosc obszaru roboczego
+      // the windows are switched with the bar on the left, so each is to take up the whole work area
       sub->showMaximized();
       }
     }
@@ -285,7 +285,7 @@ auto main_window_t::load_settings() -> void
 
 auto main_window_t::background_worker(std::stop_token stoken) -> void
   {
-  // pierwsze wypełnienie listy frakcji - db_ dotykane wyłącznie z tego wątku
+  // the first filling of the faction list - db_ is touched from this thread alone
   state_.load_factions();
   QMetaObject::invokeMethod(
     this,
@@ -299,7 +299,7 @@ auto main_window_t::background_worker(std::stop_token stoken) -> void
     Qt::QueuedConnection
   );
 
-  // restart gry tworzy nowy journal, sledzenie przelacza sie na niego samo
+  // restarting the game creates a new journal; the following switches to it on its own
   tail_journal_dir(
     state_.journal_dir_path_,
     std::bind_front(&generic_state_t::discovery, &state_),
@@ -316,7 +316,7 @@ auto main_window_t::background_worker(std::stop_token stoken) -> void
 
 namespace
   {
-///\brief ciemna paleta na wypadek braku motywu pulpitu
+///\brief a dark palette for when there is no desktop theme
 [[nodiscard]]
 auto dark_palette() -> QPalette
   {
@@ -346,11 +346,11 @@ auto dark_palette() -> QPalette
   return palette;
   }
 
-///\brief wymusza ciemny motyw gdy system go nie narzuca
-///\detail uruchomienie przez ssh -X trafia na maszyne bez ustawien pulpitu i qt wstaje jasne.
-/// styleHints()->setColorScheme nic tam nie da - bez motywu pulpitu qt zostawia schemat Unknown
-/// i palete bez zmian, wiec paleta idzie wprost. O tym czy jest potrzebna decyduje jasnosc tla,
-/// bo colorScheme bywa Unknown rowniez na ciemnym pulpicie.
+///\brief forces a dark theme when the system does not impose one
+///\detail started over ssh -X it lands on a machine with no desktop settings and qt comes up light.
+/// styleHints()->setColorScheme does nothing there - without a desktop theme qt leaves the scheme Unknown
+/// and the palette unchanged, so the palette goes in directly. Whether it is needed at all is decided by
+/// the lightness of the background, because colorScheme is sometimes Unknown on a dark desktop too.
 auto apply_dark_theme() -> void
   {
   if(QApplication::palette().color(QPalette::Window).lightness() < 128)
@@ -372,15 +372,15 @@ auto main(int argc, char * argv[]) -> int
   QApplication app(argc, argv);
   apply_dark_theme();
 
-  // podglad zapytan bez przebudowy - SPDLOG_LEVEL=debug
+  // a look at the queries without a rebuild - SPDLOG_LEVEL=debug
   spdlog::cfg::load_env_levels();
 
   main_window_t window{"ehtdb.sqlite", "journal-dir"};
   if(not window.state_.db_.open())
     return EXIT_FAILURE;
 
-  // ubicie z zewnatrz albo wylogowanie ma zamknac okno normalnie, inaczej ustawienia z tej
-  // sesji przepadaja - zapisuje je dopiero closeEvent
+  // being killed from outside, or logging out, is to close the window properly; otherwise this session's
+  // settings are lost - only closeEvent writes them
   std::signal(SIGTERM, [](int) { asked_to_stop = 1; });
   std::signal(SIGINT, [](int) { asked_to_stop = 1; });
 

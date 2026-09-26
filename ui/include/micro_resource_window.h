@@ -10,7 +10,7 @@
 #include <qlabel.h>
 #include <qtabwidget.h>
 
-///\brief polka bartendera z ostatniego odczytu
+///\brief the bartender's shelf as of the last reading
 class carrier_stock_model_t final : public QAbstractTableModel
   {
   Q_OBJECT

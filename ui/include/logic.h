@@ -54,7 +54,7 @@ struct current_state_t : public generic_state_t
   
   std::vector<info::route_item_t> route_;
   uint64_t current_system_address_{};
-  ///\brief osada w ktorej jestesmy - zdobyte mikrozasoby dostaja jej market_id
+  ///\brief the settlement we are in - collected micro resources get its market_id
   uint64_t settlement_market_id_{};
 
   ///\brief the account this database belongs to, read at startup

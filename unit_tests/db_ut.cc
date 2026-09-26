@@ -186,7 +186,7 @@ int main()
 
   using namespace ut;
 
-  "postep postaci wraca z osobnej bazy"_test = [&]
+  "a character's progress comes back from the separate database"_test = [&]
   {
     expect(bool(dbs.store_fss_complete(address)));
     expect(bool(dbs.store_dss_complete(address, body)));
@@ -194,26 +194,26 @@ int main()
     expect(bool(dbs.update_faction_info(info::faction_info_t{.name = "Crew of Pethes", .reputation = 87.5})));
 
     auto reloaded{dbs.load_system(address)};
-    expect(bool(reloaded)) << "system sie nie wczytal";
+    expect(bool(reloaded)) << "the system did not load";
     expect(reloaded->has_value());
     star_system_t const & got{**reloaded};
-    expect(got.fss_complete) << "fss_complete zgubione";
-    expect(std::get<planet_details_t>(got.bodies[0].details).mapped) << "mapped zgubione";
+    expect(got.fss_complete) << "fss_complete lost";
+    expect(std::get<planet_details_t>(got.bodies[0].details).mapped) << "mapped lost";
 
     auto const & genuses{std::get<planet_details_t>(got.bodies[0].details).genuses_};
     expect(genuses.size() == 1u);
-    expect(genuses[0].Sampled) << "probka zgubiona";
-    expect(genuses[0].Species_Localised == "Bacterium Aurasus"sv) << "gatunek zgubiony";
+    expect(genuses[0].Sampled) << "the sample lost";
+    expect(genuses[0].Species_Localised == "Bacterium Aurasus"sv) << "the species lost";
 
     auto faction{dbs.load_faction("Crew of Pethes")};
     expect(bool(faction));
     expect(faction->has_value());
-    expect((*faction)->reputation > 87.4 and (*faction)->reputation < 87.6) << "reputacja zgubiona";
+    expect((*faction)->reputation > 87.4 and (*faction)->reputation < 87.6) << "the reputation lost";
   };
 
   // to jest cala stawka rozdzialu: wspolna wiedza o galaktyce moze byc przebudowana przez drugie
   // konto, a postep tej postaci ma to przezyc - dlatego klucze sa naturalne, a nie oid-owe
-  "przebudowa galaxy nie gubi postepu"_test = [&]
+  "a galaxy rebuild loses no progress"_test = [&]
   {
     dbs.close();
     fs::remove("galaxy.sqlite");
@@ -226,19 +226,19 @@ int main()
     expect(bool(reloaded));
     expect(reloaded->has_value());
     star_system_t const & got{**reloaded};
-    expect(got.fss_complete) << "fss_complete nie przezylo przebudowy galaxy";
-    expect(std::get<planet_details_t>(got.bodies[0].details).mapped) << "mapped nie przezylo przebudowy galaxy";
+    expect(got.fss_complete) << "fss_complete did not survive the galaxy rebuild";
+    expect(std::get<planet_details_t>(got.bodies[0].details).mapped) << "mapped did not survive the galaxy rebuild";
     expect(std::get<planet_details_t>(got.bodies[0].details).genuses_[0].Sampled)
-      << "probka nie przezyla przebudowy galaxy";
+      << "the sample did not survive the galaxy rebuild";
 
-    // tozsamosc frakcji przepadla razem z galaxy i wraca z journali z nowym oid; reputacja
-    // przezyla w bazie osobistej i ma sie do niej przyczepic po nazwie, mimo innego oid
+    // the faction's identity went with galaxy and comes back from journals with a new oid; the reputation
+    // survived in the personal database and is to attach itself to it by name, despite the different oid
     expect(bool(fresh.update_faction_info(info::faction_info_t{.name = "Crew of Pethes", .reputation = 87.5})));
 
     auto faction{fresh.load_faction("Crew of Pethes")};
     expect(bool(faction));
     expect(faction->has_value());
-    expect((*faction)->reputation > 87.4) << "reputacja nie przezyla przebudowy galaxy";
+    expect((*faction)->reputation > 87.4) << "the reputation did not survive the galaxy rebuild";
   };
 
   return {};

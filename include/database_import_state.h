@@ -16,15 +16,15 @@ struct database_import_state_t : public generic_state_t
   struct state_t
     {
     star_system_t system{};
-    ///\brief osada w ktorej jestesmy - zdobyte mikrozasoby dostaja jej market_id
+    ///\brief the settlement we are in - collected micro resources get its market_id
     uint64_t settlement_market_id{};
     std::vector<buffered_signal_t> buffered_signals;
     database_storage_t db_;
 
     ///\brief konto do ktorego nalezy ta baza - puste znaczy "bierz wszystko"
-    ///\detail katalog journali potrafi zawierac zapisy kilku postaci, bo prefix bywa kopiowany.
-    /// swiat z nich bierzemy w calosci, bo galaktyka jest wspolna, ale misje, zdobycze, reputacja
-    /// i postep skanowania naleza do jednej postaci i zmieszane nie daja sie juz rozdzielic
+    ///\detail the journal directory can hold records of several commanders, because the prefix gets copied.
+    /// the world we take from all of them, because the galaxy is shared, but missions, finds, reputation
+    /// and scanning progress belong to one commander and, once mixed, cannot be told apart again
     std::string owner_fid;
     ///\brief czy biezacy journal nalezy do wlasciciela bazy
     bool personal{true};

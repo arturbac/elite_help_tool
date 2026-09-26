@@ -13,12 +13,12 @@ struct sqlite3_handle_t;
 template<typename T>
 using expected_ec = cxx23::expected<T, std::error_code>;
 
-///\brief tryb pracy bazy, decyduje o kompromisie trwalosc/szybkosc
+///\brief the database's working mode; it decides the durability/speed trade-off
 enum struct storage_mode_e : uint8_t
   {
   ///\brief praca na zywo - kazdy zapis we wlasnej transakcji, ustawienia domyslne sqlite
   live,
-  ///\brief budowanie bazy od zera z calosci logow, przy awarii i tak powtarzamy import
+  ///\brief building the database from scratch out of all the logs; on failure we repeat the import anyway
   bulk_import
   };
 
@@ -31,15 +31,15 @@ consteval auto adl_enum_bounds(storage_mode_e)
 struct database_storage_t
   {
   std::string db_path_;
-  ///\brief dane zbierane wylacznie na zywo - rynki stacji i bartender flotowca
-  ///\detail ich zrodlem sa pliki Market.json i FCMaterials.json, nadpisywane przez gre, wiec z
-  /// journali nie da sie ich odtworzyc; przebudowa bazy glownej ich nie rusza, a journal_tailer
-  /// zaklada ten plik tylko gdy go nie ma
+  ///\brief data gathered live only - station markets and the carrier's bartender
+  ///\detail their source is Market.json and FCMaterials.json, overwritten by the game, so they cannot
+  /// be rebuilt from journals; a rebuild of the main database leaves them alone, and journal_tailer
+  /// creates this file only when it is missing
   std::string live_db_path_;
-  ///\brief fakty o galaktyce, wspolne dla wszystkich postaci - systemy, ciala, stacje, frakcje
-  ///\detail odtwarzalne z journali dowolnej postaci, bo opisuja swiat a nie gracza. dzieki temu
-  /// dwa konta moga wskazywac ten sam plik i dzielic wiedze o Bubble, zachowujac wlasne misje,
-  /// reputacje i postep skanowania w bazie glownej
+  ///\brief facts about the galaxy, shared by all commanders - systems, bodies, stations, factions
+  ///\detail rebuildable from any commander's journals, because they describe the world and not the player. that lets
+  /// two accounts point at the same file and share what is known about the Bubble, while keeping their own missions,
+  /// reputation and scanning progress in the main database
   std::string galaxy_db_path_;
   std::unique_ptr<sqlite3_handle_t> db_;
 
@@ -52,7 +52,7 @@ struct database_storage_t
   [[nodiscard]]
   auto create_database() -> expected_ec<void>;
 
-  ///\brief dokłada brakujace kolumny do live.sqlite, ktorej nie da sie odtworzyc z journali
+  ///\brief adds missing columns to live.sqlite, which cannot be rebuilt from journals
   [[nodiscard]]
   auto migrate_live_schema() -> expected_ec<void>;
 
@@ -73,33 +73,33 @@ struct database_storage_t
   [[nodiscard]]
   auto store(info::mission_cargo_t const & value) -> expected_ec<void>;
 
-  ///\brief ile czego trzeba przywiezc lacznie dla otwartych misji
+  ///\brief how much of what has to be brought in total for the open missions
   [[nodiscard]]
   auto load_cargo_needs() -> expected_ec<std::vector<info::cargo_need_t>>;
 
-  ///\brief rynki, ktore dany towar wytwarzaja, nawet gdy akurat nie maja go na stanie
+  ///\brief markets that produce the commodity, even when they happen to have none in stock
   [[nodiscard]]
   auto load_producers() -> expected_ec<std::vector<info::supply_option_t>>;
 
-  ///\brief gdzie da sie to kupic w znanych nam rynkach, z zapasem pokrywajacym potrzebe
+  ///\brief where it can be bought among the markets we know, with stock covering the need
   [[nodiscard]]
   auto load_supply_options() -> expected_ec<std::vector<info::supply_option_t>>;
 
-  ///\brief kursy handlowe wzgledem tego rynku, liczone po znanych nam innych rynkach
-  ///\param bring_here true - kupic gdzie indziej i sprzedac tutaj; false - kupic tutaj i wywiezc
+  ///\brief trade rates against this market, worked out over the other markets we know
+  ///\param bring_here true - buy elsewhere and sell here; false - buy here and carry away
   [[nodiscard]]
   auto load_trade_options(uint64_t market_id, unsigned limit, bool bring_here)
     -> expected_ec<std::vector<info::trade_option_t>>;
 
-  ///\brief MissionAccepted jest dowodem ze misja jest otwarta, nawet gdy wpis juz istnieje
+  ///\brief MissionAccepted proves the mission is open, even when the row already exists
   [[nodiscard]]
   auto reopen_mission(uint64_t mission_id, std::chrono::sys_seconds expiry) -> expected_ec<void>;
 
-  ///\brief zamkniecie misji razem z kwota ktora gra naprawde wyplacila
+  ///\brief closing a mission together with the sum the game actually paid
   [[nodiscard]]
   auto complete_mission(uint64_t mission_id, std::chrono::sys_seconds when, uint64_t reward) -> expected_ec<void>;
 
-  ///\brief zdarzenie Missions wylicza wszystko co gra uwaza za otwarte - reszta juz sie zamknela bez nas
+  ///\brief the Missions event lists everything the game considers open - the rest closed without us
   [[nodiscard]]
   auto expire_missions_outside(std::span<uint64_t const> active, std::chrono::sys_seconds when) -> expected_ec<void>;
 
@@ -115,111 +115,111 @@ struct database_storage_t
   [[nodiscard]]
   auto update_carrier(info::carrier_t const & value) -> expected_ec<void>;
 
-  ///\brief uzupelnia slownik mikrozasobow - kazde zrodlo wnosi inna czesc wiedzy
+  ///\brief fills in the micro resource dictionary - each source contributes a different part
   [[nodiscard]]
   auto store(info::micro_resource_t const & value) -> expected_ec<void>;
 
-  ///\brief zapisuje transakcje sprzedazy mikrozasobow, pomijajac juz znane
+  ///\brief stores a micro resource sale, skipping the ones already known
   [[nodiscard]]
   auto store(info::micro_sale_t const & sale, std::span<info::micro_sale_item_t const> items) -> expected_ec<void>;
 
-  ///\brief zapisuje zdobyty mikrozasob, pomijajac juz znane
+  ///\brief stores a collected micro resource, skipping the ones already known
   [[nodiscard]]
   auto store(info::micro_acquisition_t const & value) -> expected_ec<void>;
 
-  ///\brief stan polki bartendera z ostatniego odczytu, wraz z jego czasem
+  ///\brief the bartender's shelf as of the last reading, with the time of it
   [[nodiscard]]
   auto load_carrier_stock(std::string_view carrier_id) -> expected_ec<std::vector<info::carrier_stock_t>>;
 
   ///\brief oznacza flotowiec jako swoj albo zdejmuje to oznaczenie
-  ///\detail do tej pory znacznik istnial w schemacie i byl pieczolowicie zachowywany przy kazdym
-  /// odczycie cen, ale nic w calym programie nie potrafilo go ustawic
+  ///\detail until now the flag existed in the schema and was carefully preserved on every
+  /// price reading, but nothing in the whole program could set it
   [[nodiscard]]
   auto set_carrier_tracked(std::string_view carrier_id, bool tracked) -> expected_ec<void>;
 
-  ///\brief flotowce ktore widzielismy, wlasny pierwszy
+  ///\brief carriers we have seen, one's own first
   [[nodiscard]]
   auto load_carriers() -> expected_ec<std::vector<info::carrier_t>>;
 
-  ///\brief ukonczone misje per frakcja od podanej chwili
+  ///\brief completed missions per faction since the given moment
   ///\detail system_address rozne od zera zaweza do misji wzietych w tym systemie
   [[nodiscard]]
   auto load_mission_stats(std::chrono::sys_seconds since, uint64_t system_address)
     -> expected_ec<std::vector<info::mission_stat_t>>;
 
-  ///\brief zdobycze zsumowane per material, z podzialem na sposob pozyskania
+  ///\brief finds summed per material, split by how they were obtained
   [[nodiscard]]
   auto load_acquisition_summary(std::chrono::sys_seconds since)
     -> expected_ec<std::vector<info::acquisition_summary_t>>;
 
-  ///\brief wplyw oddanej misji na jedna frakcje w jednym systemie, z pominieciem juz znanych
+  ///\brief the influence a handed-in mission had on one faction in one system, skipping known rows
   [[nodiscard]]
   auto store(info::mission_influence_t const & value) -> expected_ec<void>;
 
-  ///\brief kiedy ostatnio patrzylismy na ten system - dowolna frakcja, bo odczyt obejmuje wszystkie
+  ///\brief when we last looked at this system - any faction will do, a reading covers them all
   [[nodiscard]]
   auto last_system_seen(uint64_t system_address) -> expected_ec<std::optional<std::chrono::sys_seconds>>;
 
-  ///\brief slad po ticku, z pominieciem juz znanych okien
+  ///\brief a trace of a tick, skipping windows already known
   [[nodiscard]]
   auto store(info::tick_observation_t const & value) -> expected_ec<void>;
 
-  ///\brief ostatnie zaobserwowane ticki danego rodzaju, od najswiezszego
-  ///\detail okna z jednej doby sa przecinane - kazdy odwiedzony system zawezza wynik
+  ///\brief the last observed ticks of the given kind, newest first
+  ///\detail windows from one day are intersected - every system visited narrows the result
   [[nodiscard]]
   auto load_recent_ticks(info::tick_kind_e kind, uint32_t within_days)
     -> expected_ec<std::vector<info::tick_fact_t>>;
 
-  ///\brief kiedy w tym systemie ostatnio zmienilo sie to, co przelicza tick
+  ///\brief when what the tick recalculates last changed in this system
   ///
-  /// Na pytanie "czy tu juz przeliczylo" odpowiada sama zmiana, bez zadnego bracketowania: wplyw
-  /// rusza sie wylacznie przy ticku, wiec data ostatniej zmiany JEST data ostatniego przeliczenia
-  /// widzianego w tym systemie. Okna sa potrzebne dopiero do ustalenia GODZINY fali galaktycznej,
-  /// bo tam chodzi o chwile, a nie o fakt
+  /// The question "has it recalculated here" is answered by the change itself, with no bracketing: influence
+  /// moves at the tick and nowhere else, so the date of the last change IS the date of the last recalculation
+  /// seen in this system. Windows are needed only to pin down the HOUR of the galaxy-wide wave,
+  /// where the quantity wanted is a moment rather than a fact
   [[nodiscard]]
   auto last_local_tick(uint64_t system_address, info::tick_kind_e kind)
     -> expected_ec<std::optional<std::chrono::sys_seconds>>;
 
-  ///\brief jak regularnie przeliczenie przychodzi - z tych samych fal, co load_recent_ticks
+  ///\brief how regularly the recalculation comes - from the same waves as load_recent_ticks
   [[nodiscard]]
   auto load_tick_stats(info::tick_kind_e kind, uint32_t within_days) -> expected_ec<info::tick_stats_t>;
 
-  ///\brief praca w plusach zestawiona z ruchem wplywow, doba BGS po dobie
-  ///\detail doby rozdzielaja wykryte fale przeliczen, nie stala godzina - ta przesuwa sie co kilka
-  /// dni i w weekend potrafi nie przyjsc wcale. system_address rozne od zera zaweza do jednego systemu
+  ///\brief effort in pluses set against the movement of influence, BGS day by day
+  ///\detail days are separated by detected recalculation waves, not by a fixed hour - that moves every few
+  /// days and at a weekend may not come at all. a system_address other than zero narrows it to one system
   [[nodiscard]]
   auto load_bgs_effort(uint32_t within_days, uint64_t system_address)
     -> expected_ec<std::vector<info::bgs_effort_t>>;
 
-  ///\brief zapisuje trase neutronowa, zastepujac poprzednia - trzymamy jedna, te lataną
+  ///\brief stores a neutron route, replacing the previous one - we keep one, the one being flown
   [[nodiscard]]
   auto store_neutron_route(std::span<info::neutron_waypoint_t const> route) -> expected_ec<void>;
 
-  ///\brief zapamietana trasa neutronowa w kolejnosci lotu
+  ///\brief the remembered neutron route in flight order
   [[nodiscard]]
   auto load_neutron_route() -> expected_ec<std::vector<info::neutron_waypoint_t>>;
 
-  ///\brief zapisuje zamowiony przerzut statku, pomijajac juz znane
+  ///\brief stores an ordered ship transfer, skipping the ones already known
   [[nodiscard]]
   auto store(info::ship_transfer_t const & value) -> expected_ec<void>;
 
-  ///\brief przerzuty, ktore jeszcze nie dotarly wedlug podanej chwili
+  ///\brief transfers that have not arrived as of the given moment
   [[nodiscard]]
   auto load_transfers_in_flight(std::chrono::sys_seconds now) -> expected_ec<std::vector<info::ship_transfer_t>>;
 
-  ///\brief odnotowuje postoj w porcie, przesuwajac znacznik przy powtornej wizycie
+  ///\brief records a stop at a port, moving the mark forward on a repeat visit
   [[nodiscard]]
   auto store(info::port_visit_t const & value) -> expected_ec<void>;
 
-  ///\brief ostatni port, w ktorym stanelismy statkiem
+  ///\brief the last port we stood at with a ship
   [[nodiscard]]
   auto load_last_port() -> expected_ec<std::optional<info::port_visit_t>>;
 
-  ///\brief systemy, w ktorych naprawde pracowalismy - te, ktore maja zapisany wplyw z misji
+  ///\brief systems we really worked in - the ones with recorded mission influence
   [[nodiscard]]
   auto load_bgs_systems() -> expected_ec<std::vector<info::system_ref_t>>;
 
-  ///\brief zapowiedziane wojny wraz z chwila, w ktorej zobaczylismy je juz jako trwajace
+  ///\brief announced wars together with the moment we first saw them running
   [[nodiscard]]
   auto load_war_onsets() -> expected_ec<std::vector<info::war_onset_t>>;
 
@@ -239,7 +239,7 @@ struct database_storage_t
   [[nodiscard]]
   auto store_system_location(uint64_t system_address, std::array<double, 3> const & loc) -> expected_ec<void>;
 
-  /// opis systemu - ekonomia, rzad, przynaleznosc, bezpieczenstwo, populacja, frakcja kontrolujaca
+  /// the system described - economy, government, allegiance, security, population, controlling faction
   [[nodiscard]]
   auto update_system_info(star_system_t const & system) -> expected_ec<void>;
 
@@ -306,54 +306,54 @@ struct database_storage_t
 
   [[nodiscard]]
   ///\brief tozsamosc frakcji idzie do wspolnej galaxy, reputacja do bazy osobistej
-  ///\detail with_reputation=false przy imporcie cudzego journala: swiat bierzemy, reputacje nie
+  ///\detail with_reputation=false when importing somebody else's journal: we take the world, not the reputation
   [[nodiscard]]
   auto update_faction_info(info::faction_info_t const & faction, bool with_reputation = true) -> expected_ec<void>;
 
   [[nodiscard]]
   auto store(info::faction_influence_t const & value) -> expected_ec<void>;
 
-  /// ostatni zarejestrowany wpis influence dla pary frakcja/system
+  /// the last recorded influence entry for a faction/system pair
   [[nodiscard]]
   auto last_influence(int64_t faction_oid, uint64_t system_address)
     -> expected_ec<std::optional<info::faction_influence_t>>;
 
-  ///\brief odnotowuje ze frakcja byla w systemie przy tym odczycie, nawet gdy nic sie nie zmienilo
+  ///\brief records that a faction was in the system at this reading, even when nothing changed
   [[nodiscard]]
   auto store_faction_seen(int64_t faction_oid, uint64_t system_address, std::chrono::sys_seconds when)
     -> expected_ec<void>;
 
-  ///\brief frakcje obecne przy najswiezszym odczycie systemu - reszta juz z niego wyleciala
+  ///\brief factions present at the newest reading of the system - the rest have left it
   [[nodiscard]]
   auto load_present_factions(uint64_t system_address) -> expected_ec<std::vector<info::faction_ref_t>>;
 
-  /// cala historia influence w systemie, wszystkie frakcje, rosnaco wg czasu
+  /// the whole influence history in a system, every faction, ascending by time
   [[nodiscard]]
   auto load_influence_history(uint64_t system_address) -> expected_ec<std::vector<info::faction_influence_t>>;
 
-  /// systemy dla ktorych mamy zarejestrowana historie influence
+  /// systems for which we have a recorded influence history
   [[nodiscard]]
   auto load_systems_with_influence() -> expected_ec<std::vector<info::system_ref_t>>;
 
-  ///\brief sygnal systemu, pomija powtorzenia tej samej nazwy w tym samym systemie
+  ///\brief a system signal; repeats of the same name in the same system are skipped
   [[nodiscard]]
   auto store(system_signal_t const & value) -> expected_ec<void>;
 
   [[nodiscard]]
   auto load_system_signals(uint64_t system_address) -> expected_ec<std::vector<system_signal_t>>;
 
-  ///\brief tozsamosc stacji, odtwarzalna z journali
+  ///\brief a station's identity, rebuildable from journals
   [[nodiscard]]
   auto store(info::station_t const & value) -> expected_ec<void>;
 
-  ///\brief czas ostatniego odczytu rynku, z bazy zbieranej na zywo
+  ///\brief the time of the last market reading, from the database gathered live
   [[nodiscard]]
   auto load_market_info(uint64_t market_id) -> expected_ec<std::optional<info::market_info_t>>;
 
   [[nodiscard]]
   auto load_station(uint64_t market_id) -> expected_ec<std::optional<info::station_t>>;
 
-  ///\brief stacja po nazwie widzianej w sygnale systemu
+  ///\brief a station by the name seen in a system signal
   [[nodiscard]]
   auto load_station(uint64_t system_address, std::string_view name) -> expected_ec<std::optional<info::station_t>>;
 
@@ -364,17 +364,17 @@ struct database_storage_t
   [[nodiscard]]
   auto load_owner() -> expected_ec<std::optional<info::db_owner_t>>;
 
-  ///\brief stacje systemu znane z journali - dokowania, rynkow, celow misji
-  ///\detail sygnal skanera potrafi nie wspomniec o osadzie ani o porcie, ktory dopiero stanal,
-  /// a stacja w ktorej stanelismy jest swiadectwem mocniejszym niz brak sygnalu
+  ///\brief a system's stations as known from journals - dockings, markets, mission targets
+  ///\detail a scanner signal can fail to mention a settlement, or a port only just built,
+  /// and a station we actually stood in is stronger evidence than a missing signal
   [[nodiscard]]
   auto load_stations(uint64_t system_address) -> expected_ec<std::vector<info::station_t>>;
 
-  ///\brief zawartosc rynku zlaczona ze slownikiem towarow
+  ///\brief a market's contents joined with the commodity dictionary
   [[nodiscard]]
   auto load_market_entries(uint64_t market_id) -> expected_ec<std::vector<info::market_entry_t>>;
 
-  ///\brief podmienia cala zawartosc rynku na swiezy odczyt i znaczy czas aktualizacji
+  ///\brief replaces a market's entire contents with a fresh reading and marks the update time
   [[nodiscard]]
   auto replace_market(
     uint64_t market_id,
@@ -386,12 +386,12 @@ struct database_storage_t
   [[nodiscard]]
   auto store(info::conflict_t const & value) -> expected_ec<void>;
 
-  /// ostatni zarejestrowany stan konfliktu tych dwoch frakcji w systemie
+  /// the last recorded conflict state of these two factions in the system
   [[nodiscard]]
   auto last_conflict(uint64_t system_address, std::string_view faction1, std::string_view faction2)
     -> expected_ec<std::optional<info::conflict_t>>;
 
-  /// konflikty w systemie, rosnaco wg czasu
+  /// conflicts in a system, ascending by time
   [[nodiscard]]
   auto load_conflicts(uint64_t system_address) -> expected_ec<std::vector<info::conflict_t>>;
 

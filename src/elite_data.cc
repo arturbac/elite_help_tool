@@ -56,7 +56,7 @@ auto format_population(uint64_t value) -> std::string
     char suffix;
     };
 
-  // od najwiekszego, zeby miliard nie wyszedl jako tysiac milionow
+  // largest first, so that a billion does not come out as a thousand million
   for(step_t const & step: {step_t{1'000'000'000u, 'B'}, step_t{1'000'000u, 'M'}, step_t{1'000u, 'k'}})
     {
     if(value < step.unit)
@@ -64,7 +64,7 @@ auto format_population(uint64_t value) -> std::string
 
     double const scaled{double(value) / double(step.unit)};
 
-    // miejsce po przecinku ma sens tylko przy jednocyfrowych - przy 44M nikogo nie obchodzi 44.3
+    // a decimal place only means something for single digits - at 44M nobody cares about the 44.3
     return scaled < 10.0 ? std::format("{:.1f}{}", scaled, step.suffix)
                          : std::format("{:.0f}{}", scaled, step.suffix);
     }
@@ -129,7 +129,7 @@ auto to_influence(
 
 namespace
   {
-  ///\brief posortowane, bo szukamy binarnie; rosnie w miare jak Artur zglasza kolejne
+  ///\brief sorted, because the search is binary; it grows as Artur reports further ones
   constexpr std::array mining_only_commodities{
     "Alexandrite"sv,   "Bastnasite"sv, "Benitoite"sv, "Bromellite"sv,  "Deuterium"sv,          "Diamond"sv,
     "Grandidierite"sv, "Helium"sv,     "Helium-3"sv,  "Iridium"sv,     "Low Temp. Diamonds"sv, "Magnesite"sv,
@@ -146,31 +146,31 @@ auto transform_mission_name(std::string_view input) -> std::string
   {
   std::string result;
 
-  // 1. Usuwanie "Mission" (oraz opcjonalnego podkreślnika po nim)
+  // 1. drop "Mission" (and the underscore after it, if any)
   std::string_view working_view = input;
   if(working_view.starts_with("Mission_"))
     working_view.remove_prefix(8);
   else if(working_view.starts_with("Mission"))
     working_view.remove_prefix(7);
 
-  // Rezerwujemy pamięć (bezpieczny zapas na dodatkowe spacje)
+  // reserve memory, with safe room for the added spaces
   result.reserve(working_view.size() * 2);
 
   for(std::size_t i = 0; i < working_view.size(); ++i)
     {
     char const c = working_view[i];
 
-    // 2. Zamiana '_' na spację
+    // 2. turn '_' into a space
     if(c == '_')
       {
-      // Unikamy podwójnych spacji, jeśli po '_' następuje wielka litera
+      // avoid double spaces when a capital letter follows the '_'
       if(result.empty() || result.back() != ' ')
         result.push_back(' ');
       continue;
       }
 
-    // 3. Dodawanie spacji przed wielkimi literami (CamelCase -> Camel Case)
-    // Logic error check: Zawsze sprawdzaj, czy nie dodajesz spacji na samym początku
+    // 3. put a space before capital letters (CamelCase -> Camel Case)
+    // logic error check: always make sure no space is added at the very beginning
     if(std::isupper(static_cast<unsigned char>(c)) && i > 0)
       {
       if(!result.empty() && result.back() != ' ')
@@ -180,7 +180,7 @@ auto transform_mission_name(std::string_view input) -> std::string
     result.push_back(c);
     }
 
-  // Opcjonalne: czyszczenie spacji na początku (jeśli Mission zostało usunięte niefortunnie)
+  // optional: clean the leading spaces, in case dropping Mission left an awkward one
   auto trimmed = result | std::views::drop_while(isspace);
   return std::string(trimmed.begin(), trimmed.end());
   }

@@ -7,10 +7,10 @@
 #include <qcombobox.h>
 #include <qlabel.h>
 
-///\brief praca w plusach doba po dobie, zestawiona z tym, co ta doba dala
+///\brief effort in pluses day by day, set against what that day gave
 ///
 /// Days are separated by detected recalculation waves, not by a fixed hour. Population sits on every row,
-/// bo gra dzieli wplyw misji przez wielkosc systemu - ten sam wysilek daje w systemie
+/// because the game divides mission influence by the size of the system - the same effort gives, in a
 /// forty-million system a fraction of what they give in a forty-thousand one, so pluses per
 /// percentage point only makes sense within a single system
 class bgs_effort_model_t final : public QAbstractTableModel
@@ -116,7 +116,7 @@ public:
   bgs_effort_model_t * model_{};
   QTableView * view_{};
 
-  ///\brief rozrzut opoznienia zapowiedzi wojny - najkrotszy, mediana, najdluzszy
+  ///\brief the spread of the war announcement's delay - shortest, median, longest
   QLabel * war_header_{};
   war_onset_model_t * war_model_{};
   QTableView * war_view_{};
@@ -129,7 +129,7 @@ public:
   auto setup_ui() -> void;
 
 private:
-  ///\brief uzupelnia liste systemow tymi, w ktorych naprawde pracowalismy
+  ///\brief fills the system list with the ones we really worked in
   auto reload_systems() -> void;
   auto show_effort() -> void;
   auto show_wars() -> void;

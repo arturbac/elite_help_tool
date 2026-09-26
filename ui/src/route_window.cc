@@ -68,7 +68,7 @@ auto route_model_t::update_data(std::vector<info::route_item_t> && new_route) ->
   endResetModel();
   }
 
-// Reszta metod (index, parent, hasChildren) - standardowa implementacja płaskiego modelu
+// the rest of the methods (index, parent, hasChildren) - the standard implementation of a flat model
 [[nodiscard]]
 auto route_model_t::index(int r, int c, QModelIndex const & p) const -> QModelIndex
   {
@@ -110,9 +110,9 @@ auto route_model_t::headerData(int s, Qt::Orientation o, int r) const -> QVarian
 
 namespace spansh
   {
-///\brief ksztalt pliku z plotera neutronowego - czytamy z niego tylko to, czym sie lata
-///\detail struktury musza miec wiazanie zewnetrzne, bo refleksja glaze nie siega do przestrzeni
-/// anonimowej; nieznane klucze sa pomijane, wiec reszta pliku nie przeszkadza
+///\brief the shape of the neutron plotter's file - we read from it only what is actually flown
+///\detail the structs need external linkage, because glaze reflection does not reach into an anonymous
+/// namespace; unknown keys are skipped, so the rest of the file is no trouble
 struct jump_t
   {
   std::string system;
@@ -204,8 +204,8 @@ auto route_window_t::apply_direction(std::vector<info::neutron_waypoint_t> route
   if(reversed_box_->isChecked())
     std::ranges::reverse(route);
 
-  // Odleglosci z pliku opisuja droge w jego wlasnym kierunku, wiec po odwroceniu nie pasuja.
-  // Wspolrzedne pasuja zawsze, wiec liczymy je od nowa miedzy sasiadami
+  // The distances in the file describe the way in the file's own direction, so after a reversal they no
+  // longer fit. The coordinates always fit, so we count them anew between neighbours
   for(size_t ix{}; ix < route.size(); ++ix)
     {
     route[ix].position = uint32_t(ix);
@@ -232,7 +232,7 @@ auto route_window_t::setup_ui() -> void
   auto * controls = new QHBoxLayout();
   load_button_ = new QPushButton("Load route...", central_widget);
   reversed_box_ = new QCheckBox("Reversed", central_widget);
-  // plik ze spansh jest droga powrotna, wiec odwrocenie jest normalnym przypadkiem, nie wyjatkiem
+  // the file from spansh is the way back, so reversing it is the ordinary case, not the exception
   reversed_box_->setChecked(true);
   remember_button_ = new QPushButton("Remember", central_widget);
   forget_button_ = new QPushButton("Forget", central_widget);
@@ -264,12 +264,12 @@ auto route_window_t::setup_ui() -> void
 
   connect(load_button_, &QPushButton::clicked, this, [this] { load_from_file(); });
 
-  // wejscie w trase w polowie albo cofniecie sie po pomylce - klikniecie wiersza ustawia postep
+  // joining the route halfway, or stepping back after a mistake - clicking a row sets the progress
   connect(table_view_, &QTableView::doubleClicked, this, [this](QModelIndex const & index) {
     jump_to_waypoint(index.row());
   });
   connect(reversed_box_, &QCheckBox::toggled, this, [this](bool) {
-    // kierunek zmienia sie w miejscu, bez siegania po plik jeszcze raz
+    // the direction changes in place, without reaching for the file again
     if(not neutron_route_.empty())
       apply_direction(std::move(neutron_route_));
   });
@@ -319,8 +319,8 @@ auto route_window_t::show_route() -> void
     return;
     }
 
-  // Gdzie jestesmy na trasie. Szukamy po adresie systemu, a nie po nazwie - te bywaja identyczne
-  // dla roznych miejsc, adres nie
+  // Where we are on the route. We look by the system address rather than by name - names are sometimes
+  // identical for different places, addresses are not
   auto const here{std::ranges::find(
     neutron_route_,
     state_.current_system_address_,
@@ -351,8 +351,8 @@ auto route_window_t::show_route() -> void
 
   std::string const next{reached < neutron_route_.size() ? neutron_route_[reached].system : std::string{}};
 
-  // Cel wedruje do schowka tylko wtedy, gdy sie zmienil. Wrzucanie go przy kazdym odswiezeniu
-  // deptaloby po tym, co uzytkownik wlasnie sam skopiowal
+  // The target goes to the clipboard only when it has changed. Putting it there at every refresh would
+  // tread on whatever the user has just copied themselves
   bool copied{};
   if(not next.empty() and next != clipboard_target_)
     {
@@ -365,11 +365,11 @@ auto route_window_t::show_route() -> void
     QString::fromStdString(neutron_name_) + (remembered_ ? " [remembered]" : " [one-off]")
   };
 
-  // Cel na poczatku - przy waskim oknie etykieta urywa sie z prawej, a to wlasnie jego trzeba
-  // przeczytac po kazdym skoku; nazwa trasy jest tu najmniej pilna
+  // The target first - in a narrow window the label is cut off on the right, and the target is exactly
+  // what has to be read after every jump; the route's name is the least urgent thing here
   info_label_->setText(
     next.empty() ? QString{"Arrived | %1"}.arg(name)
-                 // licznik i mianownik w tych samych jednostkach - przystankach, nie skokach
+                 // numerator and denominator in the same units - stops, not jumps
                  : QString{"Next: %1%2 | %3 of %4 stops left | %5"}
                      .arg(QString::fromStdString(next))
                      .arg(copied ? "  (copied)" : "")

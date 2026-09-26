@@ -18,7 +18,7 @@ class ship_loadout_window_t final : public QMdiSubWindow
   QProgressBar * fuel_bar{};
   QProgressBar * cargo_bar{};
 
-  // Kontener na wiersze modułów, by móc je dynamicznie czyścić/edytować
+  // the container for the module rows, so they can be cleared and edited on the fly
   QVBoxLayout * modules_layout{};
 
   struct module_row_t

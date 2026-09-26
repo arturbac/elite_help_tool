@@ -10,7 +10,7 @@
 
 namespace
   {
-// enum_name zwraca string_view bez gwarancji zakończenia zerem
+// enum_name returns a string_view with no guarantee of a terminating zero
 template<typename enum_type>
 [[nodiscard]]
 auto enum_to_qstring(enum_type value) -> QString
@@ -19,7 +19,7 @@ auto enum_to_qstring(enum_type value) -> QString
   return QString::fromUtf8(name.data(), static_cast<qsizetype>(name.size()));
   }
 
-// barwy supermocarstw, tony środkowe - czytelne i na jasnym, i na ciemnym motywie
+// the superpowers' colours, in middle tones - readable on a light theme and on a dark one alike
 [[nodiscard]]
 auto allegiance_color(info::allegiance_e allegiance) -> std::optional<QColor>
   {
@@ -67,7 +67,7 @@ auto faction_model_t::data(QModelIndex const & index, int role) const -> QVarian
       default:                   break;
       }
 
-  // sortowanie po wartościach surowych, nie po sformatowanym tekście
+  // sorting by the raw values, not by the formatted text
   if(role == sort_role)
     switch(column)
       {
@@ -103,7 +103,7 @@ auto faction_model_t::update_data(std::vector<info::faction_info_t> && new_facti
   endResetModel();
   }
 
-// Reszta metod (index, parent, hasChildren) - standardowa implementacja płaskiego modelu
+// the rest of the methods (index, parent, hasChildren) - the standard implementation of a flat model
 [[nodiscard]]
 auto faction_model_t::index(int r, int c, QModelIndex const & p) const -> QModelIndex
   { return hasIndex(r, c, p) ? createIndex(r, c) : QModelIndex{}; }

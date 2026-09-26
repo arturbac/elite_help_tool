@@ -69,7 +69,7 @@ public:
   [[nodiscard]]
   auto path() const noexcept -> std::string_view;
 
-  ///\brief liczba podlaczonych gier
+  ///\brief the number of connected games
   [[nodiscard]]
   auto clients() const noexcept -> unsigned;
 

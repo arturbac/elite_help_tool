@@ -111,7 +111,7 @@ auto journal_log_window_t::setup_ui() -> void
   auto * layout = new QVBoxLayout(central_widget);
   m_list_widget = new QListWidget(central_widget);
 
-  // Optymalizacja renderowania
+  // rendering optimisation
   m_list_widget->setUniformItemSizes(false);
   m_list_widget->setSelectionMode(QAbstractItemView::NoSelection);
 
@@ -120,13 +120,13 @@ auto journal_log_window_t::setup_ui() -> void
   setAttribute(Qt::WA_DeleteOnClose);
   }
 
-// Metoda dodająca log wykorzystująca C++23 std::variant jako payload
+// the method that adds a log entry, using a C++23 std::variant as the payload
 auto journal_log_window_t::add_log(log_payload_t const & payload) -> void
   {
   auto * item = new QListWidgetItem(m_list_widget);
   base_log_widget_t * display_widget = nullptr;
 
-  // Wizytator tworzący odpowiedni widget na podstawie typu danych
+  // the visitor that builds the right widget from the type of the data
   std::visit(
     [&](auto && arg)
     {

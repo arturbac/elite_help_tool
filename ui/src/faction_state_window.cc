@@ -39,9 +39,9 @@ auto to_msecs(std::chrono::sys_seconds timestamp) -> qint64
   { return std::chrono::duration_cast<std::chrono::milliseconds>(timestamp.time_since_epoch()).count(); }
   }  // namespace
 
-///\brief poczatek trwajacego epizodu konfliktu tej pary frakcji, zaokraglony do doby
-///\detail ta sama para moze walczyc wielokrotnie, epizod liczy sie od wpisu po ostatnim zakonczeniu,
-/// a zegar 7 dni rusza dopiero gdy konflikt staje sie aktywny - pending jeszcze nie trwa
+///\brief the start of this pair of factions' running conflict episode, rounded to a day
+///\detail the same pair can fight more than once; an episode is counted from the row after the last
+/// ending, and the 7 day clock starts only when the conflict becomes active - pending is not running yet
 [[nodiscard]]
 auto conflict_deadline(std::vector<info::conflict_t const *> const & rows) -> std::chrono::sys_days
   {
@@ -158,7 +158,7 @@ auto system_conflict_model_t::data(QModelIndex const & index, int role) const ->
 
   auto const & item = conflicts_[static_cast<std::size_t>(index.row())];
 
-  // gra przestaje podawac status gdy konflikt sie skonczyl
+  // the game stops giving a status once the conflict is over
   if(role == Qt::ForegroundRole)
     return item.status.empty() ? QVariant{QBrush(Qt::gray)} : QVariant{};
 
@@ -214,7 +214,7 @@ auto station_rank(std::string_view signal_type) noexcept -> int
   {
   if(signal_type == "FleetCarrier" or signal_type == "SquadronCarrier")
     return 2;
-  // skaner zglasza "StationCoriolis" czy "Outpost", a stacja z journala wlasny typ - obie drogi wiodą do doku
+  // the scanner reports "StationCoriolis" or "Outpost", a station from the journal its own type - both lead to a dock
   if(signal_type.starts_with("Station") or signal_type == "Outpost")
     return 0;
   for(std::string_view type:
@@ -234,8 +234,8 @@ auto station_rank(std::string_view signal_type) noexcept -> int
   return 1;
   }
 
-///\brief plac budowy pod nazwa portu, ktory na nim stanal
-///\detail skan zostawia sygnal placu jeszcze dlugo po tym, jak port zaczal przyjmowac statki
+///\brief a construction site under the name of the port that rose on it
+///\detail a scan leaves the site's signal behind long after the port began taking ships
 [[nodiscard]]
 auto finished_name(std::string_view name) noexcept -> std::string_view
   {
@@ -249,8 +249,8 @@ auto finished_name(std::string_view name) noexcept -> std::string_view
 auto is_installation(std::string_view signal_type) noexcept -> bool
   { return signal_type == "Installation" or signal_type.ends_with("ConstructionDepot"); }
 
-///\brief nazwa tak, jak czyta ja gracz
-///\detail statek kolonizacyjny przychodzi z journala jako surowy token lokalizacji
+///\brief the name as the player reads it
+///\detail the colonisation ship comes out of the journal as a raw localisation token
 [[nodiscard]]
 auto readable_name(std::string const & name) -> QString
   {
@@ -280,7 +280,7 @@ auto system_station_model_t::data(QModelIndex const & index, int role) const -> 
   auto const & item = stations_[static_cast<std::size_t>(index.row())];
   auto const rank{station_rank(item.signal_type)};
 
-  // flotowiec sprzed tygodnia dawno odleciał, wiec nie rzuca sie w oczy jak stacja
+  // a carrier seen a week ago is long gone, so it does not stand out the way a station does
   if(role == Qt::ForegroundRole)
     return rank == 2 ? QVariant{QBrush(Qt::gray)} : QVariant{};
 
@@ -348,7 +348,7 @@ auto market_model_t::data(QModelIndex const & index, int role) const -> QVariant
 
   auto const price{station_sells_ ? item.buy_price : item.sell_price};
   auto const quantity{station_sells_ ? item.stock : item.demand};
-  // srednia galaktyczna jest punktem odniesienia, przy kupnie taniej jest dobrze, przy sprzedazy drozej
+  // the galactic average is the reference point: buying, cheaper is good; selling, dearer is
   double const deviation{
     item.mean_price != 0 ? 100. * (double(price) - double(item.mean_price)) / double(item.mean_price) : 0.
   };
@@ -450,7 +450,7 @@ auto mission_stat_model_t::data(QModelIndex const & index, int role) const -> QV
     case column_e::faction:  return QString::fromStdString(item.faction);
     case column_e::missions: return item.missions;
     case column_e::rewards:  return QString::fromStdString(format_credits_value(uint32_t(item.rewards / 1000)));
-    // nazwy typu wygladaja jak Mission_OnFoot_Salvage_MB, ten sam przeklad co w oknie misji
+    // the type names look like Mission_OnFoot_Salvage_MB - the same rendering as in the mission window
     case column_e::top_type: return QString::fromStdString(info::transform_mission_name(item.top_type));
     default:                 return {};
     }
@@ -497,7 +497,7 @@ auto faction_state_window_t::setup_ui() -> void
   auto * central_widget = new QWidget(this);
   auto * layout = new QVBoxLayout(central_widget);
 
-  // --- wybor systemu ---
+  // --- choosing the system ---
   auto * selector_layout = new QHBoxLayout();
   follow_current_ = new QCheckBox("Follow current system", central_widget);
   follow_current_->setChecked(true);
@@ -514,7 +514,7 @@ auto faction_state_window_t::setup_ui() -> void
   range_combo_->addItem("Last 90 days", 90);
   range_combo_->addItem("All", 0);
 
-  // skala logarytmiczna pokazuje skoki frakcji o niskim influence, na liniowej gina przy dnie
+  // a logarithmic scale shows the jumps of low influence factions; on a linear one they vanish at the bottom
   scale_combo_ = new QComboBox(central_widget);
   scale_combo_->addItem("Linear", false);
   scale_combo_->addItem("Logarithmic", true);
@@ -535,8 +535,8 @@ auto faction_state_window_t::setup_ui() -> void
   auto * tick_group = new QGroupBox("Recalculations", overview);
   auto * tick_form = new QFormLayout(tick_group);
 
-  // Dwie kolumny obok siebie zamiast piatki wierszy jedna pod druga - te same fakty schodza
-  // z polowy okna do trzech linijek, a kazda wartosc miesci sie bez zawijania
+  // Two columns side by side instead of five rows one under another - the same facts come down from half
+  // the window to three lines, and every value fits without wrapping
   auto * tick_columns = new QHBoxLayout();
   auto * tick_left = new QFormLayout();
   auto * tick_right = new QFormLayout();
@@ -564,14 +564,14 @@ auto faction_state_window_t::setup_ui() -> void
 
   overview_layout->addWidget(tick_group);
 
-  // --- informacje o systemie ---
+  // --- what is known about the system ---
   auto * info_group = new QGroupBox("System", overview);
   auto * info_layout = new QHBoxLayout(info_group);
   auto * column_left = new QVBoxLayout();
   auto * column_right = new QVBoxLayout();
 
-  // Bez podpisow - "Industrial / Agriculture" nie potrzebuje slowa "Economy" przed soba, zeby bylo
-  // wiadomo czym jest, a osiem wierszy formularza schodzi do czterech linijek
+  // No captions - "Industrial / Agriculture" needs no word "Economy" in front of it for anyone to know
+  // what it is, and eight rows of a form come down to four lines
   auto make_label = [&](QVBoxLayout * column) -> QLabel *
   {
     auto * label = new QLabel(QString::fromUtf8(no_data.data()), info_group);
@@ -589,7 +589,7 @@ auto faction_state_window_t::setup_ui() -> void
   info_layout->addLayout(column_right, 1);
   overview_layout->addWidget(info_group);
 
-  // --- tabele i wykres w splitterze ---
+  // --- the tables and the chart in a splitter ---
   auto * splitter = new QSplitter(Qt::Vertical, overview);
   splitter->setObjectName("system_overview");
 
@@ -633,7 +633,7 @@ auto faction_state_window_t::setup_ui() -> void
   chart_ = new QChart();
   chart_->setTitle("Influence");
   chart_->legend()->setAlignment(Qt::AlignBottom);
-  // domyslny motyw wykresu jest jasny, w ciemnym ui swieci bielą
+  // the chart's default theme is light, and in a dark ui it glares white
   bool const dark_ui{palette().color(QPalette::Window).lightness() < 128};
   chart_->setTheme(dark_ui ? QChart::ChartThemeDark : QChart::ChartThemeLight);
   chart_->setBackgroundRoundness(0);
@@ -649,13 +649,13 @@ auto faction_state_window_t::setup_ui() -> void
   overview_layout->addWidget(splitter, 1);
   tabs->addTab(overview, "Overview");
 
-  // --- zakladka ze stacjami ---
+  // --- the stations tab ---
   auto * stations_page = new QWidget(tabs);
   auto * stations_layout = new QVBoxLayout(stations_page);
 
   auto * stations_filter = new QHBoxLayout();
   hide_carriers_ = new QCheckBox("Hide carriers", stations_page);
-  // instalacji jest duzo i nie da sie w nich zadokowac, wiec domyslnie nie zaslaniaja stacji
+  // there are many installations and none can be docked at, so by default they do not hide the stations
   hide_installations_ = new QCheckBox("Hide installations", stations_page);
   hide_installations_->setChecked(true);
   stations_filter->addWidget(hide_carriers_);
@@ -678,7 +678,7 @@ auto faction_state_window_t::setup_ui() -> void
   stations_layout->addWidget(stations_view_);
   tabs->addTab(stations_page, "Stations");
 
-  // --- zakladka z rynkiem klikietej stacji ---
+  // --- the tab with the clicked station's market ---
   auto * market_page = new QWidget(tabs);
   auto * market_layout = new QVBoxLayout(market_page);
 
@@ -702,7 +702,7 @@ auto faction_state_window_t::setup_ui() -> void
     auto * view = new QTableView();
     view->setModel(proxy);
     view->setSortingEnabled(true);
-    // najlepsze okazje na gorze - kupno im tansze wzgledem sredniej tym lepiej, sprzedaz odwrotnie
+    // the best opportunities on top - buying, the cheaper against the average the better; selling, the reverse
     view->sortByColumn(4, station_sells ? Qt::AscendingOrder : Qt::DescendingOrder);
     view->setSelectionBehavior(QAbstractItemView::SelectRows);
     view->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
@@ -738,7 +738,7 @@ auto faction_state_window_t::setup_ui() -> void
     }
   );
 
-  // --- zakladka z misjami ---
+  // --- the missions tab ---
   auto * missions_page = new QWidget(tabs);
   auto * missions_layout = new QVBoxLayout(missions_page);
 
@@ -785,7 +785,7 @@ auto faction_state_window_t::setup_ui() -> void
   {
     if(index < 0)
       return;
-    // reczny wybor systemu wychodzi ze sledzenia biezacego
+    // choosing a system by hand steps out of following the current one
     follow_current_->setChecked(false);
     show_system(system_combo_->itemData(index).value<qulonglong>());
   };
@@ -796,7 +796,7 @@ auto faction_state_window_t::setup_ui() -> void
 
   connect(scale_combo_, &QComboBox::activated, this, [this](int) { update_chart(); });
 
-  // wpisanie nazwy i enter nie emituje activated, trzeba samemu odnalezc pozycje
+  // typing a name and pressing enter emits no activated, so the entry has to be found by hand
   connect(
     system_combo_->lineEdit(),
     &QLineEdit::returnPressed,
@@ -860,7 +860,7 @@ auto faction_state_window_t::show_system(uint64_t system_address) -> void
   {
   shown_system_ = system_address;
 
-    // ustawiamy combo na pokazywany system bez wywolywania sygnalu
+    // set the combo to the system being shown without emitting a signal
     {
     QSignalBlocker const block{system_combo_};
     auto const index{system_combo_->findData(QVariant::fromValue(qulonglong{system_address}))};
@@ -879,18 +879,18 @@ auto faction_state_window_t::show_system(uint64_t system_address) -> void
 
   history_ = std::move(*res);
 
-  // frakcja, ktora wyleciala z systemu, przestaje pojawiac sie w odczytach, ale jej ostatni wpis
-  // influence zostaje - dlatego liste zawezamy do tych widzianych przy najswiezszym odczycie
+  // a faction thrown out of the system stops appearing in the readings, but its last influence row stays
+  // behind - which is why the list is narrowed to the ones seen at the newest reading
   std::set<int64_t> present;
   if(auto refs{db_.load_present_factions(system_address)}; refs)
     for(info::faction_ref_t const & ref: *refs)
       present.insert(ref.faction_oid);
 
-  // ostatni wpis kazdej frakcji to jej obecny stan w systemie
+  // each faction's last row is its present state in the system
   std::map<int64_t, info::faction_influence_t const *> latest;
   for(info::faction_influence_t const & entry: history_)
     {
-    // pusty zbior znaczy ze dla tego systemu nie mamy jeszcze sladu obecnosci - wtedy pokazujemy wszystko
+    // an empty set means we have no trace of presence for this system yet - then everything is shown
     if(not present.empty() and not present.contains(entry.faction_oid))
       continue;
     latest[entry.faction_oid] = &entry;
@@ -905,7 +905,7 @@ auto faction_state_window_t::show_system(uint64_t system_address) -> void
       .government = info::government_e::unknown,
       .allegiance = info::allegiance_e::unknown,
       .pending = entry->pending_states,
-      // ActiveStates jest pelna lista, FactionState tylko jednym stanem
+      // ActiveStates is the full list, FactionState only a single state
       .active = not entry->active_states.empty() ? entry->active_states
                 : entry->faction_state == "None" ? std::string{}
                                                  : entry->faction_state,
@@ -950,15 +950,15 @@ auto faction_state_window_t::update_conflicts(uint64_t system_address) -> void
     return;
     }
 
-  // zapisujemy dopiero przy zmianie stanu, wiec para frakcji ma tu caly swoj przebieg
+  // we store only on a change of state, so a pair of factions has its whole course here
   std::map<std::pair<std::string, std::string>, std::vector<info::conflict_t const *>> by_pair;
   for(info::conflict_t const & conflict: *res)
     by_pair[{conflict.faction1, conflict.faction2}].push_back(&conflict);
 
-  // zakonczony konflikt zostaje w widoku tylko dobe od chwili gdy zobaczylismy jego koniec
+  // a finished conflict stays in view only for a day from the moment we saw it end
   constexpr auto keep_finished{std::chrono::hours{24}};
-  // konflikt trwa najwyzej 7 dni od dnia rozpoczecia, po tym czasie jest po nim
-  // niezaleznie od tego czy zdazylismy zobaczyc jego koniec
+  // a conflict lasts at most 7 days from the day it started; after that it is over
+  // whether or not we managed to see it end
   constexpr auto max_duration{std::chrono::days{7}};
   auto const now{std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())};
 
@@ -980,14 +980,14 @@ auto faction_state_window_t::update_conflicts(uint64_t system_address) -> void
     newest = std::max(newest, last.timestamp);
     }
 
-  // Pusta tabela z samym naglowkiem zabierala caly panel splittera, zeby nie pokazac niczego -
-  // przy braku konfliktu zostaje sama notka, a miejsce wraca do listy frakcji
+  // An empty table with nothing but a header took a whole splitter panel to show nothing - with no
+  // conflict only the note is left and the room goes back to the faction list
   bool const anything{not current.empty()};
   conflicts_caption_->setVisible(anything);
   conflicts_view_->setVisible(anything);
 
-  // Splitter trzyma raz nadany podzial, wiec samo zwiniecie zawartosci zostawiloby pusty panel.
-  // Gorna granica wysokosci oddaje to miejsce sasiadowi, czyli liscie frakcji
+  // A splitter holds the division once given, so collapsing the contents alone would leave an empty
+  // panel. An upper bound on the height gives that room to the neighbour, that is to the faction list
   auto const line{conflicts_note_->sizeHint().height()};
   auto const row{conflicts_view_->verticalHeader()->defaultSectionSize()};
 
@@ -1005,7 +1005,7 @@ auto faction_state_window_t::update_conflicts(uint64_t system_address) -> void
   conflicts_model_->update_data(std::move(current));
   conflicts_view_->resizeColumnsToContents();
 
-  // tabela dostaje dokladnie tyle wysokosci, ile ma wierszy - reszta panelu nie jest jej potrzebna
+  // the table is given exactly as much height as it has rows - the rest of the panel it does not need
   auto const table{conflicts_view_->horizontalHeader()->height() + rows * row + 4};
   conflicts_view_->setMaximumHeight(table);
   conflicts_container_->setMaximumHeight(table + 2 * line + 16);
@@ -1030,7 +1030,7 @@ auto faction_state_window_t::update_stations(uint64_t system_address) -> void
   bool const hide_carriers{hide_carriers_->isChecked()};
   bool const hide_installations{hide_installations_->isChecked()};
 
-  // nazwa stacji, w ktorej kiedykolwiek stanelismy - sygnal o niej jest juz tylko powtorzeniem
+  // the name of a station we ever stood at - a signal about it is by then only a repetition
   std::set<std::string, std::less<>> recorded;
   for(info::station_t const & station: *known)
     if(not station.name.empty())
@@ -1087,7 +1087,7 @@ auto faction_state_window_t::show_market(std::string_view station_name) -> void
 
   if(not *station)
     {
-    // stacje znamy z sygnalu systemu, rynek tylko z wizyty przy wlaczonej aplikacji
+    // stations are known from a system signal, a market only from a visit with the tool running
     market_header_->setText(qformat("{} - no market recorded, dock there with the tool running", station_name));
     return;
     }
@@ -1105,7 +1105,7 @@ auto faction_state_window_t::show_market(std::string_view station_name) -> void
     return;
     }
 
-  // czas odczytu mieszka przy rynku, bo sam odczyt jest nieodtwarzalny
+  // the time of the reading lives with the market, because the reading itself cannot be rebuilt
   auto reading{db_.load_market_info((*station)->market_id)};
   if(reading and *reading)
     market_header_->setText(qformat("{} - prices as of {:%Y-%m-%d %H:%M}", (*station)->name, (*reading)->updated));
@@ -1164,7 +1164,7 @@ auto faction_state_window_t::update_missions() -> void
 
 auto faction_state_window_t::update_tick_labels(uint64_t system_address) -> void
   {
-  // fala przychodzi raz na dobe, wiec czestsze pytanie niczego nowego nie powie
+  // the wave comes once a day, so asking more often will say nothing new
   constexpr std::chrono::seconds tick_refresh{60};
 
   auto const checked{std::chrono::steady_clock::now()};
@@ -1182,8 +1182,8 @@ auto faction_state_window_t::update_tick_labels(uint64_t system_address) -> void
 
     std::string local{view.here};
     if(view.awaiting)
-      // fala juz gdzies ruszyla, a tutaj jej jeszcze nie widzielismy - to nie znaczy, ze nie byla,
-      // bo o systemie wiemy tylko tyle, ile zobaczylismy przy ostatniej wizycie
+      // the wave has started somewhere and we have not seen it here yet - which does not mean it has not
+      // been, because of a system we know only as much as we saw at the last visit
       local.append(kind == info::tick_kind_e::influence ? "  |  wave started, not seen here yet"
                                                         : "  |  wave started, bonds not recalculated yet");
 
@@ -1193,10 +1193,10 @@ auto faction_state_window_t::update_tick_labels(uint64_t system_address) -> void
 
   describe(info::tick_kind_e::influence, bgs_tick_label_, bgs_galaxy_label_);
 
-  // Zegar wojen ma sens tylko gdy jest o co walczyc. Liczy sie stan biezacy, a load_conflicts
-  // oddaje cala historie - wojna zamknieta miesiac temu ma tam nadal wiersze ze statusem "active",
-  // wiec pytanie o nia wprost wlaczaloby te wiersze na zawsze. load_war_countdown patrzy wylacznie
-  // na najswiezszy odczyt kazdej pary i pomija zamkniete
+  // The war clock makes sense only when there is something to fight over. What counts is the present
+  // state, and load_conflicts returns the whole history - a war closed a month ago still has rows there
+  // with the status "active", so asking it directly would turn these rows on forever. load_war_countdown
+  // looks at the newest reading of each pair alone and leaves the closed ones out
   auto wars{db_.load_war_countdown(system_address)};
   bool const at_war{wars and not wars->empty()};
 
@@ -1249,11 +1249,11 @@ auto faction_state_window_t::update_system_info(uint64_t system_address) -> void
   star_system_t const & system{**res};
   setWindowTitle(qformat("System info - {}", system.name));
 
-  // gra podaje "None" dla systemow bez ekonomii czy rzadu
+  // the game gives "None" for systems with no economy or government
   auto const meaningful = [](std::string const & value) -> std::string
   { return value == "None" ? std::string{} : value; };
 
-  ///\brief sklada czesci pomijajac puste, zeby brak jednej nie zostawil wiszacego przecinka
+  ///\brief joins the parts, skipping the empty ones, so that a missing one leaves no dangling comma
   auto const join = [](std::string_view separator, std::initializer_list<std::string> parts) -> std::string
   {
     std::string out;
@@ -1271,7 +1271,7 @@ auto faction_state_window_t::update_system_info(uint64_t system_address) -> void
   auto const set_text = [&empty](QLabel * label, std::string const & value) -> void
   { label->setText(value.empty() ? empty : QString::fromStdString(value)); };
 
-  // druga ekonomia pokazywana jak na inarze, po ukosniku
+  // the second economy shown as inara shows it, after a slash
   set_text(economy_label_, join(" / ", {meaningful(system.economy), meaningful(system.second_economy)}));
 
   set_text(
@@ -1309,7 +1309,7 @@ auto faction_state_window_t::update_chart() -> void
 
   using days_t = std::chrono::sys_days;
 
-  // influence zmienia sie raz na tick, wiec z doby zostaje ostatni pomiar
+  // influence changes once per tick, so of a day the last measurement is kept
   std::map<int64_t, std::map<days_t, double>> daily;
   days_t newest{};
   for(info::faction_influence_t const & entry: history_)
@@ -1342,7 +1342,7 @@ auto faction_state_window_t::update_chart() -> void
         min_positive = std::min(min_positive, influence);
       }
 
-    // frakcja bez pomiaru w zakresie nie trafia na wykres
+    // a faction with no measurement in the range does not reach the chart
     if(series->count() == 0)
       {
       delete series;
@@ -1359,7 +1359,7 @@ auto faction_state_window_t::update_chart() -> void
   axis_x->setFormat("dd.MM");
   axis_x->setTitleText("Date");
   axis_x->setTickCount(std::min(12, std::max(2, range_days > 0 ? range_days : 12)));
-  // osie dodane recznie nie dostaja zakresu same, bez tego punkty leza poza wykresem
+  // axes added by hand get no range of their own; without this the points lie outside the chart
   auto const first_shown{
     range_days > 0 ? first_day : std::chrono::floor<std::chrono::days>(history_.front().timestamp)
   };
@@ -1374,7 +1374,7 @@ auto faction_state_window_t::update_chart() -> void
   QAbstractAxis * axis_y{};
   if(log_scale)
     {
-    // pelne dekady daja czytelna siatke, wartosci zerowe nie maja reprezentacji w logarytmie
+    // whole decades give a readable grid; zero values have no representation in a logarithm
     auto const low{std::max(0.01, std::pow(10., std::floor(std::log10(min_positive))))};
     auto const high{std::max(low * 10., std::pow(10., std::ceil(std::log10(max_influence))))};
 
