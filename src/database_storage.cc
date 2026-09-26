@@ -2592,13 +2592,18 @@ auto database_storage_t::load_bgs_effort(uint32_t within_days, uint64_t system_a
         row.system_gain = found->second.gain;
       }
 
-  // najswiezsze doby na gorze, a w obrebie doby najwieksza praca pierwsza
+  // Najswiezsze doby na gorze, a w obrebie doby najwieksza praca pierwsza. Doba jeszcze
+  // nierozliczona jest najswiezsza z mozliwych, a jej znacznikiem jest zero - bez podmiany
+  // ladowalaby na samym koncu, czyli najdalej od tego, co robimy teraz
+  auto const freshness = [](info::bgs_effort_t const & row)
+  { return row.closed_by == sys_seconds{} ? sys_seconds::max() : row.closed_by; };
+
   std::ranges::sort(
     result,
-    [](info::bgs_effort_t const & l, info::bgs_effort_t const & r)
+    [&freshness](info::bgs_effort_t const & l, info::bgs_effort_t const & r)
     {
-      if(l.closed_by != r.closed_by)
-        return l.closed_by > r.closed_by;
+      if(freshness(l) != freshness(r))
+        return freshness(l) > freshness(r);
       return l.pushed_up + l.pushed_down > r.pushed_up + r.pushed_down;
     }
   );

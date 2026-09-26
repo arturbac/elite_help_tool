@@ -6,6 +6,7 @@
 #include <qsortfilterproxymodel.h>
 #include <qtabwidget.h>
 #include <qbrush.h>
+#include <limits>
 #include <spdlog/spdlog.h>
 
 namespace
@@ -81,7 +82,11 @@ auto bgs_effort_model_t::data(QModelIndex const & index, int role) const -> QVar
   if(role == sort_role)
     switch(column)
       {
-      case column_e::closed_by:   return qlonglong(row.closed_by.time_since_epoch().count());
+      case column_e::closed_by:
+        // doba jeszcze nierozliczona ma znacznik zerowy, a nalezy jej sie pierwsze miejsce
+        return row.closed_by == std::chrono::sys_seconds{}
+                 ? std::numeric_limits<qlonglong>::max()
+                 : qlonglong(row.closed_by.time_since_epoch().count());
       case column_e::system:      return QString::fromStdString(row.system_name);
       case column_e::population:  return qulonglong(row.population);
       case column_e::faction:     return QString::fromStdString(row.faction);
