@@ -109,5 +109,7 @@ public:
 private:
   auto reload_carriers() -> void;
   auto show_stock(std::string_view carrier_id) -> void;
+  [[nodiscard]]
+  auto carrier_stats_line(std::string_view carrier_id) -> std::string;
   auto show_acquisitions() -> void;
   };

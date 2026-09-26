@@ -865,7 +865,10 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
         }
       else if constexpr(std::same_as<T, events::carrier_stats_t>)
         {
-        // ignored in import
+        // Stan flotowca trafia do live.sqlite, ktorej przebudowa nie rusza - wiec zapis stad
+        // nie odtwarzalby niczego, tylko nadpisywal biezacy stan tym, co bylo kiedys.
+        // Backfill z historii jest mozliwy (journale ida chronologicznie, wiec wygralby ostatni),
+        // ale wciagnalby tez kazdy obcy flotowiec, przy ktorym kiedykolwiek stanelismy
         }
       else if constexpr(std::same_as<T, events::fcmaterials_t>)
         {

@@ -335,6 +335,22 @@ struct carrier_t
   std::string carrier_id;
   ///\brief flotowiec ktory mnie interesuje - bartendera obcych tez widzimy, ale to tylko tlo
   bool tracked;
+
+  ///\brief stan z ostatniego CarrierStats - puste dopoki go nie widzielismy
+  ///
+  /// Zdarzenie przychodzi przy dokowaniu i przy zarzadzaniu flotowcem, wiec te liczby sa zawsze
+  /// z ostatniej takiej chwili, nie z teraz - stad znacznik czasu obok nich
+  std::string carrier_type;
+  std::string docking_access;
+  uint32_t fuel_level;
+  double jump_range_curr;
+  double jump_range_max;
+  uint32_t total_capacity;
+  uint32_t free_space;
+  uint32_t cargo;
+  uint64_t balance;
+  uint64_t available_balance;
+  std::chrono::sys_seconds stats_seen;
 };
 
 ///\brief slownik mikrozasobow, sklejany z dwoch zrodel o roznej wiedzy

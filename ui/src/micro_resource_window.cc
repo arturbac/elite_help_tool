@@ -289,6 +289,35 @@ auto micro_resource_window_t::reload_carriers() -> void
     carrier_combo_->setCurrentIndex(index);
   }
 
+///\brief stan flotowca z ostatniego CarrierStats, gotowy do doklejenia pod naglowek
+///
+/// Stan i polka bartendera to dwa niezalezne zrodla, przychodzace w roznych chwilach - flotowiec
+/// obcej eskadry potrafi miec stan bez ani jednego odczytu polki, wiec jedno nie moze warunkowac
+/// drugiego. Stad wlasny znacznik czasu: bez niego nie wiadomo, czy paliwo jest sprzed minuty
+/// czy sprzed tygodnia
+auto micro_resource_window_t::carrier_stats_line(std::string_view carrier_id) -> std::string
+  {
+  auto carrier{db_.load_carrier(carrier_id)};
+  if(not carrier or not *carrier or (*carrier)->stats_seen.time_since_epoch().count() == 0)
+    return {};
+
+  info::carrier_t const & stats{**carrier};
+  return qformat(
+           "\npaliwo {} t | wolne {} z {} t | saldo {} Cr (dostepne {}) | skok {:.0f} z {:.0f} ly"
+           " | {} | stan na {:%Y-%m-%d %H:%M} UTC",
+           stats.fuel_level,
+           stats.free_space,
+           stats.total_capacity,
+           QLocale{}.toString(qulonglong{stats.balance}).toStdString(),
+           QLocale{}.toString(qulonglong{stats.available_balance}).toStdString(),
+           stats.jump_range_curr,
+           stats.jump_range_max,
+           stats.docking_access.empty() ? std::string{"dostep nieznany"} : stats.docking_access,
+           stats.stats_seen
+  )
+    .toStdString();
+  }
+
 auto micro_resource_window_t::refresh_ui() -> void
   {
   reload_carriers();
@@ -317,7 +346,9 @@ auto micro_resource_window_t::show_stock(std::string_view carrier_id) -> void
   if(res->empty())
     {
     stock_model_->update_data({});
-    stock_header_->setText("No bartender reading for this carrier yet");
+    stock_header_->setText(
+      QString::fromStdString("No bartender reading for this carrier yet" + carrier_stats_line(carrier_id))
+    );
     return;
     }
 
@@ -327,9 +358,10 @@ auto micro_resource_window_t::show_stock(std::string_view carrier_id) -> void
   for(info::carrier_stock_t const & item: *res)
     total += item.stock;
 
-  stock_header_->setText(
-    qformat("{} items on the shelf, as known on {:%Y-%m-%d %H:%M}", total, seen)
-  );
+  stock_header_->setText(QString::fromStdString(
+    qformat("{} items on the shelf, as known on {:%Y-%m-%d %H:%M} UTC", total, seen).toStdString()
+    + carrier_stats_line(carrier_id)
+  ));
 
   stock_model_->update_data(std::move(*res));
   stock_view_->resizeColumnsToContents();

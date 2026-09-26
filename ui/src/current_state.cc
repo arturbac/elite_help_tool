@@ -1015,6 +1015,49 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           route_.clear();
           route_changed = true;
           }
+        else if constexpr(std::same_as<T, events::carrier_stats_t>)
+          {
+          update_micro_resources = true;
+
+          // Laczymy po sygnaturze, nie po CarrierID - to pole znaczy co innego w kazdym z dwoch
+          // zrodel: tutaj jest numerem (rownym MarketID), a w FCMaterials.json sygnatura
+          info::carrier_t carrier{};
+          if(auto known{db_.load_carrier(event.Callsign)}; known and *known)
+            carrier = std::move(**known);
+          else if(auto oid{db_.carrier_oid(event.Callsign)}; oid and *oid)
+            carrier.oid = int64_t(**oid);
+          else
+            carrier.oid = -1;
+
+          // znacznik wlasnego flotowca nalezy do uzytkownika - odczyt stanu nie ma prawa go zdjac,
+          // wiec zostaje taki, jaki przyszedl z bazy
+          carrier.market_id = event.CarrierID;
+          carrier.carrier_name = event.Name;
+          carrier.carrier_id = event.Callsign;
+          carrier.carrier_type = event.CarrierType;
+          carrier.docking_access = event.DockingAccess;
+          carrier.fuel_level = event.FuelLevel;
+          carrier.jump_range_curr = event.JumpRangeCurr;
+          carrier.jump_range_max = event.JumpRangeMax;
+          carrier.total_capacity = event.SpaceUsage.TotalCapacity;
+          carrier.free_space = event.SpaceUsage.FreeSpace;
+          carrier.cargo = event.SpaceUsage.Cargo;
+          carrier.balance = event.Finance.CarrierBalance;
+          carrier.available_balance = event.Finance.AvailableBalance;
+          carrier.stats_seen = timestamp;
+
+          if(auto res{db_.update_carrier(carrier)}; not res)
+            spdlog::error("failed to store carrier stats for {}", event.Callsign);
+          else
+            spdlog::info(
+              "Carrier {} [{}]: paliwo {} t, wolne {} t, saldo {}",
+              event.Name,
+              event.Callsign,
+              event.FuelLevel,
+              event.SpaceUsage.FreeSpace,
+              event.Finance.CarrierBalance
+            );
+          }
         else if constexpr(std::same_as<T, events::fcmaterials_t>)
           {
           update_micro_resources = true;

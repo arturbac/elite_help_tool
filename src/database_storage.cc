@@ -1120,7 +1120,19 @@ auto database_storage_t::migrate_live_schema() -> expected_ec<void>
   for(addition_t const & add:
       {addition_t{sql_iface::tables::market_item, "producer"sv, "INTEGER DEFAULT 0"sv},
        addition_t{sql_iface::tables::market_item, "consumer"sv, "INTEGER DEFAULT 0"sv},
-       addition_t{sql_iface::tables::station, "controlling_faction"sv, "TEXT DEFAULT ''"sv}})
+       addition_t{sql_iface::tables::station, "controlling_faction"sv, "TEXT DEFAULT ''"sv},
+       // stan flotowca z CarrierStats - dokladany w miejscu, bo live.sqlite nie powstaje od nowa
+       addition_t{sql_iface::tables::carrier, "carrier_type"sv, "TEXT DEFAULT ''"sv},
+       addition_t{sql_iface::tables::carrier, "docking_access"sv, "TEXT DEFAULT ''"sv},
+       addition_t{sql_iface::tables::carrier, "fuel_level"sv, "INTEGER DEFAULT 0"sv},
+       addition_t{sql_iface::tables::carrier, "jump_range_curr"sv, "REAL DEFAULT 0"sv},
+       addition_t{sql_iface::tables::carrier, "jump_range_max"sv, "REAL DEFAULT 0"sv},
+       addition_t{sql_iface::tables::carrier, "total_capacity"sv, "INTEGER DEFAULT 0"sv},
+       addition_t{sql_iface::tables::carrier, "free_space"sv, "INTEGER DEFAULT 0"sv},
+       addition_t{sql_iface::tables::carrier, "cargo"sv, "INTEGER DEFAULT 0"sv},
+       addition_t{sql_iface::tables::carrier, "balance"sv, "INTEGER DEFAULT 0"sv},
+       addition_t{sql_iface::tables::carrier, "available_balance"sv, "INTEGER DEFAULT 0"sv},
+       addition_t{sql_iface::tables::carrier, "stats_seen"sv, "TEXT DEFAULT ''"sv}})
     {
     auto known{sqlite::table_columns(db_->db, add.table)};
     if(not known) [[unlikely]]

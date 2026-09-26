@@ -251,9 +251,14 @@ struct carrier_finance_t
 
 struct carrier_stats_t
   {
+  ///\brief numer, nie sygnatura - to samo co MarketID tego flotowca. FCMaterials.json nazywa
+  /// swoje pole tak samo, ale trzyma tam sygnature, wiec laczyc te dwa zrodla wolno wylacznie
+  /// przez Callsign
   uint64_t CarrierID;
   std::string Callsign;
   std::string Name;
+  std::string CarrierType;
+  std::string DockingAccess;
   uint16_t FuelLevel;
   double JumpRangeCurr;
   double JumpRangeMax;
