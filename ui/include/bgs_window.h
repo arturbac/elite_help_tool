@@ -65,12 +65,12 @@ class war_onset_model_t final : public QAbstractTableModel
     {
     system,
     war_type,
-    sides,
-    score,
-    outcome,
+    window,
+    faction1,
+    state,
+    faction2,
     pending_last,
     active_first,
-    window,
     column_max
     };
 

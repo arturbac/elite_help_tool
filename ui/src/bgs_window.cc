@@ -5,6 +5,7 @@
 #include <qheaderview.h>
 #include <qsortfilterproxymodel.h>
 #include <qtabwidget.h>
+#include <qbrush.h>
 #include <spdlog/spdlog.h>
 
 namespace
@@ -180,15 +181,23 @@ auto war_onset_model_t::data(QModelIndex const & index, int role) const -> QVari
   };
 
   // pusty status znaczy, ze wojna sie zamknela - dopiero wtedy wynik jest ostateczny
-  auto const outcome = [&]() -> std::string
+  auto const state = [&]() -> std::string
   {
-    if(not row.status.empty())
-      return row.status == "pending" ? "zapowiedziana" : "trwa";
-    if(row.won_days1 > row.won_days2)
-      return row.faction1;
-    if(row.won_days2 > row.won_days1)
-      return row.faction2;
-    return "remis";
+    if(row.status == "pending")
+      return "zapowiedziana";
+
+    return std::format("{} : {}{}", row.won_days1, row.won_days2, row.status.empty() ? "" : " trwa");
+  };
+
+  ///\brief zielony gdy ta strona prowadzi, czerwony gdy przegrywa, bez koloru przy remisie
+  ///\detail te same dwa odcienie nosi tabela reputacji - jedyne, ktore czytaja sie na ciemnym tle
+  auto const side_color = [](uint32_t mine, uint32_t theirs) -> QVariant
+  {
+    if(mine > theirs)
+      return QBrush{QColor{0x3c, 0xb3, 0x71}};
+    if(mine < theirs)
+      return QBrush{QColor{0xd9, 0x53, 0x4f}};
+    return {};
   };
 
   if(role == Qt::DisplayRole)
@@ -196,15 +205,14 @@ auto war_onset_model_t::data(QModelIndex const & index, int role) const -> QVari
       {
       case column_e::system:   return QString::fromStdString(row.system_name);
       case column_e::war_type: return QString::fromStdString(row.war_type);
-      case column_e::sides:    return QString::fromStdString(std::format("{} / {}", row.faction1, row.faction2));
-      case column_e::score:
-        return QString::fromStdString(std::format("{} : {}", row.won_days1, row.won_days2));
-      case column_e::outcome: return QString::fromStdString(outcome());
+      case column_e::window:   return QString::fromStdString(std::format("{:.1f}h", window_hours()));
+      case column_e::faction1: return QString::fromStdString(row.faction1);
+      case column_e::state:    return QString::fromStdString(state());
+      case column_e::faction2: return QString::fromStdString(row.faction2);
       case column_e::pending_last:
         return QString::fromStdString(std::format("{:%d.%m.%Y %H:%M}", row.pending_last));
       case column_e::active_first:
         return QString::fromStdString(std::format("{:%d.%m.%Y %H:%M}", row.active_first));
-      case column_e::window:     return QString::fromStdString(std::format("{:.1f}h", window_hours()));
       case column_e::column_max: break;
       }
 
@@ -213,14 +221,14 @@ auto war_onset_model_t::data(QModelIndex const & index, int role) const -> QVari
       {
       case column_e::system:   return QString::fromStdString(row.system_name);
       case column_e::war_type: return QString::fromStdString(row.war_type);
-      case column_e::sides:    return QString::fromStdString(std::format("{} / {}", row.faction1, row.faction2));
-      case column_e::score:    return int(row.won_days1) - int(row.won_days2);
-      case column_e::outcome:  return QString::fromStdString(outcome());
+      case column_e::window:   return window_hours();
+      case column_e::faction1: return QString::fromStdString(row.faction1);
+      case column_e::state:    return int(row.won_days1) - int(row.won_days2);
+      case column_e::faction2: return QString::fromStdString(row.faction2);
       case column_e::pending_last:
         return qlonglong(row.pending_last.time_since_epoch().count());
       case column_e::active_first:
         return qlonglong(row.active_first.time_since_epoch().count());
-      case column_e::window:     return window_hours();
       case column_e::column_max: break;
       }
 
@@ -231,7 +239,13 @@ auto war_onset_model_t::data(QModelIndex const & index, int role) const -> QVari
       "a osady wchodza w stan wojny jeszcze pozniej niz sam konflikt."
     };
 
-  if(role == Qt::TextAlignmentRole and (column == column_e::window or column == column_e::score))
+  if(role == Qt::ForegroundRole and column == column_e::faction1)
+    return side_color(row.won_days1, row.won_days2);
+
+  if(role == Qt::ForegroundRole and column == column_e::faction2)
+    return side_color(row.won_days2, row.won_days1);
+
+  if(role == Qt::TextAlignmentRole and (column == column_e::window or column == column_e::state))
     return int(Qt::AlignRight | Qt::AlignVCenter);
 
   return {};
@@ -246,12 +260,12 @@ auto war_onset_model_t::headerData(int section, Qt::Orientation orientation, int
     {
     case column_e::system:       return QString{"System"};
     case column_e::war_type:     return QString{"Typ"};
-    case column_e::sides:        return QString{"Strony"};
-    case column_e::score:        return QString{"Dni"};
-    case column_e::outcome:      return QString{"Wygrala"};
-    case column_e::pending_last: return QString{"Zapowiedziana"};
-    case column_e::active_first: return QString{"Zauwazona jako trwajaca"};
     case column_e::window:       return QString{"Okno"};
+    case column_e::faction1:     return QString{"Frakcja A"};
+    case column_e::state:        return QString{"Stan"};
+    case column_e::faction2:     return QString{"Frakcja B"};
+    case column_e::pending_last: return QString{"Zapowiedziana"};
+    case column_e::active_first: return QString{"Zauwazona"};
     case column_e::column_max:   break;
     }
 

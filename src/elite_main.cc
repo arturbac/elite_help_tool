@@ -62,34 +62,36 @@ void print_war_onsets(database_storage_t & db)
     }
 
   std::println(
-    "{:<24}{:<9}{:<40}{:>6}  {:<24}{:<16}{:<16}{:>8}",
+    "{:<24}{:<9}{:>7}  {:<26}{:^15}{:<26}{:<16}{:<16}",
     "system",
     "typ",
-    "strony",
-    "dni",
-    "wygrala",
+    "okno",
+    "frakcja A",
+    "stan",
+    "frakcja B",
     "zapowiedziana",
-    "zauwazona",
-    "okno"
+    "zauwazona"
   );
   for(size_t ix{}; ix < onsets->size() and ix < 25u; ++ix)
     {
     info::war_onset_t const & onset{(*onsets)[ix]};
+    // pusty status znaczy, ze wojna sie zamknela - dopiero wtedy wynik jest ostateczny
+    std::string const state{
+      onset.status == "pending"
+        ? std::string{"zapowiedziana"}
+        : std::format("{} : {}{}", onset.won_days1, onset.won_days2, onset.status.empty() ? "" : " trwa")
+    };
+
     std::println(
-      "{:<24}{:<9}{:<40}{:>6}  {:<24}{:<16}{:<16}{:>7.1f}h",
+      "{:<24}{:<9}{:>6.1f}h  {:<26}{:^15}{:<26}{:<16}{:<16}",
       onset.system_name.substr(0, 23),
       onset.war_type.substr(0, 8),
-      std::format("{} / {}", onset.faction1, onset.faction2).substr(0, 39),
-      std::format("{}:{}", onset.won_days1, onset.won_days2),
-      // pusty status znaczy, ze wojna sie zamknela - dopiero wtedy wynik jest ostateczny
-      (not onset.status.empty()  ? std::string{onset.status == "pending" ? "zapowiedziana" : "trwa"}
-       : onset.won_days1 > onset.won_days2 ? onset.faction1
-       : onset.won_days2 > onset.won_days1 ? onset.faction2
-                                           : std::string{"remis"})
-        .substr(0, 23),
+      lags[ix],
+      onset.faction1.substr(0, 25),
+      state,
+      onset.faction2.substr(0, 25),
       std::format("{:%d.%m %H:%M}", onset.pending_last),
-      std::format("{:%d.%m %H:%M}", onset.active_first),
-      lags[ix]
+      std::format("{:%d.%m %H:%M}", onset.active_first)
     );
     }
   }
