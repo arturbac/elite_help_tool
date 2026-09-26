@@ -318,6 +318,7 @@ struct mission_accepted_t
   std::string DestinationStation;     //": "Yamazaki Base",
   std::string DestinationSettlement;  //
   std::string Commodity;              //: commodity type
+  std::string Commodity_Localised;    //: nazwa czytelna, ta sama ktora nosi slownik towarow
   uint32_t Count;                     //: number required / to deliver
   std::string Donation;               //: contracted donation (as string) (for altruism missions)
   int32_t Donated;                    //: actual donation (as int)

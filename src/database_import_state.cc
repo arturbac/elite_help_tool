@@ -619,6 +619,18 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
         };
         if(auto res{state.db_.store(mission)}; not res) [[unlikely]]
           critical_abort("failed to store mission details for {}", event.MissionID);
+
+        // misja towarowa mowi czego trzeba - bez tego nie da sie podpowiedziec skad to wziac
+        if(not event.Commodity_Localised.empty() and event.Count != 0u)
+          if(
+            auto res{state.db_.store(
+              info::mission_cargo_t{
+                .mission_id = event.MissionID, .commodity = event.Commodity_Localised, .count = event.Count
+              }
+            )};
+            not res
+          )
+            spdlog::error("failed to store mission cargo for {}", event.MissionID);
         }
       else if constexpr(std::same_as<T, events::mission_completed_t>)
         {

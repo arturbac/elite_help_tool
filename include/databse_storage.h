@@ -61,6 +61,23 @@ struct database_storage_t
     uint64_t mission_id, info::mission_status_e const status, std::chrono::sys_seconds when
   ) -> expected_ec<void>;
 
+  [[nodiscard]]
+  auto store(info::mission_cargo_t const & value) -> expected_ec<void>;
+
+  ///\brief ile czego trzeba przywiezc lacznie dla otwartych misji
+  [[nodiscard]]
+  auto load_cargo_needs() -> expected_ec<std::vector<info::cargo_need_t>>;
+
+  ///\brief gdzie da sie to kupic w znanych nam rynkach, z zapasem pokrywajacym potrzebe
+  [[nodiscard]]
+  auto load_supply_options() -> expected_ec<std::vector<info::supply_option_t>>;
+
+  ///\brief kursy handlowe wzgledem tego rynku, liczone po znanych nam innych rynkach
+  ///\param bring_here true - kupic gdzie indziej i sprzedac tutaj; false - kupic tutaj i wywiezc
+  [[nodiscard]]
+  auto load_trade_options(uint64_t market_id, unsigned limit, bool bring_here)
+    -> expected_ec<std::vector<info::trade_option_t>>;
+
   ///\brief zamkniecie misji razem z kwota ktora gra naprawde wyplacila
   [[nodiscard]]
   auto complete_mission(uint64_t mission_id, std::chrono::sys_seconds when, uint64_t reward) -> expected_ec<void>;

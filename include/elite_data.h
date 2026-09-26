@@ -326,6 +326,48 @@ struct micro_acquisition_t
   acquisition_source_e source;
 };
 
+///\brief towar wymagany przez misje - osobna tabela, zeby nie ruszac schematu misji
+struct mission_cargo_t
+  {
+  uint64_t mission_id;
+  ///\brief nazwa czytelna, taka sama jak w slowniku towarow
+  std::string commodity;
+  uint32_t count;
+  };
+
+///\brief ile czego trzeba przywiezc lacznie, po zsumowaniu otwartych misji
+struct cargo_need_t
+  {
+  std::string commodity;
+  uint32_t count;
+  };
+
+///\brief miejsce w ktorym da sie kupic to, czego wymaga misja
+struct supply_option_t
+  {
+  uint64_t market_id;
+  std::string station;
+  std::string station_type;
+  std::string system;
+  std::string commodity;
+  uint32_t needed;
+  uint32_t stock;
+  uint32_t buy_price;
+  };
+
+///\brief kurs handlowy: kupic tam, sprzedac tutaj
+struct trade_option_t
+  {
+  uint64_t market_id;
+  std::string station;
+  std::string system;
+  std::string commodity;
+  uint32_t buy_price;
+  uint32_t sell_price;
+  uint32_t stock;
+  uint32_t demand;
+  };
+
 ///\brief ile i jakich misji zrobilem dla frakcji w danym okresie
 struct mission_stat_t
   {

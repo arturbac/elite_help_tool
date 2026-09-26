@@ -33,6 +33,9 @@ private:
   ///\brief rynek znamy tylko dla stacji w ktorej stoimy i tylko dopoki nie odlecimy
   auto refresh_market(uint64_t market_id) -> void;
 
+  ///\brief skad wziac towar wymagany przez otwarte misje
+  auto refresh_supply() -> void;
+
   std::unique_ptr<overlay::server_t> server_;
   database_storage_t db_;
   uint64_t factions_system_{};
@@ -43,6 +46,9 @@ private:
   uint64_t market_id_{};
   std::chrono::steady_clock::time_point market_loaded_{};
   std::vector<overlay::line_t> market_lines_;
+
+  std::chrono::steady_clock::time_point supply_loaded_{};
+  std::vector<overlay::line_t> supply_lines_;
   overlay::frame_t last_;
   std::chrono::steady_clock::time_point last_sent_{};
   uint64_t sequence_{};

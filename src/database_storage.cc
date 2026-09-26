@@ -442,6 +442,7 @@ namespace tables
   inline constexpr std::string_view commodity{"live.commodity"};
   inline constexpr std::string_view market_item{"live.market_item"};
   inline constexpr std::string_view mission{"mission"};
+  inline constexpr std::string_view mission_cargo{"mission_cargo"};
   inline constexpr std::string_view micro_resource{"live.micro_resource"};
   // sprzedaz mikrozasobow to zdarzenie journala, wiec odtwarzalna
   inline constexpr std::string_view micro_sale{"micro_sale"};
@@ -1061,7 +1062,13 @@ auto database_storage_t::create_database() -> expected_ec<void>
   if(auto res{sqlite::create_table<info::mission_t>(db_->db, "mission_id"sv, sql_iface::tables::mission)}; not res)
     [[unlikely]]
     return res;
-    
+
+  if(
+    auto res{sqlite::create_table<info::mission_cargo_t>(db_->db, "mission_id"sv, sql_iface::tables::mission_cargo)};
+    not res
+  ) [[unlikely]]
+    return res;
+
   if(auto res{sqlite::create_table<info::micro_resource_t>(db_->db, "name"sv, sql_iface::tables::micro_resource)};
      not res) [[unlikely]]
     return res;
@@ -1209,6 +1216,112 @@ auto database_storage_t::change_mission_status(
     mission_id
   )};
   return sqlite::execute_query_no_result(db_->db, query);
+  }
+
+auto database_storage_t::store(info::mission_cargo_t const & value) -> expected_ec<void>
+  {
+  // ponowne odtwarzanie journala trafia na te sama misje, wiec wpis ma byc jeden
+  return sqlite::insert_into<info::mission_cargo_t, true>(
+    db_->db, "mission_id"sv, sql_iface::tables::mission_cargo, value
+  );
+  }
+
+auto database_storage_t::load_cargo_needs() -> expected_ec<std::vector<info::cargo_need_t>>
+  {
+  return sqlite::select_from<info::cargo_need_t>(
+    db_->db,
+    std::format(
+      "(SELECT mc.commodity AS commodity, sum(mc.count) AS count"
+      " FROM {0} mc JOIN {1} m ON m.mission_id = mc.mission_id"
+      " WHERE m.status IN ('{2}','{3}') AND mc.commodity <> ''"
+      " GROUP BY mc.commodity ORDER BY count DESC)",
+      sql_iface::tables::mission_cargo,
+      sql_iface::tables::mission,
+      info::mission_status_e::accepted,
+      info::mission_status_e::redirected
+    ),
+    ""
+  );
+  }
+
+auto database_storage_t::load_supply_options() -> expected_ec<std::vector<info::supply_option_t>>
+  {
+  // slownik towarow i zapasy siedza w bazie live, misje w glownej - dlatego jedno zapytanie przez oba
+  return sqlite::select_from<info::supply_option_t>(
+    db_->db,
+    std::format(
+      "(SELECT i.market_id AS market_id,"
+      " coalesce(st.name,'') AS station,"
+      " coalesce(st.station_type,'') AS station_type,"
+      " coalesce(ss.name,'') AS system,"
+      " c.name AS commodity,"
+      " n.needed AS needed,"
+      " i.stock AS stock,"
+      " i.buy_price AS buy_price"
+      " FROM (SELECT mc.commodity AS commodity, sum(mc.count) AS needed"
+      "       FROM {0} mc JOIN {1} m ON m.mission_id = mc.mission_id"
+      "       WHERE m.status IN ('{2}','{3}') AND mc.commodity <> ''"
+      "       GROUP BY mc.commodity) n"
+      " JOIN {4} c ON lower(c.name) = lower(n.commodity)"
+      " JOIN {5} i ON i.commodity_id = c.id AND i.stock >= n.needed AND i.buy_price > 0"
+      " LEFT JOIN {6} st ON st.market_id = i.market_id"
+      " LEFT JOIN {7} ss ON ss.system_address = st.system_address)",
+      sql_iface::tables::mission_cargo,
+      sql_iface::tables::mission,
+      info::mission_status_e::accepted,
+      info::mission_status_e::redirected,
+      sql_iface::tables::commodity,
+      sql_iface::tables::market_item,
+      sql_iface::tables::station,
+      sql_iface::tables::star_system
+    ),
+    ""
+  );
+  }
+
+auto database_storage_t::load_trade_options(uint64_t market_id, unsigned limit, bool bring_here)
+  -> expected_ec<std::vector<info::trade_option_t>>
+  {
+  // rynek "here" to ten w ktorym stoimy, "other" to dowolny inny ktory kiedys widzielismy.
+  // kierunek decyduje tylko o tym, ktora strona kupuje a ktora sprzedaje
+  std::string_view const buy_side{bring_here ? "other" : "here"};
+  std::string_view const sell_side{bring_here ? "here" : "other"};
+  // kurs na jedna tone nie jest kursem - ponizej tego progu podpowiedz tylko zasmieca ekran
+  constexpr unsigned minimum_quantity{50u};
+
+  return sqlite::select_from<info::trade_option_t>(
+    db_->db,
+    std::format(
+      "(SELECT other.market_id AS market_id,"
+      " coalesce(st.name,'') AS station,"
+      " coalesce(ss.name,'') AS system,"
+      " c.name AS commodity,"
+      " {6}.buy_price AS buy_price,"
+      " {7}.sell_price AS sell_price,"
+      " {6}.stock AS stock,"
+      " {7}.demand AS demand"
+      " FROM {0} here"
+      " JOIN {0} other ON other.commodity_id = here.commodity_id AND other.market_id <> here.market_id"
+      " JOIN {1} c ON c.id = here.commodity_id"
+      " LEFT JOIN {2} st ON st.market_id = other.market_id"
+      " LEFT JOIN {3} ss ON ss.system_address = st.system_address"
+      " WHERE here.market_id = {4}"
+      "   AND {6}.stock >= {8} AND {6}.buy_price > 0"
+      "   AND {7}.demand >= {8} AND {7}.sell_price > {6}.buy_price"
+      " ORDER BY ({7}.sell_price - {6}.buy_price) * 1.0 / {6}.buy_price DESC"
+      " LIMIT {5})",
+      sql_iface::tables::market_item,
+      sql_iface::tables::commodity,
+      sql_iface::tables::station,
+      sql_iface::tables::star_system,
+      market_id,
+      limit,
+      buy_side,
+      sell_side,
+      minimum_quantity
+    ),
+    ""
+  );
   }
 
 auto database_storage_t::complete_mission(uint64_t mission_id, std::chrono::sys_seconds when, uint64_t reward)

@@ -4,6 +4,7 @@
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <format>
 #include <map>
@@ -41,6 +42,38 @@ constexpr uint32_t interesting_margin{500u};
 constexpr std::chrono::seconds faction_refresh{60};
 ///\brief rynek moze pojawic sie w kazdej chwili, gdy gracz go otworzy
 constexpr std::chrono::seconds market_refresh{5};
+///\brief misje dochodza rzadko, a zapytanie idzie przez obie bazy
+constexpr std::chrono::seconds supply_refresh{10};
+constexpr size_t listed_sources{2u};
+constexpr unsigned listed_trades{3u};
+
+///\brief port w kosmosie ma najwiecej towaru, osada najmniej - taka jest kolejnosc oplacalnosci
+[[nodiscard]]
+auto station_rank(std::string_view station_type) -> int
+  {
+  using namespace std::string_view_literals;
+  constexpr std::array space{
+    "Coriolis"sv,
+    "Orbis"sv,
+    "Ocellus"sv,
+    "Dodec"sv,
+    "AsteroidBase"sv,
+    "MegaShip"sv,
+    "Outpost"sv,
+    "SpaceConstructionDepot"sv
+  };
+  constexpr std::array planetary{
+    "CraterPort"sv, "CraterOutpost"sv, "SurfaceStation"sv, "PlanetaryConstructionDepot"sv, "DockablePlanetStation"sv
+  };
+
+  if(std::ranges::contains(space, station_type))
+    return 0;
+  if(std::ranges::contains(planetary, station_type))
+    return 1;
+  if(station_type == "OnFootSettlement")
+    return 2;
+  return 3;
+  }
 
 ///\brief te same barwy co w oknie reputacji - czerwony federacja, niebieski imperium, zielony alians
 [[nodiscard]]
@@ -549,6 +582,144 @@ auto overlay_feed_t::refresh_market(uint64_t market_id) -> void
         }
       );
     }
+
+  // srednia galaktyczna mowi czy cena jest dobra, ale zarobek bierze sie z roznicy miedzy rynkami
+  auto const add_trades{[this](bool bring_here, char const * heading)
+                        {
+                          auto trades{db_.load_trade_options(market_id_, listed_trades, bring_here)};
+                          if(not trades or trades->empty())
+                            return;
+
+                          market_lines_.push_back(overlay::line_t{.text = heading, .color = colour_plain});
+
+                          for(info::trade_option_t const & trade: *trades)
+                            {
+                            auto const margin{static_cast<double>(trade.sell_price - trade.buy_price)};
+                            market_lines_.push_back(
+                              overlay::line_t{
+                                .text = std::format(
+                                  "  {}  +{} Cr/t  +{:.0f}%",
+                                  trade.commodity,
+                                  format_credits_value(static_cast<uint32_t>(margin)),
+                                  margin * 100.0 / double(trade.buy_price)
+                                ),
+                                .color = colour_first
+                              }
+                            );
+                            market_lines_.push_back(
+                              overlay::line_t{
+                                .text = std::format(
+                                  "    {} {}{}{}  {}",
+                                  bring_here ? "from" : "to",
+                                  trade.station,
+                                  trade.system.empty() ? "" : ", ",
+                                  trade.system,
+                                  bring_here ? std::format("{} in stock", format_credits_value(trade.stock))
+                                             : std::format("demand {}", format_credits_value(trade.demand))
+                                ),
+                                .color = colour_plain
+                              }
+                            );
+                            }
+                        }};
+
+  add_trades(true, "bring here, best known:");
+  add_trades(false, "take from here, best known:");
+  }
+
+auto overlay_feed_t::refresh_supply() -> void
+  {
+  auto const now{std::chrono::steady_clock::now()};
+  if(now - supply_loaded_ < supply_refresh)
+    return;
+
+  supply_loaded_ = now;
+  supply_lines_.clear();
+
+  auto needs{db_.load_cargo_needs()};
+  if(not needs or needs->empty())
+    return;
+
+  auto options{db_.load_supply_options()};
+  if(not options)
+    return;
+
+  // jedno miejsce na kilka towarow oszczedza caly kurs, wiec liczy sie pokrycie, dopiero potem rodzaj portu
+  struct place_t
+    {
+    std::string station;
+    std::string system;
+    int rank{};
+    std::vector<info::supply_option_t const *> items;
+    };
+
+  std::map<uint64_t, place_t> places;
+  for(info::supply_option_t const & option: *options)
+    {
+    place_t & place{places[option.market_id]};
+    if(place.items.empty())
+      {
+      place.station = option.station.empty() ? std::format("market {}", option.market_id) : option.station;
+      place.system = option.system;
+      place.rank = station_rank(option.station_type);
+      }
+    place.items.push_back(&option);
+    }
+
+  std::vector<place_t const *> ranked;
+  ranked.reserve(places.size());
+  for(auto const & [market_id, place]: places)
+    ranked.push_back(&place);
+
+  std::ranges::sort(
+    ranked,
+    [](place_t const * left, place_t const * right)
+    {
+      if(left->items.size() != right->items.size())
+        return left->items.size() > right->items.size();
+      return left->rank < right->rank;
+    }
+  );
+
+  supply_lines_.push_back(overlay::line_t{.text = "mission cargo:", .color = colour_heading});
+
+  for(info::cargo_need_t const & need: *needs)
+    {
+    bool const known{std::ranges::any_of(
+      *options, [&need](info::supply_option_t const & option) { return option.commodity == need.commodity; }
+    )};
+
+    supply_lines_.push_back(
+      overlay::line_t{
+        // brak zrodla to tez informacja - znaczy szukaj sam, my tego rynku nie widzielismy
+        .text = std::format("  {} x{}{}", need.commodity, need.count, known ? "" : "   no source known"),
+        .color = known ? colour_plain : colour_alert
+      }
+    );
+    }
+
+  for(place_t const * place: ranked | std::views::take(listed_sources))
+    {
+    supply_lines_.push_back(
+      overlay::line_t{
+        .text = std::format("{}{}{}", place->station, place->system.empty() ? "" : "  ", place->system),
+        .color = colour_first
+      }
+    );
+
+    for(info::supply_option_t const * item: place->items | std::views::take(listed_commodities))
+      supply_lines_.push_back(
+        overlay::line_t{
+          .text = std::format(
+            "  {}  {} in stock  {} Cr",
+            item->commodity,
+            format_credits_value(item->stock),
+            format_credits_value(item->buy_price)
+          ),
+          .color = colour_plain
+        }
+      );
+    }
   }
 
 auto overlay_feed_t::publish(current_state_t const & state) -> void
@@ -558,6 +729,7 @@ auto overlay_feed_t::publish(current_state_t const & state) -> void
 
   refresh_factions(state);
   refresh_market(state.settlement_market_id_);
+  refresh_supply();
 
   overlay::frame_t frame{};
 
@@ -581,6 +753,11 @@ auto overlay_feed_t::publish(current_state_t const & state) -> void
   if(not market_lines_.empty())
     frame.blocks.push_back(
       overlay::block_t{.corner = overlay::corner_e::top_right, .ttl_ms = block_ttl_ms, .lines = market_lines_}
+    );
+
+  if(not supply_lines_.empty())
+    frame.blocks.push_back(
+      overlay::block_t{.corner = overlay::corner_e::top_right, .ttl_ms = block_ttl_ms, .lines = supply_lines_}
     );
 
   if(auto cargo{describe_cargo(state.cargo)}; not cargo.empty())
