@@ -25,6 +25,60 @@ namespace fs = std::filesystem;
 namespace po = boost::program_options;
 
 
+
+///\brief jak pozno po zapowiedzi wojna ruszala - z historii wszystkich konfliktow w bazie
+///
+/// Gra nie zapisuje w journalu momentu, w ktorym wojna sie zaczyna; w panelu wsparcia frakcji widac
+/// to od razu, w logach dopiero przy nastepnym odczycie systemu. Dlatego kazdy wiersz jest
+/// przedzialem, a nie chwila - a osady wchodza w stan wojny jeszcze pozniej niz sam konflikt
+void print_war_onsets(database_storage_t & db)
+  {
+  auto onsets{db.load_war_onsets()};
+  if(not onsets)
+    {
+    std::println(stderr, "nie udalo sie odczytac poczatkow wojen");
+    return;
+    }
+
+  std::vector<double> lags;
+  lags.reserve(onsets->size());
+  for(info::war_onset_t const & onset: *onsets)
+    lags.push_back(
+      double(std::chrono::duration_cast<std::chrono::minutes>(onset.active_first - onset.pending_last).count()) / 60.0
+    );
+
+  std::println("\n=== POCZATKI WOJEN === {} konfliktow z zapisanym przejsciem pending -> active", onsets->size());
+  if(not lags.empty())
+    {
+    std::vector<double> sorted{lags};
+    std::ranges::sort(sorted);
+    std::println(
+      "przedzial niepewnosci: najkrotszy {:.1f}h, mediana {:.1f}h, najdluzszy {:.1f}h"
+      "  (gorne ograniczenie - zawiera tez czas, w ktorym nas tam nie bylo)",
+      sorted.front(),
+      sorted[sorted.size() / 2u],
+      sorted.back()
+    );
+    }
+
+  std::println(
+    "{:<24}{:<10}{:<40}{:<16}{:<16}{:>8}", "system", "typ", "strony", "zapowiedziana", "juz trwala", "okno"
+  );
+  for(size_t ix{}; ix < onsets->size() and ix < 25u; ++ix)
+    {
+    info::war_onset_t const & onset{(*onsets)[ix]};
+    std::println(
+      "{:<24}{:<10}{:<40}{:<16}{:<16}{:>7.1f}h",
+      onset.system_name.substr(0, 23),
+      onset.war_type.substr(0, 9),
+      std::format("{} / {}", onset.faction1, onset.faction2).substr(0, 39),
+      std::format("{:%d.%m %H:%M}", onset.pending_last),
+      std::format("{:%d.%m %H:%M}", onset.active_first),
+      lags[ix]
+    );
+    }
+  }
+
 ///\brief praca w plusach zestawiona z tym, co dala - doba BGS po dobie
 ///
 /// Przelicznik plusow na punkt procentowy liczony jest osobno dla kazdego systemu i nigdzie nie
@@ -209,7 +263,8 @@ auto main(int argc, char ** argv) -> int
     "wypisz zaobserwowane fale przeliczen z istniejacej bazy zamiast importowac, za tyle ostatnich dni"
   )("bgs",
     po::value<uint32_t>()->implicit_value(14),
-    "wypisz prace w plusach zestawiona z ruchem wplywow, doba po dobie, za tyle ostatnich dni");
+    "wypisz prace w plusach zestawiona z ruchem wplywow, doba po dobie, za tyle ostatnich dni"
+  )("wars", "wypisz jak pozno po zapowiedzi wojny naprawde ruszaly");
 
   po::variables_map vm;
   try
@@ -229,7 +284,7 @@ auto main(int argc, char ** argv) -> int
     return 0;
     }
 
-  if(vm.count("ticks") or vm.count("bgs"))
+  if(vm.count("ticks") or vm.count("bgs") or vm.count("wars"))
     {
     database_import_state_t::state_t state{"ehtdb.sqlite"};
     if(not state.db_.open(storage_mode_e::live))
@@ -238,6 +293,8 @@ auto main(int argc, char ** argv) -> int
       print_tick_history(state.db_, vm["ticks"].as<uint32_t>());
     if(vm.count("bgs"))
       print_bgs_effort(state.db_, vm["bgs"].as<uint32_t>());
+    if(vm.count("wars"))
+      print_war_onsets(state.db_);
     return 0;
     }
 

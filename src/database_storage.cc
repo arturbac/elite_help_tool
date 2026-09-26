@@ -2233,6 +2233,29 @@ namespace
 /// luz. Z drugiej strony kolejna przychodzi zwykle po dobie, a w weekend po dwoch, wiec prog
 /// w okolicach polowy doby rozdziela je pewnie
 constexpr std::chrono::hours same_wave_gap{8};
+
+///\brief o tyle przesuwamy poczatek fali wstecz wzgledem tego, co zobaczylismy
+///
+/// Odczyt ze stara wartoscia nie dowodzi, ze serwer jeszcze nie przeliczyl - dowodzi tylko, ze do
+/// nas jeszcze nie doszlo. Widac to w danych: okna potrafia zaczynac sie rowno o pelnej albo
+/// polowie godziny, czyli tam, gdzie tick najpewniej naprawde wypadl. Przy oddawaniu misji blad
+/// w te strone jest bezpieczny - lepiej uznac, ze doba zamknela sie wczesniej, niz oddac za pozno
+constexpr std::chrono::minutes client_lag{5};
+
+///\brief pierwszy tydzien po kolonizacji, w ktorym wplywy chodza wlasnym rytmem
+///
+/// Swiezo skolonizowany system ma wplywy ustawione z gory i do pierwszego tygodniowego przeliczenia
+/// albo stoja, albo skacza o ulamek punktu na frakcji glownej - w obu wypadkach nie jest to slad
+/// dobowego ticku, wiec takie systemy wypadaja z wykrywania na ten czas
+constexpr std::string_view settled_colony_clause{
+  " AND (( SELECT min(fi.timestamp) FROM galaxy.faction_influence fi"
+  "        WHERE fi.system_address = tick_observation.system_address ) IS NULL"
+  "      OR tick_observation.window_end >="
+  "         ( SELECT strftime('%Y-%m-%dT%H:%M:%SZ', min(fi.timestamp), '+7 days')"
+  "           FROM galaxy.faction_influence fi"
+  "           WHERE fi.system_address = tick_observation.system_address ))"
+};
+
   }  // namespace
 
 auto database_storage_t::load_recent_ticks(info::tick_kind_e kind, uint32_t within_days)
@@ -2248,11 +2271,12 @@ auto database_storage_t::load_recent_ticks(info::tick_kind_e kind, uint32_t with
       // o porze przeliczenia, a rozbija fale na osobne pozycje - do klastrowania nie wchodzi
       " WHERE kind='{0}' AND (julianday(window_end) - julianday(window_begin)) * 24 <= 3"
       " AND window_end >="
-      " (SELECT strftime('%Y-%m-%dT%H:%M:%SZ', max(window_end), '-{1} days') FROM {2} WHERE kind='{0}')"
+      " (SELECT strftime('%Y-%m-%dT%H:%M:%SZ', max(window_end), '-{1} days') FROM {2} WHERE kind='{0}'){3}"
       " ORDER BY window_end ASC",
       simple_enum::enum_name(kind),
       within_days,
-      sql_iface::tables::tick_observation
+      sql_iface::tables::tick_observation,
+      settled_colony_clause
     )
   )};
   if(not rows) [[unlikely]]
@@ -2283,7 +2307,7 @@ auto database_storage_t::load_recent_ticks(info::tick_kind_e kind, uint32_t with
 
     facts.push_back(info::tick_fact_t{
       .kind = kind,
-      .start_begin = first.window_begin,
+      .start_begin = first.window_begin - client_lag,
       .start_end = first.window_end,
       .end_begin = last.window_begin,
       .end_end = last.window_end,
@@ -2308,12 +2332,13 @@ auto database_storage_t::load_system_ticks(uint64_t system_address, info::tick_k
       " WHERE kind='{0}' AND system_address={1}"
       " AND (julianday(window_end) - julianday(window_begin)) * 24 <= 3"
       " AND window_end >="
-      " (SELECT strftime('%Y-%m-%dT%H:%M:%SZ', max(window_end), '-{2} days') FROM {3} WHERE kind='{0}')"
+      " (SELECT strftime('%Y-%m-%dT%H:%M:%SZ', max(window_end), '-{2} days') FROM {3} WHERE kind='{0}'){4}"
       " ORDER BY window_end DESC",
       simple_enum::enum_name(kind),
       system_address,
       within_days,
-      sql_iface::tables::tick_observation
+      sql_iface::tables::tick_observation,
+      settled_colony_clause
     )
   );
   }
@@ -2501,6 +2526,37 @@ auto database_storage_t::load_bgs_effort(uint32_t within_days, uint64_t system_a
   );
 
   return result;
+  }
+
+auto database_storage_t::load_war_onsets() -> expected_ec<std::vector<info::war_onset_t>>
+  {
+  // oba znaczniki sa ograniczeniami z jednej strony: wojna ruszyla po ostatnim "pending"
+  // i nie pozniej niz pierwszy "active", a ile z tego to opoznienie gry, a ile nasza nieobecnosc,
+  // widac dopiero po szerokosci tego przedzialu
+  return sqlite::select_from<info::war_onset_t>(
+    db_->db,
+    std::format(
+      // te same frakcje bija sie ze soba wiecej niz raz, wiec kazda zapowiedz szuka najblizszego
+      // po niej przejscia w stan wojny, a nie najwczesniejszego w calej historii tej pary
+      "(SELECT system_address, system_name, war_type, faction1, faction2,"
+      " max(pending_last) AS pending_last, active_first FROM ("
+      "   SELECT p.system_address AS system_address, coalesce(ss.name, '') AS system_name,"
+      "   p.war_type AS war_type, p.faction1 AS faction1, p.faction2 AS faction2,"
+      "   p.timestamp AS pending_last,"
+      "   ( SELECT min(a.timestamp) FROM {0} a"
+      "     WHERE a.system_address = p.system_address AND a.faction1 = p.faction1"
+      "       AND a.faction2 = p.faction2 AND a.status = 'active' AND a.timestamp > p.timestamp"
+      "   ) AS active_first"
+      "   FROM {0} p LEFT JOIN {1} ss ON ss.system_address = p.system_address"
+      "   WHERE p.status = 'pending')"
+      " WHERE active_first IS NOT NULL"
+      " GROUP BY system_address, faction1, faction2, active_first"
+      " ORDER BY active_first DESC)",
+      sql_iface::tables::system_conflict,
+      sql_iface::tables::star_system
+    ),
+    ""
+  );
   }
 
 auto database_storage_t::load_war_countdown(uint64_t system_address)

@@ -42,6 +42,31 @@ void note_tick(
     spdlog::error("failed to store tick observation for {}", system_address);
   }
 
+///\brief czy ktoras z wojen w tym systemie wlasnie sie rozstrzygnela
+///
+/// Koniec wojny rozdziela udzialy pokonanej frakcji od razu, poza dobowym przeliczeniem, wiec
+/// zmiana wplywow widziana w tym samym odczycie nie jest sladem ticku i nie wolno jej tak liczyc
+[[nodiscard]]
+auto war_settled_now(
+  database_storage_t & db, uint64_t system_address, std::span<events::conflict_t const> conflicts
+) -> bool
+  {
+  for(events::conflict_t const & conflict: conflicts)
+    {
+    auto const record{info::to_conflict(system_address, {}, conflict)};
+
+    // pusty status znaczy "juz po wojnie"; interesuje nas tylko przejscie w ten stan
+    if(not record.status.empty())
+      continue;
+
+    auto last{db.last_conflict(system_address, record.faction1, record.faction2)};
+    if(last and *last and not (*last)->status.empty())
+      return true;
+    }
+
+  return false;
+  }
+
 ///\brief rejestruje influence frakcji w systemie, tylko gdy zmienila sie wzgledem ostatniego wpisu
 void store_influence(
   database_storage_t & db,
@@ -49,7 +74,8 @@ void store_influence(
   uint64_t system_address,
   int64_t faction_oid,
   events::faction_info_t const & event_faction,
-  std::optional<std::chrono::sys_seconds> previously_seen
+  std::optional<std::chrono::sys_seconds> previously_seen,
+  bool war_settled
 )
   {
   if(faction_oid == -1) [[unlikely]]
@@ -68,7 +94,7 @@ void store_influence(
 
   // sam wplyw, bez stanow - stany potrafia sie zmienic poza tickiem, a wplyw przelicza sie wylacznie
   // przy nim, wiec tylko on wyznacza okno
-  if(*last and (*last)->influence != record.influence)
+  if(*last and (*last)->influence != record.influence and not war_settled)
     note_tick(db, info::tick_kind_e::influence, system_address, previously_seen, timestamp);
 
   if(
@@ -118,7 +144,8 @@ void process_factions(
   uint64_t system_address,
   std::span<events::faction_info_t> factions,
   bool personal,
-  std::optional<std::chrono::sys_seconds> previously_seen
+  std::optional<std::chrono::sys_seconds> previously_seen,
+  bool war_settled
 )
   {
   for(events::faction_info_t & f: factions)
@@ -150,7 +177,7 @@ void process_factions(
           critical_abort("failed to update faction data for {}", new_faction_data.name);
         }
       }
-    store_influence(db, timestamp, system_address, new_faction_data.oid, f, previously_seen);
+    store_influence(db, timestamp, system_address, new_faction_data.oid, f, previously_seen, war_settled);
     }
   }
   }  // namespace
@@ -247,10 +274,14 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
         if(not previously_seen) [[unlikely]]
           critical_abort("failed to read last visit of {}", event.SystemAddress);
 
+        // rozstrzygniecie wojny trzeba znac zanim policzymy wplywy, bo to ono, a nie tick,
+        // tlumaczy zmiane widziana w tym samym odczycie
+        bool const war_settled{war_settled_now(state.db_, event.SystemAddress, event.Conflicts)};
+
         // add/update factions database
         if(not event.Factions.empty())
           process_factions(
-            state.db_, timestamp, event.SystemAddress, event.Factions, state.personal, *previously_seen
+            state.db_, timestamp, event.SystemAddress, event.Factions, state.personal, *previously_seen, war_settled
           );
         if(not event.Conflicts.empty())
           process_conflicts(state.db_, timestamp, event.SystemAddress, event.Conflicts, *previously_seen);
@@ -279,10 +310,14 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
         if(not previously_seen) [[unlikely]]
           critical_abort("failed to read last visit of {}", event.SystemAddress);
 
+        // rozstrzygniecie wojny trzeba znac zanim policzymy wplywy, bo to ono, a nie tick,
+        // tlumaczy zmiane widziana w tym samym odczycie
+        bool const war_settled{war_settled_now(state.db_, event.SystemAddress, event.Conflicts)};
+
         // add/update factions database
         if(not event.Factions.empty())
           process_factions(
-            state.db_, timestamp, event.SystemAddress, event.Factions, state.personal, *previously_seen
+            state.db_, timestamp, event.SystemAddress, event.Factions, state.personal, *previously_seen, war_settled
           );
         if(not event.Conflicts.empty())
           process_conflicts(state.db_, timestamp, event.SystemAddress, event.Conflicts, *previously_seen);

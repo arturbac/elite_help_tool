@@ -182,6 +182,10 @@ struct database_storage_t
   auto load_bgs_effort(uint32_t within_days, uint64_t system_address)
     -> expected_ec<std::vector<info::bgs_effort_t>>;
 
+  ///\brief zapowiedziane wojny wraz z chwila, w ktorej zobaczylismy je juz jako trwajace
+  [[nodiscard]]
+  auto load_war_onsets() -> expected_ec<std::vector<info::war_onset_t>>;
+
   ///\brief ile jeszcze przeliczen wojny do rozstrzygniecia kazdego trwajacego konfliktu
   [[nodiscard]]
   auto load_war_countdown(uint64_t system_address) -> expected_ec<std::vector<info::war_countdown_t>>;

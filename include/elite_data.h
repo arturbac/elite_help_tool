@@ -449,6 +449,25 @@ struct bgs_effort_t
   std::optional<double> influence_after;
   };
 
+///\brief jak pozno po zapowiedzi wojna naprawde ruszyla
+///
+/// Panel wsparcia frakcji pokazuje przejscie w stan wojny od razu, ale do journala nie trafia nic -
+/// jedynym sladem jest status konfliktu przy kolejnym odczycie systemu. Dlatego oba znaczniki sa
+/// ograniczeniami, nie chwilami: wojna ruszyla gdzies miedzy nimi, a osady wchodza w stan wojny
+/// jeszcze pozniej. Rozrzut z wielu wojen mowi, na kiedy planowac wyprawe
+struct war_onset_t
+  {
+  uint64_t system_address;
+  std::string system_name;
+  std::string war_type;
+  std::string faction1;
+  std::string faction2;
+  ///\brief ostatni odczyt, w ktorym wojna byla jeszcze tylko zapowiedziana
+  std::chrono::sys_seconds pending_last;
+  ///\brief pierwszy, w ktorym juz trwala
+  std::chrono::sys_seconds active_first;
+  };
+
 ///\brief ile jeszcze zostalo trwajacemu konfliktowi
 ///
 /// Konflikt rozstrzyga sie, gdy jedna ze stron uzbiera cztery wygrane dni - w danych Artura konczy
