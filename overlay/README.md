@@ -60,6 +60,18 @@ dostaje je tak samo jak launcher. Launcher nie ma łańcucha wymiany, więc wars
 Pas boczny ma znaczenie na panoramicznych ekranach: przy 8000 px środek należy do gry, a overlay
 mieści się w ~1600 px z każdej strony. Dłuższy tekst zawija się w pasie zamiast wjeżdżać na środek.
 
+## Sprawdzenie widoczności w kontenerze Steam
+
+Gra biegnie w kontenerze, który nie widzi katalogu budowania. Że loader w środku znajduje warstwę,
+sprawdza się bez uruchamiania gry:
+
+```
+ENABLE_EHT_OVERLAY=1 ~/.local/share/Steam/steamapps/common/SteamLinuxRuntime_4/run --   vulkaninfo --summary | grep EHT
+```
+
+Wiersz `VK_LAYER_EHT_overlay` na liście warstw oznacza, że ścieżka pod `$HOME` działa, a biblioteka
+jest zgodna z biblioteką standardową C w kontenerze.
+
 ## Sprawdzenie bez gry
 
 ```
