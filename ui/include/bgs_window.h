@@ -52,6 +52,47 @@ public:
   auto update_data(std::vector<info::bgs_effort_t> && new_data) -> void;
   };
 
+///\brief jak pozno po zapowiedzi wojny naprawde ruszaly
+///
+/// Oba znaczniki sa ograniczeniami, nie chwilami: przejscie w stan wojny nie trafia do journala
+/// wcale, wiec jedynym sladem jest status konfliktu przy nastepnym odczycie systemu. Szerokosc
+/// okna zawiera zatem takze czas, w ktorym nas tam nie bylo
+class war_onset_model_t final : public QAbstractTableModel
+  {
+  Q_OBJECT
+  enum struct column_e : int
+    {
+    system,
+    war_type,
+    sides,
+    pending_last,
+    active_first,
+    window,
+    column_max
+    };
+
+public:
+  static constexpr int sort_role = Qt::UserRole + 1;
+
+  std::vector<info::war_onset_t> rows_{};
+
+  explicit war_onset_model_t(QObject * parent);
+
+  [[nodiscard]]
+  auto rowCount(QModelIndex const & parent = QModelIndex()) const -> int override;
+
+  [[nodiscard]]
+  auto columnCount(QModelIndex const & = QModelIndex()) const -> int override;
+
+  [[nodiscard]]
+  auto data(QModelIndex const & index, int role = Qt::DisplayRole) const -> QVariant override;
+
+  [[nodiscard]]
+  auto headerData(int section, Qt::Orientation orientation, int role) const -> QVariant override;
+
+  auto update_data(std::vector<info::war_onset_t> && new_data) -> void;
+  };
+
 ///\brief okno pracy BGS - ile plusow oddano i co z tego wyszlo
 class bgs_window_t final : public QMdiSubWindow
   {
@@ -67,6 +108,11 @@ public:
   bgs_effort_model_t * model_{};
   QTableView * view_{};
 
+  ///\brief rozrzut opoznienia zapowiedzi wojny - najkrotszy, mediana, najdluzszy
+  QLabel * war_header_{};
+  war_onset_model_t * war_model_{};
+  QTableView * war_view_{};
+
   explicit bgs_window_t(std::string db_path, QWidget * parent = nullptr);
 
   ///\brief wolane gdy stan gry sie zmienil
@@ -78,4 +124,5 @@ private:
   ///\brief uzupelnia liste systemow tymi, w ktorych naprawde pracowalismy
   auto reload_systems() -> void;
   auto show_effort() -> void;
+  auto show_wars() -> void;
   };

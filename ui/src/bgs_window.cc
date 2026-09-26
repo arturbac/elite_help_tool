@@ -4,6 +4,7 @@
 #include <qgroupbox.h>
 #include <qheaderview.h>
 #include <qsortfilterproxymodel.h>
+#include <qtabwidget.h>
 #include <spdlog/spdlog.h>
 
 namespace
@@ -134,6 +135,96 @@ auto bgs_effort_model_t::update_data(std::vector<info::bgs_effort_t> && new_data
   endResetModel();
   }
 
+war_onset_model_t::war_onset_model_t(QObject * parent) : QAbstractTableModel(parent) {}
+
+auto war_onset_model_t::rowCount(QModelIndex const & parent) const -> int
+  {
+  return parent.isValid() ? 0 : int(rows_.size());
+  }
+
+auto war_onset_model_t::columnCount(QModelIndex const &) const -> int { return int(column_e::column_max); }
+
+auto war_onset_model_t::data(QModelIndex const & index, int role) const -> QVariant
+  {
+  if(not index.isValid() or index.row() >= int(rows_.size()))
+    return {};
+
+  info::war_onset_t const & row{rows_[size_t(index.row())]};
+  auto const column{column_e(index.column())};
+
+  auto const window_hours = [&]
+  {
+    return double(std::chrono::duration_cast<std::chrono::minutes>(row.active_first - row.pending_last).count())
+           / 60.0;
+  };
+
+  if(role == Qt::DisplayRole)
+    switch(column)
+      {
+      case column_e::system:   return QString::fromStdString(row.system_name);
+      case column_e::war_type: return QString::fromStdString(row.war_type);
+      case column_e::sides:    return QString::fromStdString(std::format("{} / {}", row.faction1, row.faction2));
+      case column_e::pending_last:
+        return QString::fromStdString(std::format("{:%d.%m.%Y %H:%M}", row.pending_last));
+      case column_e::active_first:
+        return QString::fromStdString(std::format("{:%d.%m.%Y %H:%M}", row.active_first));
+      case column_e::window:     return QString::fromStdString(std::format("{:.1f}h", window_hours()));
+      case column_e::column_max: break;
+      }
+
+  if(role == sort_role)
+    switch(column)
+      {
+      case column_e::system:   return QString::fromStdString(row.system_name);
+      case column_e::war_type: return QString::fromStdString(row.war_type);
+      case column_e::sides:    return QString::fromStdString(std::format("{} / {}", row.faction1, row.faction2));
+      case column_e::pending_last:
+        return qlonglong(row.pending_last.time_since_epoch().count());
+      case column_e::active_first:
+        return qlonglong(row.active_first.time_since_epoch().count());
+      case column_e::window:     return window_hours();
+      case column_e::column_max: break;
+      }
+
+  if(role == Qt::ToolTipRole)
+    return QString{
+      "Wojna ruszyla gdzies w tym oknie - gra nie zapisuje tego momentu nigdzie.\n"
+      "Szerokosc okna zawiera takze czas, w ktorym nie bylo nas w systemie,\n"
+      "a osady wchodza w stan wojny jeszcze pozniej niz sam konflikt."
+    };
+
+  if(role == Qt::TextAlignmentRole and column == column_e::window)
+    return int(Qt::AlignRight | Qt::AlignVCenter);
+
+  return {};
+  }
+
+auto war_onset_model_t::headerData(int section, Qt::Orientation orientation, int role) const -> QVariant
+  {
+  if(role != Qt::DisplayRole or orientation != Qt::Horizontal)
+    return {};
+
+  switch(column_e(section))
+    {
+    case column_e::system:       return QString{"System"};
+    case column_e::war_type:     return QString{"Typ"};
+    case column_e::sides:        return QString{"Strony"};
+    case column_e::pending_last: return QString{"Jeszcze zapowiedziana"};
+    case column_e::active_first: return QString{"Juz trwala"};
+    case column_e::window:       return QString{"Okno"};
+    case column_e::column_max:   break;
+    }
+
+  return {};
+  }
+
+auto war_onset_model_t::update_data(std::vector<info::war_onset_t> && new_data) -> void
+  {
+  beginResetModel();
+  rows_ = std::move(new_data);
+  endResetModel();
+  }
+
 bgs_window_t::bgs_window_t(std::string db_path, QWidget * parent) : QMdiSubWindow(parent), db_{db_path}
   {
   if(auto res{db_.open()}; not res)
@@ -165,29 +256,70 @@ auto bgs_window_t::setup_ui() -> void
 
   tick_header_ = new QLabel(central_widget);
   tick_header_->setWordWrap(true);
-  layout->addWidget(tick_header_);
 
   model_ = new bgs_effort_model_t(this);
   auto * proxy = new QSortFilterProxyModel(this);
   proxy->setSourceModel(model_);
   proxy->setSortRole(bgs_effort_model_t::sort_role);
 
-  view_ = new QTableView(central_widget);
+  auto * tabs = new QTabWidget(central_widget);
+
+  // --- praca w plusach ---
+  auto * effort_page = new QWidget(tabs);
+  auto * effort_layout = new QVBoxLayout(effort_page);
+  effort_layout->addWidget(tick_header_);
+
+  view_ = new QTableView(effort_page);
   view_->setModel(proxy);
   view_->setSortingEnabled(true);
   view_->setSelectionBehavior(QAbstractItemView::SelectRows);
   view_->verticalHeader()->setVisible(false);
   view_->horizontalHeader()->setStretchLastSection(false);
   view_->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
-  layout->addWidget(view_, 1);
+  effort_layout->addWidget(view_, 1);
+  tabs->addTab(effort_page, "Praca");
 
+  // --- kiedy wojny naprawde ruszaly ---
+  auto * war_page = new QWidget(tabs);
+  auto * war_layout = new QVBoxLayout(war_page);
+
+  war_header_ = new QLabel(war_page);
+  war_header_->setWordWrap(true);
+  war_layout->addWidget(war_header_);
+
+  war_model_ = new war_onset_model_t(this);
+  auto * war_proxy = new QSortFilterProxyModel(this);
+  war_proxy->setSourceModel(war_model_);
+  war_proxy->setSortRole(war_onset_model_t::sort_role);
+
+  war_view_ = new QTableView(war_page);
+  war_view_->setModel(war_proxy);
+  war_view_->setSortingEnabled(true);
+  war_view_->setSelectionBehavior(QAbstractItemView::SelectRows);
+  war_view_->verticalHeader()->setVisible(false);
+  war_view_->horizontalHeader()->setStretchLastSection(false);
+  war_view_->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
+  war_layout->addWidget(war_view_, 1);
+  tabs->addTab(war_page, "Poczatki wojen");
+
+  layout->addWidget(tabs, 1);
   setWidget(central_widget);
 
   connect(period_combo_, &QComboBox::currentIndexChanged, this, [this](int) { show_effort(); });
-  connect(system_combo_, &QComboBox::currentIndexChanged, this, [this](int) { show_effort(); });
+  connect(
+    system_combo_,
+    &QComboBox::currentIndexChanged,
+    this,
+    [this](int)
+    {
+      show_effort();
+      show_wars();
+    }
+  );
 
   reload_systems();
   show_effort();
+  show_wars();
   }
 
 auto bgs_window_t::reload_systems() -> void
@@ -245,8 +377,49 @@ auto bgs_window_t::show_effort() -> void
   tick_header_->setText(QString::fromStdString(header));
   }
 
+auto bgs_window_t::show_wars() -> void
+  {
+  auto onsets{db_.load_war_onsets()};
+  if(not onsets)
+    {
+    spdlog::error("bgs window: failed to load war onsets");
+    return;
+    }
+
+  // okres nie zaweza tej zakladki - rozrzut liczy sie tym pewniej, im wiecej wojen go zlozylo,
+  // a wybrany system owszem, bo o niego zwykle chodzi przy planowaniu wyprawy
+  if(auto const chosen{system_combo_->currentData().toULongLong()}; chosen != 0u)
+    std::erase_if(*onsets, [chosen](info::war_onset_t const & row) { return row.system_address != chosen; });
+
+  std::vector<double> windows;
+  windows.reserve(onsets->size());
+  for(info::war_onset_t const & row: *onsets)
+    windows.push_back(
+      double(std::chrono::duration_cast<std::chrono::minutes>(row.active_first - row.pending_last).count()) / 60.0
+    );
+
+  std::string header{"brak wojen z zapisanym przejsciem z zapowiedzi w stan wojny"};
+  if(not windows.empty())
+    {
+    std::ranges::sort(windows);
+    header = std::format(
+      "{} wojen z calej zapisanej historii | okno najkrotsze {:.1f}h, mediana {:.1f}h, najdluzsze {:.1f}h"
+      " | to gorne ograniczenia - zawieraja tez czas, w ktorym nas tam nie bylo,"
+      " a osady wchodza w stan wojny jeszcze pozniej",
+      windows.size(),
+      windows.front(),
+      windows[windows.size() / 2u],
+      windows.back()
+    );
+    }
+
+  war_header_->setText(QString::fromStdString(header));
+  war_model_->update_data(std::move(*onsets));
+  }
+
 auto bgs_window_t::refresh_ui() -> void
   {
   reload_systems();
   show_effort();
+  show_wars();
   }
