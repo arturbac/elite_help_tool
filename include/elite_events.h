@@ -951,6 +951,13 @@ struct docked_t
   std::string StationGovernment_Localised;
   };
 
+///\brief odlot z ladowiska - od tej chwili rynek tego miejsca przestaje nas dotyczyc
+struct undocked_t
+  {
+  uint64_t MarketID;
+  std::string StationName;
+  };
+
 ///\brief event Market z journala - niesie tylko naglowek, zawartosc idzie do Market.json
 struct market_t
   {
@@ -1050,6 +1057,7 @@ using event_holder_t = std::variant<
   fss_body_signals_t,
   fss_signal_discovered_t,
   market_t,
+  undocked_t,
   docked_t,
   sell_micro_resources_t,
   approach_settlement_t,

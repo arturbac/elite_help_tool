@@ -409,6 +409,9 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           }
         else if constexpr(std::same_as<T, events::supercruise_entry_t>)
           settlement_market_id_ = 0;
+        // odlot z ladowiska konczy nasza obecnosc w tym miejscu tak samo jak wejscie w supercruise
+        else if constexpr(std::same_as<T, events::undocked_t>)
+          settlement_market_id_ = 0;
         else if constexpr(std::same_as<T, events::backpack_change_t>)
           {
           for(events::backpack_item_t const & item: event.Added)

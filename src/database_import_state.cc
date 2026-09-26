@@ -473,6 +473,9 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
         }
       else if constexpr(std::same_as<T, events::supercruise_entry_t>)
         state.settlement_market_id = 0;
+      // odlot z ladowiska konczy nasza obecnosc w tym miejscu tak samo jak supercruise
+      else if constexpr(std::same_as<T, events::undocked_t>)
+        state.settlement_market_id = 0;
       else if constexpr(std::same_as<T, events::backpack_change_t>)
         {
         for(events::backpack_item_t const & item: event.Added)
