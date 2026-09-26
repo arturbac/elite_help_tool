@@ -8,6 +8,7 @@
 #include <cctype>
 #include <format>
 #include <map>
+#include <set>
 #include <ranges>
 
 namespace
@@ -634,17 +635,82 @@ auto overlay_feed_t::refresh_supply() -> void
     return;
 
   supply_loaded_ = now;
-  supply_lines_.clear();
+  needs_.clear();
+  options_.clear();
 
-  auto needs{db_.load_cargo_needs()};
-  if(not needs or needs->empty())
+  if(auto needs{db_.load_cargo_needs()}; needs)
+    needs_ = std::move(*needs);
+
+  if(needs_.empty())
     return;
 
-  auto options{db_.load_supply_options()};
-  if(not options)
-    return;
+  if(auto options{db_.load_supply_options()}; options)
+    options_ = std::move(*options);
+  }
 
-  // jedno miejsce na kilka towarow oszczedza caly kurs, wiec liczy sie pokrycie, dopiero potem rodzaj portu
+auto overlay_feed_t::build_supply_lines(events::cargo_file_t const & cargo) const -> std::vector<overlay::line_t>
+  {
+  if(needs_.empty())
+    return {};
+
+  // nazwy w ladowni sa wewnetrzne, w misjach czytelne - porownujemy po samych literach i cyfrach
+  auto const key{[](std::string_view text)
+                 {
+                   std::string out;
+                   for(char const c: text)
+                     if(std::isalnum(static_cast<unsigned char>(c)))
+                       out.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
+                   return out;
+                 }};
+
+  std::map<std::string, uint32_t> aboard;
+  for(events::cargo_item_t const & item: cargo.Inventory)
+    {
+    aboard[key(item.Name)] += item.Count;
+    if(not item.Name_Localised.empty())
+      aboard[key(item.Name_Localised)] += item.Count;
+    }
+
+  auto const held{
+    [&](std::string const & commodity) -> uint32_t
+    {
+      auto const it{aboard.find(key(commodity))};
+      return it != aboard.end() ? it->second : 0u;
+    }
+  };
+
+  std::vector<overlay::line_t> lines;
+  lines.push_back(overlay::line_t{.text = "mission cargo:", .color = colour_heading});
+
+  std::set<std::string> missing;
+  for(info::cargo_need_t const & need: needs_)
+    {
+    auto const have{held(need.commodity)};
+    bool const known{std::ranges::any_of(
+      options_, [&need](info::supply_option_t const & option) { return option.commodity == need.commodity; }
+    )};
+
+    if(have < need.count)
+      missing.insert(need.commodity);
+
+    // liczba w nawiasie to stan ladowni - dzieki niej brakujaca pozycja rzuca sie w oczy
+    lines.push_back(
+      overlay::line_t{
+        .text = std::format(
+          "  {} x{} ({}){}", need.commodity, need.count, have, have >= need.count or known ? "" : "   no source known"
+        ),
+        .color = have >= need.count ? colour_first : (known ? colour_plain : colour_alert)
+      }
+    );
+    }
+
+  if(missing.empty())
+    {
+    lines.push_back(overlay::line_t{.text = "all aboard", .color = colour_first});
+    return lines;
+    }
+
+  // jedno miejsce na kilka brakujacych towarow oszczedza caly kurs, dopiero potem liczy sie rodzaj portu
   struct place_t
     {
     std::string station;
@@ -654,8 +720,11 @@ auto overlay_feed_t::refresh_supply() -> void
     };
 
   std::map<uint64_t, place_t> places;
-  for(info::supply_option_t const & option: *options)
+  for(info::supply_option_t const & option: options_)
     {
+    if(not missing.contains(option.commodity))
+      continue;
+
     place_t & place{places[option.market_id]};
     if(place.items.empty())
       {
@@ -681,26 +750,9 @@ auto overlay_feed_t::refresh_supply() -> void
     }
   );
 
-  supply_lines_.push_back(overlay::line_t{.text = "mission cargo:", .color = colour_heading});
-
-  for(info::cargo_need_t const & need: *needs)
-    {
-    bool const known{std::ranges::any_of(
-      *options, [&need](info::supply_option_t const & option) { return option.commodity == need.commodity; }
-    )};
-
-    supply_lines_.push_back(
-      overlay::line_t{
-        // brak zrodla to tez informacja - znaczy szukaj sam, my tego rynku nie widzielismy
-        .text = std::format("  {} x{}{}", need.commodity, need.count, known ? "" : "   no source known"),
-        .color = known ? colour_plain : colour_alert
-      }
-    );
-    }
-
   for(place_t const * place: ranked | std::views::take(listed_sources))
     {
-    supply_lines_.push_back(
+    lines.push_back(
       overlay::line_t{
         .text = std::format("{}{}{}", place->station, place->system.empty() ? "" : "  ", place->system),
         .color = colour_first
@@ -708,7 +760,7 @@ auto overlay_feed_t::refresh_supply() -> void
     );
 
     for(info::supply_option_t const * item: place->items | std::views::take(listed_commodities))
-      supply_lines_.push_back(
+      lines.push_back(
         overlay::line_t{
           .text = std::format(
             "  {}  {} in stock  {} Cr",
@@ -720,6 +772,8 @@ auto overlay_feed_t::refresh_supply() -> void
         }
       );
     }
+
+  return lines;
   }
 
 auto overlay_feed_t::publish(current_state_t const & state) -> void
@@ -750,14 +804,15 @@ auto overlay_feed_t::publish(current_state_t const & state) -> void
       }
     );
 
+  if(auto supply{build_supply_lines(state.cargo)}; not supply.empty())
+    frame.blocks.push_back(
+      overlay::block_t{.corner = overlay::corner_e::top_right, .ttl_ms = block_ttl_ms, .lines = std::move(supply)}
+    );
+
+  // rynek pod spodem, bo jest dluzszy i mniej pilny niz to, czego brakuje do misji
   if(not market_lines_.empty())
     frame.blocks.push_back(
       overlay::block_t{.corner = overlay::corner_e::top_right, .ttl_ms = block_ttl_ms, .lines = market_lines_}
-    );
-
-  if(not supply_lines_.empty())
-    frame.blocks.push_back(
-      overlay::block_t{.corner = overlay::corner_e::top_right, .ttl_ms = block_ttl_ms, .lines = supply_lines_}
     );
 
   if(auto cargo{describe_cargo(state.cargo)}; not cargo.empty())
