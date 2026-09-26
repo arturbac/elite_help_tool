@@ -1567,11 +1567,13 @@ auto database_storage_t::store(info::station_t const & value) -> expected_ec<voi
   if(not *known)
     return sqlite::insert_into<info::station_t, true>(db_->db, "market_id"sv, sql_iface::tables::station, value);
 
-  // zrodla opisuja miejsce roznie - Docked zna typ stacji, ApproachSettlement ekonomie osady
+  // zrodla opisuja miejsce roznie - Docked zna typ stacji, ApproachSettlement ekonomie osady.
+  // puste pole nie kasuje tego co juz wiemy, ale niepuste nadpisuje: ukonczona konstrukcja
+  // zmienia nazwe i journal jest jedynym zrodlem prawdy o tym, jak nazywa sie teraz
   info::station_t merged{**known};
   auto const fill = [](std::string & target, std::string const & source)
   {
-    if(target.empty() and not source.empty())
+    if(not source.empty())
       target = source;
   };
   fill(merged.name, value.name);
