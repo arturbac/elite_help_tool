@@ -483,6 +483,9 @@ namespace tables
   inline constexpr std::string_view mission{"mission"};
   inline constexpr std::string_view mission_cargo{"mission_cargo"};
   inline constexpr std::string_view mission_influence{"mission_influence"};
+  // jedno i drugie odtwarza sie z journali, wiec miejsce jest w bazie osobistej, nie w live
+  inline constexpr std::string_view ship_transfer{"ship_transfer"};
+  inline constexpr std::string_view port_visit{"port_visit"};
   inline constexpr std::string_view micro_resource{"live.micro_resource"};
   // sprzedaz mikrozasobow to zdarzenie journala, wiec odtwarzalna
   inline constexpr std::string_view micro_sale{"micro_sale"};
@@ -1256,6 +1259,14 @@ auto database_storage_t::create_database() -> expected_ec<void>
     };
     not res
   ) [[unlikely]]
+    return res;
+
+  if(auto res{sqlite::create_table<info::ship_transfer_t>(db_->db, "oid"sv, sql_iface::tables::ship_transfer)};
+     not res) [[unlikely]]
+    return res;
+
+  if(auto res{sqlite::create_table<info::port_visit_t>(db_->db, "market_id"sv, sql_iface::tables::port_visit)};
+     not res) [[unlikely]]
     return res;
 
   if(auto res{sqlite::create_table<info::micro_resource_t>(db_->db, "name"sv, sql_iface::tables::micro_resource)};
@@ -2677,6 +2688,72 @@ auto database_storage_t::load_neutron_route() -> expected_ec<std::vector<info::n
   return sqlite::select_from<info::neutron_waypoint_t>(
     db_->db, sql_iface::tables::neutron_route, " ORDER BY position"
   );
+  }
+
+auto database_storage_t::store(info::ship_transfer_t const & value) -> expected_ec<void>
+  {
+  // przebudowa z journali powtarza kazde zamowienie - rozroznia je statek i chwila zamowienia
+  auto known{sqlite::select_signle_from<uint64_t>(
+    db_->db,
+    std::format(
+      "SELECT count(*) FROM {} WHERE ship_id={} AND ordered='{:%Y-%m-%dT%H:%M:%SZ}'",
+      sql_iface::tables::ship_transfer,
+      value.ship_id,
+      value.ordered
+    )
+  )};
+  if(not known) [[unlikely]]
+    return cxx23::unexpected{known.error()};
+
+  if(*known and **known != 0)
+    return {};
+
+  return sqlite::insert_into(db_->db, "oid"sv, sql_iface::tables::ship_transfer, value);
+  }
+
+auto database_storage_t::load_transfers_in_flight(std::chrono::sys_seconds now)
+  -> expected_ec<std::vector<info::ship_transfer_t>>
+  {
+  return sqlite::select_from<info::ship_transfer_t>(
+    db_->db,
+    sql_iface::tables::ship_transfer,
+    std::format(" WHERE arrives > '{:%Y-%m-%dT%H:%M:%SZ}' ORDER BY arrives", now)
+  );
+  }
+
+auto database_storage_t::store(info::port_visit_t const & value) -> expected_ec<void>
+  {
+  // Jeden wiersz na port, znacznik przesuwany przy kazdym kolejnym postoju - a postoje sie
+  // powtarzaja, wiec zwykly INSERT wywalalby sie na kluczu i zostawial date pierwszej wizyty
+  return sqlite::execute_query_no_result(
+    db_->db,
+    std::format(
+      "INSERT INTO {0} (market_id, name, system, station_type, visited)"
+      " VALUES ({1}, '{2}', '{3}', '{4}', '{5:%Y-%m-%dT%H:%M:%SZ}')"
+      " ON CONFLICT(market_id) DO UPDATE SET name = excluded.name, system = excluded.system,"
+      " station_type = excluded.station_type, visited = excluded.visited",
+      sql_iface::tables::port_visit,
+      value.market_id,
+      sqlite::escape_sql_quotes(value.name),
+      sqlite::escape_sql_quotes(value.system),
+      sqlite::escape_sql_quotes(value.station_type),
+      value.visited
+    )
+  );
+  }
+
+auto database_storage_t::load_last_port() -> expected_ec<std::optional<info::port_visit_t>>
+  {
+  auto res{sqlite::select_from<info::port_visit_t>(
+    db_->db, sql_iface::tables::port_visit, " ORDER BY visited DESC LIMIT 1"
+  )};
+  if(not res) [[unlikely]]
+    return cxx23::unexpected{res.error()};
+
+  if(res->empty())
+    return std::optional<info::port_visit_t>{};
+
+  return std::optional<info::port_visit_t>{std::move((*res)[0])};
   }
 
 auto database_storage_t::load_bgs_systems() -> expected_ec<std::vector<info::system_ref_t>>

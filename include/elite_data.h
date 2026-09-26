@@ -655,6 +655,38 @@ struct neutron_waypoint_t
   double distance;
   };
 
+///\brief statek w drodze miedzy portami
+///
+/// Gra podaje czas dostawy raz, przy zamowieniu, i nigdy o nim nie przypomina - przybycia nie
+/// oglasza zadnym zdarzeniem. Bez zapisania tej jednej chwili informacja przepada
+struct ship_transfer_t
+  {
+  int64_t oid{-1};
+  uint64_t ship_id;
+  std::string ship_type;
+  std::string from_system;
+  uint64_t to_market_id;
+  double distance;
+  uint64_t price;
+  std::chrono::sys_seconds ordered;
+  ///\brief wyliczone przy zamowieniu: chwila zamowienia plus czas dostawy
+  std::chrono::sys_seconds arrives;
+  };
+
+///\brief port, w ktorym stanelismy statkiem
+///
+/// Liczy sie wylacznie miejsce, do ktorego dokuje sie statkiem - osady piesze i flotowce nie sa
+/// portami w rozumieniu kapsuly ratunkowej, ktora odsyla do ostatniego portu, a nie do ostatniego
+/// miejsca. Typ stacji zostaje zapisany, bo to on rozstrzyga
+struct port_visit_t
+  {
+  uint64_t market_id;
+  std::string name;
+  std::string system;
+  std::string station_type;
+  std::chrono::sys_seconds visited;
+  };
+
 ///\brief ile czego trzeba przywiezc lacznie, po zsumowaniu otwartych misji
 struct cargo_need_t
   {

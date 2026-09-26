@@ -211,6 +211,17 @@ void current_state_t::route_system_visited(uint64_t system_address)
     }
   }
 
+static ///\brief czy do tego miejsca dokuje sie statkiem
+///
+/// Kapsula ratunkowa na flotowcu odsyla do ostatniego PORTU, a nie do ostatniego miejsca postoju.
+/// Osady piesze odpadaja, bo nie ma w nich ladowiska dla statku. Flotowiec odpada mimo ladowiska -
+/// sprawdzone 26.09.2026: po postoju przy W1V-NXM o 14:33 kapsula odeslala do Arkush City,
+/// gdzie postoj byl o 14:16
+auto is_port(std::string_view station_type) -> bool
+  {
+  return station_type != "OnFootSettlement" and station_type != "FleetCarrier" and not station_type.empty();
+  }
+
 void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_holder_t && payload)
   {
   if(nullptr != parent->jlw_)
@@ -568,8 +579,35 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
               spdlog::error("failed to store acquisition {}", item.Name);
             }
           }
+        else if constexpr(std::same_as<T, events::shipyard_transfer_t>)
+          {
+          // czas dostawy gra podaje raz i nigdy o nim nie przypomina, a przybycia nie oglasza wcale
+          if(auto res{db_.store(info::ship_transfer_t{
+               .ship_id = event.ShipID,
+               .ship_type = event.ShipType_Localised.empty() ? event.ShipType : event.ShipType_Localised,
+               .from_system = event.System,
+               .to_market_id = event.MarketID,
+               .distance = event.Distance,
+               .price = event.TransferPrice,
+               .ordered = timestamp,
+               .arrives = timestamp + std::chrono::seconds{event.TransferTime}
+             })};
+             not res)
+            spdlog::error("failed to store ship transfer {}", event.ShipID);
+          }
         else if constexpr(std::same_as<T, events::docked_t>)
           {
+          if(is_port(event.StationType))
+            if(auto res{db_.store(info::port_visit_t{
+                 .market_id = event.MarketID,
+                 .name = event.StationName,
+                 .system = event.StarSystem,
+                 .station_type = event.StationType,
+                 .visited = timestamp
+               })};
+               not res)
+              spdlog::error("failed to store port visit {}", event.MarketID);
+
           // tozsamosc stacji odtwarzamy z journali - typ rozroznia flotowiec od stacji
           settlement_market_id_ = event.MarketID;
           info::station_t station{

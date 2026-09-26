@@ -989,6 +989,27 @@ struct docked_t
   system_faction_t StationFaction;
   };
 
+///\brief zamowienie przerzutu statku miedzy portami
+///
+/// Jedyna chwila, w ktorej gra mowi, kiedy statek dojdzie - potem nie przypomni o tym ani razu,
+/// a samo przybycie nie ma wlasnego zdarzenia
+struct shipyard_transfer_t
+  {
+  std::string ShipType;
+  std::string ShipType_Localised;
+  uint64_t ShipID;
+  ///\brief system, z ktorego statek leci
+  std::string System;
+  ///\brief rynek, z ktorego leci - przy flotowcu to jego MarketID
+  uint64_t ShipMarketID;
+  double Distance;
+  uint64_t TransferPrice;
+  ///\brief czas dostawy w sekundach
+  uint64_t TransferTime;
+  ///\brief rynek docelowy, czyli ten, w ktorym akurat stoimy
+  uint64_t MarketID;
+  };
+
 ///\brief odlot z ladowiska - od tej chwili rynek tego miejsca przestaje nas dotyczyc
 struct undocked_t
   {
@@ -1100,6 +1121,7 @@ using event_holder_t = std::variant<
   market_t,
   undocked_t,
   docked_t,
+  shipyard_transfer_t,
   sell_micro_resources_t,
   approach_settlement_t,
   disembark_t,

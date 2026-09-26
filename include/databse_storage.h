@@ -199,6 +199,22 @@ struct database_storage_t
   [[nodiscard]]
   auto load_neutron_route() -> expected_ec<std::vector<info::neutron_waypoint_t>>;
 
+  ///\brief zapisuje zamowiony przerzut statku, pomijajac juz znane
+  [[nodiscard]]
+  auto store(info::ship_transfer_t const & value) -> expected_ec<void>;
+
+  ///\brief przerzuty, ktore jeszcze nie dotarly wedlug podanej chwili
+  [[nodiscard]]
+  auto load_transfers_in_flight(std::chrono::sys_seconds now) -> expected_ec<std::vector<info::ship_transfer_t>>;
+
+  ///\brief odnotowuje postoj w porcie, przesuwajac znacznik przy powtornej wizycie
+  [[nodiscard]]
+  auto store(info::port_visit_t const & value) -> expected_ec<void>;
+
+  ///\brief ostatni port, w ktorym stanelismy statkiem
+  [[nodiscard]]
+  auto load_last_port() -> expected_ec<std::optional<info::port_visit_t>>;
+
   ///\brief systemy, w ktorych naprawde pracowalismy - te, ktore maja zapisany wplyw z misji
   [[nodiscard]]
   auto load_bgs_systems() -> expected_ec<std::vector<info::system_ref_t>>;

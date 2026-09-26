@@ -1002,6 +1002,51 @@ auto overlay_feed_t::build_route_lines(current_state_t const & state, plotted_ro
   return lines;
   }
 
+auto overlay_feed_t::build_logistics_lines() const -> std::vector<overlay::line_t>
+  {
+  auto & db{const_cast<database_storage_t &>(db_)};
+  auto const now{std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())};
+
+  std::vector<overlay::line_t> lines;
+
+  // Ostatni port rozstrzyga, gdzie odesle kapsula ratunkowa - osady i flotowce sie nie licza,
+  // a po kilku postojach latwo stracic rachube, ktore z nich bylo portem
+  if(auto port{db.load_last_port()}; port and *port)
+    lines.push_back(
+      overlay::line_t{
+        .text = std::format("ostatni port: {}, {} ({})", (*port)->name, (*port)->system, (*port)->station_type),
+        .color = colour_plain
+      }
+    );
+
+  auto pending{db.load_transfers_in_flight(now)};
+  if(not pending or pending->empty())
+    return lines;
+
+  lines.push_back(overlay::line_t{.text = "statki w drodze:", .color = colour_heading});
+  for(info::ship_transfer_t const & transfer: *pending)
+    {
+    auto const left{std::chrono::duration_cast<std::chrono::minutes>(transfer.arrives - now)};
+    auto const station{db.load_station(transfer.to_market_id)};
+
+    lines.push_back(
+      overlay::line_t{
+        .text = std::format(
+          "  {} -> {}  za {}h {:02}min",
+          transfer.ship_type,
+          station and *station ? (*station)->name : std::format("market {}", transfer.to_market_id),
+          left.count() / 60,
+          left.count() % 60
+        ),
+        // ostatni kwadrans to moment, w ktorym warto byc na miejscu
+        .color = left < std::chrono::minutes{15} ? colour_first : colour_plain
+      }
+    );
+    }
+
+  return lines;
+  }
+
 auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t const & plotted) -> void
   {
   if(not server_->listening())
@@ -1039,6 +1084,11 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
   if(not market_lines_.empty())
     frame.blocks.push_back(
       overlay::block_t{.corner = overlay::corner_e::top_right, .ttl_ms = block_ttl_ms, .lines = market_lines_}
+    );
+
+  if(auto logistics{build_logistics_lines()}; not logistics.empty())
+    frame.blocks.push_back(
+      overlay::block_t{.corner = overlay::corner_e::bottom_left, .ttl_ms = block_ttl_ms, .lines = std::move(logistics)}
     );
 
   // trasa po lewej, nad ladownia - w locie to ona jest tym, na co sie patrzy

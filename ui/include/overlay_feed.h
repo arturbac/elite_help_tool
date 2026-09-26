@@ -52,6 +52,11 @@ private:
   auto build_route_lines(current_state_t const & state, plotted_route_t const & plotted) const
     -> std::vector<overlay::line_t>;
 
+  ///\brief statki w drodze i ostatni port - jedno i drugie latwo stracic z oczu, a oba potrafia
+  /// zdecydowac o tym, gdzie sie wyladuje i czym poleci dalej
+  [[nodiscard]]
+  auto build_logistics_lines() const -> std::vector<overlay::line_t>;
+
   ///\brief laczy wymagania z zawartoscia ladowni - bez tego trzeba porownywac dwa rogi ekranu
   [[nodiscard]]
   auto build_supply_lines(events::cargo_file_t const & cargo) const -> std::vector<overlay::line_t>;
