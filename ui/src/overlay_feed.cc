@@ -323,7 +323,12 @@ auto mission_wording(info::mission_t const & mission) -> std::string
   return mission.description.empty() ? info::transform_mission_name(mission.type) : mission.description;
   }
 
-///\brief a redirected mission is done and only waits to be handed in - a different category from the rest
+///\brief the open missions, gathered under the place they are owed to
+///
+/// Flat, the list said the same system five times over and left the eye to group it. Missions are
+/// travelled to system by system, so that is what the rows hang under; where a system holds a single
+/// stop, its name joins the heading instead of repeating on every row. A redirected mission is done
+/// and waits only to be handed in, which is a different errand from the rest and carries a mark.
 [[nodiscard]]
 auto describe_missions(std::vector<info::mission_t> const & missions) -> std::vector<overlay::line_t>
   {
@@ -341,6 +346,42 @@ auto describe_missions(std::vector<info::mission_t> const & missions) -> std::ve
     open, [](info::mission_t const * mission) { return mission->status == info::mission_status_e::redirected; }
   )};
 
+  // where a mission is owed: a done one goes back to whoever redirected it, an open one to the place
+  // it named when it was taken
+  auto const destination = [](info::mission_t const & mission) -> std::pair<std::string, std::string>
+  {
+    bool const done{mission.status == info::mission_status_e::redirected};
+    std::string const system{done ? mission.redirected_system : mission.destination_system};
+    std::string const place{
+      done ? (mission.redirected_settlement.empty() ? mission.redirected_station : mission.redirected_settlement)
+           : (mission.destination_settlement.empty() ? mission.destination_station : mission.destination_settlement)
+    };
+    return {system, place};
+  };
+
+  struct group_t
+    {
+    std::string system;
+    std::vector<info::mission_t const *> rows;
+    };
+
+  // the groups keep the order the missions came in, which is by expiry - so the system that runs out
+  // first stands first
+  std::vector<group_t> groups;
+  for(info::mission_t const * mission: open)
+    {
+    auto const [system, place]{destination(*mission)};
+    auto const key{system.empty() ? std::string{"no fixed destination"} : system};
+
+    auto it{std::ranges::find(groups, key, &group_t::system)};
+    if(it == groups.end())
+      {
+      groups.push_back(group_t{.system = key, .rows = {}});
+      it = std::prev(groups.end());
+      }
+    it->rows.push_back(mission);
+    }
+
   auto const now{std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())};
 
   std::vector<overlay::line_t> lines;
@@ -352,37 +393,56 @@ auto describe_missions(std::vector<info::mission_t> const & missions) -> std::ve
     }
   );
 
-  for(info::mission_t const * mission: open | std::views::take(listed_missions))
+  size_t shown{};
+  for(group_t const & group: groups)
     {
-    auto const left{std::chrono::duration_cast<std::chrono::seconds>(mission->expiry - now)};
-    bool const done{mission->status == info::mission_status_e::redirected};
+    if(shown >= listed_missions)
+      break;
 
-    auto const where{
-      done ? (mission->redirected_station.empty() ? mission->redirected_system : mission->redirected_station)
-           : (mission->destination_station.empty() ? mission->destination_system : mission->destination_station)
-    };
+    // one stop in the system means the place belongs in the heading, not on every row under it
+    std::set<std::string> places;
+    for(info::mission_t const * mission: group.rows)
+      if(auto const place{destination(*mission).second}; not place.empty())
+        places.insert(place);
 
+    bool const single_place{places.size() == 1u};
     lines.push_back(
       overlay::line_t{
-        // the objective after the time, because the first three say where and by when, and this one
-        // says what - reading it is what turns a row into a decision
-        .text = std::format(
-          "{}{}  {}  {}  {}",
-          done ? "> " : "  ",
-          mission->faction,
-          where.empty() ? std::string{"-"} : where,
-          format_remaining(left),
-          mission_wording(*mission)
-        ),
-        // green is ready to hand in, red is about to be lost
-        .color = left < expiry_warning ? colour_expiring : (done ? colour_first : colour_plain)
+        .text = single_place ? std::format("{}  -  {}", group.system, *places.begin()) : group.system,
+        .color = colour_heading
       }
     );
+
+    for(info::mission_t const * mission: group.rows)
+      {
+      if(shown >= listed_missions)
+        break;
+      ++shown;
+
+      auto const left{std::chrono::duration_cast<std::chrono::seconds>(mission->expiry - now)};
+      bool const done{mission->status == info::mission_status_e::redirected};
+      std::string const place{single_place ? std::string{} : destination(*mission).second};
+
+      lines.push_back(
+        overlay::line_t{
+          .text = std::format(
+            "  {}{}  {}{}  {}",
+            done ? "> " : "  ",
+            format_remaining(left),
+            mission->faction,
+            place.empty() ? std::string{} : std::format("  {}", place),
+            mission_wording(*mission)
+          ),
+          // green is ready to hand in, red is about to be lost
+          .color = left < expiry_warning ? colour_expiring : (done ? colour_first : colour_plain)
+        }
+      );
+      }
     }
 
-  if(open.size() > listed_missions)
+  if(open.size() > shown)
     lines.push_back(
-      overlay::line_t{.text = std::format("... and {} more", open.size() - listed_missions), .color = colour_plain}
+      overlay::line_t{.text = std::format("... and {} more", open.size() - shown), .color = colour_plain}
     );
 
   return lines;
