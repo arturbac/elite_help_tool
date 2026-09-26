@@ -78,6 +78,10 @@ struct database_storage_t
   auto load_trade_options(uint64_t market_id, unsigned limit, bool bring_here)
     -> expected_ec<std::vector<info::trade_option_t>>;
 
+  ///\brief MissionAccepted jest dowodem ze misja jest otwarta, nawet gdy wpis juz istnieje
+  [[nodiscard]]
+  auto reopen_mission(uint64_t mission_id, std::chrono::sys_seconds expiry) -> expected_ec<void>;
+
   ///\brief zamkniecie misji razem z kwota ktora gra naprawde wyplacila
   [[nodiscard]]
   auto complete_mission(uint64_t mission_id, std::chrono::sys_seconds when, uint64_t reward) -> expected_ec<void>;

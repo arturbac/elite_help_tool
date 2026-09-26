@@ -693,8 +693,13 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           }
         else if constexpr(std::same_as<T, events::mission_accepted_t>)
           {
-          // in case restarted multiple times with same log prevent adding same missions
-          if(auto res{db_.mission_exists(event.MissionID)}; res and not *res)
+          // powtorne odtworzenie journala trafia na te sama misje - wtedy wystarczy ja otworzyc
+          if(auto known{db_.mission_exists(event.MissionID)}; known and *known)
+            {
+            if(auto res{db_.reopen_mission(event.MissionID, event.Expiry)}; not res) [[unlikely]]
+              spdlog::error("failed to reopen mission {}", event.MissionID);
+            }
+          else
             {
             info::mission_t mission{
               .mission_id = event.MissionID,

@@ -977,6 +977,15 @@ auto database_storage_t::open(storage_mode_e mode) -> expected_ec<void>
       if(auto res{sqlite::execute_query_no_result(db_->db, pragma)}; not res) [[unlikely]]
         return res;
     }
+  else
+    {
+    // gui, okna narzedziowe i overlay czytaja z osobnych polaczen w trakcie zapisu z watku journala.
+    // w dzienniku rollback taki czytelnik czeka na pisarza i po busy_timeout dostaje "database is
+    // locked"; w WAL nie czeka wcale, bo czyta ostatni spojny obraz obok trwajacego zapisu
+    for(std::string_view pragma: {"PRAGMA journal_mode = WAL;"sv, "PRAGMA live.journal_mode = WAL;"sv})
+      if(auto res{sqlite::execute_query_no_result(db_->db, pragma)}; not res) [[unlikely]]
+        return res;
+    }
 
   // wszystkie CREATE sa IF NOT EXISTS, wiec istniejaca baza dostaje brakujace tabele i indeksy
   return create_database();
@@ -1322,6 +1331,20 @@ auto database_storage_t::load_trade_options(uint64_t market_id, unsigned limit, 
     ),
     ""
   );
+  }
+
+auto database_storage_t::reopen_mission(uint64_t mission_id, std::chrono::sys_seconds expiry) -> expected_ec<void>
+  {
+  // zdarzenie Missions to zdjecie z chwili startu gry; odtworzone pozniej zamyka misje wziete po nim,
+  // a MissionAccepted jest swiadectwem mocniejszym - mowi wprost, ze w tej chwili misja byla otwarta
+  std::string query{std::format(
+    "UPDATE {} SET status='{}', closed='', expiry='{:%Y-%m-%dT%H:%M:%SZ}' WHERE mission_id={}",
+    sql_iface::tables::mission,
+    info::mission_status_e::accepted,
+    expiry,
+    mission_id
+  )};
+  return sqlite::execute_query_no_result(db_->db, query);
   }
 
 auto database_storage_t::complete_mission(uint64_t mission_id, std::chrono::sys_seconds when, uint64_t reward)
