@@ -300,8 +300,14 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
         }
       else if constexpr(std::same_as<T, events::fsd_jump_t>)
         {
+        // the import stops rather than guesses: unlike the live state, which can rebuild the arrival
+        // from this event, a rebuild reading journals in order has no business finding a gap here
         if(state.system.system_address != event.SystemAddress)
-          critical_abort("jump without start jump {}", state.system.system_address, event.SystemAddress);
+          critical_abort(
+            "jump to {} without start jump, the state was still at {}",
+            event.SystemAddress,
+            state.system.system_address
+          );
         else if(state.system.system_location != event.StarPos)
           {
           state.system.system_location = event.StarPos;

@@ -95,6 +95,23 @@ auto allegiance_colour(info::allegiance_e allegiance) -> uint32_t
     }
   }
 
+///\brief separates factions that share an allegiance, without losing what the colour says
+///\detail allegiance decides the hue, so four independents come out as one grey mass and their lines
+/// cannot be followed. The hue stays - it is the part that says Federation or Empire - and only the
+/// brightness steps down, far enough to tell two lines apart and not so far that the text stops
+/// reading against the dark band
+[[nodiscard]]
+auto shade(uint32_t rgb, size_t step) -> uint32_t
+  {
+  constexpr std::array steps{1.0, 0.82, 0.68, 0.58, 0.50};
+  double const factor{steps[std::min(step, steps.size() - 1u)]};
+
+  auto const channel = [factor](uint32_t value) -> uint32_t
+  { return static_cast<uint32_t>(std::lround(static_cast<double>(value) * factor)) & 0xffu; };
+
+  return (channel((rgb >> 16u) & 0xffu) << 16u) | (channel((rgb >> 8u) & 0xffu) << 8u) | channel(rgb & 0xffu);
+  }
+
 [[nodiscard]]
 auto same_content(overlay::frame_t const & left, overlay::frame_t const & right) -> bool
   {
@@ -702,24 +719,20 @@ auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
 
   std::ranges::sort(presence, std::ranges::greater{}, &presence_t::influence);
 
+  // the line and the chart series are given the same colour and the same shape in one place, so
+  // there is no way for them to drift apart
   std::vector<charted_t> charted;
+  std::map<uint32_t, size_t> shades_used;
   size_t marker_ix{};
   for(presence_t const & item: presence | std::views::take(listed_factions))
     {
-    charted.push_back(
-      charted_t{
-        .oid = item.oid,
-        .name = item.name,
-        .color = allegiance_colour(item.allegiance),
-        .marker = chart_markers[marker_ix % chart_markers.size()]
-      }
-    );
+    uint32_t const base{allegiance_colour(item.allegiance)};
+    uint32_t const colour{shade(base, shades_used[base]++)};
+    overlay::marker_e const marker{chart_markers[marker_ix % chart_markers.size()]};
     ++marker_ix;
-    }
 
-  marker_ix = 0u;
-  for(presence_t const & item: presence | std::views::take(listed_factions))
-    {
+    charted.push_back(charted_t{.oid = item.oid, .name = item.name, .color = colour, .marker = marker});
+
     faction_lines_.push_back(
       overlay::line_t{
         // the star marks the controlling faction, because that one decides the system's face
@@ -731,12 +744,11 @@ auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
           item.active.empty() ? "" : "  ",
           item.active
         ),
-        .color = allegiance_colour(item.allegiance),
+        .color = colour,
         // the same shape the faction's line wears on the chart below, so the two read as one
-        .marker = chart_markers[marker_ix % chart_markers.size()]
+        .marker = marker
       }
     );
-    ++marker_ix;
     }
 
   faction_charts_ = build_influence_chart(*history, charted, wall_clock);

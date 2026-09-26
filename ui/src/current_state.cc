@@ -352,7 +352,39 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
         else if constexpr(std::same_as<T, events::fsd_jump_t>)
           {
           if(system.system_address != event.SystemAddress)
-            spdlog::error("jump without start jump {}", system.system_address, event.SystemAddress);
+            {
+            // StartJump normally moves us here while the drive is still charging. Without it the state
+            // holds the system we left, and carrying on does more harm than the missing event ever
+            // would: apply_system_info below copies THIS system's economy and government onto the
+            // previous system's object and stores them under its address, while the overlay shows one
+            // system's name above another's factions. So the arrival is rebuilt from the event.
+            spdlog::error(
+              "jump to {} without start jump, the state was still at {}", event.SystemAddress, system.system_address
+            );
+
+            if(auto res{db_.load_system(event.SystemAddress)}; not res) [[unlikely]]
+              {
+              spdlog::error("error loading system {} {}", event.SystemAddress, event.StarSystem);
+              system = new_system_def(event.SystemAddress, event.StarSystem, {});
+              }
+            else if(std::optional loaded{std::move(*res)}; loaded)
+              system = std::move(*loaded);
+            else
+              {
+              system = new_system_def(event.SystemAddress, event.StarSystem, {});
+              if(auto res2{db_.store(system)}; not res2) [[unlikely]]
+                spdlog::error("error storing system {} {}", event.SystemAddress, event.StarSystem);
+              }
+
+            system.system_location = event.StarPos;
+            if(auto res{db_.store_system_location(system.system_address, system.system_location)}; not res)
+              spdlog::error("failed to store system location {}", system.system_address);
+
+            // both belong to the system we were in, and neither has anything to say about this one
+            buffered_signals.clear();
+            system_factions.clear();
+            update_factions = true;
+            }
           else if(system.system_location != event.StarPos)
             {
             system.system_location = event.StarPos;
