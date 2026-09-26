@@ -90,6 +90,13 @@ struct current_state_t : public generic_state_t
   
   void route_system_visited(uint64_t system_address);
 
+  ///\brief forgets what only held true inside one session of the game
+  ///\detail a target lock does not survive the game being closed, and nothing in the journal says
+  /// so - the last thing written is that something was locked, and it stays locked for ever unless
+  /// the end of the session is taken as the end of it. The hired crew is not forgotten: they are
+  /// still aboard tomorrow
+  void forget_live_combat();
+
   // called from the worker thread; db_ is never touched from the GUI thread
   void load_factions();
 

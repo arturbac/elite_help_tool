@@ -307,6 +307,8 @@ auto main_window_t::background_worker(std::stop_token stoken) -> void
     [this](fs::path const & path)
     {
       spdlog::info("monitoring journal {}", path.string());
+      // a new journal is a new session of the game: whatever was locked on is not locked on now
+      state_.forget_live_combat();
       QMetaObject::invokeMethod(
         this, [this, path]() { file_to_monitor = path; }, Qt::QueuedConnection
       );

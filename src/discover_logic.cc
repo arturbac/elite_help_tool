@@ -695,6 +695,22 @@ auto load_nav_route(std::string journal_dir_path) -> cxx23::expected<events::nav
   }
   }  // namespace
 
+auto load_status(std::string journal_dir_path) -> cxx23::expected<events::status_file_t, std::error_code>
+  {
+  events::status_file_t result;
+  std::string buffer;
+  std::filesystem::path status_json{journal_dir_path};
+  status_json /= "Status.json";
+
+  if(
+    auto res{glz::read_file_json<glz::opts{.error_on_unknown_keys = false}>(result, status_json.string(), buffer)};
+    res
+  ) [[unlikely]]
+    return cxx23::unexpected(std::make_error_code(std::errc::resource_unavailable_try_again));
+
+  return result;
+  }
+
 auto load_market(std::string journal_dir_path) -> cxx23::expected<events::market_file_t, std::error_code>
   {
   events::market_file_t result;

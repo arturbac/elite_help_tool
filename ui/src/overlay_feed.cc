@@ -50,6 +50,16 @@ constexpr std::chrono::seconds faction_refresh{60};
 constexpr std::chrono::seconds market_refresh{5};
 ///\brief missions arrive rarely, and the query goes across both databases
 constexpr std::chrono::seconds supply_refresh{10};
+///\brief Status.json is rewritten whenever anything in it changes, so it is read often but cheaply
+constexpr std::chrono::milliseconds status_refresh{500};
+///\brief the interfaces that take over the middle screen, from GuiFocus
+///\detail 5 station services, 6 galaxy map, 7 system map, 8 orrery, 9 FSS, 10 surface scanner,
+/// 11 codex. The cockpit panels below 5 leave the middle of the screen alone, and so may we
+constexpr uint32_t first_fullscreen_interface{5u};
+///\brief a lock does not outlive this without the game saying anything more about it
+///\detail the event that lets a target go is written, but a game that simply ends writes nothing,
+/// and the last thing in the journal stays true for ever unless something disbelieves it
+constexpr std::chrono::minutes target_stale{10};
 constexpr size_t listed_sources{2u};
 ///\brief the band is not a mission log - beyond this the list stops being read at a glance
 constexpr size_t listed_settlement_work{4u};
@@ -1246,6 +1256,23 @@ auto overlay_feed_t::refresh_mission_places(current_state_t const & state) -> vo
 ///
 /// The scan uncovers it in stages and each line appears as the game gives it: the hull first, then
 /// who flies it, then how hurt they are, and only at the end the faction and the price on their
+///\brief which interface the game has open, which only Status.json says
+///
+/// The overlay could look at the screen it draws on and work out what is there, but it sits on the
+/// game's frame path and reading pixels back off the card means waiting for the card. It does not
+/// have to: the game writes what it is showing into Status.json beside the journals, and rewrites it
+/// whenever it changes.
+auto overlay_feed_t::refresh_status(current_state_t const & state) -> void
+  {
+  auto const now{std::chrono::steady_clock::now()};
+  if(now - status_read_ < status_refresh)
+    return;
+
+  status_read_ = now;
+  if(auto status{load_status(state.journal_dir_path_)}; status)
+    gui_focus_ = status->GuiFocus;
+  }
+
 /// head. Nothing here is remembered - the moment the target is let go there is nothing to show.
 auto overlay_feed_t::build_target_lines(current_state_t const & state) const -> std::vector<overlay::line_t>
   {
@@ -1279,7 +1306,9 @@ auto overlay_feed_t::build_target_lines(current_state_t const & state) const -> 
       );
     }
 
-  if(not target.TargetLocked)
+  // a lock that nothing has said anything about for this long is not a lock any more, whatever the
+  // last line of the journal claims
+  if(not target.TargetLocked or wall - target.timestamp > target_stale)
     return lines;
 
   std::string const pilot{target.PilotName_Localised.empty() ? target.PilotName : target.PilotName_Localised};
@@ -1730,6 +1759,7 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
     return;
 
   refresh_factions(state);
+  refresh_status(state);
   refresh_mission_places(state);
   refresh_market(state.settlement_market_id_, state.ship_loadout.CargoCapacity);
   refresh_supply();
@@ -1763,13 +1793,17 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
   // what can be done here comes first: it is the only thing on this side that asks nothing of the
   // player but to turn around, and the trading below it will still be there afterwards
   // Head-up, flanking the middle of the centre screen: what is read without looking away from the
-  // fight. The corridor between them is left clear, because that is where the fight is
-  if(auto aimed{build_target_lines(state)}; not aimed.empty())
+  // fight. The corridor between them is left clear, because that is where the fight is.
+  // Both give way to an interface that takes over that screen - the galaxy map is not a fight, and
+  // whatever is written over it is in the way. The side bands stay: they are on other screens
+  bool const interface_open{gui_focus_ >= first_fullscreen_interface};
+
+  if(auto aimed{interface_open ? std::vector<overlay::line_t>{} : build_target_lines(state)}; not aimed.empty())
     frame.blocks.push_back(
       overlay::block_t{.corner = overlay::corner_e::centre_top_left, .ttl_ms = block_ttl_ms, .lines = std::move(aimed)}
     );
 
-  if(auto crew{build_crew_lines(state)}; not crew.empty())
+  if(auto crew{interface_open ? std::vector<overlay::line_t>{} : build_crew_lines(state)}; not crew.empty())
     frame.blocks.push_back(
       overlay::block_t{.corner = overlay::corner_e::centre_top_right, .ttl_ms = block_ttl_ms, .lines = std::move(crew)}
     );

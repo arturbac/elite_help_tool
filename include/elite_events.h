@@ -1065,6 +1065,18 @@ struct market_commodity_t
   };
 
 ///\brief the contents of Market.json, a file overwritten at every docking
+///\brief what the game is showing right now, from the Status.json it keeps beside the journals
+///\detail the file is rewritten whenever anything in it changes, so it answers questions the journal
+/// never does - among them which interface is open, which no amount of reading events can tell
+struct status_file_t
+  {
+  std::chrono::sys_seconds timestamp;
+  uint64_t Flags;
+  ///\brief 0 none, 1-4 the cockpit panels, 5 station services, 6 galaxy map, 7 system map,
+  /// 8 orrery, 9 FSS, 10 surface scanner, 11 codex
+  uint32_t GuiFocus;
+  };
+
 struct market_file_t
   {
   std::chrono::sys_seconds timestamp;
@@ -1655,6 +1667,10 @@ auto organic_value_range(std::string_view name) noexcept -> std::optional<std::p
 ///\detail "$weaponschematic_name;" and "weaponschematic" are the same material
 [[nodiscard]]
 auto micro_resource_key(std::string_view name) -> std::string;
+
+///\brief reads Status.json; it is absent until the game has run once
+[[nodiscard]]
+auto load_status(std::string journal_dir_path) -> cxx23::expected<events::status_file_t, std::error_code>;
 
 ///\brief loads the Market.json sitting next to the journals
 [[nodiscard]]

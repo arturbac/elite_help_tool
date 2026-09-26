@@ -222,6 +222,14 @@ static auto is_port(std::string_view station_type) -> bool
   return station_type != "OnFootSettlement" and station_type != "FleetCarrier" and not station_type.empty();
   }
 
+void current_state_t::forget_live_combat()
+  {
+  target = {};
+  last_bounty = {};
+  fighter = fighter_e::stowed;
+  fighter_crewed = false;
+  }
+
 void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_holder_t && payload)
   {
   if(nullptr != parent->jlw_)

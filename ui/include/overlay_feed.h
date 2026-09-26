@@ -63,6 +63,9 @@ private:
   [[nodiscard]]
   auto build_crew_lines(current_state_t const & state) const -> std::vector<overlay::line_t>;
 
+  ///\brief which interface the game has open, which only Status.json says
+  auto refresh_status(current_state_t const & state) -> void;
+
   ///\brief the next hops of both routes - a side band holds only what comes next, not the whole list
   [[nodiscard]]
   auto build_route_lines(current_state_t const & state, plotted_route_t const & plotted) const
@@ -98,6 +101,10 @@ private:
   std::map<std::pair<std::string, std::string>, std::string> place_owner_;
   ///\brief what the open missions looked like when those owners were resolved
   uint64_t missions_signature_{};
+
+  ///\brief the interface the game has open, 0 when it is showing nothing but the cockpit
+  uint32_t gui_focus_{};
+  std::chrono::steady_clock::time_point status_read_{};
 
   std::chrono::steady_clock::time_point supply_loaded_{};
   ///\brief raw data, because the lines also depend on the hold, which changes more often than the database
