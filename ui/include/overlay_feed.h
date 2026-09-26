@@ -55,6 +55,8 @@ private:
   ///\brief surowe dane, bo linie zaleza tez od ladowni, ktora zmienia sie czesciej niz baza
   std::vector<info::cargo_need_t> needs_;
   std::vector<info::supply_option_t> options_;
+  ///\brief rynki handlujace danym towarem, nawet puste - zeby nie mylic pustki z brakiem zrodla
+  std::vector<info::supply_option_t> producers_;
   overlay::frame_t last_;
   std::chrono::steady_clock::time_point last_sent_{};
   uint64_t sequence_{};

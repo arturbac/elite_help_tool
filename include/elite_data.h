@@ -158,6 +158,9 @@ struct market_item_t
   uint32_t sell_price;
   uint32_t stock;
   uint32_t demand;
+  ///\brief czy stacja ten towar naprawde wytwarza i skupuje - zerowy zapas to moze byc chwilowa pustka
+  bool producer;
+  bool consumer;
   };
 
 ///\brief pozycja rynku juz zlaczona ze slownikiem towarow, do pokazania w oknie
@@ -170,6 +173,9 @@ struct market_entry_t
   uint32_t mean_price;
   uint32_t stock;
   uint32_t demand;
+  ///\brief czy stacja ten towar naprawde wytwarza i skupuje
+  bool producer;
+  bool consumer;
   };
 
 ///\brief lekka projekcja star_system do list wyboru, nazwy pol musza zgadzac sie z kolumnami

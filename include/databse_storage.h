@@ -47,6 +47,10 @@ struct database_storage_t
   [[nodiscard]]
   auto create_database() -> expected_ec<void>;
 
+  ///\brief dokłada brakujace kolumny do live.sqlite, ktorej nie da sie odtworzyc z journali
+  [[nodiscard]]
+  auto migrate_live_schema() -> expected_ec<void>;
+
   [[nodiscard]]
   auto store(info::mission_t const & value) -> expected_ec<void>;
   
@@ -67,6 +71,10 @@ struct database_storage_t
   ///\brief ile czego trzeba przywiezc lacznie dla otwartych misji
   [[nodiscard]]
   auto load_cargo_needs() -> expected_ec<std::vector<info::cargo_need_t>>;
+
+  ///\brief rynki, ktore dany towar wytwarzaja, nawet gdy akurat nie maja go na stanie
+  [[nodiscard]]
+  auto load_producers() -> expected_ec<std::vector<info::supply_option_t>>;
 
   ///\brief gdzie da sie to kupic w znanych nam rynkach, z zapasem pokrywajacym potrzebe
   [[nodiscard]]

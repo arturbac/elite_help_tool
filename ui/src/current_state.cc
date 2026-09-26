@@ -505,7 +505,9 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
                 .buy_price = entry.BuyPrice,
                 .sell_price = entry.SellPrice,
                 .stock = entry.Stock,
-                .demand = entry.Demand
+                .demand = entry.Demand,
+                .producer = entry.Producer,
+                .consumer = entry.Consumer
               }
             );
             }

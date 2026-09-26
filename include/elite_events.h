@@ -997,6 +997,9 @@ struct market_commodity_t
   uint32_t MeanPrice;
   uint32_t Stock;
   uint32_t Demand;
+  ///\brief sama cena nic nie znaczy - stacja podaje ja tez dla towarow, ktorymi nie handluje
+  bool Producer;
+  bool Consumer;
   };
 
 ///\brief zawartosc Market.json, plik nadpisywany przy kazdym dokowaniu

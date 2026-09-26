@@ -594,6 +594,23 @@ static int collect_column_names(void * d, int argc, char ** argv, char **)
   return 0;
   }
 
+///\brief nazwy kolumn istniejacej tabeli, dziala tez dla nazw z przedrostkiem schematu
+[[nodiscard]]
+static auto table_columns(sqlite3 * db, std::string_view name) -> expected_ec<std::vector<std::string>>
+  {
+  std::string pragma;
+  if(auto const dot{name.find('.')}; dot != std::string_view::npos)
+    pragma = std::format("PRAGMA {}.table_info({});", name.substr(0, dot), name.substr(dot + 1));
+  else
+    pragma = std::format("PRAGMA table_info({});", name);
+
+  std::vector<std::string> columns;
+  if(sqlite3_exec(db, pragma.c_str(), &collect_column_names, &columns, nullptr) != SQLITE_OK) [[unlikely]]
+    return cxx23::unexpected(std::make_error_code(std::errc::bad_message));
+
+  return columns;
+  }
+
 ///\brief sprawdza czy istniejaca tabela ma ksztalt jakiego oczekuje kod
 ///\detail CREATE TABLE IF NOT EXISTS milczy gdy tabela istnieje w innym ksztalcie, a baza zbierana
 /// na zywo nigdy nie jest kasowana - bez tej kontroli kazdy zapis sypalby sie osobno w trakcie pracy
@@ -988,8 +1005,42 @@ auto database_storage_t::open(storage_mode_e mode) -> expected_ec<void>
         return res;
     }
 
+  // najpierw migracja, bo create_database sprawdza ksztalt tabel i na starej odmowilby otwarcia
+  if(auto res{migrate_live_schema()}; not res) [[unlikely]]
+    return res;
+
   // wszystkie CREATE sa IF NOT EXISTS, wiec istniejaca baza dostaje brakujace tabele i indeksy
   return create_database();
+  }
+
+auto database_storage_t::migrate_live_schema() -> expected_ec<void>
+  {
+  // baza glowna powstaje od nowa z journali, wiec brakujaca kolumne zalatwia przebudowa.
+  // live.sqlite trzyma to, czego odtworzyc sie nie da, wiec tutaj kolumne trzeba dolozyc w miejscu
+  auto known{sqlite::table_columns(db_->db, sql_iface::tables::market_item)};
+  if(not known) [[unlikely]]
+    return cxx23::unexpected{known.error()};
+
+  // pusta lista znaczy ze tabeli jeszcze nie ma - powstanie od razu w docelowym ksztalcie
+  if(known->empty())
+    return {};
+
+  for(std::string_view const column: {"producer"sv, "consumer"sv})
+    {
+    if(std::ranges::find(*known, column) != known->end())
+      continue;
+
+    spdlog::info("adding column {} to {}", column, sql_iface::tables::market_item);
+    if(
+      auto res{sqlite::execute_query_no_result(
+        db_->db, std::format("ALTER TABLE {} ADD COLUMN {} INTEGER DEFAULT 0", sql_iface::tables::market_item, column)
+      )};
+      not res
+    ) [[unlikely]]
+      return res;
+    }
+
+  return {};
   }
 
 auto database_storage_t::create_database() -> expected_ec<void>
@@ -1268,6 +1319,42 @@ auto database_storage_t::load_cargo_needs() -> expected_ec<std::vector<info::car
       sql_iface::tables::mission,
       info::mission_status_e::accepted,
       info::mission_status_e::redirected
+    ),
+    ""
+  );
+  }
+
+auto database_storage_t::load_producers() -> expected_ec<std::vector<info::supply_option_t>>
+  {
+  // to samo co load_supply_options, ale bez warunku na zapas - interesuje nas sam fakt,
+  // ze rynek tym handluje, zeby odroznic chwilowa pustke od braku jakiegokolwiek zrodla
+  return sqlite::select_from<info::supply_option_t>(
+    db_->db,
+    std::format(
+      "(SELECT i.market_id AS market_id,"
+      " coalesce(st.name,'') AS station,"
+      " coalesce(st.station_type,'') AS station_type,"
+      " coalesce(ss.name,'') AS system,"
+      " c.name AS commodity,"
+      " n.needed AS needed,"
+      " i.stock AS stock,"
+      " i.buy_price AS buy_price"
+      " FROM (SELECT mc.commodity AS commodity, sum(mc.count) AS needed"
+      "       FROM {0} mc JOIN {1} m ON m.mission_id = mc.mission_id"
+      "       WHERE m.status IN ('{2}','{3}') AND mc.commodity <> ''"
+      "       GROUP BY mc.commodity) n"
+      " JOIN {4} c ON lower(c.name) = lower(n.commodity)"
+      " JOIN {5} i ON i.commodity_id = c.id AND i.producer <> 0"
+      " LEFT JOIN {6} st ON st.market_id = i.market_id"
+      " LEFT JOIN {7} ss ON ss.system_address = st.system_address)",
+      sql_iface::tables::mission_cargo,
+      sql_iface::tables::mission,
+      info::mission_status_e::accepted,
+      info::mission_status_e::redirected,
+      sql_iface::tables::commodity,
+      sql_iface::tables::market_item,
+      sql_iface::tables::station,
+      sql_iface::tables::star_system
     ),
     ""
   );

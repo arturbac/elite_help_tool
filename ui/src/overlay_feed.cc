@@ -558,13 +558,28 @@ auto overlay_feed_t::refresh_market(uint64_t market_id, uint32_t cargo_capacity)
     }
   };
 
+  // rynek odczytany przed dolozeniem flag ma wszedzie zera - wtedy flagom nie mozna wierzyc
+  bool const flags_known{
+    std::ranges::any_of(*entries, [](info::market_entry_t const & entry) { return entry.producer or entry.consumer; })
+  };
+
   std::vector<info::market_entry_t const *> sells;
   std::vector<info::market_entry_t const *> buys;
   for(info::market_entry_t const & entry: *entries)
     {
-    if(sell_gain(entry) >= interesting_deviation and entry.sell_price > entry.mean_price + interesting_margin)
+    // gra podaje cene takze dla towarow, ktorymi stacja nie handluje - bez tych flag Platinum
+    // ze Scott View wygladal jak okazja, choc nie byl ani sprzedawany, ani skupowany.
+    // rynki zapisane przed dolozeniem flag maja je zerowe, wiec dla nich wracamy do zapasu i popytu
+    bool const buys_it{flags_known ? entry.consumer : entry.demand > 0u};
+    bool const sells_it{flags_known ? entry.producer : entry.stock > 0u};
+
+    if(
+      buys_it and sell_gain(entry) >= interesting_deviation and entry.sell_price > entry.mean_price + interesting_margin
+    )
       sells.push_back(&entry);
-    if(buy_gain(entry) >= interesting_deviation and entry.buy_price + interesting_margin < entry.mean_price)
+    if(
+      sells_it and buy_gain(entry) >= interesting_deviation and entry.buy_price + interesting_margin < entry.mean_price
+    )
       buys.push_back(&entry);
     }
 
@@ -700,6 +715,7 @@ auto overlay_feed_t::refresh_supply() -> void
   supply_loaded_ = now;
   needs_.clear();
   options_.clear();
+  producers_.clear();
 
   if(auto needs{db_.load_cargo_needs()}; needs)
     needs_ = std::move(*needs);
@@ -709,6 +725,9 @@ auto overlay_feed_t::refresh_supply() -> void
 
   if(auto options{db_.load_supply_options()}; options)
     options_ = std::move(*options);
+
+  if(auto producers{db_.load_producers()}; producers)
+    producers_ = std::move(*producers);
   }
 
 auto overlay_feed_t::build_supply_lines(events::cargo_file_t const & cargo) const -> std::vector<overlay::line_t>
@@ -756,6 +775,12 @@ auto overlay_feed_t::build_supply_lines(events::cargo_file_t const & cargo) cons
       options_, [&need](info::supply_option_t const & option) { return option.commodity == need.commodity; }
     )};
 
+    // rynek moze tym handlowac i byc akurat pusty - to zupelnie inna wiadomosc niz brak zrodla
+    auto const seller{std::ranges::find_if(
+      producers_, [&need](info::supply_option_t const & option) { return option.commodity == need.commodity; }
+    )};
+    bool const sold_somewhere{seller != producers_.end()};
+
     if(have < need.count)
       missing.insert(need.commodity);
 
@@ -763,7 +788,13 @@ auto overlay_feed_t::build_supply_lines(events::cargo_file_t const & cargo) cons
     lines.push_back(
       overlay::line_t{
         .text = std::format(
-          "  {} x{} ({}){}", need.commodity, need.count, have, have >= need.count or known ? "" : "   no source known"
+          "  {} x{} ({}){}",
+          need.commodity,
+          need.count,
+          have,
+          have >= need.count or known ? std::string{}
+          : sold_somewhere            ? std::format("   {} sells it, out of stock", seller->station)
+                                      : std::string{"   no source known"}
         ),
         .color = have >= need.count ? colour_first : (known ? colour_plain : colour_alert)
       }
