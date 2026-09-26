@@ -499,7 +499,7 @@ auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
     );
   }
 
-auto overlay_feed_t::refresh_market(uint64_t market_id) -> void
+auto overlay_feed_t::refresh_market(uint64_t market_id, uint32_t cargo_capacity) -> void
   {
   // samo miejsce nie wystarczy jako klucz: w osadzie jestesmy od wejscia, a towary poznajemy
   // dopiero gdy gracz otworzy rynek, wiec pytanie raz przy zmianie miejsca zawsze trafialo w pustke
@@ -549,11 +549,25 @@ auto overlay_feed_t::refresh_market(uint64_t market_id) -> void
       buys.push_back(&entry);
     }
 
-  std::ranges::sort(sells, std::ranges::greater{}, [&](info::market_entry_t const * e) { return sell_gain(*e); });
-  std::ranges::sort(buys, std::ranges::greater{}, [&](info::market_entry_t const * e) { return buy_gain(*e); });
+  // ladownia ma stala pojemnosc, wiec o wyborze decyduje kwota na tonie, nie procent
+  std::ranges::sort(
+    sells, std::ranges::greater{}, [](info::market_entry_t const * e) { return e->sell_price - e->mean_price; }
+  );
+  std::ranges::sort(
+    buys, std::ranges::greater{}, [](info::market_entry_t const * e) { return e->mean_price - e->buy_price; }
+  );
 
+  size_t on_sale{};
+  size_t wanted{};
+  for(info::market_entry_t const & entry: *entries)
+    {
+    on_sale += entry.stock > 0u ? 1u : 0u;
+    wanted += entry.demand > 0u ? 1u : 0u;
+    }
+
+  // port bywa dostawca albo odbiorca - te dwie liczby mowia to od pierwszego spojrzenia
   market_lines_.push_back(
-    overlay::line_t{.text = std::format("{}: {} commodities", name, entries->size()), .color = colour_heading}
+    overlay::line_t{.text = std::format("{}: {} on sale, {} wanted", name, on_sale, wanted), .color = colour_heading}
   );
 
   if(not sells.empty())
@@ -563,7 +577,10 @@ auto overlay_feed_t::refresh_market(uint64_t market_id) -> void
       market_lines_.push_back(
         overlay::line_t{
           .text = std::format(
-            "  {}  {} Cr  +{:.0f}%", entry->name, format_credits_value(entry->sell_price), sell_gain(*entry) * 100.0
+            "  {}  {} Cr  {} over avg",
+            entry->name,
+            format_credits_value(entry->sell_price),
+            format_credits_value(entry->sell_price - entry->mean_price)
           ),
           .color = colour_first
         }
@@ -577,7 +594,10 @@ auto overlay_feed_t::refresh_market(uint64_t market_id) -> void
       market_lines_.push_back(
         overlay::line_t{
           .text = std::format(
-            "  {}  {} Cr  -{:.0f}%", entry->name, format_credits_value(entry->buy_price), buy_gain(*entry) * 100.0
+            "  {}  {} Cr  {} under avg",
+            entry->name,
+            format_credits_value(entry->buy_price),
+            format_credits_value(entry->mean_price - entry->buy_price)
           ),
           .color = colour_plain
         }
@@ -585,44 +605,44 @@ auto overlay_feed_t::refresh_market(uint64_t market_id) -> void
     }
 
   // srednia galaktyczna mowi czy cena jest dobra, ale zarobek bierze sie z roznicy miedzy rynkami
-  auto const add_trades{[this](bool bring_here, char const * heading)
-                        {
-                          auto trades{db_.load_trade_options(market_id_, listed_trades, bring_here)};
-                          if(not trades or trades->empty())
-                            return;
+  auto const add_trades{
+    [this, cargo_capacity](bool bring_here, char const * heading)
+    {
+      auto trades{db_.load_trade_options(market_id_, listed_trades, bring_here)};
+      if(not trades or trades->empty())
+        return;
 
-                          market_lines_.push_back(overlay::line_t{.text = heading, .color = colour_plain});
+      market_lines_.push_back(overlay::line_t{.text = heading, .color = colour_plain});
 
-                          for(info::trade_option_t const & trade: *trades)
-                            {
-                            auto const margin{static_cast<double>(trade.sell_price - trade.buy_price)};
-                            market_lines_.push_back(
-                              overlay::line_t{
-                                .text = std::format(
-                                  "  {}  +{} Cr/t  +{:.0f}%",
-                                  trade.commodity,
-                                  format_credits_value(static_cast<uint32_t>(margin)),
-                                  margin * 100.0 / double(trade.buy_price)
-                                ),
-                                .color = colour_first
-                              }
-                            );
-                            market_lines_.push_back(
-                              overlay::line_t{
-                                .text = std::format(
-                                  "    {} {}{}{}  {}",
-                                  bring_here ? "from" : "to",
-                                  trade.station,
-                                  trade.system.empty() ? "" : ", ",
-                                  trade.system,
-                                  bring_here ? std::format("{} in stock", format_credits_value(trade.stock))
-                                             : std::format("demand {}", format_credits_value(trade.demand))
-                                ),
-                                .color = colour_plain
-                              }
-                            );
-                            }
-                        }};
+      for(info::trade_option_t const & trade: *trades)
+        {
+        auto const margin{trade.sell_price - trade.buy_price};
+        // jeden kurs to tyle ton ile zmiesci ladownia, o ile starczy towaru i popytu
+        auto const tonnes{std::min({cargo_capacity != 0u ? cargo_capacity : trade.stock, trade.stock, trade.demand})};
+        auto const run{uint64_t{margin} * tonnes};
+
+        market_lines_.push_back(
+          overlay::line_t{
+            .text = std::format("  {}  {} Cr/t", trade.commodity, format_credits_value(margin)), .color = colour_first
+          }
+        );
+        market_lines_.push_back(
+          overlay::line_t{
+            .text = std::format(
+              "    {} t = {} Cr  {} {}{}{}",
+              format_credits_value(tonnes),
+              format_credits_value(static_cast<uint32_t>(std::min<uint64_t>(run, UINT32_MAX))),
+              bring_here ? "from" : "to",
+              trade.station,
+              trade.system.empty() ? "" : ", ",
+              trade.system
+            ),
+            .color = colour_plain
+          }
+        );
+        }
+    }
+  };
 
   add_trades(true, "bring here, best known:");
   add_trades(false, "take from here, best known:");
@@ -782,7 +802,7 @@ auto overlay_feed_t::publish(current_state_t const & state) -> void
     return;
 
   refresh_factions(state);
-  refresh_market(state.settlement_market_id_);
+  refresh_market(state.settlement_market_id_, state.ship_loadout.CargoCapacity);
   refresh_supply();
 
   overlay::frame_t frame{};

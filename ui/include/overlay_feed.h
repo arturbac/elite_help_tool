@@ -31,7 +31,7 @@ private:
   auto refresh_factions(current_state_t const & state) -> void;
 
   ///\brief rynek znamy tylko dla stacji w ktorej stoimy i tylko dopoki nie odlecimy
-  auto refresh_market(uint64_t market_id) -> void;
+  auto refresh_market(uint64_t market_id, uint32_t cargo_capacity) -> void;
 
   ///\brief skad wziac towar wymagany przez otwarte misje
   auto refresh_supply() -> void;

@@ -1317,7 +1317,8 @@ auto database_storage_t::load_trade_options(uint64_t market_id, unsigned limit, 
       " WHERE here.market_id = {4}"
       "   AND {6}.stock >= {8} AND {6}.buy_price > 0"
       "   AND {7}.demand >= {8} AND {7}.sell_price > {6}.buy_price"
-      " ORDER BY ({7}.sell_price - {6}.buy_price) * 1.0 / {6}.buy_price DESC"
+      // ladownia ma skonczona pojemnosc, wiec o zarobku decyduje marza na tonie, nie procent
+      " ORDER BY ({7}.sell_price - {6}.buy_price) DESC"
       " LIMIT {5})",
       sql_iface::tables::market_item,
       sql_iface::tables::commodity,
