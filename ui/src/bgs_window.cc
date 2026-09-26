@@ -156,7 +156,7 @@ auto bgs_effort_model_t::headerData(int section, Qt::Orientation orientation, in
 
   switch(column_e(section))
     {
-    case column_e::closed_by:   return QString{"Zamknieta"};
+    case column_e::closed_by:   return QString{"Zamknieta (UTC)"};
     case column_e::system:      return QString{"System"};
     case column_e::population:  return QString{"Populacja"};
     case column_e::faction:       return QString{"Frakcja"};
@@ -286,8 +286,8 @@ auto war_onset_model_t::headerData(int section, Qt::Orientation orientation, int
     case column_e::faction1:     return QString{"Frakcja A"};
     case column_e::state:        return QString{"Stan"};
     case column_e::faction2:     return QString{"Frakcja B"};
-    case column_e::pending_last: return QString{"Zapowiedziana"};
-    case column_e::active_first: return QString{"Zauwazona"};
+    case column_e::pending_last: return QString{"Zapowiedziana (UTC)"};
+    case column_e::active_first: return QString{"Zauwazona (UTC)"};
     case column_e::column_max:   break;
     }
 

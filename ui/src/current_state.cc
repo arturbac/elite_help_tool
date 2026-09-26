@@ -1233,7 +1233,8 @@ auto describe_tick(
   // wiec sama zmiana jest dowodem, ze tick tu byl. Widzimy ja z opoznieniem wlasnej wizyty,
   // dlatego to "nie wczesniej niz", a nie "dokladnie wtedy"
   if(*mine)
-    view.here = std::format("zmiana {:%d.%m %H:%M}, {} temu", **mine, hours_ago(**mine, now));
+    // strefa przy kazdej godzinie - journal i gra chodza na UTC, zegar na pasku nie
+    view.here = std::format("zmiana {:%d.%m %H:%M} UTC, {} temu", **mine, hours_ago(**mine, now));
 
   if(not waves->empty())
     {
@@ -1252,8 +1253,9 @@ auto describe_tick(
       );
 
     // bez slowa "galaktyka" - mowi je juz podpis wiersza, a kazdy znak tu kosztuje szerokosc
-    view.galaxy
-      = std::format("{:%d.%m %H:%M}-{:%H:%M} ({} sys) - {}", wave.start_begin, wave.end_end, wave.systems, regularity);
+    view.galaxy = std::format(
+      "{:%d.%m %H:%M}-{:%H:%M} UTC ({} sys) - {}", wave.start_begin, wave.end_end, wave.systems, regularity
+    );
     }
 
   return view;

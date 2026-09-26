@@ -62,15 +62,15 @@ void print_war_onsets(database_storage_t & db)
     }
 
   std::println(
-    "{:<24}{:<9}{:>7}  {:<26}{:^15}{:<26}{:<16}{:<16}",
+    "{:<24}{:<9}{:>7}  {:<26}{:^15}{:<26}{:<19}{:<19}",
     "system",
     "typ",
     "okno",
     "frakcja A",
     "stan",
     "frakcja B",
-    "zapowiedziana",
-    "zauwazona"
+    "zapowiedziana UTC",
+    "zauwazona UTC"
   );
   for(size_t ix{}; ix < onsets->size() and ix < 25u; ++ix)
     {
@@ -83,7 +83,7 @@ void print_war_onsets(database_storage_t & db)
     };
 
     std::println(
-      "{:<24}{:<9}{:>6.1f}h  {:<26}{:^15}{:<26}{:<16}{:<16}",
+      "{:<24}{:<9}{:>6.1f}h  {:<26}{:^15}{:<26}{:<19}{:<19}",
       onset.system_name.substr(0, 23),
       onset.war_type.substr(0, 8),
       lags[ix],
@@ -112,8 +112,8 @@ void print_bgs_effort(database_storage_t & db, uint32_t within_days)
 
   std::println("\n=== PRACA BGS === {} pozycji z ostatnich {} dni", effort->size(), within_days);
   std::println(
-    "{:<12}{:<24}{:>9}  {:<24}{:<11}{:>5}{:>7}{:>7}{:>8}{:>17}{:>12}",
-    "zamknieta",
+    "{:<16}{:<24}{:>9}  {:<24}{:<11}{:>5}{:>7}{:>7}{:>8}{:>17}{:>12}",
+    "zamknieta UTC",
     "system",
     "populacja",
     "frakcja",
@@ -149,7 +149,7 @@ void print_bgs_effort(database_storage_t & db, uint32_t within_days)
       rate = std::format("{:.1f}", double(row.system_pushed_up) / *row.system_gain);
 
     std::println(
-      "{:<12}{:<24}{:>9}  {:<24}{:<11}{:>5}{:>7}{:>7}{:>8}{:>17}{:>12}",
+      "{:<16}{:<24}{:>9}  {:<24}{:<11}{:>5}{:>7}{:>7}{:>8}{:>17}{:>12}",
       closed,
       row.system_name.substr(0, 23),
       info::format_population(row.population),
