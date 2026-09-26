@@ -990,6 +990,7 @@ struct docked_t
   std::string StationGovernment_Localised;
   ///\brief the faction holding the place - the journal gives it nested, not as a bare string
   system_faction_t StationFaction;
+  double DistFromStarLS;
   };
 
 ///\brief an order to move a ship between ports
@@ -1075,8 +1076,18 @@ struct status_file_t
   ///\brief 0 none, 1-4 the cockpit panels, 5 station services, 6 galaxy map, 7 system map,
   /// 8 orrery, 9 FSS, 10 surface scanner, 11 codex
   uint32_t GuiFocus;
-  ///\brief the body we are near or on, by its full name - absent in open space
+  ///\brief the body we are near or on, by its full name - absent in open space; on foot in an orbital
+  /// station it is the station's name
   std::string BodyName;
+  ///\brief where the ship is set to go - only the system when it lies elsewhere, the station and the
+  /// body it is on once inside the same system
+  struct destination_t
+    {
+    uint64_t System;
+    uint32_t Body;
+    std::string Name;
+    };
+  std::optional<destination_t> Destination;
   };
 
 struct market_file_t

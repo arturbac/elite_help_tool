@@ -194,6 +194,9 @@ struct station_t
   std::string government;
   ///\brief the faction holding the place - its influence is what missions handed in here raise
   std::string controlling_faction;
+  ///\brief how far out from the arrival star it lies, from Docked - the journal never names the body a
+  /// station orbits, but it circles close to it, so the body at the same distance is the one; 0 unknown
+  double dist_from_star_ls{};
   };
 
 ///\brief when we last read this station's market

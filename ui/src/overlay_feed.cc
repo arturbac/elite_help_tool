@@ -248,6 +248,43 @@ constexpr uint32_t line_colour{0x5a6470u};
 constexpr uint32_t label_colour{0xa8b0bau};
 constexpr uint32_t here_colour{0x40e0ffu};
 constexpr uint32_t bio_colour{0x3cb371u};
+constexpr uint32_t destination_colour{0xffd24au};
+constexpr uint32_t port_colour{0xc8d0dcu};
+constexpr float port_size{4.2f};
+constexpr float port_step{10.f};
+
+///\brief the orbital ports, each with the outline the game's map gives it; the rest - surface ports,
+/// settlements, construction sites, installations, carriers - are not drawn
+enum struct port_e : uint8_t
+  {
+  none,
+  coriolis,
+  orbis,
+  ocellus,
+  dodec,
+  outpost,
+  asteroid
+  };
+
+[[nodiscard]]
+auto port_shape(std::string_view type) -> port_e
+  {
+  if(type == "Coriolis")
+    return port_e::coriolis;
+  // Artemis and Apollo are both Orbis to the journal
+  if(type == "Orbis")
+    return port_e::orbis;
+  // Bernal is the older name of the same wheel
+  if(type == "Ocellus" or type == "Bernal")
+    return port_e::ocellus;
+  if(type == "Dodec")
+    return port_e::dodec;
+  if(type == "Outpost")
+    return port_e::outpost;
+  if(type == "AsteroidBase")
+    return port_e::asteroid;
+  return port_e::none;
+  }
 
 ///\brief the order the game numbers bodies in - "A 10" after "A 9", not after "A 1"
 [[nodiscard]]
@@ -380,7 +417,12 @@ auto planet_colour(planet_details_t const & details) -> uint32_t
 /// instead of a disc. Stars sharing a barycentre are bracketed on the left, planets sharing one above.
 /// The hierarchy is the one the scans gave - the names only say what to write beside each disc
 [[nodiscard]]
-auto build_system_diagram(star_system_t const & system, std::string_view here) -> std::optional<overlay::diagram_t>
+auto build_system_diagram(
+  star_system_t const & system,
+  std::span<info::station_t const> stations,
+  std::string_view here,
+  std::optional<events::status_file_t::destination_t> const & destination
+) -> std::optional<overlay::diagram_t>
   {
   using namespace system_map;
   using events::body_id_t;
@@ -464,10 +506,91 @@ auto build_system_diagram(star_system_t const & system, std::string_view here) -
   overlay::diagram_t diagram{};
   std::string_view const here_short{here.empty() ? std::string_view{} : body_short_name(system.name, here)};
 
+  // the destination counts only inside this system - elsewhere the game names nothing but the system
+  bool const going_here{destination and destination->System == system.system_address};
+
   auto const mark_here = [&](body_t const * body, float x, float y, float r)
   {
     if(not here_short.empty() and body->name == here_short)
       diagram.discs.push_back(overlay::disc_t{.x = x, .y = y, .radius = r + 3.5f, .color = here_colour, .outline = true});
+    // a surface port's destination names the body it stands on
+    if(going_here and destination->Body == body->body_id)
+      diagram.discs.push_back(
+        overlay::disc_t{.x = x, .y = y, .radius = r + 6.f, .color = destination_colour, .outline = true}
+      );
+  };
+
+  // An orbital port, attached to the body at its own distance from the star: the journal never says
+  // what a station circles, but it circles close, and bodies of a system lie hundreds of seconds apart
+  std::map<body_id_t, std::vector<info::station_t const *>> ports;
+  for(info::station_t const & station: stations)
+    {
+    if(station.dist_from_star_ls <= 0.0 or port_shape(station.station_type) == port_e::none)
+      continue;
+    body_t const * nearest{};
+    double gap{std::numeric_limits<double>::max()};
+    for(auto const & [id, body]: by_id)
+      if(double const g{std::abs(body->distance_from_arrival_ls - station.dist_from_star_ls)}; g < gap)
+        {
+        gap = g;
+        nearest = body;
+        }
+    if(nearest == nullptr or gap > std::max(5.0, station.dist_from_star_ls * 0.015))
+      continue;
+    // a port by a moon stands in its planet's column, where the moon hangs too
+    body_t const * owner{nearest};
+    while(auto const * pd{planet_of(owner)})
+      {
+      if(not pd->parent_planet or not by_id.contains(*pd->parent_planet))
+        break;
+      owner = by_id.at(*pd->parent_planet);
+      }
+    ports[owner->body_id].push_back(&station);
+    }
+
+  auto const draw_port = [&](info::station_t const & station, float x, float y)
+  {
+    constexpr float s{port_size};
+    auto const line = [&](float x0, float y0, float x1, float y1)
+    { diagram.segments.push_back(overlay::segment_t{.x0 = x0, .y0 = y0, .x1 = x1, .y1 = y1, .color = port_colour}); };
+    auto const polygon = [&](int sides, float turn)
+    {
+      for(int i{}; i != sides; ++i)
+        {
+        float const a0{turn + 6.2831853f * static_cast<float>(i) / static_cast<float>(sides)};
+        float const a1{turn + 6.2831853f * static_cast<float>(i + 1) / static_cast<float>(sides)};
+        line(x + s * std::cos(a0), y + s * std::sin(a0), x + s * std::cos(a1), y + s * std::sin(a1));
+        }
+    };
+    switch(port_shape(station.station_type))
+      {
+      case port_e::coriolis: polygon(4, 0.7853982f); break;
+      case port_e::dodec:    polygon(5, -1.5707963f); break;
+      case port_e::orbis:
+        diagram.discs.push_back(overlay::disc_t{.x = x, .y = y, .radius = s, .color = port_colour, .outline = true});
+        diagram.discs.push_back(overlay::disc_t{.x = x, .y = y, .radius = 1.f, .color = port_colour});
+        break;
+      case port_e::ocellus:
+        diagram.discs.push_back(overlay::disc_t{.x = x, .y = y, .radius = s, .color = port_colour, .outline = true});
+        diagram.discs.push_back(
+          overlay::disc_t{.x = x, .y = y, .radius = s * 0.45f, .color = port_colour, .outline = true}
+        );
+        break;
+      case port_e::outpost:
+        line(x - s * 0.5f, y - s, x - s * 0.5f, y + s);
+        line(x - s * 0.5f, y + s, x + s * 0.8f, y + s);
+        break;
+      case port_e::asteroid: polygon(3, -1.5707963f); break;
+      case port_e::none:     break;
+      }
+    if(not here.empty() and station.name == here)
+      diagram.discs.push_back(
+        overlay::disc_t{.x = x, .y = y, .radius = s + 3.5f, .color = here_colour, .outline = true}
+      );
+    if(going_here and station.name == destination->Name)
+      diagram.discs.push_back(
+        overlay::disc_t{.x = x, .y = y, .radius = s + 6.f, .color = destination_colour, .outline = true}
+      );
   };
 
   // the star rows, remembered for the brackets pairing stars around a shared barycentre
@@ -507,6 +630,18 @@ auto build_system_diagram(star_system_t const & system, std::string_view here) -
       mark_here(row->star, lead_x, line_y, star_radius);
       if(sd.parent_barycenter)
         star_pairs[*sd.parent_barycenter].push_back(line_y);
+
+      // ports circling the star itself stack under it
+      if(auto const it{ports.find(row->star->body_id)}; it != ports.end())
+        {
+        float py{line_y + star_radius + 4.f + port_size};
+        for(info::station_t const * station: it->second)
+          {
+          draw_port(*station, lead_x, py);
+          bottom = std::max(bottom, py + port_size);
+          py += port_step;
+          }
+        }
       }
     else
       {
@@ -574,6 +709,16 @@ auto build_system_diagram(star_system_t const & system, std::string_view here) -
           }
       };
       hang(planet->body_id, 1);
+
+      // the ports after the moons, at the foot of the column
+      if(auto const it{ports.find(planet->body_id)}; it != ports.end())
+        for(info::station_t const * station: it->second)
+          {
+          y += port_size;
+          draw_port(*station, x, y);
+          column_end = y;
+          y += port_size + port_step - 2.f * port_size;
+          }
 
       if(column_end > 0.f)
         {
@@ -1787,6 +1932,7 @@ auto overlay_feed_t::refresh_status(current_state_t const & state) -> void
     {
     gui_focus_ = status->GuiFocus;
     status_body_ = std::move(status->BodyName);
+    status_destination_ = std::move(status->Destination);
     }
   }
 
@@ -2323,7 +2469,18 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
     );
 
   // the least urgent thing on this side, so it goes last - into the corner itself
-  if(auto map{build_system_diagram(state.system, status_body_)}; map)
+  // the ports change only with the system, and with a docking that records a new one
+  if(
+    state.system.system_address != stations_system_
+    or std::chrono::steady_clock::now() - stations_loaded_ > std::chrono::seconds{30}
+  )
+    {
+    stations_system_ = state.system.system_address;
+    stations_loaded_ = std::chrono::steady_clock::now();
+    auto loaded{db_.load_stations(stations_system_)};
+    stations_ = loaded ? std::move(*loaded) : std::vector<info::station_t>{};
+    }
+  if(auto map{build_system_diagram(state.system, stations_, status_body_, status_destination_)}; map)
     frame.blocks.push_back(
       overlay::block_t{.corner = overlay::corner_e::bottom_right, .ttl_ms = block_ttl_ms, .diagrams = {std::move(*map)}}
     );

@@ -701,7 +701,8 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
             .station_type = event.StationType,
             .economy = event.StationEconomy_Localised,
             .government = event.StationGovernment_Localised,
-            .controlling_faction = event.StationFaction.Name
+            .controlling_faction = event.StationFaction.Name,
+            .dist_from_star_ls = event.DistFromStarLS
           };
 
           if(auto res{db_.store(station)}; not res)

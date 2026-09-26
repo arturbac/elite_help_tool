@@ -110,6 +110,12 @@ private:
   uint32_t gui_focus_{};
   ///\brief the body the game says we are at, empty away from any
   std::string status_body_;
+  ///\brief where the ship is set to go, as Status.json has it
+  std::optional<events::status_file_t::destination_t> status_destination_;
+  ///\brief the ports of the system we are in, for the picture - read again only on a change of system
+  uint64_t stations_system_{};
+  std::chrono::steady_clock::time_point stations_loaded_{};
+  std::vector<info::station_t> stations_;
   std::chrono::steady_clock::time_point status_read_{};
 
   std::chrono::steady_clock::time_point supply_loaded_{};

@@ -1134,6 +1134,7 @@ auto database_storage_t::migrate_live_schema() -> expected_ec<void>
       {addition_t{sql_iface::tables::market_item, "producer"sv, "INTEGER DEFAULT 0"sv},
        addition_t{sql_iface::tables::market_item, "consumer"sv, "INTEGER DEFAULT 0"sv},
        addition_t{sql_iface::tables::station, "controlling_faction"sv, "TEXT DEFAULT ''"sv},
+       addition_t{sql_iface::tables::station, "dist_from_star_ls"sv, "REAL DEFAULT 0"sv},
        // what a star orbits - stars written before it was kept stay NULL until a rebuild or a rescan
        addition_t{sql_iface::tables::star_details, "parent_star"sv, "INTEGER"sv},
        addition_t{sql_iface::tables::star_details, "parent_barycenter"sv, "INTEGER"sv},
@@ -2119,6 +2120,8 @@ auto database_storage_t::store(info::station_t const & value) -> expected_ec<voi
   fill(merged.economy, value.economy);
   fill(merged.government, value.government);
   fill(merged.controlling_faction, value.controlling_faction);
+  if(value.dist_from_star_ls > 0.0)
+    merged.dist_from_star_ls = value.dist_from_star_ls;
   if(merged.system_address == 0)
     merged.system_address = value.system_address;
 
