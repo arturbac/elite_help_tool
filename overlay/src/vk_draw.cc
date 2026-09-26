@@ -62,6 +62,14 @@ namespace
     return width > 0.f and width <= display_width ? width : display_width;
     }
 
+  ///\brief how much smaller the small text is than the ordinary text
+  [[nodiscard]]
+  auto small_text_ratio() noexcept -> float
+    {
+    static float const ratio{std::clamp(env_float("EHT_OVERLAY_SMALL_TEXT", 0.75f), 0.4f, 1.f)};
+    return ratio;
+    }
+
   ///\brief how far below the top edge the head-up readouts sit
   [[nodiscard]]
   auto hud_top() noexcept -> float
@@ -643,6 +651,10 @@ namespace
             if(stats_here)
               ImGui::Separator();
 
+            bool const small{block.text == overlay::text_e::small and data.small_font != nullptr};
+            if(small)
+              ImGui::PushFont(data.small_font);
+
             for(overlay::line_t const & line: block.lines)
               draw_line(data, line);
 
@@ -652,6 +664,9 @@ namespace
             };
             for(overlay::chart_t const & chart: block.charts)
               draw_chart(chart, chart_width);
+
+            if(small)
+              ImGui::PopFont();
             }
 
         ImGui::PopTextWrapPos();
@@ -922,6 +937,13 @@ auto ensure_resources(swapchain_data_t & data, VkQueue queue) -> bool
   ImFontConfig font_config{};
   font_config.SizePixels = std::round(13.f * scale);
   io.Fonts->AddFontDefault(&font_config);
+
+  // the same face rasterised a second time rather than one bitmap stretched: a list of missions is
+  // read line by line, not glanced at, and at the size that suits a glance it eats the band
+  ImFontConfig small_config{};
+  small_config.SizePixels = std::max(8.f, std::round(font_config.SizePixels * small_text_ratio()));
+  data.small_font = io.Fonts->AddFontDefault(&small_config);
+
   // the emblems take their place in the atlas before it is built, and are written into it right after
   reserve_emblems(data);
   blit_emblems(data);

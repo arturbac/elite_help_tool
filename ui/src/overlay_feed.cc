@@ -1787,7 +1787,14 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
   // the market underneath, because it is longer and less urgent than what the missions still lack
   if(not market_lines_.empty())
     frame.blocks.push_back(
-      overlay::block_t{.corner = overlay::corner_e::top_right, .ttl_ms = block_ttl_ms, .lines = market_lines_}
+      overlay::block_t{
+        .corner = overlay::corner_e::top_right,
+        .ttl_ms = block_ttl_ms,
+        .lines = market_lines_,
+        .charts = {},
+        // the longest list of all, and every row of it a price
+        .text = overlay::text_e::small
+      }
     );
 
   if(auto logistics{build_logistics_lines()}; not logistics.empty())
@@ -1808,7 +1815,14 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
 
   if(auto missions{describe_missions(state.active_missions, place_owner_)}; not missions.empty())
     frame.blocks.push_back(
-      overlay::block_t{.corner = overlay::corner_e::bottom_left, .ttl_ms = block_ttl_ms, .lines = std::move(missions)}
+      overlay::block_t{
+        .corner = overlay::corner_e::bottom_left,
+        .ttl_ms = block_ttl_ms,
+        .lines = std::move(missions),
+        .charts = {},
+        // a list read line by line, not glanced at
+        .text = overlay::text_e::small
+      }
     );
 
   if(not state.next_target.Name.empty() and state.next_target.Name != state.system.name)

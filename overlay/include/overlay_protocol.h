@@ -140,6 +140,22 @@ struct chart_t
   std::vector<series_t> series;
   };
 
+///\brief how large a block's text is set
+///\detail a new field, not a new value of an existing enumeration - an older layer skips a field it
+/// does not know and goes on drawing, where an unknown enumerator would cost it the whole frame
+enum struct text_e : uint8_t
+  {
+  normal,
+  ///\brief for the blocks that are long lists rather than glances
+  small
+  };
+
+consteval auto adl_enum_bounds(text_e)
+  {
+  using enum text_e;
+  return simple_enum::adl_info{normal, small};
+  }
+
 ///\brief the contents of one corner of the screen
 struct block_t
   {
@@ -148,6 +164,7 @@ struct block_t
   uint32_t ttl_ms{};
   std::vector<line_t> lines;
   std::vector<chart_t> charts;
+  text_e text{text_e::normal};
   };
 
 ///\brief the full image to draw - replaces the previous one entirely, only the newest counts
