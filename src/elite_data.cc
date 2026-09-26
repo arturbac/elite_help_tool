@@ -48,6 +48,30 @@ auto to_native(events::faction_info_t && faction) -> faction_info_t
   return result;
   }
 
+auto format_population(uint64_t value) -> std::string
+  {
+  struct step_t
+    {
+    uint64_t unit;
+    char suffix;
+    };
+
+  // od najwiekszego, zeby miliard nie wyszedl jako tysiac milionow
+  for(step_t const & step: {step_t{1'000'000'000u, 'B'}, step_t{1'000'000u, 'M'}, step_t{1'000u, 'k'}})
+    {
+    if(value < step.unit)
+      continue;
+
+    double const scaled{double(value) / double(step.unit)};
+
+    // miejsce po przecinku ma sens tylko przy jednocyfrowych - przy 44M nikogo nie obchodzi 44.3
+    return scaled < 10.0 ? std::format("{:.1f}{}", scaled, step.suffix)
+                         : std::format("{:.0f}{}", scaled, step.suffix);
+    }
+
+  return std::format("{}", value);
+  }
+
 auto join_states(std::span<events::faction_state_entry_t const> states) -> std::string
   {
   std::string result;

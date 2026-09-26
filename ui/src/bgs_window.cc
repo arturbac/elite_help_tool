@@ -56,7 +56,7 @@ auto bgs_effort_model_t::data(QModelIndex const & index, int role) const -> QVar
                  ? QString{"trwa"}
                  : QString::fromStdString(std::format("{:%d.%m %H:%M}", row.closed_by));
       case column_e::system:      return QString::fromStdString(row.system_name);
-      case column_e::population:  return QLocale{}.toString(qulonglong(row.population));
+      case column_e::population:  return QString::fromStdString(info::format_population(row.population));
       case column_e::faction:     return QString::fromStdString(row.faction);
       case column_e::missions:    return row.missions;
       case column_e::pushed_up:   return row.pushed_up != 0 ? QVariant{row.pushed_up} : QVariant{QString{"-"}};

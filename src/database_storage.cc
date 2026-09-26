@@ -2445,21 +2445,42 @@ auto database_storage_t::load_bgs_effort(uint32_t within_days, uint64_t system_a
   std::vector<info::tick_fact_t> ordered{*waves};
   std::ranges::reverse(ordered);
 
+  // Okres liczony od ostatniej zapisanej pracy, nie od zegara - baza bywa starsza niz dzis, a pusty
+  // raport nie powiedzialby, czy pracy nie bylo, czy tylko jest sprzed tygodnia
+  auto cutoff{sqlite::select_signle_from<std::chrono::sys_seconds>(
+    db_->db,
+    std::format(
+      "SELECT strftime('%Y-%m-%dT%H:%M:%SZ', max(timestamp), '-{} days') FROM {}",
+      within_days,
+      sql_iface::tables::mission_influence
+    )
+  )};
+  if(not cutoff) [[unlikely]]
+    return cxx23::unexpected{cutoff.error()};
+
+  if(not *cutoff)
+    return std::vector<info::bgs_effort_t>{};
+
+  // Doba BGS nie konczy sie na granicy okresu, wiec ciecie rowno w niej zabraloby czesc plusow
+  // najstarszej doby i zaniziloby jej przelicznik - ta sama doba wygladalaby inaczej przy wyborze
+  // 7 i 14 dni. Zamiast tego cofamy sie do przeliczenia, ktore te dobe otworzylo
+  std::chrono::sys_seconds since{**cutoff};
+  for(info::tick_fact_t const & wave: ordered)
+    if(wave.start_end <= **cutoff)
+      since = wave.start_end;
+
   std::string const scope{system_address != 0u ? std::format(" AND mi.system_address={}", system_address) : ""};
   auto rows{sqlite::select_from<bgs_detail::effort_row_t>(
     db_->db,
     std::format(
-      // okres liczony od ostatniej zapisanej pracy, nie od zegara - baza bywa starsza niz dzis,
-      // a pusty raport nie powiedzialby czy praca nie istnieje, czy tylko jest sprzed tygodnia
       "(SELECT mi.system_address AS system_address, coalesce(ss.name, '') AS system_name,"
       " coalesce(ss.population, 0) AS population, mi.faction AS faction, mi.timestamp AS timestamp,"
       " mi.pluses AS pluses, mi.mission_id AS mission_id"
       " FROM {0} mi LEFT JOIN {1} ss ON ss.system_address = mi.system_address"
-      " WHERE mi.timestamp >="
-      "   (SELECT strftime('%Y-%m-%dT%H:%M:%SZ', max(timestamp), '-{2} days') FROM {0}){3})",
+      " WHERE mi.timestamp >= '{2:%Y-%m-%dT%H:%M:%SZ}'{3})",
       sql_iface::tables::mission_influence,
       sql_iface::tables::star_system,
-      within_days,
+      since,
       scope
     ),
     ""

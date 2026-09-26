@@ -158,6 +158,14 @@ struct conflict_t
 auto to_conflict(uint64_t system_address, std::chrono::sys_seconds timestamp, events::conflict_t const & conflict)
   -> conflict_t;
 
+///\brief populacja skrocona do rzedu wielkosci - 74k, 9.9M, 2.0B
+///
+/// Przy porownywaniu systemow liczy sie rzad wielkosci, nie pojedyncze osoby: rozstrzyga, czy
+/// system jest czterdziestotysieczny czy czterdziestomilionowy, bo to od tego zalezy, ile pracy
+/// kosztuje punkt procentowy wplywow. Pelna liczba zabiera miejsce i nic nie wnosi
+[[nodiscard]]
+auto format_population(uint64_t value) -> std::string;
+
 ///\brief nazwy stanow sklejone przecinkiem, do zapisu i pokazania w tabeli
 [[nodiscard]]
 auto join_states(std::span<events::faction_state_entry_t const> states) -> std::string;
