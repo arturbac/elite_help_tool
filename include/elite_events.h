@@ -362,6 +362,14 @@ struct mission_redirected_t
   std::string NewDestinationSettlement;
   };
 
+///\brief kto gra w tej sesji - kazdy journal otwiera to zdarzenie zaraz po naglowku
+///\detail FID jest stalym identyfikatorem konta, nazwa bywa zmieniana - dlatego rozstrzyga FID
+struct commander_t
+  {
+  std::string FID;
+  std::string Name;
+  };
+
 ///\brief pozycja z listy misji ktore gra uwaza za otwarte
 struct mission_active_t
   { uint64_t MissionID; };
@@ -1086,7 +1094,8 @@ using event_holder_t = std::variant<
   nav_route_clear_t,
   cargo_t,
   carrier_stats_t,
-  fcmaterials_t>;
+  fcmaterials_t,
+  commander_t>;
 
   }  // namespace events
 

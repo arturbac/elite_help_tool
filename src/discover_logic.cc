@@ -811,6 +811,8 @@ auto generic_state_t::discovery(std::string_view input) -> void
     case MissionFailed:     parse_and_handle.template operator()<events::mission_failed_t>(); break;
     case MissionRedirected: parse_and_handle.template operator()<events::mission_redirected_t>(); break;
     case Missions:          parse_and_handle.template operator()<events::missions_t>(); break;
+    // po tym zdarzeniu wiadomo, czyje sa nastepne wpisy az do konca pliku
+    case Commander:         parse_and_handle.template operator()<events::commander_t>(); break;
     case Cargo:             parse_and_handle.template operator()<events::cargo_t>(); break;  //
     case Shutdown:          break;
     case CarrierStats:      parse_and_handle.template operator()<events::carrier_stats_t>(); break;

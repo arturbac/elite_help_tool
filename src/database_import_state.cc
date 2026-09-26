@@ -75,7 +75,8 @@ void process_factions(
   database_storage_t & db,
   std::chrono::sys_seconds timestamp,
   uint64_t system_address,
-  std::span<events::faction_info_t> factions
+  std::span<events::faction_info_t> factions,
+  bool personal
 )
   {
   for(events::faction_info_t & f: factions)
@@ -89,7 +90,7 @@ void process_factions(
       {
       // no data add
       spdlog::info("adding faction {}", new_faction_data.name);
-      if(auto updres{db.update_faction_info(new_faction_data)}; not updres)
+      if(auto updres{db.update_faction_info(new_faction_data, personal)}; not updres)
         critical_abort("failed to add faction data for {}", new_faction_data.name);
       auto oidres{db.faction_oid(new_faction_data.name)};
       if(not oidres or not *oidres)
@@ -103,7 +104,7 @@ void process_factions(
       if(old_faction_data != new_faction_data)
         {
         spdlog::info("updating faction {}", new_faction_data.name);
-        if(auto updres{db.update_faction_info(new_faction_data)}; not updres)
+        if(auto updres{db.update_faction_info(new_faction_data, personal)}; not updres)
           critical_abort("failed to update faction data for {}", new_faction_data.name);
         }
       }
@@ -119,6 +120,17 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
   std::visit(
     [&state, timestamp]<typename T>(T & event)
     {
+      // kariera nalezy do postaci - z journala cudzego konta bierzemy sam swiat, a te zdarzenia
+      // mowia wylacznie o tym, co robil gracz, wiec w cudzej bazie nie maja czego opisywac
+      if constexpr(
+        std::same_as<T, events::mission_accepted_t> or std::same_as<T, events::mission_completed_t>
+        or std::same_as<T, events::mission_abandoned_t> or std::same_as<T, events::mission_failed_t>
+        or std::same_as<T, events::mission_redirected_t> or std::same_as<T, events::missions_t>
+        or std::same_as<T, events::sell_micro_resources_t> or std::same_as<T, events::backpack_change_t>
+      )
+        if(not state.personal)
+          return;
+
       if constexpr(std::same_as<T, events::start_jump_t>)
         {
         if(event.JumpType == events::jump_type_e::Hyperspace)
@@ -189,7 +201,7 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
 
         // add/update factions database
         if(not event.Factions.empty())
-          process_factions(state.db_, timestamp, event.SystemAddress, event.Factions);
+          process_factions(state.db_, timestamp, event.SystemAddress, event.Factions, state.personal);
         if(not event.Conflicts.empty())
           process_conflicts(state.db_, timestamp, event.SystemAddress, event.Conflicts);
         }
@@ -213,7 +225,7 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
 
         // add/update factions database
         if(not event.Factions.empty())
-          process_factions(state.db_, timestamp, event.SystemAddress, event.Factions);
+          process_factions(state.db_, timestamp, event.SystemAddress, event.Factions, state.personal);
         if(not event.Conflicts.empty())
           process_conflicts(state.db_, timestamp, event.SystemAddress, event.Conflicts);
         }
@@ -411,7 +423,11 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
 
         if(
           auto res{state.db_.store_genus_species(
-            event.SystemAddress, event.Body, event.Genus_Localised, event.Species_Localised, analysed
+            event.SystemAddress,
+            event.Body,
+            event.Genus_Localised,
+            event.Species_Localised,
+            analysed and state.personal
           )};
           not res
         ) [[unlikely]]
@@ -543,12 +559,20 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
         if(auto res{state.db_.store(to_system_signal(event, timestamp))}; not res) [[unlikely]]
           critical_abort("failed to store signal for {}", event.SystemAddress);
         }
+      else if constexpr(std::same_as<T, events::commander_t>)
+        {
+        // od tej chwili az do konca pliku wiadomo, czyje sa wpisy
+        state.personal = state.owner_fid.empty() or event.FID == state.owner_fid;
+        if(not state.personal)
+          spdlog::info("journal of {} - taking the world from it, not the career", event.Name);
+        }
       else if constexpr(std::same_as<T, events::fss_all_bodies_found_t>)
         {
         spdlog::info("fss scan complete");
         state.system.fss_complete = true;
-        if(auto res{state.db_.store_fss_complete(state.system.system_address)}; not res) [[unlikely]]
-          critical_abort("failed to update fss scan complete for {}", state.system.system_address);
+        if(state.personal)
+          if(auto res{state.db_.store_fss_complete(state.system.system_address)}; not res) [[unlikely]]
+            critical_abort("failed to update fss scan complete for {}", state.system.system_address);
         }
       else if constexpr(std::same_as<T, events::saa_scan_complete_t>)
         {
@@ -596,8 +620,12 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
             {
             planet_details_t & details{std::get<planet_details_t>(it->details)};
             details.mapped = true;
-            if(auto res{state.db_.store_dss_complete(state.system.system_address, event.BodyID)}; not res) [[unlikely]]
-              critical_abort("failed to update dss scan complete for {}:{}", state.system.system_address, event.BodyID);
+            if(state.personal)
+              if(auto res{state.db_.store_dss_complete(state.system.system_address, event.BodyID)};
+                 not res) [[unlikely]]
+                critical_abort(
+                  "failed to update dss scan complete for {}:{}", state.system.system_address, event.BodyID
+                );
             }
           else
             spdlog::error("body {}:{} does not hold planet details ...", event.BodyID, it->name);

@@ -2333,18 +2333,22 @@ auto database_storage_t::load_factions() -> expected_ec<std::vector<info::factio
   return factions;
   }
 
-auto database_storage_t::update_faction_info(info::faction_info_t const & faction) -> expected_ec<void>
+auto database_storage_t::update_faction_info(info::faction_info_t const & faction, bool with_reputation)
+  -> expected_ec<void>
   {
   // reputacja idzie do bazy osobistej, reszta do wspolnej - nazwa laczy jedno z drugim
-  std::string reputation{std::format(
-    "INSERT INTO {0} (faction, reputation) VALUES ('{1}', {2})"
-    " ON CONFLICT(faction) DO UPDATE SET reputation = excluded.reputation",
-    sql_iface::tables::faction_reputation,
-    sqlite::escape_sql_quotes(faction.name),
-    faction.reputation
-  )};
-  if(auto res{sqlite::execute_query_no_result(db_->db, reputation)}; not res) [[unlikely]]
-    return res;
+  if(with_reputation)
+    {
+    std::string reputation{std::format(
+      "INSERT INTO {0} (faction, reputation) VALUES ('{1}', {2})"
+      " ON CONFLICT(faction) DO UPDATE SET reputation = excluded.reputation",
+      sql_iface::tables::faction_reputation,
+      sqlite::escape_sql_quotes(faction.name),
+      faction.reputation
+    )};
+    if(auto res{sqlite::execute_query_no_result(db_->db, reputation)}; not res) [[unlikely]]
+      return res;
+    }
 
   auto const row{sql_iface::to_db_fromat(faction)};
   if(faction.oid != -1)

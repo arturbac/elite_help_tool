@@ -224,7 +224,10 @@ struct database_storage_t
   auto load_factions() -> expected_ec<std::vector<info::faction_info_t>>;
 
   [[nodiscard]]
-  auto update_faction_info(info::faction_info_t const & faction) -> expected_ec<void>;
+  ///\brief tozsamosc frakcji idzie do wspolnej galaxy, reputacja do bazy osobistej
+  ///\detail with_reputation=false przy imporcie cudzego journala: swiat bierzemy, reputacje nie
+  [[nodiscard]]
+  auto update_faction_info(info::faction_info_t const & faction, bool with_reputation = true) -> expected_ec<void>;
 
   [[nodiscard]]
   auto store(info::faction_influence_t const & value) -> expected_ec<void>;
