@@ -247,14 +247,13 @@ public:
   std::chrono::steady_clock::time_point ticks_loaded_{};
   uint64_t ticks_system_{};
 
+  ///\brief opis systemu w czterech linijkach, bez podpisow - co jest czym, widac po wartosci
+  ///\detail "Industrial / Agriculture", "Federation - Anarchy, Anarchy" po lewej, wlasciciel
+  /// z populacja i gwiazda ze wspolrzednymi po prawej
   QLabel * economy_label_{};
-  QLabel * government_label_{};
-  QLabel * allegiance_label_{};
-  QLabel * security_label_{};
-  QLabel * population_label_{};
-  QLabel * controlling_label_{};
-  QLabel * star_type_label_{};
-  QLabel * coordinates_label_{};
+  QLabel * politics_label_{};
+  QLabel * owner_label_{};
+  QLabel * star_label_{};
 
   faction_presence_model_t * factions_model_{};
   QTableView * factions_view_{};

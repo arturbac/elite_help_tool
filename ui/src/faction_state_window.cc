@@ -567,27 +567,26 @@ auto faction_state_window_t::setup_ui() -> void
   // --- informacje o systemie ---
   auto * info_group = new QGroupBox("System", overview);
   auto * info_layout = new QHBoxLayout(info_group);
-  auto * form_left = new QFormLayout();
-  auto * form_right = new QFormLayout();
+  auto * column_left = new QVBoxLayout();
+  auto * column_right = new QVBoxLayout();
 
-  auto make_label = [&](QFormLayout * form, char const * caption) -> QLabel *
+  // Bez podpisow - "Industrial / Agriculture" nie potrzebuje slowa "Economy" przed soba, zeby bylo
+  // wiadomo czym jest, a osiem wierszy formularza schodzi do czterech linijek
+  auto make_label = [&](QVBoxLayout * column) -> QLabel *
   {
     auto * label = new QLabel(QString::fromUtf8(no_data.data()), info_group);
-    form->addRow(caption, label);
+    label->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    column->addWidget(label);
     return label;
   };
 
-  economy_label_ = make_label(form_left, "Economy:");
-  government_label_ = make_label(form_left, "Government:");
-  allegiance_label_ = make_label(form_left, "Allegiance:");
-  security_label_ = make_label(form_left, "Security:");
-  population_label_ = make_label(form_right, "Population:");
-  controlling_label_ = make_label(form_right, "Controlling faction:");
-  star_type_label_ = make_label(form_right, "Star type:");
-  coordinates_label_ = make_label(form_right, "Coordinates:");
+  economy_label_ = make_label(column_left);
+  politics_label_ = make_label(column_left);
+  owner_label_ = make_label(column_right);
+  star_label_ = make_label(column_right);
 
-  info_layout->addLayout(form_left, 1);
-  info_layout->addLayout(form_right, 1);
+  info_layout->addLayout(column_left, 1);
+  info_layout->addLayout(column_right, 1);
   overview_layout->addWidget(info_group);
 
   // --- tabele i wykres w splitterze ---
@@ -1219,15 +1218,8 @@ auto faction_state_window_t::update_system_info(uint64_t system_address) -> void
 
   auto const empty{QString::fromUtf8(no_data.data())};
 
-  economy_label_->setText(empty);
-  government_label_->setText(empty);
-  allegiance_label_->setText(empty);
-  security_label_->setText(empty);
-  population_label_->setText(empty);
-  controlling_label_->setText(empty);
-
-  star_type_label_->setText(empty);
-  coordinates_label_->setText(empty);
+  for(QLabel * label: {economy_label_, politics_label_, owner_label_, star_label_})
+    label->setText(empty);
 
   auto res{db_.load_system(system_address)};
   if(not res or not *res)
@@ -1236,32 +1228,52 @@ auto faction_state_window_t::update_system_info(uint64_t system_address) -> void
   star_system_t const & system{**res};
   setWindowTitle(qformat("System info - {}", system.name));
 
-  auto const set_text = [&empty](QLabel * label, std::string const & value) -> void
-  { label->setText(value.empty() ? empty : QString::fromStdString(value)); };
-
   // gra podaje "None" dla systemow bez ekonomii czy rzadu
   auto const meaningful = [](std::string const & value) -> std::string
   { return value == "None" ? std::string{} : value; };
 
+  ///\brief sklada czesci pomijajac puste, zeby brak jednej nie zostawil wiszacego przecinka
+  auto const join = [](std::string_view separator, std::initializer_list<std::string> parts) -> std::string
+  {
+    std::string out;
+    for(std::string const & part: parts)
+      {
+      if(part.empty())
+        continue;
+      if(not out.empty())
+        out.append(separator);
+      out.append(part);
+      }
+    return out;
+  };
+
+  auto const set_text = [&empty](QLabel * label, std::string const & value) -> void
+  { label->setText(value.empty() ? empty : QString::fromStdString(value)); };
+
   // druga ekonomia pokazywana jak na inarze, po ukosniku
-  std::string economy{meaningful(system.economy)};
-  if(auto second{meaningful(system.second_economy)}; not second.empty())
-    economy = economy.empty() ? second : economy + " / " + second;
+  set_text(economy_label_, join(" / ", {meaningful(system.economy), meaningful(system.second_economy)}));
 
-  set_text(economy_label_, economy);
-  set_text(government_label_, meaningful(system.government));
-  set_text(allegiance_label_, meaningful(system.allegiance));
-  set_text(security_label_, meaningful(system.security));
-  set_text(controlling_label_, system.controlling_faction);
+  set_text(
+    politics_label_,
+    join(" - ", {meaningful(system.allegiance), join(", ", {meaningful(system.government), meaningful(system.security)})})
+  );
 
-  if(system.population != 0)
-    population_label_->setText(QLocale{}.toString(qulonglong{system.population}));
+  std::string const population{
+    system.population != 0 ? QLocale{}.toString(qulonglong{system.population}).toStdString() : std::string{}
+  };
+  set_text(owner_label_, join("   ", {system.controlling_faction, population}));
 
-  if(not system.star_type.empty())
-    star_type_label_->setText(QString::fromStdString(system.star_type));
-
-  coordinates_label_->setText(
-    qformat("{:.2f} / {:.2f} / {:.2f}", system.system_location[0], system.system_location[1], system.system_location[2])
+  std::string const star{system.star_type.empty() ? std::string{} : "Star " + system.star_type};
+  set_text(
+    star_label_,
+    join(
+      "   ",
+      {star,
+       qformat(
+         "{:.2f} / {:.2f} / {:.2f}", system.system_location[0], system.system_location[1], system.system_location[2]
+       )
+         .toStdString()}
+    )
   );
   }
 
