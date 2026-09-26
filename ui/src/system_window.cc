@@ -550,6 +550,7 @@ auto system_window_t::setup_ui() -> void
   main_layout->addWidget(info_group);
 
   auto * splitter = new QSplitter(Qt::Vertical, central_widget);
+  splitter->setObjectName("exploration_bodies");
 
   // Sekcja dolna: TreeView
   tree_view = new QTreeView();

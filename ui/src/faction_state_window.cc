@@ -559,6 +559,7 @@ auto faction_state_window_t::setup_ui() -> void
 
   // --- tabele i wykres w splitterze ---
   auto * splitter = new QSplitter(Qt::Vertical, overview);
+  splitter->setObjectName("system_overview");
 
   auto * factions_container = new QWidget();
   auto * factions_layout = new QVBoxLayout(factions_container);
@@ -650,6 +651,7 @@ auto faction_state_window_t::setup_ui() -> void
   market_layout->addWidget(market_header_);
 
   auto * market_splitter = new QSplitter(Qt::Vertical, market_page);
+  market_splitter->setObjectName("system_market");
 
   auto make_market_side = [this, market_splitter](bool station_sells, char const * caption) -> QTableView *
   {

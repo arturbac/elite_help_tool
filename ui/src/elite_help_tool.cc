@@ -4,6 +4,9 @@
 
 #include <qapplication.h>
 #include <qguiapplication.h>
+#include <qsplitter.h>
+#include <qtimer.h>
+#include <csignal>
 #include <qpalette.h>
 #include <qstylefactory.h>
 #include <qmdisubwindow.h>
@@ -211,10 +214,16 @@ auto main_window_t::save_settings() -> void
     auto * sub = windows[i];
     settings.setValue("title", sub->windowTitle());
     settings.setValue("type", static_cast<int>(sub->property("window_type").value<window_type_e>()));
-    settings.setValue("pos", sub->pos());
-    settings.setValue("size", sub->size());
     }
   settings.endArray();
+
+  // podzial obszarow wewnatrz okien - zapisywany po nazwie splittera, wiec nowe okna dostaja
+  // to za darmo, o ile nazwa zostanie nadana
+  settings.beginGroup("splitters");
+  for(QSplitter const * splitter: findChildren<QSplitter *>())
+    if(not splitter->objectName().isEmpty())
+      settings.setValue(splitter->objectName(), splitter->saveState());
+  settings.endGroup();
   }
 
 auto main_window_t::load_settings() -> void
@@ -234,8 +243,6 @@ auto main_window_t::load_settings() -> void
     settings.setArrayIndex(i);
     auto type_int = settings.value("type").toInt();
     auto type = static_cast<window_type_e>(type_int);
-    auto const pos_var = settings.value("pos");
-    auto const size_var = settings.value("size");
 
     // zapisy sprzed przebudowy toolbaru moga zawierac okna zastepcze, ktorych juz nie ma
     QMdiSubWindow * sub{subwindow_for(type)};
@@ -244,18 +251,17 @@ auto main_window_t::load_settings() -> void
       if(sub->mdiArea() == nullptr)
         mdi_area_->addSubWindow(sub);
 
-      QPoint pos = pos_var.isValid() ? pos_var.toPoint() : QPoint(10 * i, 10 * i);
-      QSize size = size_var.isValid() ? size_var.toSize() : QSize(400, 300);
-
-      if(size.width() <= 0 || size.height() <= 0)
-        size = QSize(400, 300);
-
-      sub->move(pos);
-      sub->resize(size);
-      sub->show();
+      // okna przelacza sie paskiem po lewej, wiec kazde ma zajmowac calosc obszaru roboczego
+      sub->showMaximized();
       }
     }
   settings.endArray();
+
+  settings.beginGroup("splitters");
+  for(QSplitter * splitter: findChildren<QSplitter *>())
+    if(auto const state{settings.value(splitter->objectName())}; state.isValid())
+      splitter->restoreState(state.toByteArray());
+  settings.endGroup();
   }
 
 auto main_window_t::background_worker(std::stop_token stoken) -> void
@@ -336,6 +342,12 @@ auto apply_dark_theme() -> void
   }
   }  // namespace
 
+namespace
+  {
+///\brief ustawiane z obslugi sygnalu, wiec tylko to - reszta dzieje sie w petli zdarzen
+volatile std::sig_atomic_t asked_to_stop{};
+  }  // namespace
+
 auto main(int argc, char * argv[]) -> int
   {
   QApplication app(argc, argv);
@@ -347,6 +359,24 @@ auto main(int argc, char * argv[]) -> int
   main_window_t window{"ehtdb.sqlite", "journal-dir"};
   if(not window.state_.db_.open())
     return EXIT_FAILURE;
+
+  // ubicie z zewnatrz albo wylogowanie ma zamknac okno normalnie, inaczej ustawienia z tej
+  // sesji przepadaja - zapisuje je dopiero closeEvent
+  std::signal(SIGTERM, [](int) { asked_to_stop = 1; });
+  std::signal(SIGINT, [](int) { asked_to_stop = 1; });
+
+  QTimer stop_watch;
+  QObject::connect(
+    &stop_watch,
+    &QTimer::timeout,
+    &app,
+    [&window]()
+    {
+      if(asked_to_stop)
+        window.close();
+    }
+  );
+  stop_watch.start(200);
 
   window.start_monitoring();
   window.show();
