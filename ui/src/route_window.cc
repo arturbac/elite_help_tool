@@ -195,6 +195,7 @@ auto route_window_t::load_from_file() -> void
       .distance = {}
     });
 
+  reached_ = 0u;
   apply_direction(std::move(loaded));
   }
 
@@ -218,6 +219,7 @@ auto route_window_t::apply_direction(std::vector<info::neutron_waypoint_t> route
 
   neutron_route_ = std::move(route);
   clipboard_target_.clear();
+  reached_ = 0u;
   show_route();
   }
 
@@ -261,6 +263,11 @@ auto route_window_t::setup_ui() -> void
   setWidget(central_widget);
 
   connect(load_button_, &QPushButton::clicked, this, [this] { load_from_file(); });
+
+  // wejscie w trase w polowie albo cofniecie sie po pomylce - klikniecie wiersza ustawia postep
+  connect(table_view_, &QTableView::doubleClicked, this, [this](QModelIndex const & index) {
+    jump_to_waypoint(index.row());
+  });
   connect(reversed_box_, &QCheckBox::toggled, this, [this](bool) {
     // kierunek zmienia sie w miejscu, bez siegania po plik jeszcze raz
     if(not neutron_route_.empty())
@@ -279,6 +286,7 @@ auto route_window_t::setup_ui() -> void
     neutron_route_.clear();
     neutron_name_.clear();
     clipboard_target_.clear();
+    reached_ = 0u;
     remembered_ = false;
     show_route();
   });
@@ -318,9 +326,13 @@ auto route_window_t::show_route() -> void
     state_.current_system_address_,
     [](info::neutron_waypoint_t const & waypoint) -> uint64_t { return waypoint.system_address; }
   )};
-  size_t const reached{
-    here == neutron_route_.end() ? 0u : size_t(std::distance(neutron_route_.begin(), here)) + 1u
-  };
+
+  // Postep tylko do przodu: system spoza listy znaczy "gdzies po drodze", a nie "od poczatku".
+  // Gra wyznacza kurs do kolejnego przystanku sama i bywa, ze prowadzi przez systemy posrednie
+  if(here != neutron_route_.end())
+    reached_ = std::max(reached_, size_t(std::distance(neutron_route_.begin(), here)) + 1u);
+
+  size_t const reached{reached_};
 
   std::vector<info::route_item_t> shown;
   shown.reserve(neutron_route_.size());
@@ -366,4 +378,15 @@ auto route_window_t::show_route() -> void
   );
 
   model_->update_data(std::move(shown));
+  }
+
+auto route_window_t::jump_to_waypoint(int row) -> void
+  {
+  if(neutron_route_.empty() or row < 0 or size_t(row) >= neutron_route_.size())
+    return;
+
+  // wskazany przystanek staje sie tym, do ktorego lecimy - a wiec mamy za soba wszystkie przed nim
+  reached_ = size_t(row);
+  clipboard_target_.clear();
+  show_route();
   }

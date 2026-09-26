@@ -76,6 +76,14 @@ public:
   ///\brief ostatni cel wrzucony do schowka - zeby wrzucac go tylko przy zmianie, a nie co odswiezenie
   std::string clipboard_target_;
 
+  ///\brief ile przystankow trasy mamy za soba
+  ///
+  /// Postep idzie wylacznie do przodu. Kurs do kolejnego przystanku gra wyznacza sama i potrafi
+  /// poprowadzic przez systemy, ktorych na tej liscie nie ma - szukanie biezacego systemu za
+  /// kazdym razem cofaloby wtedy postep do zera i schowek dostawalby pierwszy przystanek zamiast
+  /// nastepnego
+  size_t reached_{};
+
   explicit route_window_t(current_state_t const & state, std::string db_path, QWidget * parent = nullptr);
 
   auto refresh_ui() -> void;
@@ -87,6 +95,8 @@ private:
   auto apply_direction(std::vector<info::neutron_waypoint_t> route) -> void;
   ///\brief pokazuje trase neutronowa gdy jest, a w przeciwnym razie trase z gry
   auto show_route() -> void;
+  ///\brief ustawia postep na wskazany przystanek - do cofania sie i do wejscia w trase w polowie
+  auto jump_to_waypoint(int row) -> void;
 
   auto setup_ui() -> void;
   };
