@@ -2574,7 +2574,22 @@ auto database_storage_t::load_war_onsets() -> expected_ec<std::vector<info::war_
     std::format(
       // te same frakcje bija sie ze soba wiecej niz raz, wiec kazda zapowiedz szuka najblizszego
       // po niej przejscia w stan wojny, a nie najwczesniejszego w calej historii tej pary
-      "(SELECT system_address, system_name, war_type, faction1, faction2,"
+      // wynik dopinany na koncu, z najswiezszego odczytu tej samej wojny - dopiero on mowi,
+      // kto ja wygral i jakim stosunkiem dni
+      "(SELECT o.system_address AS system_address, o.system_name AS system_name, o.war_type AS war_type,"
+      " o.faction1 AS faction1, o.faction2 AS faction2, o.pending_last AS pending_last,"
+      " o.active_first AS active_first,"
+      " coalesce(( SELECT c.won_days1 FROM {0} c WHERE c.system_address = o.system_address"
+      "            AND c.faction1 = o.faction1 AND c.faction2 = o.faction2"
+      "            AND c.timestamp >= o.active_first ORDER BY c.timestamp DESC LIMIT 1 ), 0) AS won_days1,"
+      " coalesce(( SELECT c.won_days2 FROM {0} c WHERE c.system_address = o.system_address"
+      "            AND c.faction1 = o.faction1 AND c.faction2 = o.faction2"
+      "            AND c.timestamp >= o.active_first ORDER BY c.timestamp DESC LIMIT 1 ), 0) AS won_days2,"
+      " coalesce(( SELECT c.status FROM {0} c WHERE c.system_address = o.system_address"
+      "            AND c.faction1 = o.faction1 AND c.faction2 = o.faction2"
+      "            AND c.timestamp >= o.active_first ORDER BY c.timestamp DESC LIMIT 1 ), '') AS status"
+      " FROM ("
+      "SELECT system_address, system_name, war_type, faction1, faction2,"
       " max(pending_last) AS pending_last, active_first FROM ("
       "   SELECT p.system_address AS system_address, coalesce(ss.name, '') AS system_name,"
       "   p.war_type AS war_type, p.faction1 AS faction1, p.faction2 AS faction2,"
@@ -2586,8 +2601,8 @@ auto database_storage_t::load_war_onsets() -> expected_ec<std::vector<info::war_
       "   FROM {0} p LEFT JOIN {1} ss ON ss.system_address = p.system_address"
       "   WHERE p.status = 'pending')"
       " WHERE active_first IS NOT NULL"
-      " GROUP BY system_address, faction1, faction2, active_first"
-      " ORDER BY active_first DESC)",
+      " GROUP BY system_address, faction1, faction2, active_first) o"
+      " ORDER BY o.active_first DESC)",
       sql_iface::tables::system_conflict,
       sql_iface::tables::star_system
     ),

@@ -158,12 +158,27 @@ auto war_onset_model_t::data(QModelIndex const & index, int role) const -> QVari
            / 60.0;
   };
 
+  // pusty status znaczy, ze wojna sie zamknela - dopiero wtedy wynik jest ostateczny
+  auto const outcome = [&]() -> std::string
+  {
+    if(not row.status.empty())
+      return row.status == "pending" ? "zapowiedziana" : "trwa";
+    if(row.won_days1 > row.won_days2)
+      return row.faction1;
+    if(row.won_days2 > row.won_days1)
+      return row.faction2;
+    return "remis";
+  };
+
   if(role == Qt::DisplayRole)
     switch(column)
       {
       case column_e::system:   return QString::fromStdString(row.system_name);
       case column_e::war_type: return QString::fromStdString(row.war_type);
       case column_e::sides:    return QString::fromStdString(std::format("{} / {}", row.faction1, row.faction2));
+      case column_e::score:
+        return QString::fromStdString(std::format("{} : {}", row.won_days1, row.won_days2));
+      case column_e::outcome: return QString::fromStdString(outcome());
       case column_e::pending_last:
         return QString::fromStdString(std::format("{:%d.%m.%Y %H:%M}", row.pending_last));
       case column_e::active_first:
@@ -178,6 +193,8 @@ auto war_onset_model_t::data(QModelIndex const & index, int role) const -> QVari
       case column_e::system:   return QString::fromStdString(row.system_name);
       case column_e::war_type: return QString::fromStdString(row.war_type);
       case column_e::sides:    return QString::fromStdString(std::format("{} / {}", row.faction1, row.faction2));
+      case column_e::score:    return int(row.won_days1) - int(row.won_days2);
+      case column_e::outcome:  return QString::fromStdString(outcome());
       case column_e::pending_last:
         return qlonglong(row.pending_last.time_since_epoch().count());
       case column_e::active_first:
@@ -193,7 +210,7 @@ auto war_onset_model_t::data(QModelIndex const & index, int role) const -> QVari
       "a osady wchodza w stan wojny jeszcze pozniej niz sam konflikt."
     };
 
-  if(role == Qt::TextAlignmentRole and column == column_e::window)
+  if(role == Qt::TextAlignmentRole and (column == column_e::window or column == column_e::score))
     return int(Qt::AlignRight | Qt::AlignVCenter);
 
   return {};
@@ -209,6 +226,8 @@ auto war_onset_model_t::headerData(int section, Qt::Orientation orientation, int
     case column_e::system:       return QString{"System"};
     case column_e::war_type:     return QString{"Typ"};
     case column_e::sides:        return QString{"Strony"};
+    case column_e::score:        return QString{"Dni"};
+    case column_e::outcome:      return QString{"Wygrala"};
     case column_e::pending_last: return QString{"Zapowiedziana"};
     case column_e::active_first: return QString{"Zauwazona jako trwajaca"};
     case column_e::window:       return QString{"Okno"};

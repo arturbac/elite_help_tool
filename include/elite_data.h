@@ -466,6 +466,11 @@ struct war_onset_t
   std::chrono::sys_seconds pending_last;
   ///\brief pierwszy, w ktorym juz trwala
   std::chrono::sys_seconds active_first;
+  ///\brief wynik z ostatniego odczytu tej wojny - dni wygrane przez kazda ze stron
+  uint32_t won_days1;
+  uint32_t won_days2;
+  ///\brief status z ostatniego odczytu; pusty znaczy, ze wojna sie juz skonczyla
+  std::string status;
   };
 
 ///\brief ile jeszcze zostalo trwajacemu konfliktowi

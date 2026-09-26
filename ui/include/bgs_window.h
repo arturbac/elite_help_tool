@@ -65,6 +65,8 @@ class war_onset_model_t final : public QAbstractTableModel
     system,
     war_type,
     sides,
+    score,
+    outcome,
     pending_last,
     active_first,
     window,
