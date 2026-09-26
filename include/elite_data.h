@@ -58,6 +58,15 @@ consteval auto adl_enum_bounds(happiness_e)
   return simple_enum::adl_info{unknown, despondent};
   }
 
+///\brief konto do ktorego nalezy ta baza osobista
+///\detail zapisywane przy imporcie; GUI czyta to i nie dopisuje kariery cudzej postaci, gdyby
+/// ktos zalogowal sie na drugie konto z tego samego profilu gry
+struct db_owner_t
+  {
+  std::string fid;
+  std::string name;
+  };
+
 ///\brief co TA postac zrobila w galaktyce - tego nie wolno dzielic miedzy konta
 ///\detail swiat jest wspolny, ale skan i mapowanie nalezy do konkretnego commandera. pokazanie
 /// jednej postaci, ze cos zmapowala, gdy zrobila to druga, prowadzi wprost do zlej decyzji przy

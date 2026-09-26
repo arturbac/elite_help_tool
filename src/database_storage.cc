@@ -472,6 +472,7 @@ namespace tables
   inline constexpr std::string_view commodity{"live.commodity"};
   inline constexpr std::string_view market_item{"live.market_item"};
   // co zrobila TA postac - zostaje w bazie osobistej, klucze naturalne zeby przezyly przebudowe galaxy
+  inline constexpr std::string_view db_owner{"db_owner"};
   inline constexpr std::string_view system_progress{"system_progress"};
   inline constexpr std::string_view body_progress{"body_progress"};
   inline constexpr std::string_view genus_progress{"genus_progress"};
@@ -1275,6 +1276,10 @@ auto database_storage_t::create_database() -> expected_ec<void>
     )};
     not res
   ) [[unlikely]]
+    return res;
+
+  if(auto res{sqlite::create_table<info::db_owner_t>(db_->db, "fid"sv, sql_iface::tables::db_owner)}; not res)
+    [[unlikely]]
     return res;
 
   // postep tej postaci - osobny od wiedzy o galaktyce, wiec w bazie glownej
@@ -2122,6 +2127,27 @@ auto database_storage_t::load_station(uint64_t system_address, std::string_view 
     return std::optional<info::station_t>{};
 
   return std::optional<info::station_t>{std::move((*res)[0])};
+  }
+
+auto database_storage_t::store_owner(info::db_owner_t const & owner) -> expected_ec<void>
+  {
+  std::string query{std::format(
+    "INSERT INTO {0} (fid, name) VALUES ('{1}', '{2}') ON CONFLICT(fid) DO UPDATE SET name = excluded.name",
+    sql_iface::tables::db_owner,
+    sqlite::escape_sql_quotes(owner.fid),
+    sqlite::escape_sql_quotes(owner.name)
+  )};
+  return sqlite::execute_query_no_result(db_->db, query);
+  }
+
+auto database_storage_t::load_owner() -> expected_ec<std::optional<info::db_owner_t>>
+  {
+  auto res{sqlite::select_from<info::db_owner_t>(db_->db, sql_iface::tables::db_owner, {})};
+  if(not res) [[unlikely]]
+    return cxx23::unexpected{res.error()};
+  if(res->empty())
+    return std::optional<info::db_owner_t>{};
+  return std::optional<info::db_owner_t>{std::move((*res)[0])};
   }
 
 auto database_storage_t::load_stations(uint64_t system_address) -> expected_ec<std::vector<info::station_t>>

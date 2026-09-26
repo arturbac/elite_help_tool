@@ -86,7 +86,8 @@ auto process_factions(
   database_storage_t & db,
   std::chrono::sys_seconds timestamp,
   uint64_t system_address,
-  std::span<events::faction_info_t> factions
+  std::span<events::faction_info_t> factions,
+  bool personal
 ) -> std::vector<info::faction_info_t>
   {
   std::vector<info::faction_info_t> result;
@@ -103,7 +104,7 @@ auto process_factions(
       {
       // no data add
       spdlog::info("adding faction {}", new_faction_data.name);
-      if(auto updres{db.update_faction_info(new_faction_data)}; not updres)
+      if(auto updres{db.update_faction_info(new_faction_data, personal)}; not updres)
         spdlog::error("failed to add faction data for {}", new_faction_data.name);
       auto oidres{db.faction_oid(new_faction_data.name)};
       if(oidres and *oidres)
@@ -116,7 +117,7 @@ auto process_factions(
       if(old_faction_data != new_faction_data)
         {
         spdlog::info("updating faction {}", new_faction_data.name);
-        if(auto updres{db.update_faction_info(new_faction_data)}; not updres)
+        if(auto updres{db.update_faction_info(new_faction_data, personal)}; not updres)
           spdlog::error("failed to update faction data for {}", new_faction_data.name);
         }
       }
@@ -162,7 +163,27 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
         };
 
         using T = std::decay_t<decltype(event)>;
-        if constexpr(std::same_as<T, events::start_jump_t>)
+        // kariera nalezy do postaci - z sesji cudzego konta bierzemy sam swiat
+      if constexpr(
+        std::same_as<T, events::mission_accepted_t> or std::same_as<T, events::mission_completed_t>
+        or std::same_as<T, events::mission_abandoned_t> or std::same_as<T, events::mission_failed_t>
+        or std::same_as<T, events::mission_redirected_t> or std::same_as<T, events::missions_t>
+        or std::same_as<T, events::sell_micro_resources_t> or std::same_as<T, events::backpack_change_t>
+      )
+        if(not personal_)
+          return;
+
+      if constexpr(std::same_as<T, events::commander_t>)
+        {
+        if(owner_fid_.empty())
+          if(auto owner{db_.load_owner()}; owner and *owner)
+            owner_fid_ = (*owner)->fid;
+
+        personal_ = owner_fid_.empty() or event.FID == owner_fid_;
+        if(not personal_)
+          spdlog::warn("session of {} - its career will not be written to this database", event.Name);
+        }
+      else if constexpr(std::same_as<T, events::start_jump_t>)
           {
           if(event.JumpType == events::jump_type_e::Hyperspace)
             {
@@ -216,7 +237,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           // add/update factions database
           if(not event.Factions.empty())
             {
-            system_factions = process_factions(db_, timestamp, event.SystemAddress, event.Factions);
+            system_factions = process_factions(db_, timestamp, event.SystemAddress, event.Factions, personal_);
             update_factions = true;
             }
           if(not event.Conflicts.empty())
@@ -249,7 +270,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
 
           if(not event.Factions.empty())
             {
-            system_factions = process_factions(db_, timestamp, event.SystemAddress, event.Factions);
+            system_factions = process_factions(db_, timestamp, event.SystemAddress, event.Factions, personal_);
             update_factions = true;
             }
           if(not event.Conflicts.empty())
@@ -346,7 +367,11 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
 
           if(
             auto res{db_.store_genus_species(
-              event.SystemAddress, event.Body, event.Genus_Localised, event.Species_Localised, analysed
+              event.SystemAddress,
+              event.Body,
+              event.Genus_Localised,
+              event.Species_Localised,
+              analysed and personal_
             )};
             not res
           )
@@ -542,7 +567,9 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
         else if constexpr(std::same_as<T, events::fss_all_bodies_found_t>)
           {
           system.fss_complete = true;
-          if(auto res{db_.store_fss_complete(system.system_address)}; not res) [[unlikely]]
+          if(not personal_)
+            {}
+          else if(auto res{db_.store_fss_complete(system.system_address)}; not res) [[unlikely]]
             spdlog::error("failed to update fss scan complete for {}", system.system_address);
           }
         else if constexpr(std::same_as<T, events::scan_bary_centre_t>)
@@ -660,7 +687,9 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
             {
             planet_details_t & details{std::get<planet_details_t>(it->details)};
             details.mapped = true;
-            if(auto res{db_.store_dss_complete(system.system_address, event.BodyID)}; not res) [[unlikely]]
+            if(not personal_)
+              {}
+            else if(auto res{db_.store_dss_complete(system.system_address, event.BodyID)}; not res) [[unlikely]]
               spdlog::error("failed to update dss scan complete for {}:{}", system.system_address, event.BodyID);
             }
           update_system = true;

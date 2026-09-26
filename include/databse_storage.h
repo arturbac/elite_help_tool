@@ -276,6 +276,13 @@ struct database_storage_t
   [[nodiscard]]
   auto load_station(uint64_t system_address, std::string_view name) -> expected_ec<std::optional<info::station_t>>;
 
+  ///\brief konto do ktorego nalezy ta baza osobista
+  [[nodiscard]]
+  auto store_owner(info::db_owner_t const & owner) -> expected_ec<void>;
+
+  [[nodiscard]]
+  auto load_owner() -> expected_ec<std::optional<info::db_owner_t>>;
+
   ///\brief stacje systemu znane z journali - dokowania, rynkow, celow misji
   ///\detail sygnal skanera potrafi nie wspomniec o osadzie ani o porcie, ktory dopiero stanal,
   /// a stacja w ktorej stanelismy jest swiadectwem mocniejszym niz brak sygnalu

@@ -57,7 +57,7 @@ auto main(int argc, char ** argv) -> int
   // spdlog::set_level(spdlog::level::debug);
 
   // FID stoi w zdarzeniu Commander zaraz na poczatku pliku, wiec nie trzeba czytac calosci
-  auto commander_of = [](fs::path const & journal) -> std::string
+  auto commander_of = [](fs::path const & journal) -> events::commander_t
   {
     std::ifstream file{journal};
     std::string line;
@@ -68,7 +68,7 @@ auto main(int argc, char ** argv) -> int
       events::commander_t who{};
       if(auto res{glz::read<glz::opts{.error_on_unknown_keys = false, .error_on_missing_keys = false}>(who, line)};
          not res)
-        return who.FID;
+        return who;
       }
     return {};
   };
@@ -129,12 +129,18 @@ auto main(int argc, char ** argv) -> int
   else if(not chosen.empty())
     state.owner_fid = chosen;
   else if(not journals.empty())
-    state.owner_fid = commander_of(journals.back());
+    {
+    events::commander_t const who{commander_of(journals.back())};
+    state.owner_fid = who.FID;
+    if(not who.FID.empty())
+      if(auto res{state.db_.store_owner(info::db_owner_t{.fid = who.FID, .name = who.Name})}; not res)
+        std::println(stderr, "nie udalo sie zapisac wlasciciela bazy");
+    }
 
   if(not state.owner_fid.empty())
     std::println("baza nalezy do konta {}", state.owner_fid);
   else
-    std::println("nie udalo sie ustalic konta - kariera zostanie wziete ze wszystkich journali");
+    std::println("nie udalo sie ustalic konta - kariera zostanie wzieta ze wszystkich journali");
 
   for(fs::path const & p: journals)
     {

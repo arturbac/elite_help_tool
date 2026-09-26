@@ -39,6 +39,12 @@ struct current_state_t : public generic_state_t
   ///\brief osada w ktorej jestesmy - zdobyte mikrozasoby dostaja jej market_id
   uint64_t settlement_market_id_{};
 
+  ///\brief konto do ktorego nalezy ta baza, odczytane przy starcie
+  ///\detail gdyby ktos zalogowal sie z tego profilu gry na drugie konto, jego misje i zdobycze
+  /// nie moga trafic do cudzej kariery - swiat bierzemy dalej, bo galaktyka jest wspolna
+  std::string owner_fid_;
+  bool personal_{true};
+
   current_state_t(main_window_t * p, std::string db_path, std::string journal_path) : generic_state_t{journal_path}, parent{p}, db_{db_path} {}
 
   void handle(std::chrono::sys_seconds timestamp, events::event_holder_t && event) override;
