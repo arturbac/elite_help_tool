@@ -37,6 +37,8 @@ constexpr double interesting_deviation{0.25};
 constexpr uint32_t interesting_margin{500u};
 ///\brief influence aktualizuje sie raz na dobe, czesciej pytac nie ma po co
 constexpr std::chrono::seconds faction_refresh{60};
+///\brief rynek moze pojawic sie w kazdej chwili, gdy gracz go otworzy
+constexpr std::chrono::seconds market_refresh{5};
 
 ///\brief te same barwy co w oknie reputacji - czerwony federacja, niebieski imperium, zielony alians
 [[nodiscard]]
@@ -409,10 +411,14 @@ auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
 
 auto overlay_feed_t::refresh_market(uint64_t market_id) -> void
   {
-  if(market_id == market_id_)
+  // samo miejsce nie wystarczy jako klucz: w osadzie jestesmy od wejscia, a towary poznajemy
+  // dopiero gdy gracz otworzy rynek, wiec pytanie raz przy zmianie miejsca zawsze trafialo w pustke
+  auto const now{std::chrono::steady_clock::now()};
+  if(market_id == market_id_ and now - market_loaded_ < market_refresh)
     return;
 
   market_id_ = market_id;
+  market_loaded_ = now;
   market_lines_.clear();
 
   if(market_id == 0u)
