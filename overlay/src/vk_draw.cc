@@ -3,6 +3,8 @@
 #include <backends/imgui_impl_vulkan.h>
 #include <imgui.h>
 
+#include <overlay_emblems.h>
+
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -191,27 +193,235 @@ namespace
       }
     }
 
-  ///\brief a line of text, with its marker in front when it carries one
-  auto draw_line(overlay::line_t const & line) -> void
+  [[nodiscard]]
+  auto emblem_mask(overlay::emblem_e which) noexcept -> emblems::mask_t const *
     {
-    if(line.marker == overlay::marker_e::none)
+    using enum overlay::emblem_e;
+    switch(which)
+      {
+      case federation: return &emblems::federation;
+      case empire:     return &emblems::empire;
+      case alliance:   return &emblems::alliance;
+      case none:       break;
+      }
+    return nullptr;
+    }
+
+  ///\brief puts the emblems into the font atlas instead of giving them textures of their own
+  ///\detail imgui hands out space in the atlas it already owns, so the emblems cost no VkImage, no
+  /// sampler and no descriptor set, and nothing has to be freed when the swapchain is rebuilt.
+  /// Must run before the atlas is built, which is why it sits next to the font
+  auto reserve_emblems(swapchain_data_t & data) -> void
+    {
+    ImFontAtlas & atlas{*ImGui::GetIO().Fonts};
+    for(auto const which: {overlay::emblem_e::federation, overlay::emblem_e::empire, overlay::emblem_e::alliance})
+      if(emblems::mask_t const * const mask{emblem_mask(which)}; mask != nullptr)
+        data.emblem_rects[static_cast<size_t>(which)] = atlas.AddCustomRectRegular(mask->width, mask->height);
+    }
+
+  ///\brief writes the coverage masks into the atlas pixels, white throughout so the tint decides the colour
+  auto blit_emblems(swapchain_data_t & data) -> void
+    {
+    ImFontAtlas & atlas{*ImGui::GetIO().Fonts};
+
+    unsigned char * pixels{};
+    int width{};
+    int height{};
+    // this builds the atlas, which is what fixes where the reserved rectangles landed
+    atlas.GetTexDataAsRGBA32(&pixels, &width, &height);
+    if(pixels == nullptr)
+      return;
+
+    constexpr auto digit = [](char c) noexcept -> uint32_t
+    { return static_cast<uint32_t>(c <= '9' ? c - '0' : (c | 0x20) - 'a' + 10); };
+
+    for(auto const which: {overlay::emblem_e::federation, overlay::emblem_e::empire, overlay::emblem_e::alliance})
+      {
+      int const index{data.emblem_rects[static_cast<size_t>(which)]};
+      emblems::mask_t const * const mask{emblem_mask(which)};
+      if(index < 0 or mask == nullptr)
+        continue;
+
+      ImFontAtlasCustomRect const * const rect{atlas.GetCustomRectByIndex(index)};
+      auto * const target{reinterpret_cast<uint32_t *>(pixels)};
+
+      for(int y{}; y != mask->height; ++y)
+        for(int x{}; x != mask->width; ++x)
+          {
+          char const * const at{mask->hex + 2 * (y * mask->width + x)};
+          uint32_t const coverage{digit(at[0]) << 4u | digit(at[1])};
+          target[(rect->Y + y) * width + (rect->X + x)] = IM_COL32(255, 255, 255, coverage);
+          }
+      }
+    }
+
+  ///\brief draws one emblem at the cursor, and says how wide it turned out
+  [[nodiscard]]
+  auto draw_emblem(swapchain_data_t const & data, overlay::emblem_e which, ImVec2 at, float height, ImU32 colour)
+    -> float
+    {
+    int const index{data.emblem_rects[static_cast<size_t>(which)]};
+    if(which == overlay::emblem_e::none or index < 0)
+      return 0.f;
+
+    ImFontAtlas & atlas{*ImGui::GetIO().Fonts};
+    ImFontAtlasCustomRect const * const rect{atlas.GetCustomRectByIndex(index)};
+    if(rect->Height == 0)
+      return 0.f;
+
+    ImVec2 uv_min{};
+    ImVec2 uv_max{};
+    atlas.CalcCustomRectUV(rect, &uv_min, &uv_max);
+
+    // the emblems differ in proportion - the Empire's is nearly twice as wide as it is tall - so
+    // the height is what is fixed and the width follows from it
+    float const width{height * static_cast<float>(rect->Width) / static_cast<float>(rect->Height)};
+    ImGui::GetWindowDrawList()
+      ->AddImage(atlas.TexID, at, ImVec2{at.x + width, at.y + height}, uv_min, uv_max, colour);
+    return width;
+    }
+
+  ///\brief which way the faction went at the last recalculation
+  auto draw_trend(ImDrawList * draw, ImVec2 centre, float radius, ImU32 colour, overlay::trend_e trend) -> void
+    {
+    using enum overlay::trend_e;
+    switch(trend)
+      {
+      case up:
+        draw->AddTriangleFilled(
+          ImVec2{centre.x, centre.y - radius},
+          ImVec2{centre.x + radius, centre.y + radius * 0.7f},
+          ImVec2{centre.x - radius, centre.y + radius * 0.7f},
+          colour
+        );
+        break;
+
+      case down:
+        draw->AddTriangleFilled(
+          ImVec2{centre.x, centre.y + radius},
+          ImVec2{centre.x - radius, centre.y - radius * 0.7f},
+          ImVec2{centre.x + radius, centre.y - radius * 0.7f},
+          colour
+        );
+        break;
+
+      case flat:
+        draw->AddLine(
+          ImVec2{centre.x - radius, centre.y},
+          ImVec2{centre.x + radius, centre.y},
+          colour,
+          std::max(1.f, radius * 0.45f)
+        );
+        break;
+
+      case unknown: break;
+      }
+    }
+
+  ///\brief the trend mark and whatever follows it, both optional
+  auto draw_trailing(overlay::line_t const & line, float box, float spacing, ImU32 colour) -> void
+    {
+    if(line.trend != overlay::trend_e::unknown)
+      {
+      ImGui::SameLine(0.f, spacing);
+      // a mark that does not fit beside the value would be wrapped to a line of its own, where it
+      // would stand next to nothing
+      if(ImGui::GetContentRegionAvail().x < box)
+        ImGui::NewLine();
+
+      ImVec2 const at{ImGui::GetCursorScreenPos()};
+      ImGui::Dummy(ImVec2{box * 0.7f, box});
+      draw_trend(
+        ImGui::GetWindowDrawList(),
+        ImVec2{at.x + box * 0.35f, at.y + box * 0.5f},
+        box * 0.28f,
+        colour,
+        line.trend
+      );
+      }
+
+    if(not line.suffix.empty())
+      {
+      ImGui::SameLine(0.f, spacing);
+
+      // What is left of the line after the value is usually a few pixels, and text wrapped into a
+      // few pixels comes out one letter per row. Starting the states on a line of their own costs a
+      // row and reads; squeezing them into the remainder costs a column of single letters
+      if(ImGui::GetContentRegionAvail().x < ImGui::CalcTextSize(line.suffix.c_str()).x)
+        ImGui::NewLine();
+
+      coloured_text(line.color, "%s", line.suffix.c_str());
+      }
+    }
+
+  ///\brief a line of text, preceded by its marker and its emblem when it carries them
+  auto draw_line(swapchain_data_t const & data, overlay::line_t const & line) -> void
+    {
+    float const box{ImGui::GetFontSize()};
+
+    if(line.marker == overlay::marker_e::none and line.emblem == overlay::emblem_e::none)
       {
       coloured_text(line.color, "%s", line.text.c_str());
+      draw_trailing(line, box, ImGui::GetStyle().ItemSpacing.x * 0.5f, ImGui::GetColorU32(to_color(line.color)));
       return;
       }
 
-    float const box{ImGui::GetFontSize()};
+    float const spacing{ImGui::GetStyle().ItemSpacing.x * 0.5f};
+    ImU32 const colour{ImGui::GetColorU32(to_color(line.color))};
+
+    // Every line that carries a marker reserves the same emblem slot, whether it has an emblem or
+    // not. The emblems differ in width and independents have none at all, so without a fixed slot
+    // the names would start at a different place on every line and stop reading as a column.
+    constexpr float widest_emblem{
+      std::max({
+        static_cast<float>(emblems::federation.width) / static_cast<float>(emblems::federation.height),
+        static_cast<float>(emblems::empire.width) / static_cast<float>(emblems::empire.height),
+        static_cast<float>(emblems::alliance.width) / static_cast<float>(emblems::alliance.height)
+      })
+    };
+
+    emblems::mask_t const * const mask{emblem_mask(line.emblem)};
+    float const emblem_height{box * 0.85f};
+    float const emblem_slot{line.marker != overlay::marker_e::none ? emblem_height * widest_emblem : 0.f};
+    float const emblem_width{
+      mask != nullptr ? emblem_height * static_cast<float>(mask->width) / static_cast<float>(mask->height) : 0.f
+    };
+
+    float const prefix{
+      (line.marker != overlay::marker_e::none ? box : 0.f) + (emblem_slot > 0.f ? emblem_slot + spacing : 0.f)
+    };
+
     ImVec2 const origin{ImGui::GetCursorScreenPos()};
-    ImGui::Dummy(ImVec2{box, box});
-    ImGui::SameLine(0.f, ImGui::GetStyle().ItemSpacing.x * 0.5f);
-    draw_marker(
-      ImGui::GetWindowDrawList(),
-      ImVec2{origin.x + box * 0.5f, origin.y + box * 0.5f},
-      box * 0.28f,
-      ImGui::GetColorU32(to_color(line.color)),
-      line.marker
-    );
+    ImGui::Dummy(ImVec2{prefix, box});
+    ImGui::SameLine(0.f, spacing);
+
+    float cursor{origin.x};
+    if(line.marker != overlay::marker_e::none)
+      {
+      draw_marker(
+        ImGui::GetWindowDrawList(),
+        ImVec2{cursor + box * 0.5f, origin.y + box * 0.5f},
+        box * 0.28f,
+        colour,
+        line.marker
+      );
+      cursor += box;
+      }
+
+    if(emblem_slot > 0.f)
+      {
+      // centred in its slot, because the emblems are of different widths and a left edge shared by
+      // a wide one and a narrow one looks like a mistake
+      if(emblem_width > 0.f)
+        {
+        ImVec2 const at{cursor + (emblem_slot - emblem_width) * 0.5f, origin.y + (box - emblem_height) * 0.5f};
+        [[maybe_unused]] float const drawn{draw_emblem(data, line.emblem, at, emblem_height, colour)};
+        }
+      cursor += emblem_slot + spacing;
+      }
+
     coloured_text(line.color, "%s", line.text.c_str());
+    draw_trailing(line, box, spacing, colour);
     }
 
   ///\brief draws a chart out of numbers the tool has already scaled to 0..1
@@ -368,7 +578,7 @@ namespace
               ImGui::Separator();
 
             for(overlay::line_t const & line: block.lines)
-              draw_line(line);
+              draw_line(data, line);
 
             // a chart wider than this is no more readable, only more of the view taken away
             float const chart_width{
@@ -646,6 +856,9 @@ auto ensure_resources(swapchain_data_t & data, VkQueue queue) -> bool
   ImFontConfig font_config{};
   font_config.SizePixels = std::round(13.f * scale);
   io.Fonts->AddFontDefault(&font_config);
+  // the emblems take their place in the atlas before it is built, and are written into it right after
+  reserve_emblems(data);
+  blit_emblems(data);
 
   ImGui::GetStyle().ScaleAllSizes(scale);
 

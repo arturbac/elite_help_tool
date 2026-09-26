@@ -12,6 +12,7 @@
 #define VK_LAYER_EXPORT __attribute__((visibility("default")))
 #endif
 
+#include <array>
 #include <format>
 #include <memory>
 #include <mutex>
@@ -127,6 +128,8 @@ struct swapchain_data_t
   std::vector<frame_resources_t> frames;
 
   ImGuiContext * imgui{};
+  ///\brief where each emblem sits in the font atlas, indexed by emblem_e; -1 means it never got there
+  std::array<int, 4> emblem_rects{-1, -1, -1, -1};
   bool ready{};
   ///\brief an initialisation that failed once is not worth retrying every frame
   bool broken{};

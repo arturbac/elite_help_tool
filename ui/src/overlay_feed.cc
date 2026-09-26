@@ -95,6 +95,22 @@ auto allegiance_colour(info::allegiance_e allegiance) -> uint32_t
     }
   }
 
+///\brief the superpower's emblem, for the allegiances that have one
+///\detail an independent faction answers to nobody, so it gets no emblem and the space stays empty -
+/// a placeholder there would say something the game does not
+[[nodiscard]]
+auto allegiance_emblem(info::allegiance_e allegiance) -> overlay::emblem_e
+  {
+  using enum info::allegiance_e;
+  switch(allegiance)
+    {
+    case federation: return overlay::emblem_e::federation;
+    case empire:     return overlay::emblem_e::empire;
+    case alliance:   return overlay::emblem_e::alliance;
+    default:         return overlay::emblem_e::none;
+    }
+  }
+
 ///\brief separates factions that share an allegiance, without losing what the colour says
 ///\detail allegiance decides the hue, so four independents come out as one grey mass and their lines
 /// cannot be followed. The hue stays - it is the part that says Federation or Empire - and only the
@@ -486,9 +502,11 @@ auto build_influence_chart(
   if(highest <= 0.0 or std::ranges::all_of(gathered, [](auto const & p) { return p.size() < 2u; }))
     return {};
 
-  // whole decades give a readable grid; the floor also catches a faction squeezed down to a
-  // fraction of a percent, which on a linear scale would be indistinguishable from zero
-  double const low{std::max(0.1, std::pow(10.0, std::floor(std::log10(lowest))))};
+  // Whole decades give a readable grid, and the floor is one per cent because that is the floor in
+  // the game: a faction present in a system holds at least a point of it, and below that it is not
+  // weakened but gone - it retreats and stops being present at all. A decade under that would be an
+  // empty quarter of the chart squeezing the part where the fight actually happens
+  double const low{std::max(1.0, std::pow(10.0, std::floor(std::log10(lowest))))};
   double const high{std::max(low * 10.0, std::pow(10.0, std::ceil(std::log10(highest))))};
   double const log_low{std::log10(low)};
   double const log_span{std::log10(high) - log_low};
@@ -686,6 +704,7 @@ auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
   struct presence_t
     {
     int64_t oid;
+    overlay::trend_e trend{overlay::trend_e::unknown};
     std::string name;
     info::allegiance_e allegiance;
     std::string active;
@@ -719,6 +738,45 @@ auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
       presence.emplace_back(std::move(item));
     }
 
+  // Which way each faction went at the last recalculation, rather than at its last change - those
+  // are different questions. A faction that did not move writes no row, so silence after a wave we
+  // have actually seen means it held its ground; silence because we have not been here since the
+  // wave means we simply do not know, and the two must not look the same.
+  if(auto waves{db_.load_recent_ticks(info::tick_kind_e::influence, 30u)}; waves and not waves->empty())
+    {
+    std::chrono::sys_seconds const wave{waves->front().start_begin};
+    bool const seen_since{
+      std::ranges::any_of(*history, [wave](info::faction_influence_t const & e) { return e.timestamp >= wave; })
+    };
+
+    if(seen_since)
+      for(presence_t & item: presence)
+        {
+        std::optional<double> before;
+        std::optional<double> after;
+        for(info::faction_influence_t const & entry: *history)
+          if(entry.faction_oid == item.oid)
+            {
+            if(entry.timestamp < wave)
+              before = entry.influence;
+            else
+              after = entry.influence;
+            }
+
+        if(not before)
+          continue;
+        if(not after)
+          {
+          item.trend = overlay::trend_e::flat;
+          continue;
+          }
+
+        item.trend = *after > *before  ? overlay::trend_e::up
+                     : *after < *before ? overlay::trend_e::down
+                                        : overlay::trend_e::flat;
+        }
+    }
+
   std::ranges::sort(presence, std::ranges::greater{}, &presence_t::influence);
 
   // the line and the chart series are given the same colour and the same shape in one place, so
@@ -739,16 +797,18 @@ auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
       overlay::line_t{
         // the star marks the controlling faction, because that one decides the system's face
         .text = std::format(
-          "{}{}  {:.1f}%{}{}",
+          "{}{}  {:.1f}%",
           item.name == state.system.controlling_faction ? "* " : "  ",
           item.name,
-          item.influence * 100.0,
-          item.active.empty() ? "" : "  ",
-          item.active
+          item.influence * 100.0
         ),
         .color = colour,
         // the same shape the faction's line wears on the chart below, so the two read as one
-        .marker = marker
+        .marker = marker,
+        .emblem = allegiance_emblem(item.allegiance),
+        // the mark goes between the value and the states, because it speaks about the value
+        .trend = item.trend,
+        .suffix = item.active
       }
     );
     }
