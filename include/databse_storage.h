@@ -131,6 +131,12 @@ struct database_storage_t
   [[nodiscard]]
   auto load_carrier_stock(std::string_view carrier_id) -> expected_ec<std::vector<info::carrier_stock_t>>;
 
+  ///\brief oznacza flotowiec jako swoj albo zdejmuje to oznaczenie
+  ///\detail do tej pory znacznik istnial w schemacie i byl pieczolowicie zachowywany przy kazdym
+  /// odczycie cen, ale nic w calym programie nie potrafilo go ustawic
+  [[nodiscard]]
+  auto set_carrier_tracked(std::string_view carrier_id, bool tracked) -> expected_ec<void>;
+
   ///\brief flotowce ktore widzielismy, wlasny pierwszy
   [[nodiscard]]
   auto load_carriers() -> expected_ec<std::vector<info::carrier_t>>;

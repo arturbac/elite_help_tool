@@ -3242,6 +3242,19 @@ auto database_storage_t::carrier_oid( std::string_view name ) -> expected_ec<std
   }
 
 [[nodiscard]]
+auto database_storage_t::set_carrier_tracked(std::string_view carrier_id, bool tracked) -> expected_ec<void>
+  {
+  return sqlite::execute_query_no_result(
+    db_->db,
+    std::format(
+      "UPDATE {} SET tracked={} WHERE carrier_id='{}'",
+      sql_iface::tables::carrier,
+      tracked ? 1 : 0,
+      sqlite::escape_sql_quotes(carrier_id)
+    )
+  );
+  }
+
 auto database_storage_t::update_carrier(info::carrier_t const & carrier) -> expected_ec<void>
   {
   if(not db_->db)

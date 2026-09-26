@@ -1,4 +1,6 @@
 #include <micro_resource_window.h>
+#include <ranges>
+#include <algorithm>
 #include <qformat.h>
 #include <qboxlayout.h>
 #include <qbrush.h>
@@ -199,6 +201,13 @@ auto micro_resource_window_t::setup_ui() -> void
   carrier_row->addWidget(new QLabel("Carrier:", stock_page));
   carrier_combo_ = new QComboBox(stock_page);
   carrier_row->addWidget(carrier_combo_, 1);
+
+  mark_mine_ = new QCheckBox("moj", stock_page);
+  mark_mine_->setToolTip("Oznacz ten flotowiec jako wlasny");
+  only_mine_ = new QCheckBox("tylko moje", stock_page);
+  only_mine_->setToolTip("Ukryj flotowce obce - ich bartendera widac przy kazdym dokowaniu");
+  carrier_row->addWidget(mark_mine_);
+  carrier_row->addWidget(only_mine_);
   stock_layout->addLayout(carrier_row);
 
   stock_header_ = new QLabel(stock_page);
@@ -256,10 +265,33 @@ auto micro_resource_window_t::setup_ui() -> void
     this,
     [this](int index)
     {
-      if(index >= 0)
-        show_stock(carrier_combo_->itemData(index).toString().toStdString());
+      if(index < 0)
+        return;
+
+      // znacznik nalezy do wybranego flotowca, wiec idzie za wyborem
+      reload_carriers();
+      show_stock(carrier_combo_->itemData(index).toString().toStdString());
     }
   );
+
+  connect(
+    mark_mine_,
+    &QCheckBox::toggled,
+    this,
+    [this](bool mine)
+    {
+      auto const chosen{carrier_combo_->currentData().toString().toStdString()};
+      if(chosen.empty())
+        return;
+
+      if(auto res{db_.set_carrier_tracked(chosen, mine)}; not res)
+        spdlog::error("failed to mark carrier {}", chosen);
+
+      reload_carriers();
+    }
+  );
+
+  connect(only_mine_, &QCheckBox::toggled, this, [this](bool) { reload_carriers(); });
 
   connect(period_combo_, &QComboBox::activated, this, [this](int) { show_acquisitions(); });
 
@@ -276,17 +308,38 @@ auto micro_resource_window_t::reload_carriers() -> void
     return;
     }
 
+  // Filtr ma sens dopiero wtedy, gdy cokolwiek jest oznaczone - inaczej zostawilby pusta liste
+  // i zadnej drogi powrotnej, bo oznaczyc mozna tylko flotowiec widoczny w liscie
+  bool const any_mine{std::ranges::any_of(*res, [](info::carrier_t const & c) { return c.tracked; })};
+  only_mine_->setEnabled(any_mine);
+  if(not any_mine)
+    only_mine_->setChecked(false);
+
   auto const previous{carrier_combo_->currentData().toString()};
 
   QSignalBlocker const block{carrier_combo_};
   carrier_combo_->clear();
   for(info::carrier_t const & carrier: *res)
+    {
+    if(only_mine_->isChecked() and not carrier.tracked)
+      continue;
+
     carrier_combo_->addItem(
-      qformat("{} ({})", carrier.carrier_name, carrier.carrier_id), QString::fromStdString(carrier.carrier_id)
+      qformat("{}{} ({})", carrier.tracked ? "* " : "", carrier.carrier_name, carrier.carrier_id),
+      QString::fromStdString(carrier.carrier_id)
     );
+    }
 
   if(auto const index{carrier_combo_->findData(previous)}; index >= 0)
     carrier_combo_->setCurrentIndex(index);
+
+  // znacznik dotyczy tego, co akurat wybrane
+  auto const chosen{carrier_combo_->currentData().toString().toStdString()};
+  QSignalBlocker const quiet{mark_mine_};
+  mark_mine_->setEnabled(not chosen.empty());
+  mark_mine_->setChecked(std::ranges::any_of(
+    *res, [&chosen](info::carrier_t const & c) { return c.carrier_id == chosen and c.tracked; }
+  ));
   }
 
 ///\brief stan flotowca z ostatniego CarrierStats, gotowy do doklejenia pod naglowek

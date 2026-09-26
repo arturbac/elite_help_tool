@@ -6,6 +6,7 @@
 #include <qabstractitemmodel.h>
 #include <qtableview.h>
 #include <qcombobox.h>
+#include <qcheckbox.h>
 #include <qlabel.h>
 #include <qtabwidget.h>
 
@@ -91,6 +92,11 @@ public:
   database_storage_t db_;
 
   QComboBox * carrier_combo_{};
+  ///\brief lista zawezona do wlasnych - bartendera obcych widac przy kazdym dokowaniu i po paru
+  /// tygodniach jest ich w niej wiecej niz swoich
+  QCheckBox * only_mine_{};
+  ///\brief oznacza wybrany flotowiec jako swoj - jedyna droga do ustawienia tego znacznika
+  QCheckBox * mark_mine_{};
   QLabel * stock_header_{};
   carrier_stock_model_t * stock_model_{};
   QTableView * stock_view_{};
