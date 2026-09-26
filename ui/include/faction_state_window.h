@@ -261,6 +261,10 @@ public:
   system_conflict_model_t * conflicts_model_{};
   QTableView * conflicts_view_{};
   QLabel * conflicts_note_{};
+  ///\brief podpis nad tabela konfliktow - chowany razem z nia, gdy nie ma czego pokazac
+  QLabel * conflicts_caption_{};
+  ///\brief panel splittera z konfliktami - jego gorna granica oddaje miejsce liscie frakcji
+  QWidget * conflicts_container_{};
 
   QChartView * chart_view_{};
   QChart * chart_{};

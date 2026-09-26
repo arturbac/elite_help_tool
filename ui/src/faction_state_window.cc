@@ -611,15 +611,18 @@ auto faction_state_window_t::setup_ui() -> void
   factions_layout->addWidget(factions_view_);
   splitter->addWidget(factions_container);
 
-  auto * conflicts_container = new QWidget();
+  conflicts_container_ = new QWidget();
+  auto * conflicts_container = conflicts_container_;
   auto * conflicts_layout = new QVBoxLayout(conflicts_container);
-  conflicts_layout->addWidget(new QLabel("Wars and elections:"));
+  conflicts_caption_ = new QLabel("Wars and elections:");
+  conflicts_layout->addWidget(conflicts_caption_);
 
   conflicts_model_ = new system_conflict_model_t(this);
   conflicts_view_ = new QTableView();
   conflicts_view_->setModel(conflicts_model_);
   conflicts_view_->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
   conflicts_view_->horizontalHeader()->setStretchLastSection(true);
+  conflicts_view_->verticalHeader()->setVisible(false);
   conflicts_layout->addWidget(conflicts_view_);
 
   conflicts_note_ = new QLabel();
@@ -977,8 +980,20 @@ auto faction_state_window_t::update_conflicts(uint64_t system_address) -> void
     newest = std::max(newest, last.timestamp);
     }
 
-  if(current.empty())
+  // Pusta tabela z samym naglowkiem zabierala caly panel splittera, zeby nie pokazac niczego -
+  // przy braku konfliktu zostaje sama notka, a miejsce wraca do listy frakcji
+  bool const anything{not current.empty()};
+  conflicts_caption_->setVisible(anything);
+  conflicts_view_->setVisible(anything);
+
+  // Splitter trzyma raz nadany podzial, wiec samo zwiniecie zawartosci zostawiloby pusty panel.
+  // Gorna granica wysokosci oddaje to miejsce sasiadowi, czyli liscie frakcji
+  auto const line{conflicts_note_->sizeHint().height()};
+  auto const row{conflicts_view_->verticalHeader()->defaultSectionSize()};
+
+  if(not anything)
     {
+    conflicts_container_->setMaximumHeight(line + 12);
     conflicts_note_->setText(
       res->empty() ? "No conflicts recorded in this system" : "No conflict active in this system"
     );
@@ -986,8 +1001,14 @@ auto faction_state_window_t::update_conflicts(uint64_t system_address) -> void
     }
 
   conflicts_note_->setText(qformat("State as of {:%Y-%m-%d %H:%M}", newest));
+  auto const rows{int(current.size())};
   conflicts_model_->update_data(std::move(current));
   conflicts_view_->resizeColumnsToContents();
+
+  // tabela dostaje dokladnie tyle wysokosci, ile ma wierszy - reszta panelu nie jest jej potrzebna
+  auto const table{conflicts_view_->horizontalHeader()->height() + rows * row + 4};
+  conflicts_view_->setMaximumHeight(table);
+  conflicts_container_->setMaximumHeight(table + 2 * line + 16);
   }
 
 auto faction_state_window_t::update_stations(uint64_t system_address) -> void
