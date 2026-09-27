@@ -143,7 +143,7 @@ struct exploration_settings_t
   ///\brief a picture of the middle of the screen is taken at every sample - the plant is right there
   bool capture{true};
   ///\brief the side of the square taken, as a share of the screen's height
-  float capture_size{0.4f};
+  float capture_size{0.6f};
   ///\brief how long after the scan the picture is taken - at the scan itself the sampler's rings cover the plant
   uint32_t capture_delay_ms{1500u};
   ///\brief where the pictures and the codex page are kept, relative to where the tool runs

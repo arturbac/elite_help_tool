@@ -267,7 +267,7 @@ struct capture_t
   ///\brief where to write it - a binary PPM, put under this name only once complete
   std::string path;
   ///\brief the side of the square, as a share of the screen's height
-  float size{0.4f};
+  float size{0.6f};
   };
 
 ///\brief the full image to draw - replaces the previous one entirely, only the newest counts
