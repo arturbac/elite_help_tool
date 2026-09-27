@@ -2080,12 +2080,18 @@ auto overlay_feed_t::refresh_status(current_state_t const & state) -> void
 
 auto overlay_feed_t::build_settlement_owners() const -> std::vector<overlay::line_t>
   {
-  // On foot, and at a place with a market - a port's concourse or a settlement, where the mission boards
-  // are. A taxi is not a place to take work from
+  // On foot at a place with mission boards - a port's concourse or hangar, or a settlement. Inside a port
+  // the game's own flags say so; at a settlement only its market, known from the approach, does. A taxi
+  // is not a place to take work from
   constexpr uint64_t on_foot_flag{1u << 0u};
   constexpr uint64_t taxi_flag{1u << 1u};
-  if((status_flags2_ & on_foot_flag) == 0u or (status_flags2_ & taxi_flag) != 0u or market_id_ == 0u)
+  constexpr uint64_t in_port_flags{(1u << 3u) | (1u << 13u) | (1u << 14u)};
+  if((status_flags2_ & on_foot_flag) == 0u or (status_flags2_ & taxi_flag) != 0u)
     return {};
+  if(market_id_ == 0u and (status_flags2_ & in_port_flags) == 0u)
+    return {};
+  // on foot in a port Status.json names the port itself in place of a body
+  std::string const & here{station_name_.empty() ? status_body_ : station_name_};
 
   // ports in space are not what a job "at a settlement" means, nor are building sites and carriers
   using namespace std::string_view_literals;
@@ -2107,7 +2113,9 @@ auto overlay_feed_t::build_settlement_owners() const -> std::vector<overlay::lin
   size_t count{};
   for(info::station_t const & station: stations_)
     {
-    if(std::ranges::contains(not_settlements, std::string_view{station.station_type}))
+    // the colonisation ship calls itself a surface station, under a name the game never localised
+    if(std::ranges::contains(not_settlements, std::string_view{station.station_type})
+       or station.name.starts_with("$EXT_PANEL_ColonisationShip"))
       continue;
     by_owner[station.controlling_faction.empty() ? std::string{"owner unknown"} : station.controlling_faction]
       .insert(station.name);
@@ -2134,9 +2142,7 @@ auto overlay_feed_t::build_settlement_owners() const -> std::vector<overlay::lin
     entries.push_back(entry_t{.text = owner, .owner = &owner, .faction = true});
     widest = std::max(widest, owner.size() + continued.size());
     for(std::string const & name: names)
-      entries.push_back(
-        entry_t{.text = (name == station_name_ ? "> " : "  ") + name, .owner = &owner, .faction = false}
-      );
+      entries.push_back(entry_t{.text = (name == here ? "> " : "  ") + name, .owner = &owner, .faction = false});
     }
   for(entry_t const & entry: entries)
     widest = std::max(widest, entry.text.size());

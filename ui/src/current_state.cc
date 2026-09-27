@@ -409,6 +409,17 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
               spdlog::error("failed to store system info {}", event.SystemAddress);
             update_factions = true;
             }
+          // Where we are, for the place's market and missions: docked, the port is named. Started on foot
+          // in a concourse it is not - only Body, with BodyType Station - so the port is found by its name
+          if(event.MarketID != 0u)
+            settlement_market_id_ = event.MarketID;
+          else if(event.OnFoot and event.BodyType == "Station" and not event.Body.empty())
+            {
+            auto found{db_.load_station(event.SystemAddress, event.Body)};
+            settlement_market_id_ = found and *found ? (*found)->market_id : 0u;
+            }
+          else
+            settlement_market_id_ = 0u;
           f_route_progress(event.SystemAddress);
           update_system = true;
           }

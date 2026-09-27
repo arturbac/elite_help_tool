@@ -655,6 +655,11 @@ struct location_t
   {
   system_faction_t SystemFaction;
   bool Docked;
+  ///\brief started on foot - in a station's concourse the game gives no StationName, only Body
+  bool OnFoot{};
+  ///\brief the port, only when Docked
+  std::string StationName;
+  uint64_t MarketID{};
   bool Taxi;
   bool Multicrew;
   std::string StarSystem;
