@@ -10,6 +10,18 @@ namespace eht_overlay
 namespace
   {
   constexpr char layer_name[]{"VK_LAYER_EHT_overlay"};
+
+  ///\brief pictures of the screen need the swapchain to be copied from, which can cost the game its frame rate
+  [[nodiscard]]
+  auto capture_allowed() noexcept -> bool
+    {
+    static bool const allowed{[]
+                              {
+                                char const * const value{std::getenv("EHT_OVERLAY_CAPTURE")};
+                                return value != nullptr and *value != '\0' and *value != '0';
+                              }()};
+    return allowed;
+    }
   ///\brief presenting several swapchains at once is another matter entirely - we simply do not draw them
   constexpr uint32_t max_swapchains_per_present{8u};
 
@@ -360,9 +372,14 @@ namespace
     VkSwapchainCreateInfoKHR patched{*create_info};
     patched.imageUsage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
     // the transfer usage is not promised by the specification, so it is asked for only where the surface
-    // says it has it - an invalid usage need not fail, it may simply misbehave
+    // says it has it - an invalid usage need not fail, it may simply misbehave. And only when asked for: the
+    // first layer to add it met the game at 12-16 frames instead of 60 on the 9000x2160 Wine desktop, and
+    // a usage like this can leave the compositor without its fast way of showing the images. The swapchain
+    // is made before the tool connects, so the settings file cannot decide it - hence the one variable
     if(
       VkSurfaceCapabilitiesKHR capabilities{};
+      capture_allowed()
+      and
       data->instance != nullptr and data->instance->GetPhysicalDeviceSurfaceCapabilitiesKHR != nullptr
       and data->instance->GetPhysicalDeviceSurfaceCapabilitiesKHR(
             data->physical_device, create_info->surface, &capabilities
@@ -410,7 +427,14 @@ namespace
     if(entry->images.empty())
       entry->broken = true;
 
-    log("swapchain {}x{} with {} images", entry->extent.width, entry->extent.height, entry->images.size());
+    log(
+      "swapchain {}x{} with {} images, usage {:#x} of the game's {:#x}",
+      entry->extent.width,
+      entry->extent.height,
+      entry->images.size(),
+      patched.imageUsage,
+      create_info->imageUsage
+    );
 
     // the ipc client is created only now - a process without a swapchain, a game launcher say, pays for nothing
     (void)ipc_client();
