@@ -146,7 +146,7 @@ struct exploration_settings_t
   float capture_size{0.6f};
   ///\brief how long after the scan the picture is taken - the scan's rings and the sampler sealing the
   /// sample cover the plant first; the layer shows the frame and counts down meanwhile
-  uint32_t capture_delay_ms{3000u};
+  uint32_t capture_delay_ms{3500u};
   ///\brief where the pictures and the codex page are kept, relative to where the tool runs
   std::string codex_dir{"codex"};
   ///\brief other accounts' galaxy.sqlite, read for their finds - the knowledge of species is shared, the codex not
