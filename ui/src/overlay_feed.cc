@@ -502,15 +502,26 @@ auto build_system_diagram(
     {
     if(station.dist_from_star_ls <= 0.0 or port_shape(station.station_type) == port_e::none)
       continue;
-    body_t const * nearest{};
-    double gap{std::numeric_limits<double>::max()};
-    for(auto const & [id, body]: by_id)
-      if(double const g{std::abs(body->distance_from_arrival_ls - station.dist_from_star_ls)}; g < gap)
-        {
-        gap = g;
-        nearest = body;
-        }
+    auto const nearest_of = [&](bool stars_only) -> std::pair<body_t const *, double>
+    {
+      body_t const * nearest{};
+      double gap{std::numeric_limits<double>::max()};
+      for(auto const & [id, body]: by_id)
+        if(stars_only and body->body_type() != body_type_e::star)
+          continue;
+        else if(double const g{std::abs(body->distance_from_arrival_ls - station.dist_from_star_ls)}; g < gap)
+          {
+          gap = g;
+          nearest = body;
+          }
+      return {nearest, gap};
+    };
+    auto [nearest, gap]{nearest_of(false)};
+    // no body where the port is: it circles the star itself, as Coppel City does at 24 ls with nothing
+    // else inside 300 - or a body never scanned, and then its star's row is still the right place
     if(nearest == nullptr or gap > std::max(5.0, station.dist_from_star_ls * 0.015))
+      nearest = nearest_of(true).first;
+    if(nearest == nullptr)
       continue;
     // a port by a moon stands in its planet's column, where the moon hangs too
     body_t const * owner{nearest};
