@@ -1457,6 +1457,14 @@ auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
       presence.emplace_back(std::move(item));
     }
 
+  // an uninhabited system has no background simulation at all, so the tick hours would only take room
+  if(presence.empty())
+    {
+    faction_lines_.clear();
+    conflict_lines_.clear();
+    return;
+    }
+
   // Which way each faction went at the last recalculation, rather than at its last change - those
   // are different questions. A faction that did not move writes no row, so silence after a wave we
   // have actually seen means it held its ground; silence because we have not been here since the
