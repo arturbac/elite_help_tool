@@ -138,8 +138,8 @@ it can take the game down: [overlay/README.md](overlay/README.md).
 - **The Construction window** lists the sites under way, and for the one chosen every commodity:
   what is left, required, provided, in the hold, and in the port you stand at, grouped by type.
   Choose the carrier a site is supplied from (remembered for each site) and the *Diff* column shows
-  its cargo against what is left: + what it has to spare, - what it still lacks, with the lack in all
-  at the bottom.
+  its cargo and the ship's hold against what is left: + what is to spare, - what is still to be
+  brought, with that in all at the bottom.
 - **Who produces each commodity**: a square before its name, in the window and on the overlay, in the
   colours of the economies that produce it (Agriculture green, High Tech cyan, Industrial olive,
   Military purple, Refinery orange), split along the diagonal when several do; a dot marks what only

@@ -71,8 +71,8 @@ auto construction_window_t::setup_ui() -> void
   QStringList const tips{
     "Commodity",
     "Still to deliver",
-    "The chosen carrier's cargo less what is still to deliver - below zero is what it lacks, above what it "
-    "has to spare",
+    "The chosen carrier's cargo and the ship's hold, less what is still to deliver - below zero is what is "
+    "still to be brought, above what is to spare",
     "Required in all",
     "Provided so far",
     "In the ship's hold",
@@ -335,6 +335,16 @@ auto construction_window_t::show_site() -> void
     if(auto cargo{db_.load_carrier_cargo(supplier)}; cargo)
       for(info::carrier_cargo_t const & item: *cargo)
         supplier_cargo[item.key] += item.count;
+  // the hold counts as well - bought for the carrier or for the site, it is on its way. Docked at that
+  // carrier, its cargo is booked only on leaving, so until then the hold as it was on docking stands in
+  // for the hold now, or what was moved across would be counted twice
+  std::map<std::string, int64_t> on_board;
+  if(state_.carrier_visit_ and state_.carrier_visit_->carrier_id == supplier)
+    for(auto const & [key, item]: state_.carrier_visit_->hold)
+      on_board[key] += item.second;
+  else
+    for(auto const & [key, count]: hold)
+      on_board[key] += count;
 
   // by type, then by name - the way the game's own list reads; every type opens with a row of its own
   std::map<std::string, std::string> categories;
@@ -411,7 +421,10 @@ auto construction_window_t::show_site() -> void
     if(supplier != 0u)
       {
       auto const s{supplier_cargo.find(need->key)};
-      int64_t const diff{(s == supplier_cargo.end() ? 0 : s->second) - int64_t(left)};
+      auto const b{on_board.find(need->key)};
+      int64_t const diff{
+        (s == supplier_cargo.end() ? 0 : s->second) + (b == on_board.end() ? 0 : b->second) - int64_t(left)
+      };
       lacking_total += std::min<int64_t>(diff, 0);
       table_->setItem(row, 2, diff_cell(diff));
       }
@@ -440,7 +453,7 @@ auto construction_window_t::show_site() -> void
     if(supplier != 0u)
       {
       auto * cell = diff_cell(lacking_total);
-      cell->setToolTip("What the carrier still lacks, in all");
+      cell->setToolTip("What is still to be brought, in all");
       table_->setItem(row, 2, cell);
       }
     }
