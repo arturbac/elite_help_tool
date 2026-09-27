@@ -745,7 +745,8 @@ namespace
     }
 
   ///\brief draws a picture the tool laid out, shrunk to the room there is when it would not fit
-  auto draw_diagram(swapchain_data_t & data, overlay::diagram_t const & diagram, float available) -> void
+  ///\param room how tall the picture may be at most, 0 when there is no limit
+  auto draw_diagram(swapchain_data_t & data, overlay::diagram_t const & diagram, float available, float room) -> void
     {
     if(diagram.width <= 0.f or diagram.height <= 0.f or available <= 0.f)
       return;
@@ -754,8 +755,17 @@ namespace
     // across: the whole band; upright: the zoom asked for, but never so much taller than wide that
     // neighbouring discs run into each other
     available *= std::clamp(diagram.share, 0.1f, 1.f);
-    float const kx{available / diagram.width};
-    float const k{std::min(scale * std::max(diagram.zoom, 0.1f), kx * 1.3f)};
+    float kx{available / diagram.width};
+    float k{std::min(scale * std::max(diagram.zoom, 0.1f), kx * 1.3f)};
+    // too tall for the room left - the whole picture shrinks, both ways, so the circles stay round and
+    // the block does not climb onto the one above it
+    if(room > 0.f and diagram.height * k > room)
+      {
+      float const shrink{std::max(room / (diagram.height * k), 0.2f)};
+      kx *= shrink;
+      k *= shrink;
+      available *= shrink;
+      }
 
     ImDrawList * const draw{ImGui::GetWindowDrawList()};
     ImVec2 const origin{ImGui::GetCursorScreenPos()};
@@ -1228,7 +1238,8 @@ namespace
                                ImVec2 pivot,
                                float width,
                                bool stats_here,
-                               auto const & wanted
+                               auto const & wanted,
+                               float height_limit
                              ) -> ImVec2
     {
       // the ground is drawn by hand, see draw_ground
@@ -1286,7 +1297,13 @@ namespace
               draw_chart(chart, chart_width);
 
             for(overlay::diagram_t const & diagram: block.diagrams)
-              draw_diagram(data, diagram, width - 2.f * ImGui::GetStyle().WindowPadding.x);
+              draw_diagram(
+                data,
+                diagram,
+                width - 2.f * ImGui::GetStyle().WindowPadding.x,
+                height_limit > 0.f ? std::max(height_limit - ImGui::GetCursorPosY() - ImGui::GetStyle().WindowPadding.y, 1.f)
+                                   : 0.f
+              );
 
             if(not block.pictures.empty())
               draw_pictures(data, block, width - 2.f * ImGui::GetStyle().WindowPadding.x);
@@ -1337,8 +1354,18 @@ namespace
       // a head-up readout is glanced at, not read - past this width it stops being a glance
       float const width{head_up ? std::min(band, centre_screen_width(display, layout) * layout.hud_width) : band};
 
+      // a bottom stack may reach no higher than where the stack above it ends - drawn first, so its
+      // size is known by now; only a picture can give way, text is never cut
+      float height_limit{};
+      if(corner == overlay::corner_e::bottom_left or corner == overlay::corner_e::bottom_right)
+        {
+        size_t const above{corner == overlay::corner_e::bottom_left ? 0u : 1u};
+        if(stack_size[above].y > 0.f)
+          height_limit = display.y - 2.f * layout.corner_margin - stack_size[above].y - layout.corner_margin;
+        }
+
       auto const [position, pivot]{corner_position(corner, display, layout)};
-      stack_size[index] = draw_window(window_name(corner), position, pivot, width, stats_here, in_stack);
+      stack_size[index] = draw_window(window_name(corner), position, pivot, width, stats_here, in_stack, height_limit);
       }
 
     // the blocks asked to stand beside a stack take what is left of the band next to it, on the same edge;
@@ -1371,7 +1398,7 @@ namespace
       static constexpr std::array names{
         "eht_top_left_beside", "eht_top_right_beside", "eht_bottom_left_beside", "eht_bottom_right_beside"
       };
-      draw_window(names[index], position, pivot, width, false, beside);
+      draw_window(names[index], position, pivot, width, false, beside, 0.f);
       }
 
     draw_capture_guide(data, display);
