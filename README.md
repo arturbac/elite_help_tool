@@ -5,6 +5,16 @@ This is a realtime tool that helps explore a system, map valuable planets and op
 
 ![at_work](at_work.png)
 
+> **Linux only, for now.** EHT and its in-game overlay are built and tested only on Linux, with
+> Elite Dangerous running under Proton.
+
+## Documentation
+
+- [Building, installing and running](doc/building_and_running.md): build, overlay install, first
+  journal scan, starting EHT, Steam launch options, F11 screenshots
+- [Running Elite Dangerous on Linux without Steam, with EHT](doc/elite_without_steam.md)
+- [How the BGS tick window is worked out](doc/bgs_tick.md)
+
 ## Exploration
 
 The bottom right corner of the overlay follows the order of work in a new system:
