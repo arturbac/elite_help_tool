@@ -38,10 +38,13 @@ elite_event_widget_t<T>::elite_event_widget_t(T const & event, QWidget * parent)
     {
     if(event.JumpType == events::jump_type_e::Hyperspace)
       {
-      planet_value_e const vl{exploration::system_approx_value(*event.StarClass, *event.StarSystem)};
+      // a hyperspace jump always names the star, but an absent field must not bring the window down
+      std::string const star_class{event.StarClass.value_or(std::string{})};
+      std::string const star_system{event.StarSystem.value_or(std::string{})};
+      planet_value_e const vl{exploration::system_approx_value(star_class, star_system)};
 
       layout->addWidget(new QLabel("→🌞"));
-      auto * val = new QLabel(qformat("[{}] {}", *event.StarClass, *event.StarSystem));
+      auto * val = new QLabel(qformat("[{}] {}", star_class, star_system));
       if(planet_value_e::low < vl)
         val->setStyleSheet(value_color(vl).data());
       layout->addWidget(val);
