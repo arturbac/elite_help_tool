@@ -183,6 +183,8 @@ private:
   uint64_t construction_port_{};
   std::vector<info::market_entry_t> construction_port_market_;
   std::map<std::string, int64_t> carrier_cargo_;
+  ///\brief every commodity's type by key, for listing a site's needs by type
+  std::map<std::string, std::string> commodity_categories_;
   uint64_t carrier_cargo_changes_{~uint64_t{}};
   std::vector<info::war_view_t> wars_;
   uint64_t wars_system_{};

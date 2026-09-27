@@ -134,7 +134,12 @@ it can take the game down: [overlay/README.md](overlay/README.md).
   much. What can be loaded right here stands out, and the trading hints give way, since the load
   is the colony's.
 - **The Construction window** lists the sites under way, and for the one chosen every commodity:
-  what is left, required, provided, in the hold, and in the port you stand at.
+  what is left, required, provided, in the hold, and in the port you stand at, grouped by type.
+- **Who produces each commodity**: a square before its name, in the window and on the overlay, in the
+  colours of the economies that produce it (Agriculture green, High Tech cyan, Industrial olive,
+  Military purple, Refinery orange), split along the diagonal when several do; a dot marks what only
+  ports on the ground produce. The window's tooltip names them. The table follows
+  [RavenColonial](https://ravencolonial.com)'s.
 - A site is known from the first docking at it: the game writes nothing when one is placed in the
   system map. Nor does it say that a site lapsed unless someone visits it, so a site can be marked
   abandoned in the window, which hides it; "Show abandoned" brings it back. The mark is kept in

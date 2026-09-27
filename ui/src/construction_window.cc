@@ -12,6 +12,7 @@
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <array>
 #include <tuple>
 
 construction_window_t::construction_window_t(current_state_t const & state, std::string db_path, QWidget * parent) :
@@ -213,6 +214,31 @@ auto economy_icon(commodity_facts::fact_t const & fact) -> QIcon
     }
   return QIcon{pixmap};
   }
+
+///\brief who produces a commodity, in words - for the tooltip of its square
+[[nodiscard]]
+auto producers_text(commodity_facts::fact_t const & fact) -> QString
+  {
+  using commodity_facts::economy_e;
+  constexpr std::array<std::pair<economy_e, char const *>, 6> names{{
+    {economy_e::agriculture, "Agriculture"},
+    {economy_e::high_tech, "High Tech"},
+    {economy_e::industrial, "Industrial"},
+    {economy_e::military, "Military"},
+    {economy_e::refinery, "Refinery"},
+    {economy_e::extraction, "Extraction"},
+  }};
+  QStringList economies;
+  for(auto const & [economy, name]: names)
+    if((uint8_t(fact.produced_by) & uint8_t(economy)) != 0u)
+      economies << QString::fromLatin1(name);
+  QString text{QStringLiteral("Produced by: %1").arg(economies.join(QStringLiteral(", ")))};
+  if(fact.surface)
+    text += QStringLiteral("\nonly at ports on the ground");
+  else if(fact.orbital)
+    text += QStringLiteral("\nonly at ports in orbit");
+  return text;
+  }
   }  // namespace
 
 auto construction_window_t::show_site() -> void
@@ -305,7 +331,10 @@ auto construction_window_t::show_site() -> void
     uint32_t const left{need->required - need->provided};
     auto * name = new QTableWidgetItem(QString::fromStdString(need->commodity));
     if(auto const fact{commodity_facts::find(need->key)}; fact)
+      {
       name->setIcon(economy_icon(*fact));
+      name->setToolTip(producers_text(*fact));
+      }
     table_->setItem(row, 0, name);
     table_->setItem(row, 1, new QTableWidgetItem(number(left)));
     table_->setItem(row, 2, new QTableWidgetItem(number(need->required)));
