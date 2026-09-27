@@ -23,6 +23,13 @@ namespace
     }
 
   [[nodiscard]]
+  [[nodiscard]]
+  auto current_private() -> std::atomic<bool> &
+    {
+    static std::atomic<bool> sjona_private{};
+    return sjona_private;
+    }
+
   auto write_file(std::filesystem::path const & path, settings_t const & value) -> bool
     {
     std::string text;
@@ -31,6 +38,10 @@ namespace
       spdlog::error("settings: could not put the settings into words");
       return false;
       }
+    // A private switch someone set stays in the file when missing settings are written in; one never set
+    // never appears, not even in a file of defaults
+    if(current_private().load(std::memory_order_acquire) and text.starts_with("{\n"))
+      text.insert(2u, "   \"sjona_private\": true,\n");
     text.push_back('\n');
 
     std::ofstream out{path, std::ios::binary | std::ios::trunc};
@@ -75,6 +86,9 @@ auto colour_t::write() const -> std::string
 auto settings() -> std::shared_ptr<settings_t const>
   { return current_settings().load(std::memory_order_acquire); }
 
+auto private_settings() noexcept -> private_settings_t
+  { return private_settings_t{.sjona_private = current_private().load(std::memory_order_acquire)}; }
+
 auto load_settings(std::filesystem::path const & path) -> bool
   {
   auto const text{read_text(path)};
@@ -82,6 +96,7 @@ auto load_settings(std::filesystem::path const & path) -> bool
     {
     // the first run, or a file deleted to start over - the defaults are written out to be edited
     settings_t const defaults{};
+    current_private().store(false, std::memory_order_release);
     current_settings().store(std::make_shared<settings_t const>(defaults), std::memory_order_release);
     if(write_file(path, defaults))
       spdlog::info("settings: wrote the defaults to {}", path.string());
@@ -108,6 +123,12 @@ auto load_settings(std::filesystem::path const & path) -> bool
     );
     return false;
     }
+
+  // read apart from the rest, since settings_t is written out whole and these must not be
+  private_settings_t hidden{};
+  if(auto const hidden_err{glz::read<glz::opts{.error_on_unknown_keys = false}>(hidden, *text)}; hidden_err)
+    hidden = {};
+  current_private().store(hidden.sjona_private, std::memory_order_release);
 
   current_settings().store(std::make_shared<settings_t const>(std::move(loaded)), std::memory_order_release);
 

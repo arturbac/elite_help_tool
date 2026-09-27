@@ -289,6 +289,17 @@ struct settings_t
   eddn_settings_t eddn;
   };
 
+///\brief switches read from the file when someone put them there, and never written into a file of
+/// defaults - they are for one commander's own setup, not settings to offer everyone
+struct private_settings_t
+  {
+  bool sjona_private{};
+  };
+
+///\brief the private switches in force now
+[[nodiscard]]
+auto private_settings() noexcept -> private_settings_t;
+
 ///\brief the name of the file, looked for in the directory the tool runs in
 inline constexpr std::string_view settings_file_name{"eht_settings.json"};
 
