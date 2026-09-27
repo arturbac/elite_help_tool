@@ -197,6 +197,9 @@ struct station_t
   ///\brief how far out from the arrival star it lies, from Docked - the journal never names the body a
   /// station orbits, but it circles close to it, so the body at the same distance is the one; 0 unknown
   double dist_from_star_ls{};
+  ///\brief the body a settlement or a surface port stands on, from ApproachSettlement; unknown for
+  /// a port in space - the game never tells it
+  std::optional<uint32_t> body_id;
   };
 
 ///\brief when we last read this station's market

@@ -371,6 +371,42 @@ auto planet_colour(planet_details_t const & details) -> uint32_t
   }
   }  // namespace system_map
 
+///\brief where a mission is owed: a done one goes back to whoever redirected it, an open one to the
+/// place it named when it was taken - system and place
+[[nodiscard]]
+auto owed_place(info::mission_t const & mission) -> std::pair<std::string, std::string>
+  {
+  bool const done{mission.status == info::mission_status_e::redirected};
+  std::string system{done ? mission.redirected_system : mission.destination_system};
+  std::string place{
+    done ? (mission.redirected_settlement.empty() ? mission.redirected_station : mission.redirected_settlement)
+         : std::string{mission.destination_place()}
+  };
+  return {std::move(system), std::move(place)};
+  }
+
+///\brief the places of this system the open missions send us to, true where one only waits to be handed in
+[[nodiscard]]
+auto mission_places(std::span<info::mission_t const> missions, std::string_view system)
+  -> std::map<std::string, bool, std::less<>>
+  {
+  std::map<std::string, bool, std::less<>> places;
+  for(info::mission_t const & mission: missions)
+    {
+    bool const done{mission.status == info::mission_status_e::redirected};
+    if(not done and mission.status != info::mission_status_e::accepted)
+      continue;
+    auto [where, place]{owed_place(mission)};
+    if(where != system or place.empty())
+      continue;
+    // a place with work still to do there is shown as such, even if another mission only waits there
+    auto [it, fresh]{places.try_emplace(std::move(place), done)};
+    if(not fresh)
+      it->second = it->second and done;
+    }
+  return places;
+  }
+
 ///\brief the system as the game's orrery lays it out, without its scale
 ///
 /// A row for every star, its planets along it in the order the game numbers them, the moons hanging
@@ -382,7 +418,8 @@ auto build_system_diagram(
   star_system_t const & system,
   std::span<info::station_t const> stations,
   std::string_view here,
-  std::optional<events::status_file_t::destination_t> const & destination
+  std::optional<events::status_file_t::destination_t> const & destination,
+  std::span<info::mission_t const> missions
 ) -> std::optional<overlay::diagram_t>
   {
   using namespace system_map;
@@ -401,6 +438,9 @@ auto build_system_diagram(
   uint32_t const here_colour{sm.here.rgb};
   uint32_t const destination_colour{sm.destination.rgb};
   uint32_t const port_colour{sm.port.rgb};
+  uint32_t const mission_colour{sm.mission.rgb};
+  uint32_t const handin_colour{cfg->overlay.colours.first.rgb};
+  float const arrow{sm.mission_arrow};
 
   std::map<body_id_t, body_t const *> by_id;
   for(body_t const & body: system.bodies)
@@ -484,8 +524,36 @@ auto build_system_diagram(
   // the destination counts only inside this system - elsewhere the game names nothing but the system
   bool const going_here{destination and destination->System == system.system_address};
 
+  // The places the missions send us to, and the bodies of those standing on the ground - a settlement
+  // is known to stand on its body from the approach; a port in space is marked where it is drawn
+  auto const places{mission_places(missions, system.name)};
+  std::map<body_id_t, bool> mission_bodies;
+  for(info::station_t const & station: stations)
+    if(auto const it{places.find(station.name)}; it != places.end() and station.body_id)
+      {
+      auto [at, fresh]{mission_bodies.try_emplace(*station.body_id, it->second)};
+      if(not fresh)
+        at->second = at->second and it->second;
+      }
+  // a small arrow pointing at the thing from the left, its tip just clear of the ring round it
+  auto const mission_arrow = [&](float x, float y, float r, bool ready)
+  {
+    float const tip{x - r - 3.f};
+    uint32_t const colour{ready ? handin_colour : mission_colour};
+    for(auto const & [x0, y0, x1, y1]: std::array<std::array<float, 4>, 3>{
+          {{-arrow, 0.f, 0.f, 0.f}, {-arrow * 0.5f, -arrow * 0.5f, 0.f, 0.f}, {-arrow * 0.5f, arrow * 0.5f, 0.f, 0.f}}
+        })
+      diagram.segments.push_back(
+        overlay::segment_t{
+          .x0 = x0, .y0 = y0, .x1 = x1, .y1 = y1, .color = colour, .relative = true, .ax = tip, .ay = y
+        }
+      );
+  };
+
   auto const mark_here = [&](body_t const * body, float x, float y, float r)
   {
+    if(auto const it{mission_bodies.find(body->body_id)}; it != mission_bodies.end())
+      mission_arrow(x, y, r, it->second);
     if(not here_short.empty() and body->name == here_short)
       diagram.discs.push_back(overlay::disc_t{.x = x, .y = y, .radius = r + 3.5f, .color = here_colour, .outline = true});
     // a surface port's destination names the body it stands on
@@ -584,6 +652,8 @@ auto build_system_diagram(
       diagram.discs.push_back(
         overlay::disc_t{.x = x, .y = y, .radius = s + 6.f, .color = destination_colour, .outline = true}
       );
+    if(auto const it{places.find(station.name)}; it != places.end())
+      mission_arrow(x, y, s, it->second);
   };
 
   // A star with nothing around it would take a whole row for one disc - in a system of five stars and
@@ -961,18 +1031,7 @@ auto describe_missions(
     open, [](info::mission_t const * mission) { return mission->status == info::mission_status_e::redirected; }
   )};
 
-  // where a mission is owed: a done one goes back to whoever redirected it, an open one to the place
-  // it named when it was taken
-  auto const destination = [](info::mission_t const & mission) -> std::pair<std::string, std::string>
-  {
-    bool const done{mission.status == info::mission_status_e::redirected};
-    std::string const system{done ? mission.redirected_system : mission.destination_system};
-    std::string const place{
-      done ? (mission.redirected_settlement.empty() ? mission.redirected_station : mission.redirected_settlement)
-           : std::string{mission.destination_place()}
-    };
-    return {system, place};
-  };
+  auto const destination = owed_place;
 
   // Who holds the place a mission points at. The journal does not say: "Kill Casey Sanders" comes
   // with a settlement and a name and nothing else, yet the killing counts against the faction that
@@ -2595,7 +2654,7 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
     auto loaded{db_.load_stations(stations_system_)};
     stations_ = loaded ? std::move(*loaded) : std::vector<info::station_t>{};
     }
-  if(auto map{build_system_diagram(state.system, stations_, status_body_, status_destination_)}; map)
+  if(auto map{build_system_diagram(state.system, stations_, status_body_, status_destination_, state.active_missions)}; map)
     frame.blocks.push_back(
       overlay::block_t{.corner = overlay::corner_e::bottom_right, .ttl_ms = block_ttl_ms(), .diagrams = {std::move(*map)}}
     );

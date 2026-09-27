@@ -106,6 +106,10 @@ struct system_map_t
   ///\brief over a body's own colour wherever there is life to sample
   colour_t bio{0x3cb371u};
   colour_t port{0xc8d0dcu};
+  ///\brief the arrow by a body or port an open mission sends us to; one waiting to be handed in takes
+  /// the colour of good news instead
+  colour_t mission{0xff9a4au};
+  float mission_arrow{6.f};
   };
 
 struct overlay_settings_t

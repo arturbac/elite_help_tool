@@ -585,7 +585,8 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
              .station_type = {},
              .economy = event.StationEconomy_Localised,
              .government = event.StationGovernment_Localised,
-             .controlling_faction = event.StationFaction.Name
+             .controlling_faction = event.StationFaction.Name,
+             .body_id = event.BodyID
            })};
            not res)
           spdlog::error("failed to store settlement {}", event.MarketID);

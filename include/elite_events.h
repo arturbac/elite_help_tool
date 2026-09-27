@@ -923,6 +923,8 @@ struct approach_settlement_t
   uint64_t MarketID;
   uint64_t SystemAddress;
   std::string Name;
+  ///\brief the body the settlement stands on
+  std::optional<body_id_t> BodyID;
   std::string StationEconomy_Localised;
   std::string StationGovernment_Localised;
   ///\brief the faction holding the place - the journal gives it nested, not as a bare string
