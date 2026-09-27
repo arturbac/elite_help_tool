@@ -551,8 +551,15 @@ auto build_system_diagram(
   auto const draw_port = [&](info::station_t const & station, float x, float y)
   {
     constexpr float s{port_size};
+    // drawn relative to the port's centre, so the outline keeps its shape however far the band stretches
     auto const line = [&](float x0, float y0, float x1, float y1)
-    { diagram.segments.push_back(overlay::segment_t{.x0 = x0, .y0 = y0, .x1 = x1, .y1 = y1, .color = port_colour}); };
+    {
+      diagram.segments.push_back(
+        overlay::segment_t{
+          .x0 = x0 - x, .y0 = y0 - y, .x1 = x1 - x, .y1 = y1 - y, .color = port_colour, .relative = true, .ax = x, .ay = y
+        }
+      );
+    };
     auto const polygon = [&](int sides, float turn)
     {
       for(int i{}; i != sides; ++i)
@@ -753,18 +760,29 @@ auto build_system_diagram(
     {
     if(ys.size() < 2u)
       continue;
-    constexpr float bx{1.f};
+    // measured from the discs rather than from the edge, so it stays against them when the band stretches
+    constexpr float lead_x{star_column / 2.f};
+    constexpr float off{-star_radius - 4.f};
     diagram.segments.push_back(
-      overlay::segment_t{.x0 = bx, .y0 = ys.front(), .x1 = bx, .y1 = ys.back(), .color = label_colour}
+      overlay::segment_t{
+        .x0 = off, .y0 = 0.f, .x1 = off, .y1 = ys.back() - ys.front(), .color = label_colour, .relative = true,
+        .ax = lead_x, .ay = ys.front()
+      }
     );
     for(float const y: ys)
       diagram.segments.push_back(
-        overlay::segment_t{.x0 = bx, .y0 = y, .x1 = star_column / 2.f - star_radius, .y1 = y, .color = label_colour}
+        overlay::segment_t{
+          .x0 = off, .y0 = 0.f, .x1 = -star_radius, .y1 = 0.f, .color = label_colour, .relative = true, .ax = lead_x,
+          .ay = y
+        }
       );
     }
 
   diagram.width = std::max(widest, star_column);
   diagram.height = top;
+  // Artur's choice: as wide as the band, twice the height of the rest - so a system of more stars is
+  // simply taller, by the same amount for each row
+  diagram.zoom = 2.f;
   return diagram;
   }
 

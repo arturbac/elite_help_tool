@@ -151,6 +151,8 @@ struct disc_t
   };
 
 ///\brief a straight stroke between two points
+///\detail with relative set the points are offsets from (ax, ay) and keep their shape - the stroke
+/// belongs to a symbol - while plain strokes stretch with the picture, as a connecting line should
 struct segment_t
   {
   float x0{};
@@ -158,6 +160,9 @@ struct segment_t
   float x1{};
   float y1{};
   uint32_t color{0x808080u};
+  bool relative{};
+  float ax{};
+  float ay{};
   };
 
 ///\brief a piece of text anchored at a point - align 0 puts the point at its left edge, 0.5 in its
@@ -172,13 +177,16 @@ struct label_t
   };
 
 ///\brief a picture made of plain shapes, laid out by the tool
-///\detail the coordinates are pixels at scale 1 with y growing downwards. The layer scales them like
-/// everything else and shrinks the whole picture further when it would not fit the band - it knows
-/// nothing of what the shapes stand for
+///\detail the coordinates are pixels at scale 1 with y growing downwards. The layer spreads the
+/// picture across the whole band and enlarges it upright by zoom, so every row adds the same height;
+/// sizes - radii, symbols, text - follow the upright factor, so a disc stays round however wide the
+/// band. It knows nothing of what the shapes stand for
 struct diagram_t
   {
   float width{};
   float height{};
+  ///\brief how much larger than the rest of the overlay the picture is drawn upright
+  float zoom{1.f};
   std::vector<segment_t> segments;
   std::vector<disc_t> discs;
   std::vector<label_t> labels;

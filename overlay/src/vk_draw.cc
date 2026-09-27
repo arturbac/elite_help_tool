@@ -587,19 +587,29 @@ namespace
       return;
 
     float const scale{ImGui::GetFontSize() / 13.f};
-    // never larger than the rest of the overlay, only smaller when the band is narrower than the picture
-    float const k{std::min(scale, available / diagram.width)};
+    // across: the whole band; upright: the zoom asked for, but never so much taller than wide that
+    // neighbouring discs run into each other
+    float const kx{available / diagram.width};
+    float const k{std::min(scale * std::max(diagram.zoom, 0.1f), kx * 1.3f)};
 
     ImDrawList * const draw{ImGui::GetWindowDrawList()};
     ImVec2 const origin{ImGui::GetCursorScreenPos()};
-    ImGui::Dummy(ImVec2{diagram.width * k, diagram.height * k});
+    ImGui::Dummy(ImVec2{available, diagram.height * k});
 
-    auto const at = [&](float x, float y) { return ImVec2{origin.x + x * k, origin.y + y * k}; };
+    auto const at = [&](float x, float y) { return ImVec2{origin.x + x * kx, origin.y + y * k}; };
 
     for(overlay::segment_t const & segment: diagram.segments)
-      draw->AddLine(
-        at(segment.x0, segment.y0), at(segment.x1, segment.y1), ImGui::GetColorU32(to_color(segment.color)), 1.2f * k
-      );
+      {
+      ImVec2 const a{
+        segment.relative ? ImVec2{at(segment.ax, segment.ay).x + segment.x0 * k, at(segment.ax, segment.ay).y + segment.y0 * k}
+                         : at(segment.x0, segment.y0)
+      };
+      ImVec2 const b{
+        segment.relative ? ImVec2{at(segment.ax, segment.ay).x + segment.x1 * k, at(segment.ax, segment.ay).y + segment.y1 * k}
+                         : at(segment.x1, segment.y1)
+      };
+      draw->AddLine(a, b, ImGui::GetColorU32(to_color(segment.color)), 1.2f * k);
+      }
 
     for(overlay::disc_t const & disc: diagram.discs)
       {
