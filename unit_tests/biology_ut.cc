@@ -99,8 +99,11 @@ auto main() -> int
       // the same find, read by both accounts out of the shared journals
       species_record_t{.genus = "Stratum", .species = "Stratum Tectonicas", .system_address = 1u, .body_id = 2u},
       species_record_t{.genus = "Stratum", .species = "Stratum Tectonicas", .system_address = 7u, .body_id = 3u},
+      // and one the other galaxy holds twice
+      species_record_t{.genus = "Stratum", .species = "Stratum Tectonicas", .system_address = 7u, .body_id = 3u},
+      species_record_t{.genus = "Bacterium", .species = "Bacterium Aurasus", .system_address = 0u, .body_id = 1u},
     };
     bio::merge_history(own, std::move(other));
-    expect(own.size() == 3_u) << "a find both accounts know counts once";
+    expect(own.size() == 4_u) << "a find both accounts know counts once";
   };
   }

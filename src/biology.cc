@@ -8,6 +8,7 @@
 #include <map>
 #include <numbers>
 #include <ranges>
+#include <set>
 #include <tuple>
 
 using namespace std::string_view_literals;
@@ -283,10 +284,12 @@ auto unsold_samples(std::filesystem::path const & journal_dir) -> std::vector<un
 
 auto merge_history(std::vector<species_record_t> & into, std::vector<species_record_t> && from) -> void
   {
-  auto const key = [](species_record_t const & r) { return std::tie(r.system_address, r.body_id, r.species); };
-  std::ranges::sort(into, {}, key);
+  // the keys of everything already in, and of everything added - the other galaxy can hold a find twice too
+  std::set<std::tuple<uint64_t, uint32_t, std::string>> known;
+  for(species_record_t const & record: into)
+    known.emplace(record.system_address, record.body_id, record.species);
   for(species_record_t & record: from)
-    if(not std::ranges::binary_search(into, key(record), {}, key))
+    if(known.emplace(record.system_address, record.body_id, record.species).second)
       into.push_back(std::move(record));
   }
   }  // namespace bio
