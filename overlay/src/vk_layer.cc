@@ -2,14 +2,44 @@
 #include "vk_draw.h"
 
 #include <array>
+#include <cctype>
 #include <cstdio>
 #include <cstring>
+#include <string>
 
 namespace eht_overlay
   {
 namespace
   {
   constexpr char layer_name[]{"VK_LAYER_EHT_overlay"};
+
+  ///\brief the game's launcher draws through Vulkan too, and would get an overlay of its own
+  ///\detail where it closes once the game starts that is only a flicker, but a launcher kept open beside
+  /// the game - as the one without Steam is - draws the whole overlay into its window for as long as the
+  /// game runs, a second client of the tool and a second renderer on the same card. Under Wine the
+  /// process is the Windows executable's, so its name is read from the command line
+  [[nodiscard]]
+  auto process_skipped() noexcept -> bool
+    {
+    static bool const skipped{[]
+                              {
+                                std::FILE * const file{std::fopen("/proc/self/cmdline", "rb")};
+                                if(file == nullptr)
+                                  return false;
+                                std::string line;
+                                std::array<char, 4096> chunk{};
+                                for(size_t read; (read = std::fread(chunk.data(), 1u, chunk.size(), file)) != 0u;)
+                                  line.append(chunk.data(), read);
+                                std::fclose(file);
+                                for(char & c: line)
+                                  c = c == '\0' ? ' ' : static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+                                bool const launcher{line.contains("edlaunch.exe")};
+                                if(launcher)
+                                  log("the game's launcher - no overlay here");
+                                return launcher;
+                              }()};
+    return skipped;
+    }
 
   ///\brief pictures of the screen need the swapchain to be copied from, which can cost the game its frame rate
   [[nodiscard]]
@@ -366,6 +396,10 @@ namespace
     device_data_t * const data{find_device(dispatch_key(device))};
     if(data == nullptr or data->CreateSwapchainKHR == nullptr)
       return VK_ERROR_INITIALIZATION_FAILED;
+
+    // untouched and unregistered, so every present of it goes straight through as well
+    if(process_skipped())
+      return data->CreateSwapchainKHR(device, create_info, allocator, swapchain);
 
     // we draw into the swapchain images, so they must be usable as an attachment - and copied from, for
     // the picture of the middle of the screen
