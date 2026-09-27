@@ -2113,12 +2113,15 @@ auto overlay_feed_t::build_war_blocks() const -> std::vector<std::vector<overlay
       return it == unsold_bonds_.end() or it->second == 0u ? std::string{"-"}
                                                            : overlay_exploration::short_credits(it->second);
     };
-    // zones reached by dropship are paid by Frontline Solutions, not by the side fought for
+    // Only what the kills themselves paid. A hand-in pays some 2.25 times that plus a sum for every zone
+    // won (about 3M for a high one), and the game writes neither down until the hand-in - so the line says
+    // what it is rather than pretend to be the payout.
+    // Zones reached by dropship are paid by Frontline Solutions, not by the side fought for
     std::string const frontline{bonds_of("$faction_FrontlineSolutions;")};
     lines.push_back(
       overlay::line_t{
         .text = std::format(
-          "bonds: {} {}  /  {} {}{}",
+          "bonds (kills only): {} {}  /  {} {}{}",
           cut_name(c.faction1, 20),
           bonds_of(c.faction1),
           cut_name(c.faction2, 20),
