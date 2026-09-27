@@ -62,15 +62,23 @@ auto main() -> int
        R"({ "event":"RedeemVoucher", "Type":"CombatBond", "Factions":[ { "Faction":"B", "Amount":5 } ] })",
        R"({ "event":"Bounty", "Rewards":[ { "Faction":"A", "Reward":1000 } ] })",
        R"({ "event":"ScanOrganic", "ScanType":"Log", "Species_Localised":"Frutexa Acus" })",
-       R"({ "event":"ScanOrganic", "ScanType":"Analyse", "Species_Localised":"Frutexa Acus" })"}
+       R"({ "event":"ScanOrganic", "ScanType":"Analyse", "Species_Localised":"Frutexa Acus", "WasLogged":false })",
+       R"({ "event":"Scan", "StarSystem":"S1", "BodyName":"S1 A", "StarType":"K", "StellarMass":1.0, "WasDiscovered":true })",
+       R"({ "event":"Scan", "StarSystem":"S2", "BodyName":"S2 A", "StarType":"N", "StellarMass":1.0, "WasDiscovered":true })",
+       R"({ "event":"MultiSellExplorationData", "Discovered":[ { "SystemName":"S1", "NumBodies":1 } ] })"}
     );
 
     bio::at_risk_t const mine{bio::at_risk(dir, "F1")};
     // the other account's sale and death are not mine; my own death two sessions back ends the count, after
     // the sample analysed later in that session
     expect(mine.samples.size() == 2_u) << mine.samples.size();
+    // the newest first: Frutexa Acus, logged by nobody before, brings four times its value on top
+    expect(mine.samples.front().bonus == uint64_t{mine.samples.front().value} * 4u) << mine.samples.front().bonus;
+    expect(mine.samples.back().bonus == 0_u) << mine.samples.back().bonus;
     // A's first bounty was handed in, B's never was, A's second came after the hand-in
     expect(mine.bounties == 1010_u) << mine.bounties;
+    // S1 was sold after its scan, S2 was not: a neutron star of one solar mass, 22628 * (1 + 1/66.25)
+    expect(mine.cartography == 22969_u) << mine.cartography;
 
     bio::at_risk_t const anyone{bio::at_risk(dir, "")};
     // with no account named, the other one's death ends it at once

@@ -7,6 +7,7 @@
 #include <filesystem>
 #include <functional>
 #include <optional>
+#include <set>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -38,7 +39,8 @@ struct message_t
 ///
 /// Scans do not go when they are made: they are held, on disk, until the commander sells the system's
 /// cartographic data - so nothing about a system reaches the network before its discovery is the
-/// commander's. The bar stock goes at once.
+/// commander's. A sold system with nothing held - scanned before the tool ran, or while it was closed -
+/// is found again in the commander's own journals and sent the same way. The bar stock goes at once.
 class publisher_t final
   {
 public:
@@ -69,6 +71,11 @@ private:
   std::filesystem::path held_path_;
   emit_t emit_;
   std::vector<held_t> held_;
+  ///\brief set on the publisher that reads old journals for sold systems: it sends straight away, never
+  /// keeps anything, takes no account of age, and heeds only the wanted systems of the one commander
+  bool backfill_{};
+  std::vector<std::string> wanted_;
+  std::string only_fid_;
 
   std::string game_version_;
   std::string game_build_;
@@ -91,6 +98,8 @@ private:
   verdict_e verdict_{verdict_e::unknown};
   ///\brief the system's events waiting for the verdict, with their schemas
   std::vector<std::pair<std::string, json_t>> waiting_;
+  ///\brief the messages of this system already on their way - the game writes some events two or three times
+  std::set<std::string> seen_;
 
   ///\brief the last bar stock sent, so an unchanged one is not sent again
   uint64_t last_market_id_{};
@@ -106,6 +115,8 @@ private:
   ///\brief sends what was held of the systems just sold
   auto release(json_t const & sale, bool live) -> void;
   auto save_held() const -> void;
+  ///\brief the sold systems nothing was held of, found again in the journals and sent
+  auto backfill(std::vector<std::string> const & systems) -> void;
   ///\brief StarSystem, SystemAddress and StarPos where the event lacks them - false when they cannot be known
   [[nodiscard]]
   auto augment(json_t & entry) const -> bool;

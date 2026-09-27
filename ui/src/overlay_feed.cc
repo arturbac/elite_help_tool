@@ -2654,19 +2654,19 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
     );
 
   refresh_unsold(state);
-  if(not at_risk_.samples.empty() or at_risk_.bounties != 0u)
+  if(not at_risk_.samples.empty() or at_risk_.bounties != 0u or at_risk_.cartography != 0u)
     {
     uint64_t bio_total{};
     for(bio::unsold_t const & sample: at_risk_.samples)
-      bio_total += sample.value;
+      bio_total += sample.value + sample.bonus;
     // what a death would cost - worth knowing before a hard landing or a fight. Combat bonds survive it
     std::vector<std::string> parts;
     if(not at_risk_.samples.empty())
-      parts.push_back(std::format(
-        "bio {} ({} samples, + first-logged bonuses)",
-        overlay_exploration::short_credits(bio_total),
-        at_risk_.samples.size()
-      ));
+      parts.push_back(
+        std::format("bio {} ({} samples)", overlay_exploration::short_credits(bio_total), at_risk_.samples.size())
+      );
+    if(at_risk_.cartography != 0u)
+      parts.push_back(std::format("cartography ~{}", overlay_exploration::short_credits(at_risk_.cartography)));
     if(at_risk_.bounties != 0u)
       parts.push_back(std::format("bounties {}", overlay_exploration::short_credits(at_risk_.bounties)));
     std::string text{"lost on death:"};
@@ -2695,7 +2695,7 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
           .lines = {overlay::line_t{
             .text = std::format(
               "at stake: {}",
-              overlay_exploration::short_credits(bio_total + at_risk_.bounties)
+              overlay_exploration::short_credits(bio_total + at_risk_.bounties + at_risk_.cartography)
             ),
             .color = colour_alert()
           }}

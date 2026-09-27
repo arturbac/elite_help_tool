@@ -141,6 +141,41 @@ auto main() -> int
     expect(sent.front().envelope.contains(R"("MarketID":3700000000)")) << sent.front().envelope;
   };
 
+  "a sold system scanned before the tool ran is found in the journals"_test = [&]
+  {
+    std::filesystem::remove(held);
+    // a session of days ago, never seen live - only the journal remembers it
+    write(
+      dir / "Journal.2026-09-01T100000.01.log",
+      R"({ "timestamp":"2026-09-01T10:00:00Z", "event":"Fileheader", "gameversion":"4.2.0.1", "build":"r9" }
+{ "timestamp":"2026-09-01T10:00:01Z", "event":"Commander", "FID":"F1", "Name":"DUNKAN" }
+{ "timestamp":"2026-09-01T10:01:00Z", "event":"FSDJump", "StarSystem":"Q", "SystemAddress":11, "StarPos":[5,5,5], "Population":0, "FuelUsed":2.0 }
+{ "timestamp":"2026-09-01T10:01:05Z", "event":"Scan", "ScanType":"AutoScan", "BodyName":"Q A", "BodyID":0, "StarSystem":"Q", "SystemAddress":11, "DistanceFromArrivalLS":0.0, "StarType":"G", "WasDiscovered":false }
+{ "timestamp":"2026-09-01T10:01:06Z", "event":"FSSAllBodiesFound", "SystemName":"Q", "SystemAddress":11, "Count":1 }
+{ "timestamp":"2026-09-01T10:01:06Z", "event":"FSSAllBodiesFound", "SystemName":"Q", "SystemAddress":11, "Count":1 }
+{ "timestamp":"2026-09-01T10:02:00Z", "event":"FSDJump", "StarSystem":"R", "SystemAddress":12, "StarPos":[6,6,6], "Population":0 }
+{ "timestamp":"2026-09-01T10:02:05Z", "event":"Scan", "ScanType":"AutoScan", "BodyName":"R A", "BodyID":0, "StarSystem":"R", "SystemAddress":12, "DistanceFromArrivalLS":0.0, "StarType":"K", "WasDiscovered":true }
+{ "timestamp":"2026-09-01T11:00:00Z", "event":"Commander", "FID":"F9", "Name":"STRANGER" }
+{ "timestamp":"2026-09-01T11:01:00Z", "event":"FSDJump", "StarSystem":"Q", "SystemAddress":11, "StarPos":[5,5,5], "Population":0 }
+{ "timestamp":"2026-09-01T11:01:05Z", "event":"Scan", "ScanType":"AutoScan", "BodyName":"Q A", "BodyID":0, "StarSystem":"Q", "SystemAddress":11, "DistanceFromArrivalLS":0.0, "StarType":"G", "WasDiscovered":false }
+)"
+    );
+    std::vector<eddn::message_t> sent;
+    eddn::publisher_t publisher{dir, held, [&](eddn::message_t && m) { sent.push_back(std::move(m)); }};
+    publisher.feed(line(R"("event":"Commander", "FID":"F1", "Name":"DUNKAN")"), true);
+    publisher.feed(line(R"("event":"MultiSellExplorationData", "Discovered":[ { "SystemName":"Q", "NumBodies":1 }, { "SystemName":"R", "NumBodies":1 } ])"), true);
+    // Q's jump, star and one of the two identical all-bodies lines, of DUNKAN's session only; R was
+    // discovered before and goes nowhere
+    expect(sent.size() == 3_u) << sent.size();
+    for(eddn::message_t const & m: sent)
+      {
+      expect(m.envelope.contains(R"("StarSystem":"Q")") or m.envelope.contains(R"("SystemName":"Q")")) << m.envelope;
+      expect(m.envelope.contains(R"("gamebuild":"r9")")) << m.envelope;
+      expect(not m.envelope.contains("FuelUsed")) << m.envelope;
+      }
+    std::filesystem::remove(dir / "Journal.2026-09-01T100000.01.log");
+  };
+
   for(char const * name: {"eht_settings.json", "eddn_held.jsonl", "FCMaterials.json"})
     std::filesystem::remove(dir / name);
   std::filesystem::remove(dir);

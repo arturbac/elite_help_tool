@@ -1779,6 +1779,13 @@ auto extract_mass_code(std::string_view name) noexcept -> char;
 auto system_approx_value(std::string_view star_class, std::string_view system_name) noexcept -> planet_value_e;
 [[nodiscard]]
 auto aprox_value(body_t const & body) noexcept -> uint32_t;
+///\brief a star's value by its class and mass; the discovery bonus when nobody had it before
+[[nodiscard]]
+auto star_value(std::string_view star_type, double stellar_mass, bool is_first_discoverer = false) noexcept -> uint32_t;
+///\brief a planet scanned and not mapped - what the FSS scan alone brings
+[[nodiscard]]
+auto scanned_value(planet_value_info_t const & info, double mass_em, bool is_terraformable, bool is_first_discoverer)
+  -> uint32_t;
 [[nodiscard]]
 auto calculate_value(
   planet_value_info_t const & info,

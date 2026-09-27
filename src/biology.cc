@@ -1,4 +1,5 @@
 #include <biology.h>
+#include <elite_events.h>
 
 #include <algorithm>
 #include <fstream>
@@ -23,6 +24,7 @@ namespace detail
     {
     std::string Species_Localised;
     std::string ScanType;
+    bool WasLogged{true};
     };
 
   struct commander_line_t
@@ -52,10 +54,56 @@ namespace detail
     std::string Type;
     std::vector<faction_amount_t> Factions;
     };
+
+  struct scan_line_t
+    {
+    std::string StarSystem;
+    std::string BodyName;
+    std::string StarType;
+    double StellarMass{};
+    std::string PlanetClass;
+    double MassEM{};
+    std::string TerraformState;
+    bool WasDiscovered{true};
+    bool WasMapped{true};
+    };
+
+  struct body_line_t
+    {
+    std::string BodyName;
+    };
+
+  struct sold_system_t
+    {
+    std::string SystemName;
+    };
+
+  ///\brief a single sale names systems plainly, a multiple one as objects - both are read, whichever it is
+  struct sale_line_t
+    {
+    std::vector<std::string> Systems;
+    std::vector<glz::generic> Discovered;
+    };
   }  // namespace detail
 
 namespace
   {
+  ///\brief what a scanned body brings at the cartographer's - the discovery bonus when nobody had it,
+  /// the mapping value only when it was mapped
+  [[nodiscard]]
+  auto body_price(detail::scan_line_t const & scan, bool mapped) -> uint64_t
+    {
+    if(not scan.StarType.empty())
+      return exploration::star_value(scan.StarType, scan.StellarMass, not scan.WasDiscovered);
+    auto const it{std::ranges::find(exploration_values, scan.PlanetClass, &planet_value_info_t::planet_class)};
+    if(it == exploration_values.end())
+      return 0u;
+    bool const terraformable{not scan.TerraformState.empty()};
+    if(mapped)
+      return exploration::calculate_value(*it, scan.MassEM, terraformable, not scan.WasDiscovered, not scan.WasMapped, true);
+    return exploration::scanned_value(*it, scan.MassEM, terraformable, not scan.WasDiscovered);
+    }
+
   [[nodiscard]]
   constexpr auto radians(double degrees) noexcept -> double
     { return degrees * std::numbers::pi / 180.0; }
@@ -286,6 +334,10 @@ auto at_risk(std::filesystem::path const & journal_dir, std::string_view command
   constexpr auto opts{glz::opts{.error_on_unknown_keys = false}};
   at_risk_t result;
   bool samples_sold{};
+  // the systems whose data was sold later than the line being read, and the bodies mapped later
+  std::set<std::string> systems_sold;
+  std::set<std::string> mapped;
+  std::set<std::string> priced;
   bool all_handed_in{};
   // the factions whose vouchers were handed in later than the line being read
   std::set<std::string> handed_in;
@@ -309,6 +361,8 @@ auto at_risk(std::filesystem::path const & journal_dir, std::string_view command
       if(
         line.contains("\"ScanOrganic\"") or line.contains("\"SellOrganicData\"") or line.contains("\"Died\"")
         or line.contains("\"event\":\"Bounty\"") or line.contains("\"RedeemVoucher\"")
+        or line.contains("\"event\":\"Scan\"") or line.contains("\"event\":\"SAAScanComplete\"")
+        or line.contains("SellExplorationData\"")
       )
         lines.push_back(std::move(line));
       }
@@ -322,6 +376,32 @@ auto at_risk(std::filesystem::path const & journal_dir, std::string_view command
         return result;
       if(line.contains("\"event\":\"SellOrganicData\""))
         samples_sold = true;
+      else if(line.contains("SellExplorationData\""))
+        {
+        detail::sale_line_t sale{};
+        if(glz::read<opts>(sale, line))
+          continue;
+        for(std::string & name: sale.Systems)
+          systems_sold.insert(std::move(name));
+        for(glz::generic const & item: sale.Discovered)
+          if(auto const * const object{item.get_if<glz::generic::object_t>()}; object != nullptr)
+            if(auto const it{object->find("SystemName")}; it != object->end())
+              if(auto const * const name{it->second.get_if<std::string>()}; name != nullptr)
+                systems_sold.insert(*name);
+        }
+      else if(line.contains("\"event\":\"SAAScanComplete\""))
+        {
+        detail::body_line_t body{};
+        if(not glz::read<opts>(body, line))
+          mapped.insert(std::move(body.BodyName));
+        }
+      else if(line.contains("\"event\":\"Scan\""))
+        {
+        detail::scan_line_t scan{};
+        if(glz::read<opts>(scan, line) or systems_sold.contains(scan.StarSystem) or not priced.insert(scan.BodyName).second)
+          continue;
+        result.cartography += body_price(scan, mapped.contains(scan.BodyName));
+        }
       else if(line.contains("\"event\":\"RedeemVoucher\""))
         {
         detail::redeem_line_t redeem{};
@@ -348,9 +428,12 @@ auto at_risk(std::filesystem::path const & journal_dir, std::string_view command
         if(glz::read<opts>(scan, line))
           continue;
         if(scan.ScanType == "Analyse")
+          {
+          uint32_t const value{species_value(scan.Species_Localised).value_or(0u)};
           result.samples.push_back(
-            unsold_t{.species = scan.Species_Localised, .value = species_value(scan.Species_Localised).value_or(0u)}
+            unsold_t{.species = scan.Species_Localised, .value = value, .bonus = scan.WasLogged ? 0u : uint64_t{value} * 4u}
           );
+          }
         }
       }
     }

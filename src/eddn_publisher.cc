@@ -11,6 +11,8 @@
 
 namespace eddn
   {
+using namespace std::string_view_literals;
+
 namespace
   {
 using object_t = json_t::object_t;
@@ -218,7 +220,12 @@ auto publisher_t::feed(std::string_view line, bool live) -> void
 
   learn(event, entry);
 
-  if(event == "FCMaterials")
+  if(backfill_)
+    {
+    if(not exploration_schema(event).empty())
+      explore(event, std::move(entry), live);
+    }
+  else if(event == "FCMaterials")
     bartender(entry, live);
   else if(event == "SellExplorationData" or event == "MultiSellExplorationData")
     release(entry, live);
@@ -261,6 +268,7 @@ auto publisher_t::learn(std::string_view event, json_t const & entry) -> void
       {
       verdict_ = verdict_e::unknown;
       waiting_.clear();
+      seen_.clear();
       }
     system_address_ = here;
     system_name_ = text(entry, "StarSystem");
@@ -277,10 +285,15 @@ auto publisher_t::learn(std::string_view event, json_t const & entry) -> void
 auto publisher_t::explore(std::string_view event, json_t entry, bool live) -> void
   {
   auto const cfg{eht::settings()};
-  if(not live or not cfg->eddn.enabled or crew_ or not listed(cfg->eddn.exploration_commanders, commander_fid_))
+  if(not cfg->eddn.enabled or crew_ or not listed(cfg->eddn.exploration_commanders, commander_fid_))
     return;
-  if(auto const at{timestamp_of(entry)};
-     not at or std::chrono::system_clock::now() - *at > max_age)
+  if(backfill_)
+    {
+    if(commander_fid_ != only_fid_ or std::ranges::find(wanted_, system_name_) == wanted_.end())
+      return;
+    }
+  else if(auto const at{timestamp_of(entry)};
+          not live or not at or std::chrono::system_clock::now() - *at > max_age)
     return;
 
   // the arrival star says whether anybody was here before
@@ -412,9 +425,17 @@ auto publisher_t::bartender(json_t const & entry, bool live) -> void
 
 auto publisher_t::hold(std::string_view schema, json_t message) -> void
   {
+  // the same event written again is the same message - once is enough
+  if(auto const text_of{message.dump()}; not text_of or not seen_.insert(*text_of).second)
+    return;
   auto made{envelope(schema, std::move(message))};
   if(not made)
     return;
+  if(backfill_)
+    {
+    emit_(std::move(*made));
+    return;
+    }
   held_t item{.fid = commander_fid_, .system = system_name_, .schema = std::move(made->schema), .envelope = std::move(made->envelope)};
   // appended as it comes, so a crash loses nothing that was already scanned
   if(std::ofstream out{held_path_, std::ios::app}; out)
@@ -426,7 +447,8 @@ auto publisher_t::hold(std::string_view schema, json_t message) -> void
 auto publisher_t::release(json_t const & sale, bool live) -> void
   {
   auto const cfg{eht::settings()};
-  if(not live or not cfg->eddn.enabled or held_.empty())
+  // nothing held is no reason to stop - the systems may still be in the journals
+  if(not live or not cfg->eddn.enabled)
     return;
 
   // a single sale names its systems, a multiple one lists them with their bodies
@@ -442,13 +464,19 @@ auto publisher_t::release(json_t const & sale, bool live) -> void
         if(std::string const name{text(item, "SystemName")}; not name.empty())
           sold.push_back(name);
 
+  if(not listed(cfg->eddn.exploration_commanders, commander_fid_))
+    return;
+
   size_t released{};
+  std::vector<std::string> found;
   std::erase_if(
     held_,
     [&](held_t & item)
     {
       if(item.fid != commander_fid_ or std::ranges::find(sold, item.system) == sold.end())
         return false;
+      if(std::ranges::find(found, item.system) == found.end())
+        found.push_back(item.system);
       emit_(message_t{.schema = std::move(item.schema), .envelope = std::move(item.envelope)});
       ++released;
       return true;
@@ -456,9 +484,56 @@ auto publisher_t::release(json_t const & sale, bool live) -> void
   );
   if(released != 0u)
     {
-    spdlog::info("eddn: {} held messages of {} sold systems released", released, sold.size());
+    spdlog::info("eddn: {} held messages of {} sold systems released", released, found.size());
     save_held();
     }
+
+  std::vector<std::string> missing;
+  for(std::string const & name: sold)
+    if(std::ranges::find(found, name) == found.end() and std::ranges::find(missing, name) == missing.end())
+      missing.push_back(name);
+  if(not missing.empty())
+    backfill(missing);
+  }
+
+auto publisher_t::backfill(std::vector<std::string> const & systems) -> void
+  {
+  std::vector<std::filesystem::path> journals;
+  std::error_code ec;
+  for(auto const & entry: std::filesystem::directory_iterator{journal_dir_, ec})
+    if(auto const name{entry.path().filename().string()}; name.starts_with("Journal.") and name.ends_with(".log"))
+      journals.push_back(entry.path());
+  std::ranges::sort(journals);
+  // a month or two of sessions - scans older than that were sold long ago, or never will be
+  constexpr size_t reach{600u};
+  if(journals.size() > reach)
+    journals.erase(journals.begin(), journals.end() - std::ptrdiff_t{reach});
+
+  size_t sent{};
+  publisher_t replay{journal_dir_, {}, [&](message_t && message) { emit_(std::move(message)); ++sent; }};
+  replay.backfill_ = true;
+  replay.wanted_ = systems;
+  replay.only_fid_ = commander_fid_;
+
+  // only what teaches the state or names a wanted system is read whole - the rest of the archive is skipped
+  constexpr std::array state_events{
+    R"("event":"Fileheader")"sv, R"("event":"LoadGame")"sv, R"("event":"Commander")"sv, R"("event":"Location")"sv,
+    R"("event":"FSDJump")"sv, R"("event":"CarrierJump")"sv, R"("event":"JoinACrew")"sv, R"("event":"QuitACrew")"sv
+  };
+  for(std::filesystem::path const & path: journals)
+    {
+    std::ifstream in{path, std::ios::binary};
+    for(std::string line; std::getline(in, line);)
+      {
+      bool const wanted{
+        std::ranges::any_of(systems, [&](std::string const & name) { return line.contains(name); })
+        or std::ranges::any_of(state_events, [&](std::string_view key) { return line.contains(key); })
+      };
+      if(wanted)
+        replay.feed(line, false);
+      }
+    }
+  spdlog::info("eddn: {} messages of {} sold systems found in the journals and sent", sent, systems.size());
   }
 
 auto publisher_t::envelope(std::string_view schema, json_t message) const -> std::optional<message_t>

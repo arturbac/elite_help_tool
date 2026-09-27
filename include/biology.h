@@ -48,6 +48,9 @@ struct unsold_t
   {
   std::string species;
   uint32_t value{};
+  ///\brief the first-logged bonus - four times the value on top of it, when nobody had logged the species
+  /// before (SellOrganicData shows it as Bonus)
+  uint64_t bonus{};
   };
 
 ///\brief what goes down with the commander at death: samples analysed and not sold, bounties not handed in.
@@ -56,12 +59,16 @@ struct at_risk_t
   {
   std::vector<unsold_t> samples;
   uint64_t bounties{};
+  ///\brief the bodies scanned and not sold, priced as the exploration values have it - an estimate
+  uint64_t cartography{};
   };
 
 ///\brief read back from the journals, the newest first, until a death - so it holds across restarts of the
 /// tool without the database having to know
 ///\detail A sale at Vista Genomics ends the samples, as the game's one button sells all. A bounty counts
 /// until its faction's vouchers are handed in; an empty faction in the hand-in is taken as all of them.
+/// A scanned body counts until its system's cartographic data is sold, with the mapping value when the
+/// body was mapped.
 /// The journals may hold another account's sessions - only those of commander_fid count, all when empty
 [[nodiscard]]
 auto at_risk(std::filesystem::path const & journal_dir, std::string_view commander_fid) -> at_risk_t;

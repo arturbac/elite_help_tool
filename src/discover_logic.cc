@@ -444,41 +444,51 @@ auto calculate_value(
   return static_cast<uint32_t>(std::max(500.0, std::round(final_value)));
   }
 
+auto star_value(std::string_view star_type, double stellar_mass, bool is_first_discoverer) noexcept -> uint32_t
+  {
+  constexpr static auto get_base_value = [](std::string_view type) -> double
+  {
+    using namespace std::literals;
+
+    // white dwarfs
+    if(type.starts_with("D"sv))
+      return 14057.0;
+
+    // neutron stars and black holes - the journal writes them N and H
+    if(type == "Neutron"sv or type == "N"sv)
+      return 22628.0;
+    if(type == "BlackHole"sv or type == "H"sv)
+      return 22628.0;
+
+    // supergiants
+    if(type.find("SuperGiant"sv) != std::string_view::npos)
+      return 33.0;
+
+    // ordinary main sequence stars and the rest (K, G, B, F, O, A, M)
+    // most share the same base and differ by mass
+    return 1200.0;
+  };
+
+  auto const k{get_base_value(star_type)};
+  // FDEV's standard formula for stars, and the first discoverer's multiplier on top
+  return static_cast<uint32_t>((k + (stellar_mass * k / 66.25)) * (is_first_discoverer ? 2.6 : 1.0));
+  }
+
+auto scanned_value(planet_value_info_t const & info, double mass_em, bool is_terraformable, bool is_first_discoverer)
+  -> uint32_t
+  {
+  double const q{std::max(0.3, std::pow(mass_em, 0.2))};
+  double const fss_value{(info.base_value + (is_terraformable ? info.terraform_bonus : 0.0)) * q};
+  return static_cast<uint32_t>(std::max(500.0, std::round(fss_value * (is_first_discoverer ? 2.6 : 1.0))));
+  }
+
 auto aprox_value(body_t const & body) noexcept -> uint32_t
   {
   uint32_t result{};
   if(body.body_type() == body_type_e::star)
     {
     star_details_t const & details{std::get<star_details_t>(body.details)};
-
-    constexpr static auto get_base_value = [](std::string_view type) -> double
-    {
-      using namespace std::literals;
-
-      // white dwarfs
-      if(type.starts_with("D"sv))
-        return 14057.0;
-
-      // neutron stars and black holes
-      if(type == "Neutron"sv)
-        return 22628.0;
-      if(type == "BlackHole"sv)
-        return 22628.0;
-
-      // supergiants
-      if(type.find("SuperGiant"sv) != std::string_view::npos)
-        return 33.0;
-
-      // ordinary main sequence stars and the rest (K, G, B, F, O, A, M)
-      // most share the same base and differ by mass
-      return 1200.0;
-    };
-
-    auto const k = get_base_value(details.star_type);
-    auto const mass = details.stellar_mass;
-
-    // FDEV's standard formula for stars
-    result = k + (mass * k / 66.25);
+    result = star_value(details.star_type, details.stellar_mass);
     }
   else
     {
