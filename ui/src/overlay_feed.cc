@@ -2048,6 +2048,29 @@ auto overlay_feed_t::refresh_construction(current_state_t const & state) -> void
     }
   }
 
+namespace
+  {
+///\brief the colours of the economies producing a commodity, as colonisation planners draw them
+[[nodiscard]]
+auto economy_colours(commodity_facts::economy_e produced_by) -> std::vector<uint32_t>
+  {
+  using commodity_facts::economy_e;
+  constexpr std::array<std::pair<economy_e, uint32_t>, 6> palette{{
+    {economy_e::agriculture, 0x7acc00u},
+    {economy_e::high_tech, 0x00ccccu},
+    {economy_e::industrial, 0x999900u},
+    {economy_e::military, 0xbb00bbu},
+    {economy_e::refinery, 0xcc6600u},
+    {economy_e::extraction, 0xcc3333u},
+  }};
+  std::vector<uint32_t> colours;
+  for(auto const & [economy, colour]: palette)
+    if((uint8_t(produced_by) & uint8_t(economy)) != 0u)
+      colours.push_back(colour);
+  return colours;
+  }
+  }  // namespace
+
 auto overlay_feed_t::build_construction_lines(current_state_t const & state) const -> std::vector<overlay::line_t>
   {
   if(construction_sites_.empty())
@@ -2139,11 +2162,11 @@ auto overlay_feed_t::build_construction_lines(current_state_t const & state) con
     if(std::string const category{category_of(*need)}; category != last_category)
       {
       last_category = category;
-      lines.push_back(overlay::line_t{.text = "  " + category, .color = colour_heading()});
+      lines.push_back(overlay::line_t{.text = category, .color = colour_heading()});
       }
     uint32_t const left{need->required - need->provided};
-    std::string text{"    " + need->commodity};
-    text.resize(std::max<size_t>(text.size(), name_width + 4u), ' ');
+    std::string text{need->commodity};
+    text.resize(std::max<size_t>(text.size(), name_width), ' ');
     text += std::format("{:>6} t", left);
     auto const h{hold.find(need->key)};
     if(h != hold.end())
@@ -2153,8 +2176,17 @@ auto overlay_feed_t::build_construction_lines(current_state_t const & state) con
     auto const m{here.find(need->key)};
     if(m != here.end())
       text += std::format("   here {} @ {}", m->second->stock, m->second->buy_price);
-    // what can be loaded right here stands out
-    lines.push_back(overlay::line_t{.text = std::move(text), .color = m != here.end() ? colour_first() : colour_plain()});
+    // what can be loaded right here stands out; the square says which economies produce it - grey when
+    // the table of facts does not know, so that the names still stand in a column
+    overlay::line_t line{.text = std::move(text), .color = m != here.end() ? colour_first() : colour_plain()};
+    if(auto const fact{commodity_facts::find(need->key)}; fact)
+      {
+      line.swatch = economy_colours(fact->produced_by);
+      line.swatch_dot = fact->surface;
+      }
+    else
+      line.swatch = {0x707070u};
+    lines.push_back(std::move(line));
     }
   if(wanted > shown)
     lines.push_back(overlay::line_t{.text = std::format("  ... and {} more", wanted - shown), .color = colour_plain()});

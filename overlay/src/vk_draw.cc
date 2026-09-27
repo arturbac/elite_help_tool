@@ -526,9 +526,39 @@ namespace
     }
 
   ///\brief a line of text, preceded by its marker and its emblem when it carries them
+  ///\brief a small square in the given colours cut along the diagonal, a dot in its corner when asked
+  auto draw_swatch(ImDrawList * draw, ImVec2 corner, float side, std::vector<uint32_t> const & colours, bool dot) -> void
+    {
+    ImVec2 const far{corner.x + side, corner.y + side};
+    draw->PushClipRect(corner, far, true);
+    float const band{2.f * side / static_cast<float>(colours.size())};
+    for(size_t i{}; i != colours.size(); ++i)
+      {
+      float const from{corner.x + band * static_cast<float>(i)};
+      float const to{corner.x + band * static_cast<float>(i + 1u)};
+      std::array<ImVec2, 4> const shape{
+        ImVec2{from, corner.y}, ImVec2{to, corner.y}, ImVec2{to - side, far.y}, ImVec2{from - side, far.y}
+      };
+      draw->AddConvexPolyFilled(shape.data(), static_cast<int>(shape.size()), ImGui::GetColorU32(to_color(colours[i])));
+      }
+    draw->PopClipRect();
+    if(dot)
+      draw->AddCircleFilled(ImVec2{far.x - side * 0.25f, far.y - side * 0.25f}, side * 0.2f, IM_COL32(255, 255, 255, 230));
+    }
+
   auto draw_line(swapchain_data_t const & data, overlay::line_t const & line) -> void
     {
     float const box{ImGui::GetFontSize()};
+
+    // the economies' square stands before everything else on the line, in a slot of its own
+    if(not line.swatch.empty())
+      {
+      ImVec2 const at{ImGui::GetCursorScreenPos()};
+      float const side{box * 0.7f};
+      draw_swatch(ImGui::GetWindowDrawList(), ImVec2{at.x, at.y + (box - side) * 0.5f}, side, line.swatch, line.swatch_dot);
+      ImGui::Dummy(ImVec2{side, box});
+      ImGui::SameLine(0.f, ImGui::GetStyle().ItemSpacing.x * 0.5f);
+      }
 
     if(line.marker == overlay::marker_e::none and line.emblem == overlay::emblem_e::none)
       {

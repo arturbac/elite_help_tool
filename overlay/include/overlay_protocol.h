@@ -102,6 +102,11 @@ struct line_t
   ///\brief what follows the trend mark - it is a field of its own only so the mark can stand
   /// between the value it speaks about and whatever comes after it
   std::string suffix;
+  ///\brief a small square before everything else, in these colours cut along the diagonal - the economies
+  /// that produce a commodity; empty draws none. A field an older layer skips
+  std::vector<uint32_t> swatch;
+  ///\brief a dot in the square's corner - produced only at ports on the ground
+  bool swatch_dot{};
   };
 
 ///\brief one point of a series, both coordinates already scaled to 0..1 by the tool
