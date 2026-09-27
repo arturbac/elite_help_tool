@@ -3,6 +3,7 @@
 #include "logic.h"
 #include "overlay_exploration.h"
 #include "codex.h"
+#include "scanner_sheet.h"
 
 #include <overlay_ipc.h>
 
@@ -39,6 +40,12 @@ public:
 
   ///\brief builds the image from the state and sends it, provided anything has changed
   auto publish(current_state_t const & state, plotted_route_t const & plotted) -> void;
+
+  ///\brief a sample was just taken and its picture not yet asked for - worth a frame before the next tick,
+  /// or the countdown on the screen would start anywhere up to a tick late
+  [[nodiscard]]
+  auto picture_due(current_state_t const & state) const noexcept -> bool
+    { return state.organic_scans_seen_ != pictured_scans_; }
 
 private:
   ///\brief influence is not in the state, it has to come from the database - its own connection, as in the windows
@@ -130,6 +137,13 @@ private:
   codex_t codex_;
   ///\brief the scans already asked a picture of
   uint64_t pictured_scans_{};
+  ///\brief the surface scanner's views, for finding the genera again from the ground
+  scanner_sheet_t scanner_;
+  ///\brief the one request the frame carries - the newest of the codex's and the scanner's. Kept here so
+  /// that an older one never returns to the frame, where the layer would take it for new
+  overlay::capture_t capture_;
+  uint64_t codex_capture_id_{};
+  uint64_t scanner_capture_id_{};
   ///\brief the samples carried and not sold, read back from the journals
   std::vector<bio::unsold_t> unsold_;
   uint64_t unsold_scans_{~uint64_t{}};

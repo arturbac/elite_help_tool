@@ -101,7 +101,12 @@ struct current_state_t : public generic_state_t
     std::string system_name;
     std::string body_name;
     std::optional<bio::surface_point_t> point;
+    ///\brief which of the three samples of the species this was
+    uint32_t sample{};
     };
+
+  ///\brief the body the surface scanner last spoke of - the one its view shows while it is open
+  std::string scanner_body_;
 
   ///\brief counts the scans seen live, so whoever is interested can tell a new one came
   uint64_t organic_scans_seen_{};

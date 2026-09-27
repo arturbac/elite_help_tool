@@ -211,6 +211,13 @@ consteval auto adl_enum_bounds(text_e)
   return simple_enum::adl_info{normal, small};
   }
 
+///\brief a small picture drawn in a block - a binary PPM the tool wrote where the layer can read it
+///\detail a new name is a new picture; the layer reads each file once, when the name first appears
+struct picture_t
+  {
+  std::string path;
+  };
+
 ///\brief the contents of one corner of the screen
 struct block_t
   {
@@ -222,6 +229,10 @@ struct block_t
   text_e text{text_e::normal};
   ///\brief drawn after the charts; a field an older layer skips, so it simply goes without the picture
   std::vector<diagram_t> diagrams;
+  ///\brief drawn last, in a grid across the band; a field an older layer skips as well
+  std::vector<picture_t> pictures;
+  ///\brief how many pictures stand side by side
+  uint32_t picture_columns{3u};
   };
 
 ///\brief how the layer lays the overlay out - sent by the tool with every frame
@@ -271,7 +282,11 @@ struct capture_t
   ///\brief how long the layer holds the picture back, showing the player the frame meanwhile - the scan's
   /// own rings and the sampler sealing the sample are on the screen right after it
   uint32_t delay_ms{};
+  ///\brief taken without the frame, the countdown or the word that it was - a picture the player did not
+  /// ask for and should not be bothered with, such as the surface scanner's view of a planet
+  bool quiet{};
   };
+
 
 ///\brief the full image to draw - replaces the previous one entirely, only the newest counts
 struct frame_t

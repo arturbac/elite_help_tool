@@ -162,6 +162,10 @@ struct swapchain_data_t
   ///\brief when the last picture was taken and how large, for the flash and the word that it was
   double shutter_at{-1.0};
   float shutter_size{};
+  ///\brief the pictures the atlas holds, in the order their rectangles were reserved - -1 for a file
+  /// that could not be read
+  std::vector<std::string> picture_paths;
+  std::vector<int> picture_rects;
 
   VkRenderPass render_pass{};
   VkDescriptorPool descriptor_pool{};

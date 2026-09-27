@@ -79,6 +79,22 @@ main_window_t::main_window_t(std::string db_path, std::string journal_path, QWid
     }
   );
   overlay_timer_->start();
+
+  // a sample's picture is counted down in the game from the moment its request arrives, so the request
+  // goes out as soon as the scan is seen rather than at the next tick
+  auto * const picture_timer{new QTimer(this)};
+  picture_timer->setInterval(50);
+  connect(
+    picture_timer,
+    &QTimer::timeout,
+    this,
+    [this]
+    {
+      if(overlay_feed_ and overlay_feed_->picture_due(state_))
+        publish_overlay();
+    }
+  );
+  picture_timer->start();
   }
 
 auto main_window_t::publish_overlay() -> void

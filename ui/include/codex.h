@@ -7,7 +7,23 @@
 #include <chrono>
 #include <filesystem>
 #include <string>
+#include <string_view>
 #include <vector>
+
+namespace codex_files
+  {
+///\brief where the codex keeps its page and its pictures, relative to where the tool runs
+[[nodiscard]]
+auto codex_dir() -> std::filesystem::path;
+
+///\brief where the layer writes and reads - beside the socket, the one place both sides of the game's container see
+[[nodiscard]]
+auto spool_dir() -> std::filesystem::path;
+
+///\brief a name fit for a file - letters, digits and dashes, nothing a shell or a browser would stumble on
+[[nodiscard]]
+auto file_safe(std::string_view text) -> std::string;
+  }  // namespace codex_files
 
 ///\brief the commander's own codex - every species sampled, where it grew, and what it looked like
 ///

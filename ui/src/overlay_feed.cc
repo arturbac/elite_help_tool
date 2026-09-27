@@ -2493,6 +2493,9 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
     }
   if(codex_.collect())
     codex_.write_page(db_);
+  scanner_.collect();
+  // the scanner's own interface is the tenth
+  scanner_.observe(gui_focus_ == 10u, state.scanner_body_);
   refresh_species_history(state);
 
   if(not server_->listening())
@@ -2697,7 +2700,34 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
   // the layout rides with every frame: the layer keeps nothing of its own, so a saved settings file shows
   // in the game at the next frame
   frame.layout = eht::settings()->overlay.layout;
-  frame.capture = codex_.capture_request();
+  if(auto const & asked{codex_.capture_request()}; asked.id != codex_capture_id_)
+    {
+    codex_capture_id_ = asked.id;
+    capture_ = asked;
+    }
+  if(auto const & asked{scanner_.capture_request()}; asked.id != scanner_capture_id_)
+    {
+    scanner_capture_id_ = asked.id;
+    capture_ = asked;
+    }
+  frame.capture = capture_;
+
+  // On the ground the scanner's views come back: its filters showed from orbit where each genus grows.
+  // Not in the scanner itself, where they are being taken and the middle of the screen is its own
+  if(gui_focus_ != 10u and surface_.here and not surface_.body_name.empty())
+    if(auto pictures{scanner_.pictures(surface_.body_name)}; not pictures.empty())
+      frame.blocks.push_back(
+        overlay::block_t{
+          .corner = overlay::corner_e::bottom_left,
+          .ttl_ms = block_ttl_ms(),
+          .lines = {overlay::line_t{
+            .text = std::format("scanner views of {}", short_body_name(state.system.name, surface_.body_name)),
+            .color = colour_heading()
+          }},
+          .pictures = std::move(pictures),
+          .picture_columns = eht::settings()->exploration.scanner_columns
+        }
+      );
 
   // the game gets a frame when it has changed or when the keep-alive time has passed - not on every journal event
   auto const now{std::chrono::steady_clock::now()};

@@ -11,6 +11,7 @@
 #include <cmath>
 #include <chrono>
 #include <cstdlib>
+#include <fstream>
 #include <optional>
 #include <string>
 #include <vector>
@@ -278,6 +279,148 @@ namespace
           target[(rect->Y + y) * width + (rect->X + x)] = IM_COL32(255, 255, 255, coverage);
           }
       }
+    }
+
+  ///\brief a picture read from a binary PPM, as the tool writes them
+  struct ppm_t
+    {
+    int width{};
+    int height{};
+    std::vector<uint8_t> rgb;
+    };
+
+  ///\brief the largest picture taken into the atlas - the tool sends thumbnails, this only guards the atlas
+  constexpr int max_picture_side{640};
+  ///\brief the most pictures the atlas takes at once
+  constexpr size_t max_pictures{16u};
+
+  [[nodiscard]]
+  auto read_ppm(std::string const & path) -> std::optional<ppm_t>
+    {
+    std::ifstream in{path, std::ios::binary};
+    if(not in)
+      return std::nullopt;
+    std::string magic;
+    int width{};
+    int height{};
+    int maximum{};
+    in >> magic >> width >> height >> maximum;
+    in.get();
+    if(
+      not in or magic != "P6" or maximum != 255 or width <= 0 or height <= 0 or width > max_picture_side
+      or height > max_picture_side
+    )
+      return std::nullopt;
+    ppm_t picture{.width = width, .height = height, .rgb = std::vector<uint8_t>(size_t(width) * size_t(height) * 3u)};
+    in.read(reinterpret_cast<char *>(picture.rgb.data()), std::streamsize(picture.rgb.size()));
+    if(not in)
+      return std::nullopt;
+    return picture;
+    }
+
+  ///\brief the pictures the tool wants drawn now, each once, in the order it sends them
+  [[nodiscard]]
+  auto wanted_pictures() -> std::vector<std::string>
+    {
+    std::vector<std::string> paths;
+    auto const snapshot{ipc_client().snapshot()};
+    if(not snapshot)
+      return paths;
+    for(overlay::block_t const & block: snapshot->frame.blocks)
+      for(overlay::picture_t const & picture: block.pictures)
+        if(paths.size() < max_pictures and std::ranges::find(paths, picture.path) == paths.end())
+          paths.push_back(picture.path);
+    return paths;
+    }
+
+  ///\brief the pictures go into the font atlas like the emblems, and for the same reason: no textures of
+  /// our own to create, bind and free. Reserves their room and hands back the pixels to write afterwards
+  [[nodiscard]]
+  auto reserve_pictures(swapchain_data_t & data) -> std::vector<std::optional<ppm_t>>
+    {
+    ImFontAtlas & atlas{*ImGui::GetIO().Fonts};
+    std::vector<std::optional<ppm_t>> pixels;
+    data.picture_rects.assign(data.picture_paths.size(), -1);
+    for(size_t ix{}; ix != data.picture_paths.size(); ++ix)
+      {
+      pixels.push_back(read_ppm(data.picture_paths[ix]));
+      if(pixels.back())
+        data.picture_rects[ix] = atlas.AddCustomRectRegular(pixels.back()->width, pixels.back()->height);
+      else
+        log("picture {} could not be read", data.picture_paths[ix]);
+      }
+    return pixels;
+    }
+
+  auto blit_pictures(swapchain_data_t const & data, std::vector<std::optional<ppm_t>> const & pictures) -> void
+    {
+    ImFontAtlas & atlas{*ImGui::GetIO().Fonts};
+    unsigned char * pixels{};
+    int width{};
+    int height{};
+    atlas.GetTexDataAsRGBA32(&pixels, &width, &height);
+    if(pixels == nullptr)
+      return;
+    auto * const target{reinterpret_cast<uint32_t *>(pixels)};
+    for(size_t ix{}; ix != pictures.size(); ++ix)
+      {
+      if(not pictures[ix] or data.picture_rects[ix] < 0)
+        continue;
+      ppm_t const & picture{*pictures[ix]};
+      ImFontAtlasCustomRect const * const rect{atlas.GetCustomRectByIndex(data.picture_rects[ix])};
+      for(int y{}; y != picture.height; ++y)
+        for(int x{}; x != picture.width; ++x)
+          {
+          uint8_t const * const rgb{picture.rgb.data() + 3u * (size_t(y) * size_t(picture.width) + size_t(x))};
+          target[(rect->Y + y) * width + (rect->X + x)] = IM_COL32(rgb[0], rgb[1], rgb[2], 255);
+          }
+      }
+    }
+
+  ///\brief the pictures of a block in a grid as wide as the band
+  auto draw_pictures(swapchain_data_t const & data, overlay::block_t const & block, float available) -> void
+    {
+    ImFontAtlas & atlas{*ImGui::GetIO().Fonts};
+    uint32_t const columns{std::clamp(block.picture_columns, 1u, 8u)};
+    float const gap{ImGui::GetStyle().ItemSpacing.x};
+    float const cell{(available - gap * float(columns - 1u)) / float(columns)};
+    if(cell <= 0.f)
+      return;
+
+    ImDrawList * const draw{ImGui::GetWindowDrawList()};
+    uint32_t column{};
+    float row_height{};
+    ImVec2 row_origin{ImGui::GetCursorScreenPos()};
+    for(overlay::picture_t const & picture: block.pictures)
+      {
+      auto const it{std::ranges::find(data.picture_paths, picture.path)};
+      if(it == data.picture_paths.end())
+        continue;
+      int const index{data.picture_rects[size_t(it - data.picture_paths.begin())]};
+      if(index < 0)
+        continue;
+      ImFontAtlasCustomRect const * const rect{atlas.GetCustomRectByIndex(index)};
+      if(rect->Width == 0)
+        continue;
+
+      ImVec2 uv_min{};
+      ImVec2 uv_max{};
+      atlas.CalcCustomRectUV(rect, &uv_min, &uv_max);
+      float const height{cell * float(rect->Height) / float(rect->Width)};
+      ImVec2 const at{row_origin.x + float(column) * (cell + gap), row_origin.y};
+      draw->AddImage(atlas.TexID, at, ImVec2{at.x + cell, at.y + height}, uv_min, uv_max);
+      row_height = std::max(row_height, height);
+
+      if(++column == columns)
+        {
+        ImGui::Dummy(ImVec2{available, row_height});
+        row_origin = ImGui::GetCursorScreenPos();
+        column = 0u;
+        row_height = 0.f;
+        }
+      }
+    if(column != 0u)
+      ImGui::Dummy(ImVec2{available, row_height});
     }
 
   ///\brief draws one emblem at the cursor, and says how wide it turned out
@@ -614,7 +757,9 @@ namespace
     // the emblems take their place in the atlas before it is built, and are written into it right after
     data.emblem_rects = {-1, -1, -1, -1};
     reserve_emblems(data);
+    auto const pictures{reserve_pictures(data)};
     blit_emblems(data);
+    blit_pictures(data, pictures);
 
     // a fresh style each time, or a second scaling would multiply the first
     ImGui::GetStyle() = ImGuiStyle{};
@@ -631,8 +776,13 @@ namespace
   auto follow_font_layout(swapchain_data_t & data) -> void
     {
     overlay::layout_t const layout{current_layout()};
-    if(text_scale(layout, data.extent) == data.font_scale and small_text_ratio(layout) == data.font_small)
+    std::vector<std::string> pictures{wanted_pictures()};
+    if(
+      text_scale(layout, data.extent) == data.font_scale and small_text_ratio(layout) == data.font_small
+      and pictures == data.picture_paths
+    )
       return;
+    data.picture_paths = std::move(pictures);
 
     device_data_t & device{*data.device};
     // only a frame actually submitted has a fence that will ever signal
@@ -642,13 +792,19 @@ namespace
 
     ImGui_ImplVulkan_DestroyFontsTexture();
     build_fonts(data, layout);
-    log("fonts rebuilt at scale {:.2f}, small text {:.2f}", data.font_scale, data.font_small);
+    log(
+      "fonts rebuilt at scale {:.2f}, small text {:.2f}, {} pictures",
+      data.font_scale,
+      data.font_small,
+      data.picture_paths.size()
+    );
     }
 
   [[nodiscard]]
   auto block_visible(overlay::block_t const & block, uint64_t age_ms) noexcept -> bool
     {
-    return (not block.lines.empty() or not block.charts.empty() or not block.diagrams.empty())
+    return (not block.lines.empty() or not block.charts.empty() or not block.diagrams.empty()
+            or not block.pictures.empty())
            and (block.ttl_ms == 0u or age_ms <= block.ttl_ms);
     }
 
@@ -660,7 +816,7 @@ namespace
     constexpr double snap_s{0.15};
     constexpr double taken_s{0.5};
     double const now{now_seconds()};
-    bool const waiting{data.armed_capture.has_value()};
+    bool const waiting{data.armed_capture.has_value() and not data.armed_capture->quiet};
     bool const taken{not waiting and data.shutter_at >= 0.0 and now - data.shutter_at < taken_s};
     if(not waiting and not taken)
       return;
@@ -802,6 +958,9 @@ namespace
 
             for(overlay::diagram_t const & diagram: block.diagrams)
               draw_diagram(data, diagram, width - 2.f * ImGui::GetStyle().WindowPadding.x);
+
+            if(not block.pictures.empty())
+              draw_pictures(data, block, width - 2.f * ImGui::GetStyle().WindowPadding.x);
 
             if(small)
               ImGui::PopFont();
@@ -1221,8 +1380,13 @@ auto draw_overlay(
     io.DeltaTime = static_cast<float>(delta);
 
     // a new request waits for its moment first, and the frame is shown meanwhile
-    // without the copy usage on the images there will be no picture, and a frame promising one would lie
-    if(auto fresh{take_capture_request()}; fresh and data.capturable and not data.capture_broken)
+    // Without the copy usage on the images there will be no picture, and a frame promising one would lie.
+    // A picture the player is holding still for is not given up for one nobody is waiting for
+    if(
+      auto fresh{take_capture_request()};
+      fresh and data.capturable and not data.capture_broken
+      and not(fresh->quiet and data.armed_capture and not data.armed_capture->quiet)
+    )
       {
       data.capture_due = now + double(fresh->delay_ms) / 1000.0;
       data.armed_capture = std::move(fresh);
@@ -1270,7 +1434,7 @@ auto draw_overlay(
     };
     // the picture comes before the overlay is drawn over the image - it is of the game, not of us
     bool const capturing{request and record_capture(data, frame, image_index, *request)};
-    if(capturing)
+    if(capturing and not request->quiet)
       {
       data.shutter_at = now;
       data.shutter_size = request->size;

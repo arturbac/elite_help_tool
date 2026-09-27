@@ -152,6 +152,21 @@ struct exploration_settings_t
   ///\brief other accounts' galaxy.sqlite, read for their finds - the knowledge of species is shared, the codex not
   std::vector<std::string> shared_galaxies{};
   uint32_t jpeg_quality{90u};
+  ///\brief pictures of the surface scanner's view are kept per body and shown in the left band on the
+  /// ground - its filters say where each genus grows, and the orbit is far from the Nomad
+  bool scanner_pictures{true};
+  ///\brief how often the open scanner is photographed
+  uint32_t scanner_interval_ms{1000u};
+  ///\brief the side of the square taken, as a share of the screen's height - the globe and the filter's name
+  float scanner_size{0.75f};
+  ///\brief how different, 0..255 on average, a view must be from every one kept to be kept as another
+  float scanner_difference{12.f};
+  ///\brief the most views kept of one body
+  uint32_t scanner_views{12u};
+  ///\brief the side of the thumbnails in the band, in pixels
+  uint32_t scanner_thumbnail{400u};
+  ///\brief how many thumbnails stand side by side
+  uint32_t scanner_columns{4u};
   };
 
 struct trade_settings_t

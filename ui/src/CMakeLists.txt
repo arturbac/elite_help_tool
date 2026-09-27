@@ -15,4 +15,5 @@ target_sources(elite_help_tool
   overlay_feed.cc
   overlay_exploration.cc
   codex.cc
+  scanner_sheet.cc
   )

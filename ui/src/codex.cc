@@ -15,19 +15,14 @@
 #include <set>
 #include <sstream>
 
-namespace
+namespace codex_files
   {
-[[nodiscard]]
 auto codex_dir() -> std::filesystem::path
   { return std::filesystem::absolute(eht::settings()->exploration.codex_dir); }
 
-///\brief where the layer writes - beside the socket, the one place both sides of the game's container see
-[[nodiscard]]
 auto spool_dir() -> std::filesystem::path
   { return std::filesystem::path{overlay::default_socket_path()}.parent_path() / "captures"; }
 
-///\brief a name fit for a file - letters, digits and dashes, nothing a shell or a browser would stumble on
-[[nodiscard]]
 auto file_safe(std::string_view text) -> std::string
   {
   std::string result;
@@ -40,6 +35,13 @@ auto file_safe(std::string_view text) -> std::string
     result.pop_back();
   return result;
   }
+  }  // namespace codex_files
+
+namespace
+  {
+using codex_files::codex_dir;
+using codex_files::file_safe;
+using codex_files::spool_dir;
 
 [[nodiscard]]
 auto html(std::string_view text) -> std::string
@@ -238,6 +240,10 @@ auto codex_t::ask_for_picture(current_state_t::organic_scan_seen_t const & scan)
   {
   auto const cfg{eht::settings()};
   if(not cfg->exploration.capture)
+    return;
+  // at the third sample the commander holds up the sealed canister and the tool resets - the view is
+  // blocked every time, and the first two have already shown the plant
+  if(scan.sample >= 3u)
     return;
 
   std::error_code ec;
