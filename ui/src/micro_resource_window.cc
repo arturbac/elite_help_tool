@@ -8,6 +8,10 @@
 #include <qsortfilterproxymodel.h>
 #include <qtablewidget.h>
 #include <qtimer.h>
+#include <qapplication.h>
+#include <qlineedit.h>
+#include <qspinbox.h>
+#include <qpushbutton.h>
 #include <spdlog/spdlog.h>
 #include <algorithm>
 
@@ -268,9 +272,94 @@ auto micro_resource_window_t::setup_ui() -> void
   carriers_view_->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
   carriers_view_->horizontalHeader()->setStretchLastSection(true);
   tabs->addTab(carriers_view_, "Carriers");
+
+  // --- what is on each carrier ---
+  auto * cargo_page = new QWidget(tabs);
+  auto * cargo_layout = new QVBoxLayout(cargo_page);
+  auto * cargo_top = new QHBoxLayout();
+  cargo_top->addWidget(new QLabel("Carrier:", cargo_page));
+  cargo_carrier_ = new QComboBox(cargo_page);
+  cargo_top->addWidget(cargo_carrier_, 1);
+  cargo_layout->addLayout(cargo_top);
+  auto * cargo_note = new QLabel(
+    "Changed by every docking at the carrier: what the hold has less of on leaving than on docking is added, "
+    "what it has more of is taken off; leaving by escape pod leaves the whole load. Edit a count to correct it.",
+    cargo_page
+  );
+  cargo_note->setWordWrap(true);
+  cargo_layout->addWidget(cargo_note);
+  cargo_view_ = new QTableWidget(cargo_page);
+  cargo_view_->setColumnCount(2);
+  cargo_view_->setHorizontalHeaderLabels({"Commodity", "Count (t)"});
+  cargo_view_->verticalHeader()->setVisible(false);
+  cargo_view_->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
+  cargo_view_->horizontalHeader()->setStretchLastSection(true);
+  cargo_layout->addWidget(cargo_view_, 1);
+  auto * cargo_add = new QHBoxLayout();
+  cargo_name_ = new QLineEdit(cargo_page);
+  cargo_name_->setPlaceholderText("Commodity, e.g. Steel");
+  cargo_add->addWidget(cargo_name_, 1);
+  cargo_count_ = new QSpinBox(cargo_page);
+  cargo_count_->setRange(0, 1'000'000);
+  cargo_add->addWidget(cargo_count_);
+  auto * cargo_set = new QPushButton("Set", cargo_page);
+  cargo_add->addWidget(cargo_set);
+  cargo_layout->addLayout(cargo_add);
+  tabs->addTab(cargo_page, "Carrier cargo");
+
+  if(auto carriers{db_.load_carriers()}; carriers)
+    for(info::carrier_t const & c: *carriers)
+      if(c.tracked or c.carrier_type == "SquadronCarrier")
+        cargo_carrier_->addItem(
+          qformat("{} ({})", c.carrier_name, c.carrier_id), QVariant::fromValue(qulonglong{c.market_id})
+        );
+  connect(cargo_carrier_, &QComboBox::currentIndexChanged, this, [this](int) { show_carrier_cargo(); });
+  auto const set_count = [this](QString const & name, int count)
+  {
+    uint64_t const carrier{cargo_carrier_->currentData().toULongLong()};
+    if(carrier == 0u or name.trimmed().isEmpty())
+      return;
+    if(auto res{db_.set_carrier_cargo(
+         carrier,
+         name.trimmed().toStdString(),
+         count,
+         std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())
+       )};
+       not res)
+      spdlog::error("data window: failed to set the cargo of {}", carrier);
+    show_carrier_cargo();
+  };
+  connect(cargo_set, &QPushButton::clicked, this, [this, set_count] { set_count(cargo_name_->text(), cargo_count_->value()); });
+  connect(
+    cargo_view_,
+    &QTableWidget::cellChanged,
+    this,
+    [this, set_count](int row, int column)
+    {
+      if(cargo_filling_ or column != 1)
+        return;
+      bool ok{};
+      int const count{cargo_view_->item(row, 1)->text().toInt(&ok)};
+      if(ok)
+        set_count(cargo_view_->item(row, 0)->text(), count);
+    }
+  );
+  show_carrier_cargo();
   // a countdown is in minutes; a few seconds keep it current without reading the database too often
   auto * carriers_timer = new QTimer(this);
-  connect(carriers_timer, &QTimer::timeout, this, [this] { show_carriers(); });
+  connect(
+    carriers_timer,
+    &QTimer::timeout,
+    this,
+    [this]
+    {
+      show_carriers();
+      // a docking's balance may have moved the cargo - unless a count is being edited
+      QWidget const * const focused{QApplication::focusWidget()};
+      if(cargo_view_ and not(focused != nullptr and cargo_view_->isAncestorOf(focused)))
+        show_carrier_cargo();
+    }
+  );
   carriers_timer->start(5000);
   show_carriers();
 
@@ -490,4 +579,25 @@ auto micro_resource_window_t::show_carriers() -> void
       );
       }
     }
+  }
+
+auto micro_resource_window_t::show_carrier_cargo() -> void
+  {
+  if(not cargo_view_)
+    return;
+  uint64_t const carrier{cargo_carrier_->currentData().toULongLong()};
+  auto cargo{db_.load_carrier_cargo(carrier)};
+  cargo_filling_ = true;
+  cargo_view_->setRowCount(0);
+  if(cargo)
+    for(info::carrier_cargo_t const & item: *cargo)
+      {
+      int const row{cargo_view_->rowCount()};
+      cargo_view_->insertRow(row);
+      auto * name = new QTableWidgetItem(QString::fromStdString(item.commodity));
+      name->setFlags(name->flags() & ~Qt::ItemIsEditable);
+      cargo_view_->setItem(row, 0, name);
+      cargo_view_->setItem(row, 1, new QTableWidgetItem(QString::number(qlonglong(item.count))));
+      }
+  cargo_filling_ = false;
   }

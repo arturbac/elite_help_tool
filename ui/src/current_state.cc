@@ -711,7 +711,11 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           settlement_market_id_ = 0;
         // leaving the pad ends our presence at the place just as entering supercruise does
         else if constexpr(std::same_as<T, events::undocked_t>)
+          {
           settlement_market_id_ = 0;
+          if(not catching_up_)
+            close_carrier_visit(timestamp, false);
+          }
         else if constexpr(std::same_as<T, events::backpack_change_t>)
           {
           if(not event.Added.empty())
@@ -787,6 +791,21 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           if(auto res{db_.note_settlement_owner(event.MarketID, event.SystemAddress, event.StationFaction.Name, timestamp)};
              not res)
             spdlog::error("failed to note the owner of {}", event.MarketID);
+
+          // docked at one of our carriers: the hold now is what leaving is measured against
+          if(not catching_up_ and event.StationType == "FleetCarrier")
+            if(auto carriers{db_.load_carriers()}; carriers)
+              if(std::ranges::any_of(*carriers, [&](info::carrier_t const & c) { return c.market_id == event.MarketID; }))
+                {
+                carrier_visit_t visit{.carrier_id = event.MarketID, .hold = {}};
+                for(events::cargo_item_t const & item: cargo.Inventory)
+                  {
+                  auto & slot{visit.hold[info::commodity_key(item.Name)]};
+                  slot.first = item.Name_Localised.empty() ? item.Name : item.Name_Localised;
+                  slot.second += item.Count;
+                  }
+                carrier_visit_ = std::move(visit);
+                }
           }
         // conflict zones on foot: where the commander stands, and the kills that tell a zone's intensity
         else if constexpr(std::same_as<T, events::faction_kill_bond_t>)
@@ -802,7 +821,12 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
         else if constexpr(std::same_as<T, events::embark_t>)
           ground_cz_.embark();
         else if constexpr(std::same_as<T, events::died_t>)
+          {
           ground_cz_.died();
+          // leaving a carrier by escape pod leaves the whole load on it
+          if(not catching_up_)
+            close_carrier_visit(timestamp, true);
+          }
         // colonisation: whose systems, what a site needs, what came to it
         else if constexpr(std::same_as<T, events::colonisation_system_claim_t>)
         {
@@ -1683,4 +1707,46 @@ auto describe_tick(
     }
 
   return view;
+  }
+
+auto current_state_t::close_carrier_visit(std::chrono::sys_seconds when, bool escaped) -> void
+  {
+  if(not carrier_visit_)
+    return;
+  carrier_visit_t const visit{std::move(*carrier_visit_)};
+  carrier_visit_.reset();
+
+  // what the hold carries now, by the same key
+  std::map<std::string, std::pair<std::string, int64_t>> now;
+  if(not escaped)
+    for(events::cargo_item_t const & item: cargo.Inventory)
+      {
+      auto & slot{now[info::commodity_key(item.Name)]};
+      slot.first = item.Name_Localised.empty() ? item.Name : item.Name_Localised;
+      slot.second += item.Count;
+      }
+
+  // on the carrier grows what the hold has less of than at docking, and shrinks what it has more of
+  std::set<std::string> keys;
+  for(auto const & [key, v]: visit.hold)
+    keys.insert(key);
+  for(auto const & [key, v]: now)
+    keys.insert(key);
+  for(std::string const & key: keys)
+    {
+    auto const before{visit.hold.find(key)};
+    auto const after{now.find(key)};
+    int64_t const had{before == visit.hold.end() ? 0 : before->second.second};
+    int64_t const has{after == now.end() ? 0 : after->second.second};
+    std::string const & name{before != visit.hold.end() ? before->second.first : after->second.first};
+    if(auto res{db_.change_carrier_cargo(
+         info::carrier_cargo_change_t{
+           .timestamp = when, .carrier_id = visit.carrier_id, .key = key, .commodity = name, .delta = had - has,
+           .source = escaped ? "escape pod" : "docking"
+         }
+       )};
+       not res)
+      spdlog::error("failed to change the cargo of carrier {}", visit.carrier_id);
+    }
+  ++carrier_changes_;
   }

@@ -409,6 +409,29 @@ struct carrier_state_t
   bool arrived{};
   };
 
+///\brief a commodity on a carrier - kept by hand where the game says nothing, and moved by what the
+/// commander leaves on it or takes off it
+struct carrier_cargo_t
+  {
+  int64_t oid{-1};
+  uint64_t carrier_id;
+  std::string key;
+  std::string commodity;
+  int64_t count;
+  };
+
+///\brief one change of a carrier's cargo and where it came from - a docking's balance, an escape, an edit
+struct carrier_cargo_change_t
+  {
+  int64_t oid{-1};
+  std::chrono::sys_seconds timestamp;
+  uint64_t carrier_id;
+  std::string key;
+  std::string commodity;
+  int64_t delta;
+  std::string source;
+  };
+
 ///\brief when we last read this station's market
 ///\detail the contents themselves come from Market.json, which cannot be rebuilt, so the time of
 /// the reading belongs to the database gathered live

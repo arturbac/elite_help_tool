@@ -85,6 +85,8 @@ public:
 
 ///\brief managing micro resources - what sits on the carrier and where it comes from
 class QTableWidget;
+class QLineEdit;
+class QSpinBox;
 
 class micro_resource_window_t final : public QMdiSubWindow
   {
@@ -93,6 +95,12 @@ public:
   /// a connection of its own; the state's db_ belongs to the journal following thread
   database_storage_t db_;
   QTableWidget * carriers_view_{};
+  ///\brief what is on each carrier - edited by hand, moved by every docking's balance
+  QComboBox * cargo_carrier_{};
+  QTableWidget * cargo_view_{};
+  QLineEdit * cargo_name_{};
+  QSpinBox * cargo_count_{};
+  bool cargo_filling_{};
 
   QComboBox * carrier_combo_{};
   ///\brief the list narrowed to one's own - a stranger's bartender shows at every docking, and after a
@@ -114,6 +122,8 @@ public:
   auto refresh_ui() -> void;
   ///\brief the carriers' positions and jumps - read again every few seconds while the countdown runs
   auto show_carriers() -> void;
+  ///\brief the cargo of the carrier chosen in the Carrier cargo tab
+  auto show_carrier_cargo() -> void;
 
   auto setup_ui() -> void;
 

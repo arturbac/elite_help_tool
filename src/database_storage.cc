@@ -519,6 +519,10 @@ namespace tables
   inline constexpr std::string_view neutron_route{"live.neutron_route"};
   // the commander's own choice, which no journal records - kept with what cannot be rebuilt
   inline constexpr std::string_view construction_abandoned{"live.construction_abandoned"};
+  // what is on our carriers - the game does not say for a squadron's, so it is kept here by hand and by
+  // the balance of every docking; none of it can be rebuilt from journals
+  inline constexpr std::string_view carrier_cargo{"live.carrier_cargo"};
+  inline constexpr std::string_view carrier_cargo_change{"live.carrier_cargo_change"};
   inline constexpr std::string_view carrier{"live.carrier"};
   inline constexpr std::string_view carrier_materials{"live.carrier_materials"};
   }  // namespace tables
@@ -1358,6 +1362,14 @@ auto database_storage_t::create_database() -> expected_ec<void>
   if(auto res{sqlite::create_table<info::construction_abandoned_t>(
        db_->db, "market_id"sv, sql_iface::tables::construction_abandoned
      )};
+     not res) [[unlikely]]
+    return res;
+  if(auto res{sqlite::create_table<info::carrier_cargo_t>(db_->db, "oid"sv, sql_iface::tables::carrier_cargo)};
+     not res) [[unlikely]]
+    return res;
+  if(auto res{
+       sqlite::create_table<info::carrier_cargo_change_t>(db_->db, "oid"sv, sql_iface::tables::carrier_cargo_change)
+     };
      not res) [[unlikely]]
     return res;
 
@@ -3284,6 +3296,94 @@ auto database_storage_t::store(info::carrier_movement_t const & value) -> expect
   if(known and *known and **known != 0u)
     return {};
   return sqlite::insert_into(db_->db, "oid"sv, sql_iface::tables::carrier_movement, value);
+  }
+
+auto database_storage_t::load_carrier_cargo(uint64_t carrier_id) -> expected_ec<std::vector<info::carrier_cargo_t>>
+  {
+  return sqlite::select_from<info::carrier_cargo_t>(
+    db_->db,
+    sql_iface::tables::carrier_cargo,
+    std::format(" WHERE carrier_id={} AND count>0 ORDER BY count DESC", carrier_id)
+  );
+  }
+
+auto database_storage_t::load_carrier_cargo_totals() -> expected_ec<std::map<std::string, int64_t>>
+  {
+  auto rows{sqlite::select_from<info::carrier_cargo_t>(db_->db, sql_iface::tables::carrier_cargo, " WHERE count>0")};
+  if(not rows) [[unlikely]]
+    return cxx23::unexpected{rows.error()};
+  std::map<std::string, int64_t> totals;
+  for(info::carrier_cargo_t const & row: *rows)
+    totals[row.key] += row.count;
+  return totals;
+  }
+
+auto database_storage_t::change_carrier_cargo(info::carrier_cargo_change_t const & given) -> expected_ec<void>
+  {
+  if(given.delta == 0)
+    return {};
+  // the hold names a commodity by its internal name, "steel" or "cmmcomposite" - the market's dictionary
+  // has the name the game shows
+  info::carrier_cargo_change_t change{given};
+  if(std::ranges::none_of(change.commodity, [](char c) { return c >= 'A' and c <= 'Z'; }))
+    if(auto names{sqlite::select_from<info::commodity_t>(db_->db, sql_iface::tables::commodity, "")}; names)
+      for(info::commodity_t const & c: *names)
+        if(info::commodity_key(c.name) == change.key)
+          {
+          change.commodity = c.name;
+          break;
+          }
+  auto known{sqlite::select_from<info::carrier_cargo_t>(
+    db_->db,
+    sql_iface::tables::carrier_cargo,
+    std::format(
+      " WHERE carrier_id={} AND key='{}' LIMIT 1", change.carrier_id, sqlite::escape_sql_quotes(change.key)
+    )
+  )};
+  if(not known) [[unlikely]]
+    return cxx23::unexpected{known.error()};
+  if(auto res{sqlite::insert_into(db_->db, "oid"sv, sql_iface::tables::carrier_cargo_change, change)}; not res)
+    [[unlikely]]
+    return res;
+  if(known->empty())
+    return sqlite::insert_into(
+      db_->db,
+      "oid"sv,
+      sql_iface::tables::carrier_cargo,
+      info::carrier_cargo_t{
+        .carrier_id = change.carrier_id, .key = change.key, .commodity = change.commodity,
+        .count = std::max<int64_t>(change.delta, 0)
+      }
+    );
+  info::carrier_cargo_t row{known->front()};
+  // taken off more than was known to be there: the count was wrong - it stops at nothing
+  row.count = std::max<int64_t>(row.count + change.delta, 0);
+  if(not change.commodity.empty())
+    row.commodity = change.commodity;
+  return sqlite::update_pk(db_->db, "oid"sv, sql_iface::tables::carrier_cargo, row, row.oid);
+  }
+
+auto database_storage_t::set_carrier_cargo(
+  uint64_t carrier_id, std::string_view commodity, int64_t count, std::chrono::sys_seconds when
+) -> expected_ec<void>
+  {
+  std::string const key{info::commodity_key(commodity)};
+  if(key.empty())
+    return {};
+  int64_t now_count{};
+  if(auto known{sqlite::select_from<info::carrier_cargo_t>(
+       db_->db,
+       sql_iface::tables::carrier_cargo,
+       std::format(" WHERE carrier_id={} AND key='{}' LIMIT 1", carrier_id, sqlite::escape_sql_quotes(key))
+     )};
+     known and not known->empty())
+    now_count = known->front().count;
+  return change_carrier_cargo(
+    info::carrier_cargo_change_t{
+      .timestamp = when, .carrier_id = carrier_id, .key = key, .commodity = std::string{commodity},
+      .delta = std::max<int64_t>(count, 0) - now_count, .source = "edit"
+    }
+  );
   }
 
 auto database_storage_t::load_carrier_states(std::chrono::sys_seconds now, std::chrono::minutes cooldown)

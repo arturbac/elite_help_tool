@@ -1,4 +1,6 @@
 #pragma once
+#include <map>
+#include <optional>
 #include <ground_cz.h>
 #include <functional>
 #include <elite_events.h>
@@ -151,6 +153,17 @@ struct current_state_t : public generic_state_t
   uint64_t construction_changes_{};
   ///\brief counts carriers' moves, so the overlay and the window read them again at once
   uint64_t carrier_changes_{};
+  ///\brief docked at one of our carriers: the hold as it was on docking - what differs on leaving is
+  /// what was left on the carrier or taken off it, since the game does not tell it for a squadron's carrier
+  struct carrier_visit_t
+    {
+    uint64_t carrier_id{};
+    std::map<std::string, std::pair<std::string, int64_t>> hold;
+    };
+  std::optional<carrier_visit_t> carrier_visit_;
+  ///\brief applies the balance of a visit to the carrier - the hold at docking against the hold now, or,
+  /// leaving by escape pod, the whole hold as it was at docking
+  auto close_carrier_visit(std::chrono::sys_seconds when, bool escaped) -> void;
   bool personal_{true};
 
   current_state_t(main_window_t * p, std::string db_path, std::string journal_path) : generic_state_t{journal_path}, parent{p}, db_{db_path} {}

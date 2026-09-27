@@ -38,8 +38,10 @@ auto construction_window_t::setup_ui() -> void
   layout->addWidget(header_);
 
   table_ = new QTableWidget(central);
-  table_->setColumnCount(7);
-  table_->setHorizontalHeaderLabels({"Commodity", "Left", "Required", "Provided", "In hold", "Here", "Price here"});
+  table_->setColumnCount(8);
+  table_->setHorizontalHeaderLabels(
+    {"Commodity", "Left", "Required", "Provided", "In hold", "On carriers", "Here", "Price here"}
+  );
   table_->verticalHeader()->setVisible(false);
   table_->setEditTriggers(QAbstractItemView::NoEditTriggers);
   table_->setSelectionBehavior(QAbstractItemView::SelectRows);
@@ -81,10 +83,11 @@ auto construction_window_t::selected_market() const -> uint64_t
 auto construction_window_t::refresh_ui(bool force) -> void
   {
   auto const now{std::chrono::steady_clock::now()};
-  if(not force and changes_seen_ == state_.construction_changes_ and now - read_ < std::chrono::seconds{2})
+  if(not force and changes_seen_ == state_.construction_changes_ + state_.carrier_changes_
+     and now - read_ < std::chrono::seconds{2})
     return;
   read_ = now;
-  changes_seen_ = state_.construction_changes_;
+  changes_seen_ = state_.construction_changes_ + state_.carrier_changes_;
 
   auto loaded{db_.load_construction_sites(show_abandoned_->isChecked())};
   if(not loaded)
@@ -145,6 +148,11 @@ auto construction_window_t::show_site() -> void
       for(info::market_entry_t & entry: *entries)
         here[info::commodity_key(entry.name)] = std::move(entry);
 
+  // what our carriers hold, together - kept by hand and by every docking's balance
+  std::map<std::string, int64_t> carriers;
+  if(auto totals{db_.load_carrier_cargo_totals()}; totals)
+    carriers = std::move(*totals);
+
   uint64_t left_total{};
   uint64_t required_total{};
   int done{};
@@ -167,10 +175,14 @@ auto construction_window_t::show_site() -> void
     table_->setItem(row, 3, new QTableWidgetItem(number(need.provided)));
     auto const h{hold.find(need.key)};
     table_->setItem(row, 4, new QTableWidgetItem(h == hold.end() ? QString{} : number(h->second)));
+    auto const c{carriers.find(need.key)};
+    table_->setItem(
+      row, 5, new QTableWidgetItem(c == carriers.end() or c->second <= 0 ? QString{} : number(uint64_t(c->second)))
+    );
     auto const m{here.find(need.key)};
     bool const sold{m != here.end() and m->second.stock > 0u and m->second.buy_price > 0u};
-    table_->setItem(row, 5, new QTableWidgetItem(sold ? number(m->second.stock) : QString{}));
-    table_->setItem(row, 6, new QTableWidgetItem(sold ? number(m->second.buy_price) : QString{}));
+    table_->setItem(row, 6, new QTableWidgetItem(sold ? number(m->second.stock) : QString{}));
+    table_->setItem(row, 7, new QTableWidgetItem(sold ? number(m->second.buy_price) : QString{}));
     }
   header_->setText(qformat(
     "{} in {}: {:.1f}% built, {} t of {} t left, {} commodities complete. Updated {:%Y-%m-%d %H:%M} UTC.",

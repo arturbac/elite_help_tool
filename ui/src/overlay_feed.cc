@@ -2027,6 +2027,12 @@ auto overlay_feed_t::refresh_construction(current_state_t const & state) -> void
     auto loaded{db_.load_construction_sites()};
     construction_sites_ = loaded ? std::move(*loaded) : std::vector<info::construction_site_t>{};
     }
+  if(carrier_cargo_changes_ != state.carrier_changes_ or construction_read_ == now)
+    {
+    carrier_cargo_changes_ = state.carrier_changes_;
+    auto totals{db_.load_carrier_cargo_totals()};
+    carrier_cargo_ = totals ? std::move(*totals) : std::map<std::string, int64_t>{};
+    }
   // the port's market is read again when the port changes, or with the sites
   uint64_t const port{state.settlement_market_id_};
   if(port != construction_port_ or construction_read_ == now)
@@ -2109,6 +2115,8 @@ auto overlay_feed_t::build_construction_lines(current_state_t const & state) con
     auto const h{hold.find(need.key)};
     if(h != hold.end())
       text += std::format("   hold {}", h->second);
+    if(auto const c{carrier_cargo_.find(need.key)}; c != carrier_cargo_.end() and c->second > 0)
+      text += std::format("   carriers {}", c->second);
     auto const m{here.find(need.key)};
     if(m != here.end())
       text += std::format("   here {} @ {}", m->second->stock, m->second->buy_price);

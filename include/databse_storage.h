@@ -394,6 +394,24 @@ struct database_storage_t
   [[nodiscard]]
   auto store(info::carrier_movement_t const & value) -> expected_ec<void>;
 
+  ///\brief what is on a carrier, the most first
+  [[nodiscard]]
+  auto load_carrier_cargo(uint64_t carrier_id) -> expected_ec<std::vector<info::carrier_cargo_t>>;
+
+  ///\brief what is on all our carriers together, by commodity key
+  [[nodiscard]]
+  auto load_carrier_cargo_totals() -> expected_ec<std::map<std::string, int64_t>>;
+
+  ///\brief moves a commodity on a carrier by delta, never below zero, and writes down why
+  [[nodiscard]]
+  auto change_carrier_cargo(info::carrier_cargo_change_t const & change) -> expected_ec<void>;
+
+  ///\brief sets a commodity on a carrier to a count, by hand - the change is written down too
+  [[nodiscard]]
+  auto set_carrier_cargo(
+    uint64_t carrier_id, std::string_view commodity, int64_t count, std::chrono::sys_seconds when
+  ) -> expected_ec<void>;
+
   ///\brief every carrier whose moves the journals tell - one's own and the squadron's - where each is and
   /// the jump it is on: ordered, not cancelled, and within the cooldown after its arrival
   [[nodiscard]]
