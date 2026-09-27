@@ -2,7 +2,9 @@
 
 #include <elite_events.h>
 
+#include <chrono>
 #include <cstdint>
+#include <filesystem>
 #include <optional>
 #include <span>
 #include <string>
@@ -40,6 +42,20 @@ auto colony_range_m(std::string_view genus) noexcept -> uint32_t;
 ///\brief the price of a species as the price list has it, with the journal's spelling of names allowed for
 [[nodiscard]]
 auto species_value(std::string_view species) noexcept -> std::optional<uint32_t>;
+
+///\brief a sample analysed and not sold yet - it goes down with the commander if they die
+struct unsold_t
+  {
+  std::string species;
+  uint32_t value{};
+  };
+
+///\brief the samples analysed since the last sale at Vista Genomics or the last death
+///\detail read back from the journals, the newest first, until a sale or a death ends the search - so it
+/// holds across restarts of the tool without the database having to know. A sale is taken as selling all,
+/// which is what the game's one button does
+[[nodiscard]]
+auto unsold_samples(std::filesystem::path const & journal_dir) -> std::vector<unsold_t>;
 
 ///\brief a species this commander sampled, together with the world it grew on
 ///\detail the field names are the columns of the query that reads them

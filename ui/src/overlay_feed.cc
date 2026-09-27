@@ -1865,6 +1865,16 @@ auto overlay_feed_t::refresh_mission_places(current_state_t const & state) -> vo
 /// game's frame path and reading pixels back off the card means waiting for the card. It does not
 /// have to: the game writes what it is showing into Status.json beside the journals, and rewrites it
 /// whenever it changes.
+auto overlay_feed_t::refresh_unsold(current_state_t const & state) -> void
+  {
+  auto const now{std::chrono::steady_clock::now()};
+  if(unsold_scans_ == state.organic_scans_seen_ and now - unsold_read_ < std::chrono::seconds{60})
+    return;
+  unsold_scans_ = state.organic_scans_seen_;
+  unsold_read_ = now;
+  unsold_ = bio::unsold_samples(state.journal_dir_path_);
+  }
+
 auto overlay_feed_t::refresh_species_history(current_state_t const & state) -> void
   {
   // the history grows only when a sample is taken, so it is read at the start and after each scan seen
@@ -2540,6 +2550,29 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
     frame.blocks.push_back(
       overlay::block_t{.corner = overlay::corner_e::bottom_left, .ttl_ms = block_ttl_ms(), .lines = std::move(route)}
     );
+
+  refresh_unsold(state);
+  if(not unsold_.empty())
+    {
+    uint64_t total{};
+    for(bio::unsold_t const & sample: unsold_)
+      total += sample.value;
+    // what a death would cost - worth knowing before a hard landing or a fight
+    frame.blocks.push_back(
+      overlay::block_t{
+        .corner = overlay::corner_e::bottom_left,
+        .ttl_ms = block_ttl_ms(),
+        .lines = {overlay::line_t{
+          .text = std::format(
+            "bio unsold: {} samples, {} + first-logged bonuses",
+            unsold_.size(),
+            overlay_exploration::short_credits(total)
+          ),
+          .color = colour_alert()
+        }}
+      }
+    );
+    }
 
   if(auto cargo{describe_cargo(state.cargo)}; not cargo.empty())
     frame.blocks.push_back(

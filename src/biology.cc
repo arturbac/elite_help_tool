@@ -1,6 +1,8 @@
 #include <biology.h>
 
 #include <algorithm>
+#include <fstream>
+#include <glaze/glaze.hpp>
 #include <array>
 #include <cmath>
 #include <map>
@@ -11,6 +13,17 @@ using namespace std::string_view_literals;
 
 namespace bio
   {
+namespace detail
+  {
+  ///\brief the two fields of a ScanOrganic line the count of unsold samples needs - glaze wants a type with
+  /// linkage, so it stays out of the anonymous namespace
+  struct analysed_t
+    {
+    std::string Species_Localised;
+    std::string ScanType;
+    };
+  }  // namespace detail
+
 namespace
   {
   [[nodiscard]]
@@ -227,6 +240,43 @@ auto predict(std::string_view genus, conditions_t const & world, std::span<speci
   // what was never seen under this atmosphere says nothing once anything was
   if(not result.empty() and result.front().fit != fit_e::unlike)
     std::erase_if(result, [](candidate_t const & c) { return c.fit == fit_e::unlike; });
+  return result;
+  }
+
+auto unsold_samples(std::filesystem::path const & journal_dir) -> std::vector<unsold_t>
+  {
+  std::vector<std::filesystem::path> journals;
+  std::error_code ec;
+  for(auto const & entry: std::filesystem::directory_iterator{journal_dir, ec})
+    if(auto const name{entry.path().filename().string()}; name.starts_with("Journal.") and name.ends_with(".log"))
+      journals.push_back(entry.path());
+  // the names carry the date, so the order of the names is the order of the sessions
+  std::ranges::sort(journals, std::ranges::greater{});
+
+  std::vector<unsold_t> result;
+  // a sale is rarely further back than a few weeks of play; the bound only keeps a commander who never
+  // sold anything from reading the whole archive twice a minute
+  for(std::filesystem::path const & path: journals | std::views::take(300))
+    {
+    std::ifstream in{path, std::ios::binary};
+    std::vector<std::string> lines;
+    for(std::string line; std::getline(in, line);)
+      if(line.contains("\"ScanOrganic\"") or line.contains("\"SellOrganicData\"") or line.contains("\"Died\""))
+        lines.push_back(std::move(line));
+
+    for(std::string const & line: lines | std::views::reverse)
+      {
+      if(line.contains("\"event\":\"SellOrganicData\"") or line.contains("\"event\":\"Died\""))
+        return result;
+      detail::analysed_t scan{};
+      if(auto const err{glz::read<glz::opts{.error_on_unknown_keys = false}>(scan, line)}; err)
+        continue;
+      if(scan.ScanType == "Analyse")
+        result.push_back(
+          unsold_t{.species = scan.Species_Localised, .value = species_value(scan.Species_Localised).value_or(0u)}
+        );
+      }
+    }
   return result;
   }
   }  // namespace bio

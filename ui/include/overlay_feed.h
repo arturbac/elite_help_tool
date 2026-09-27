@@ -68,6 +68,9 @@ private:
   [[nodiscard]]
   auto build_crew_lines(current_state_t const & state) const -> std::vector<overlay::line_t>;
 
+  ///\brief the samples not sold yet - after a scan, and now and then for the sale at a station
+  auto refresh_unsold(current_state_t const & state) -> void;
+
   ///\brief the species found before, read when a scan could have added to them
   auto refresh_species_history(current_state_t const & state) -> void;
 
@@ -125,6 +128,10 @@ private:
   codex_t codex_;
   ///\brief the scans already asked a picture of
   uint64_t pictured_scans_{};
+  ///\brief the samples carried and not sold, read back from the journals
+  std::vector<bio::unsold_t> unsold_;
+  uint64_t unsold_scans_{~uint64_t{}};
+  std::chrono::steady_clock::time_point unsold_read_{};
   ///\brief where the ship is set to go, as Status.json has it
   std::optional<events::status_file_t::destination_t> status_destination_;
   ///\brief the ports of the system we are in, for the picture - read again only on a change of system
