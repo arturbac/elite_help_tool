@@ -1,6 +1,9 @@
 #include "vk_capture.h"
 
 #include <algorithm>
+#include <chrono>
+#include <format>
+#include <utility>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -200,145 +203,197 @@ auto take_capture_request() -> std::optional<overlay::capture_t>
   return request;
   }
 
+namespace
+  {
+  ///\brief whether a copy recorded earlier still waits to be read out of the one buffer all frames share
+  [[nodiscard]]
+  auto copy_in_flight(swapchain_data_t const & data) noexcept -> bool
+    {
+    return std::ranges::any_of(data.frames, [](frame_resources_t const & f) { return f.capture_pending; });
+    }
+
+  ///\brief records the copy of a rectangle of the image into the buffer, into the frame's command buffer
+  auto record_copy(
+    swapchain_data_t & data, frame_resources_t & frame, uint32_t image_index, VkRect2D area, std::string path
+  ) noexcept -> bool
+    {
+    try
+      {
+      // the buffer is one for all frames, so a copy waiting to be read out forbids another - and would be
+      // freed under it, were the new one larger
+      if(not data.capturable or data.capture_broken or copy_in_flight(data) or image_index >= data.images.size())
+        return false;
+
+      device_data_t & device{*data.device};
+      if(
+        device.CmdPipelineBarrier == nullptr or device.CmdCopyImageToBuffer == nullptr or device.CreateBuffer == nullptr
+        or device.AllocateMemory == nullptr or device.MapMemory == nullptr
+      )
+        {
+        data.capture_broken = true;
+        return false;
+        }
+
+      if(pixel_layout(data.format) == layout_e::unsupported)
+        {
+        log("picture not taken, swapchain format {} is not one we can read", static_cast<int>(data.format));
+        data.capture_broken = true;
+        return false;
+        }
+
+      uint32_t const width{area.extent.width};
+      uint32_t const height{area.extent.height};
+      if(width == 0u or height == 0u)
+        return false;
+
+      if(not ensure_buffer(data, VkDeviceSize{width} * height * 4u))
+        {
+        log("picture not taken, no buffer for it");
+        data.capture_broken = true;
+        return false;
+        }
+
+      VkImageSubresourceRange const range{
+        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+        .baseMipLevel = 0u,
+        .levelCount = 1u,
+        .baseArrayLayer = 0u,
+        .layerCount = 1u
+      };
+      VkImageMemoryBarrier const to_transfer{
+        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+        .pNext = nullptr,
+        .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+        .dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
+        .oldLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+        .newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .image = data.images[image_index],
+        .subresourceRange = range
+      };
+      device.CmdPipelineBarrier(
+        frame.command_buffer,
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        VK_PIPELINE_STAGE_TRANSFER_BIT,
+        0u,
+        0u,
+        nullptr,
+        0u,
+        nullptr,
+        1u,
+        &to_transfer
+      );
+
+      VkBufferImageCopy const region{
+        .bufferOffset = 0u,
+        .bufferRowLength = 0u,
+        .bufferImageHeight = 0u,
+        .imageSubresource
+        = {.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, .mipLevel = 0u, .baseArrayLayer = 0u, .layerCount = 1u},
+        .imageOffset = {area.offset.x, area.offset.y, 0},
+        .imageExtent = {width, height, 1u}
+      };
+      device.CmdCopyImageToBuffer(
+        frame.command_buffer,
+        data.images[image_index],
+        VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+        data.capture.buffer,
+        1u,
+        &region
+      );
+
+      // back to where the render pass expects it, and the copy made visible to the host
+      VkImageMemoryBarrier const to_present{
+        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+        .pNext = nullptr,
+        .srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
+        .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+        .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+        .newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .image = data.images[image_index],
+        .subresourceRange = range
+      };
+      VkBufferMemoryBarrier const to_host{
+        .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+        .pNext = nullptr,
+        .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+        .dstAccessMask = VK_ACCESS_HOST_READ_BIT,
+        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .buffer = data.capture.buffer,
+        .offset = 0u,
+        .size = VK_WHOLE_SIZE
+      };
+      device.CmdPipelineBarrier(
+        frame.command_buffer,
+        VK_PIPELINE_STAGE_TRANSFER_BIT,
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_HOST_BIT,
+        0u,
+        0u,
+        nullptr,
+        1u,
+        &to_host,
+        1u,
+        &to_present
+      );
+
+      frame.capture_pending = true;
+      frame.capture_width = width;
+      frame.capture_height = height;
+      frame.capture_path = std::move(path);
+      return true;
+      }
+    catch(...)
+      {
+      data.capture_broken = true;
+      return false;
+      }
+    }
+  }  // namespace
+
 auto record_capture(
   swapchain_data_t & data, frame_resources_t & frame, uint32_t image_index, overlay::capture_t const & request
 ) noexcept -> bool
   {
+  // a square round the very middle of the whole surface - on a triple screen the middle of the centre one
+  float const share{std::clamp(request.size, 0.05f, 1.f)};
+  uint32_t const side{std::min(
+    {static_cast<uint32_t>(std::lround(float(data.extent.height) * share)), data.extent.height, data.extent.width}
+  )};
+  VkRect2D const area{
+    .offset
+    = {static_cast<int32_t>((data.extent.width - side) / 2u), static_cast<int32_t>((data.extent.height - side) / 2u)},
+    .extent = {side, side}
+  };
   try
     {
-    if(not data.capturable or data.capture_broken or frame.capture_pending or image_index >= data.images.size())
-      return false;
+    return record_copy(data, frame, image_index, area, request.path);
+    }
+  catch(...)
+    {
+    return false;
+    }
+  }
 
-    device_data_t & device{*data.device};
-    if(
-      device.CmdPipelineBarrier == nullptr or device.CmdCopyImageToBuffer == nullptr or device.CreateBuffer == nullptr
-      or device.AllocateMemory == nullptr or device.MapMemory == nullptr
-    )
-      {
-      data.capture_broken = true;
-      return false;
-      }
-
-    if(pixel_layout(data.format) == layout_e::unsupported)
-      {
-      log("picture not taken, swapchain format {} is not one we can read", static_cast<int>(data.format));
-      data.capture_broken = true;
-      return false;
-      }
-
-    // a square round the very middle of the whole surface - on a triple screen the middle of the centre one
-    float const share{std::clamp(request.size, 0.05f, 1.f)};
-    uint32_t const side{std::min(
-      {static_cast<uint32_t>(std::lround(float(data.extent.height) * share)), data.extent.height, data.extent.width}
+auto record_screenshot(swapchain_data_t & data, frame_resources_t & frame, uint32_t image_index) noexcept -> bool
+  {
+  try
+    {
+    uint64_t const moment{uint64_t(
+      std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count()
     )};
-    if(side == 0u)
+    std::string path{std::format("{}/{}{}.ppm", overlay::default_spool_path(), overlay::screenshot_prefix, moment)};
+    if(not record_copy(data, frame, image_index, VkRect2D{.offset = {0, 0}, .extent = data.extent}, std::move(path)))
       return false;
-    int32_t const x{static_cast<int32_t>((data.extent.width - side) / 2u)};
-    int32_t const y{static_cast<int32_t>((data.extent.height - side) / 2u)};
-
-    if(not ensure_buffer(data, VkDeviceSize{side} * side * 4u))
-      {
-      log("picture not taken, no buffer for it");
-      data.capture_broken = true;
-      return false;
-      }
-
-    VkImageSubresourceRange const range{
-      .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-      .baseMipLevel = 0u,
-      .levelCount = 1u,
-      .baseArrayLayer = 0u,
-      .layerCount = 1u
-    };
-    VkImageMemoryBarrier const to_transfer{
-      .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-      .pNext = nullptr,
-      .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-      .dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
-      .oldLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-      .newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-      .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-      .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-      .image = data.images[image_index],
-      .subresourceRange = range
-    };
-    device.CmdPipelineBarrier(
-      frame.command_buffer,
-      VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-      VK_PIPELINE_STAGE_TRANSFER_BIT,
-      0u,
-      0u,
-      nullptr,
-      0u,
-      nullptr,
-      1u,
-      &to_transfer
-    );
-
-    VkBufferImageCopy const region{
-      .bufferOffset = 0u,
-      .bufferRowLength = 0u,
-      .bufferImageHeight = 0u,
-      .imageSubresource
-      = {.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, .mipLevel = 0u, .baseArrayLayer = 0u, .layerCount = 1u},
-      .imageOffset = {x, y, 0},
-      .imageExtent = {side, side, 1u}
-    };
-    device.CmdCopyImageToBuffer(
-      frame.command_buffer,
-      data.images[image_index],
-      VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-      data.capture.buffer,
-      1u,
-      &region
-    );
-
-    // back to where the render pass expects it, and the copy made visible to the host
-    VkImageMemoryBarrier const to_present{
-      .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-      .pNext = nullptr,
-      .srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
-      .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-      .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-      .newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-      .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-      .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-      .image = data.images[image_index],
-      .subresourceRange = range
-    };
-    VkBufferMemoryBarrier const to_host{
-      .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-      .pNext = nullptr,
-      .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-      .dstAccessMask = VK_ACCESS_HOST_READ_BIT,
-      .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-      .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-      .buffer = data.capture.buffer,
-      .offset = 0u,
-      .size = VK_WHOLE_SIZE
-    };
-    device.CmdPipelineBarrier(
-      frame.command_buffer,
-      VK_PIPELINE_STAGE_TRANSFER_BIT,
-      VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_HOST_BIT,
-      0u,
-      0u,
-      nullptr,
-      1u,
-      &to_host,
-      1u,
-      &to_present
-    );
-
-    frame.capture_pending = true;
-    frame.capture_width = side;
-    frame.capture_height = side;
-    frame.capture_path = request.path;
+    // the whole screen needs a buffer many times the size of a picture; it goes once the copy is read
+    frame.capture_release = true;
     return true;
     }
   catch(...)
     {
-    data.capture_broken = true;
     return false;
     }
   }
@@ -380,6 +435,8 @@ auto collect_capture(swapchain_data_t & data, frame_resources_t & frame) noexcep
       std::move(frame.capture_path)
     }
       .detach();
+    if(std::exchange(frame.capture_release, false) and not copy_in_flight(data))
+      destroy_capture(data);
     }
   catch(...)
     {

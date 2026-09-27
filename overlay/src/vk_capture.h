@@ -21,6 +21,13 @@ auto record_capture(
   swapchain_data_t & data, frame_resources_t & frame, uint32_t image_index, overlay::capture_t const & request
 ) noexcept -> bool;
 
+///\brief records the copy of the whole image into the frame's command buffer, after the overlay is drawn -
+/// the player asked for the screen as they see it. The picture goes into the spool as screenshot_<ms>.ppm
+///\returns false when it cannot be taken now - another copy still waits to be read out - so it is tried
+/// at the next frame
+[[nodiscard]]
+auto record_screenshot(swapchain_data_t & data, frame_resources_t & frame, uint32_t image_index) noexcept -> bool;
+
 ///\brief takes the copied pixels out once the frame's fence has signalled and writes them in a thread of
 /// their own - the game's frame never waits for a disk
 auto collect_capture(swapchain_data_t & data, frame_resources_t & frame) noexcept -> void;

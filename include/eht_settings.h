@@ -173,6 +173,18 @@ struct exploration_settings_t
   uint32_t scanner_columns{4u};
   };
 
+///\brief screenshots of the whole screen, overlay and all, taken by the layer at a key
+struct screenshot_settings_t
+  {
+  ///\brief the X key name - F11, Print, Pause, KP_Multiply, a letter, or a keysym as 0xffc8; empty turns them off
+  std::string key{"F11"};
+  ///\brief where they are kept, relative to where the tool runs
+  std::string dir{"screenshots"};
+  ///\brief png keeps the overlay's text sharp; jpg is a fraction of the size
+  std::string format{"png"};
+  uint32_t jpeg_quality{92u};
+  };
+
 struct trade_settings_t
   {
   ///\brief a rate on fewer tonnes than this in stock or in demand is no rate
@@ -259,6 +271,7 @@ struct settings_t
   {
   overlay_settings_t overlay;
   exploration_settings_t exploration;
+  screenshot_settings_t screenshots;
   gui_settings_t gui;
   trade_settings_t trade;
   tick_settings_t ticks;

@@ -2580,6 +2580,7 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
   };
   scanner_.collect(scanner_on_planet);
   scanner_.observe(scanner_on_planet, state.scanner_body_);
+  screenshots_.collect();
   refresh_species_history(state);
 
   if(not server_->listening())
@@ -2822,6 +2823,7 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
     capture_ = asked;
     }
   frame.capture = capture_;
+  frame.screenshot.key = eht::settings()->screenshots.key;
 
   // In the scanner the band says what the last picture did: a new view is the sign that the filter is in
   // and the next one may be chosen

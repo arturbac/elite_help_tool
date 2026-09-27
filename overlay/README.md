@@ -55,6 +55,7 @@ dostaje je tak samo jak launcher. Launcher nie ma łańcucha wymiany, więc wars
 | `DISABLE_EHT_OVERLAY=1` | wyłącza ją mimo zainstalowanego manifestu — wyłącznik awaryjny |
 | `EHT_OVERLAY_DEBUG=1` | log warstwy na stderr procesu gry |
 | `EHT_OVERLAY_SOCKET` | ścieżka gniazda, domyślnie `~/.local/share/elite_help_tool/overlay.sock` |
+| `EHT_OVERLAY_CAPTURE=1` | pozwala kopiować obraz gry — bez tego nie ma zdjęć do codexu ani zrzutów ekranu klawiszem |
 
 Tylko te — potrzebne, zanim warstwa połączy się z narzędziem. Cały układ (skala tekstu, szerokość
 pasów i środkowego ekranu, położenie czytników HUD, marginesy, przezroczystość, własna diagnostyka)
@@ -146,6 +147,32 @@ katalogu `codex/`.
 Łańcuch wymiany dostaje dodatkowo `TRANSFER_SRC`; sterownik, który tego nie przyjmie, zostawia
 overlay bez zdjęć, nie bez overlaya. Zdjęcie, które raz się nie uda, nie jest już próbowane.
 Starsza warstwa pomija nowe pole i po prostu zdjęć nie robi.
+
+## Zrzut ekranu klawiszem
+
+W grze **F11** robi zrzut całego ekranu **razem z overlayem** — tak, jak widzi go gracz. Klawisz
+i format ustawia sekcja `screenshots` w `eht_settings.json`:
+
+| klucz | domyślnie | znaczenie |
+|---|---|---|
+| `key` | `F11` | nazwa klawisza X (jak w `xev`): `F1`–`F35`, `Print`, `Pause`, `Scroll_Lock`, `KP_Multiply`…, litera, cyfra albo keysym `0xffc8`; pusty wyłącza |
+| `dir` | `screenshots` | katalog na zrzuty, względny do katalogu narzędzia |
+| `format` | `png` | `png` zostawia ostry tekst overlaya, `jpg` jest wielokrotnie mniejszy |
+| `jpeg_quality` | `92` | jakość dla `jpg` |
+
+Klawisz słyszy sama warstwa, nie narzędzie: osobny wątek w procesie gry pyta serwer X (przez
+`libxcb`, ładowane `dlopen` z procesu gry) o stan klawiatury co 30 ms. Pod XWayland serwer X zna
+klawisze tylko wtedy, gdy fokus ma jedno z jego okien, a przy dwóch grach naraz liczy się tylko ta,
+której okno jest aktywne (`_NET_ACTIVE_WINDOW` → `_NET_WM_PID` → ten sam proces albo ten sam
+`WINEPREFIX`). Gra dostaje klawisz tak samo jak bez overlaya — warstwa tylko patrzy.
+
+Kopia całego obrazu jest robiona **po** narysowaniu overlaya, trafia do spoolu jako
+`screenshot_<ms>.ppm`, a narzędzie w osobnym wątku zapisuje ją jako `ED <data czas>.png` i kasuje PPM.
+Zrzuty zrobione, gdy narzędzie nie działało, zapisze przy najbliższym starcie. Wymaga
+`EHT_OVERLAY_CAPTURE=1`, jak zdjęcia do codexu.
+
+Działa tylko z grą w oknie X11 (XWayland) — domyślnie tak uruchamia ją Proton. Z
+`PROTON_ENABLE_WAYLAND=1` warstwa klawisza nie usłyszy.
 
 ## Czego overlay nie może zrobić
 

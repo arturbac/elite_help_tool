@@ -1,5 +1,6 @@
 #include "vk_draw.h"
 #include "vk_capture.h"
+#include "vk_keyboard.h"
 #include "overlay_font.h"
 #include "ground_shaders.h"
 
@@ -888,6 +889,27 @@ namespace
     draw->AddText(at, frame_colour, text.c_str());
     }
 
+  ///\brief a word at the top of the middle screen that the screenshot was taken - small and green, no flash
+  auto draw_screenshot_notice(swapchain_data_t & data, ImVec2 display) -> void
+    {
+    constexpr double shown_s{1.5};
+    double const now{now_seconds()};
+    if(data.screenshot_at < 0.0 or now - data.screenshot_at >= shown_s)
+      return;
+
+    float const scale{ImGui::GetFontSize() / 13.f};
+    char const * const text{"screenshot"};
+    ImVec2 const text_size{ImGui::CalcTextSize(text)};
+    ImVec2 const at{(display.x - text_size.x) / 2.f, display.y * 0.06f};
+    ImDrawList * const draw{ImGui::GetForegroundDrawList()};
+    draw->AddRectFilled(
+      ImVec2{at.x - 6.f * scale, at.y - 3.f * scale},
+      ImVec2{at.x + text_size.x + 6.f * scale, at.y + text_size.y + 3.f * scale},
+      IM_COL32(0, 0, 0, 150)
+    );
+    draw->AddText(at, IM_COL32(134, 217, 134, 230), text);
+    }
+
   ///\brief the pipeline the ground under the blocks is drawn with
   ///\detail ImGui's own vertex stage and layout, so the draw list feeds it as it feeds ImGui, but a blend
   /// that reads the game beneath: colour = src*dst + dst*(1-dst). With the ground's grey k as src that is
@@ -1227,6 +1249,7 @@ namespace
       }
 
     draw_capture_guide(data, display);
+    draw_screenshot_notice(data, display);
     }
 
   auto destroy_frame(device_data_t & device, frame_resources_t & frame) -> void
@@ -1653,6 +1676,10 @@ auto draw_overlay(
       data.armed_capture = std::move(fresh);
       }
 
+    // the key is heard on a thread of its own; a press waits here until some frame can take it
+    if(take_screenshot_press() and data.capturable and not data.capture_broken)
+      data.screenshot_wanted = true;
+
     follow_font_layout(data);
     ImGui_ImplVulkan_NewFrame();
     ImGui::NewFrame();
@@ -1667,7 +1694,7 @@ auto draw_overlay(
       data.armed_capture.reset();
       }
     bool const nothing_drawn{draw_data == nullptr or draw_data->CmdListsCount == 0};
-    if(nothing_drawn and not request)
+    if(nothing_drawn and not request and not data.screenshot_wanted)
       return VK_NULL_HANDLE;
 
     device.ResetCommandBuffer(frame.command_buffer, 0u);
@@ -1706,6 +1733,17 @@ auto draw_overlay(
       ImGui_ImplVulkan_RenderDrawData(draw_data, frame.command_buffer);
     device.CmdEndRenderPass(frame.command_buffer);
 
+    // the screenshot comes after the overlay - it is the screen as the player sees it. A picture of the
+    // middle taken this same frame has the buffer, so the screenshot waits for the next one
+    bool const screenshot{
+      data.screenshot_wanted and not capturing and record_screenshot(data, frame, image_index)
+    };
+    if(screenshot)
+      {
+      data.screenshot_wanted = false;
+      data.screenshot_at = now;
+      }
+
     if(device.EndCommandBuffer(frame.command_buffer) != VK_SUCCESS)
       {
       data.broken = true;
@@ -1715,7 +1753,7 @@ auto draw_overlay(
     std::array<VkPipelineStageFlags, max_wait_semaphores> stages{};
     // the copy reads the game's image too, so it waits for the game like the drawing does
     stages.fill(
-      capturing ? VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT
+      capturing or screenshot ? VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT
                 : VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
     );
 

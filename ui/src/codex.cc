@@ -21,7 +21,7 @@ auto codex_dir() -> std::filesystem::path
   { return std::filesystem::absolute(eht::settings()->exploration.codex_dir); }
 
 auto spool_dir() -> std::filesystem::path
-  { return std::filesystem::path{overlay::default_socket_path()}.parent_path() / "captures"; }
+  { return std::filesystem::path{overlay::default_spool_path()}; }
 
 auto file_safe(std::string_view text) -> std::string
   {

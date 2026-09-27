@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <string>
+#include <string_view>
 #include <vector>
 
 ///\brief the protocol between elite_help_tool and the layer drawing in the game window
@@ -292,6 +293,18 @@ struct capture_t
   bool quiet{};
   };
 
+///\brief a picture of the whole screen, overlay and all, taken by the layer when the player presses a key
+///\detail The layer watches the key itself - the tool never sees the game's keyboard. It writes the picture
+/// into the spool beside the socket, named screenshot_ with the moment in milliseconds, and the tool
+/// files it from there
+struct screenshot_t
+  {
+  ///\brief the X key name, as in xev or xmodmap - F11, Print, KP_Multiply; empty takes no screenshots
+  std::string key{"F11"};
+  };
+
+///\brief how the layer names a screenshot in the spool, before the moment and the extension
+inline constexpr std::string_view screenshot_prefix{"screenshot_"};
 
 ///\brief the full image to draw - replaces the previous one entirely, only the newest counts
 struct frame_t
@@ -302,6 +315,8 @@ struct frame_t
   layout_t layout;
   ///\brief a field an older layer skips, and simply takes no pictures
   capture_t capture;
+  ///\brief a field an older layer skips, and simply takes no screenshots
+  screenshot_t screenshot;
   };
 
 ///\brief the socket lives under $HOME, the only place visible on both sides of the pressure-vessel container
@@ -313,5 +328,16 @@ inline auto default_socket_path() -> std::string
 
   char const * const home{std::getenv("HOME")};
   return std::string{home != nullptr ? home : "/tmp"} + "/.local/share/elite_help_tool/overlay.sock";
+  }
+
+///\brief where the layer writes its pictures and the tool reads them - beside the socket, so each account
+/// running with a socket of its own has a spool of its own too
+[[nodiscard]]
+inline auto default_spool_path() -> std::string
+  {
+  std::string path{default_socket_path()};
+  auto const slash{path.find_last_of('/')};
+  path.resize(slash == std::string::npos ? 0u : slash);
+  return path + "/captures";
   }
   }  // namespace overlay

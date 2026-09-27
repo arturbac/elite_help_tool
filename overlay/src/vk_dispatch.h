@@ -138,6 +138,8 @@ struct frame_resources_t
   uint32_t capture_width{};
   uint32_t capture_height{};
   std::string capture_path;
+  ///\brief the copy is of the whole screen, and its large buffer is freed once read out
+  bool capture_release{};
   };
 
 ///\brief the buffer the middle of the screen is copied into, made at the first picture and kept
@@ -168,6 +170,10 @@ struct swapchain_data_t
   ///\brief when the last picture was taken and how large, for the flash and the word that it was
   double shutter_at{-1.0};
   float shutter_size{};
+  ///\brief a screenshot asked for by the key and not yet copied - kept until a frame can take it
+  bool screenshot_wanted{};
+  ///\brief when the last screenshot was copied, for the word that it was
+  double screenshot_at{-1.0};
   ///\brief the pictures the atlas holds, in the order their rectangles were reserved - -1 for a file
   /// that could not be read
   std::vector<std::string> picture_paths;

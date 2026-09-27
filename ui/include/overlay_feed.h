@@ -4,6 +4,7 @@
 #include "overlay_exploration.h"
 #include "codex.h"
 #include "scanner_sheet.h"
+#include "screenshots.h"
 
 #include <overlay_ipc.h>
 
@@ -141,6 +142,8 @@ private:
   uint64_t pictured_scans_{};
   ///\brief the surface scanner's views, for finding the genera again from the ground
   scanner_sheet_t scanner_;
+  ///\brief the screenshots the layer took at the key, filed as they come
+  screenshots_t screenshots_;
   ///\brief the one request the frame carries - the newest of the codex's and the scanner's. Kept here so
   /// that an older one never returns to the frame, where the layer would take it for new
   overlay::capture_t capture_;
