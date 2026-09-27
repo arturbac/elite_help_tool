@@ -3347,6 +3347,14 @@ auto database_storage_t::load_construction_sites() -> expected_ec<std::vector<in
     info::construction_site_t site{.depot = depot, .name = {}, .system = {}, .needs = {}};
     if(auto station{load_station(depot.market_id)}; station and *station)
       site.name = (*station)->name;
+    // the colonisation ship's site goes by a name the game never localised
+    if(constexpr std::string_view ship{"$EXT_PANEL_ColonisationShip;"}; site.name.starts_with(ship))
+      {
+      std::string_view rest{std::string_view{site.name}.substr(ship.size())};
+      while(rest.starts_with(' '))
+        rest.remove_prefix(1u);
+      site.name = std::format("Colonisation Ship: {}", rest);
+      }
     if(auto system{load_system(depot.system_address)}; system and *system)
       site.system = (*system)->name;
     auto needs{sqlite::select_from<info::construction_need_t>(
