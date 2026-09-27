@@ -463,6 +463,10 @@ struct commodity_t
   std::string name;
   std::string category;
   uint32_t mean_price;
+  ///\brief the commodity key of the game's internal name - the hold and the construction sites name a
+  /// commodity by it, and it is not always the shown one: Land Enrichment Systems is
+  /// "terrainenrichmentsystems". Empty in rows written before it was kept, until a market shows it again
+  std::string key;
   };
 
 ///\brief the newest market reading, one row per commodity
@@ -493,6 +497,8 @@ struct market_entry_t
   ///\brief whether the station really produces and buys this commodity
   bool producer;
   bool consumer;
+  ///\brief the commodity key of the game's internal name, empty when the dictionary has not learnt it yet
+  std::string key;
   };
 
 ///\brief a light projection of star_system for pick lists; field names must match the columns

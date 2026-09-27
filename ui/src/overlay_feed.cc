@@ -2101,7 +2101,7 @@ auto overlay_feed_t::build_construction_lines(current_state_t const & state) con
   if(construction_port_ != site->depot.market_id)
     for(info::market_entry_t const & entry: construction_port_market_)
       if(entry.stock > 0u and entry.buy_price > 0u)
-        here[info::commodity_key(entry.name)] = &entry;
+        here[entry.key.empty() ? info::commodity_key(entry.name) : entry.key] = &entry;
 
   std::vector<overlay::line_t> lines;
   uint64_t left_total{};

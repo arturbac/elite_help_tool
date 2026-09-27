@@ -267,7 +267,7 @@ auto construction_window_t::show_site() -> void
   if(uint64_t const port{state_.settlement_market_id_}; port != 0u and port != market)
     if(auto entries{db_.load_market_entries(port)}; entries)
       for(info::market_entry_t & entry: *entries)
-        here[info::commodity_key(entry.name)] = std::move(entry);
+        here[entry.key.empty() ? info::commodity_key(entry.name) : entry.key] = std::move(entry);
 
   // what our carriers hold, together - kept by hand and by every docking's balance
   std::map<std::string, int64_t> carriers;

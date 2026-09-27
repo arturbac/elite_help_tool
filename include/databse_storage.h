@@ -402,6 +402,10 @@ struct database_storage_t
   [[nodiscard]]
   auto load_commodity_categories() -> expected_ec<std::map<std::string, std::string>>;
 
+  ///\brief every commodity the market dictionary knows, as {commodity key, shown name}, by name
+  [[nodiscard]]
+  auto load_commodity_names() -> expected_ec<std::vector<std::pair<std::string, std::string>>>;
+
   ///\brief what is on all our carriers together, by commodity key
   [[nodiscard]]
   auto load_carrier_cargo_totals() -> expected_ec<std::map<std::string, int64_t>>;
@@ -411,9 +415,10 @@ struct database_storage_t
   auto change_carrier_cargo(info::carrier_cargo_change_t const & change) -> expected_ec<void>;
 
   ///\brief sets a commodity on a carrier to a count, by hand - the change is written down too
+  ///\param key the commodity key, the one the hold uses; commodity is the name shown
   [[nodiscard]]
   auto set_carrier_cargo(
-    uint64_t carrier_id, std::string_view commodity, int64_t count, std::chrono::sys_seconds when
+    uint64_t carrier_id, std::string_view key, std::string_view commodity, int64_t count, std::chrono::sys_seconds when
   ) -> expected_ec<void>;
 
   ///\brief every carrier whose moves the journals tell - one's own and the squadron's - where each is and

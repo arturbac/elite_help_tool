@@ -1202,6 +1202,8 @@ struct cargo_file_t
 struct market_commodity_t
   {
   uint64_t id;
+  ///\brief the internal name, "$steel_name;"
+  std::string Name;
   std::string Name_Localised;
   std::string Category_Localised;
   uint32_t BuyPrice;

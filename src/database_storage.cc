@@ -1175,7 +1175,8 @@ auto database_storage_t::migrate_live_schema() -> expected_ec<void>
        addition_t{sql_iface::tables::carrier, "cargo"sv, "INTEGER DEFAULT 0"sv},
        addition_t{sql_iface::tables::carrier, "balance"sv, "INTEGER DEFAULT 0"sv},
        addition_t{sql_iface::tables::carrier, "available_balance"sv, "INTEGER DEFAULT 0"sv},
-       addition_t{sql_iface::tables::carrier, "stats_seen"sv, "TEXT DEFAULT ''"sv}})
+       addition_t{sql_iface::tables::carrier, "stats_seen"sv, "TEXT DEFAULT ''"sv},
+       addition_t{sql_iface::tables::commodity, "key"sv, "TEXT DEFAULT ''"sv}})
     {
     auto known{sqlite::table_columns(db_->db, add.table)};
     if(not known) [[unlikely]]
@@ -3322,9 +3323,21 @@ auto database_storage_t::load_commodity_categories() -> expected_ec<std::map<std
     for(size_t i{}; i != category.size(); ++i)
       if((i == 0u or category[i - 1u] == ' ') and category[i] >= 'a' and category[i] <= 'z')
         category[i] = char(category[i] - 'a' + 'A');
-    categories[info::commodity_key(c.name)] = std::move(category);
+    categories[c.key.empty() ? info::commodity_key(c.name) : c.key] = std::move(category);
     }
   return categories;
+  }
+
+auto database_storage_t::load_commodity_names() -> expected_ec<std::vector<std::pair<std::string, std::string>>>
+  {
+  auto rows{sqlite::select_from<info::commodity_t>(db_->db, sql_iface::tables::commodity, " ORDER BY name")};
+  if(not rows) [[unlikely]]
+    return cxx23::unexpected{rows.error()};
+  std::vector<std::pair<std::string, std::string>> names;
+  names.reserve(rows->size());
+  for(info::commodity_t & c: *rows)
+    names.emplace_back(c.key.empty() ? info::commodity_key(c.name) : std::move(c.key), std::move(c.name));
+  return names;
   }
 
 auto database_storage_t::load_carrier_cargo_totals() -> expected_ec<std::map<std::string, int64_t>>
@@ -3348,7 +3361,7 @@ auto database_storage_t::change_carrier_cargo(info::carrier_cargo_change_t const
   if(std::ranges::none_of(change.commodity, [](char c) { return c >= 'A' and c <= 'Z'; }))
     if(auto names{sqlite::select_from<info::commodity_t>(db_->db, sql_iface::tables::commodity, "")}; names)
       for(info::commodity_t const & c: *names)
-        if(info::commodity_key(c.name) == change.key)
+        if((c.key.empty() ? info::commodity_key(c.name) : c.key) == change.key)
           {
           change.commodity = c.name;
           break;
@@ -3384,10 +3397,10 @@ auto database_storage_t::change_carrier_cargo(info::carrier_cargo_change_t const
   }
 
 auto database_storage_t::set_carrier_cargo(
-  uint64_t carrier_id, std::string_view commodity, int64_t count, std::chrono::sys_seconds when
+  uint64_t carrier_id, std::string_view given_key, std::string_view commodity, int64_t count, std::chrono::sys_seconds when
 ) -> expected_ec<void>
   {
-  std::string const key{info::commodity_key(commodity)};
+  std::string const key{given_key};
   if(key.empty())
     return {};
   int64_t now_count{};
@@ -3863,7 +3876,24 @@ auto database_storage_t::replace_market(
       return cxx23::unexpected{known.error()};
 
     if(*known and **known != 0)
+      {
+      // a row from before the internal name was kept learns it now
+      if(not value.key.empty())
+        if(
+          auto res{sqlite::execute_query_no_result(
+            db_->db,
+            std::format(
+              "UPDATE {} SET key='{}' WHERE id={} AND key=''",
+              sql_iface::tables::commodity,
+              sqlite::escape_sql_quotes(value.key),
+              value.id
+            )
+          )};
+          not res
+        ) [[unlikely]]
+          return res;
       continue;
+      }
 
     if(auto res{sqlite::insert_into<info::commodity_t, true>(db_->db, "id"sv, sql_iface::tables::commodity, value)};
        not res) [[unlikely]]

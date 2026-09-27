@@ -85,7 +85,7 @@ public:
 
 ///\brief managing micro resources - what sits on the carrier and where it comes from
 class QTableWidget;
-class QLineEdit;
+class QCheckBox;
 class QSpinBox;
 
 class micro_resource_window_t final : public QMdiSubWindow
@@ -98,7 +98,10 @@ public:
   ///\brief what is on each carrier - edited by hand, moved by every docking's balance
   QComboBox * cargo_carrier_{};
   QTableWidget * cargo_view_{};
-  QLineEdit * cargo_name_{};
+  ///\brief narrows the commodities to choose from to those a colony is built from
+  QCheckBox * cargo_colonisation_{};
+  ///\brief the commodities of the market dictionary not yet on the carrier, the commodity key as the data
+  QComboBox * cargo_commodity_{};
   QSpinBox * cargo_count_{};
   bool cargo_filling_{};
 
@@ -124,6 +127,9 @@ public:
   auto show_carriers() -> void;
   ///\brief the cargo of the carrier chosen in the Carrier cargo tab
   auto show_carrier_cargo() -> void;
+  ///\brief the commodities that can be added to the chosen carrier - read with its cargo, so that what is
+  /// already on it drops out of the list
+  auto fill_cargo_commodities(std::vector<info::carrier_cargo_t> const & cargo) -> void;
 
   auto setup_ui() -> void;
 

@@ -9,7 +9,9 @@
 #include <qtablewidget.h>
 #include <qtimer.h>
 #include <qapplication.h>
-#include <qlineedit.h>
+#include <qcheckbox.h>
+#include <qabstractitemview.h>
+#include <commodity_facts.h>
 #include <qspinbox.h>
 #include <qpushbutton.h>
 #include <spdlog/spdlog.h>
@@ -296,9 +298,13 @@ auto micro_resource_window_t::setup_ui() -> void
   cargo_view_->horizontalHeader()->setStretchLastSection(true);
   cargo_layout->addWidget(cargo_view_, 1);
   auto * cargo_add = new QHBoxLayout();
-  cargo_name_ = new QLineEdit(cargo_page);
-  cargo_name_->setPlaceholderText("Commodity, e.g. Steel");
-  cargo_add->addWidget(cargo_name_, 1);
+  cargo_colonisation_ = new QCheckBox("Colonisation", cargo_page);
+  cargo_colonisation_->setChecked(true);
+  cargo_colonisation_->setToolTip("Only the commodities construction sites ask for");
+  cargo_add->addWidget(cargo_colonisation_);
+  cargo_commodity_ = new QComboBox(cargo_page);
+  cargo_commodity_->setToolTip("A commodity not yet on the carrier");
+  cargo_add->addWidget(cargo_commodity_, 1);
   cargo_count_ = new QSpinBox(cargo_page);
   cargo_count_->setRange(0, 1'000'000);
   cargo_add->addWidget(cargo_count_);
@@ -314,14 +320,16 @@ auto micro_resource_window_t::setup_ui() -> void
           qformat("{} ({})", c.carrier_name, c.carrier_id), QVariant::fromValue(qulonglong{c.market_id})
         );
   connect(cargo_carrier_, &QComboBox::currentIndexChanged, this, [this](int) { show_carrier_cargo(); });
-  auto const set_count = [this](QString const & name, int count)
+  connect(cargo_colonisation_, &QCheckBox::toggled, this, [this](bool) { show_carrier_cargo(); });
+  auto const set_count = [this](QString const & key, QString const & name, int count)
   {
     uint64_t const carrier{cargo_carrier_->currentData().toULongLong()};
-    if(carrier == 0u or name.trimmed().isEmpty())
+    if(carrier == 0u or key.isEmpty())
       return;
     if(auto res{db_.set_carrier_cargo(
          carrier,
-         name.trimmed().toStdString(),
+         key.toStdString(),
+         name.toStdString(),
          count,
          std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())
        )};
@@ -329,7 +337,13 @@ auto micro_resource_window_t::setup_ui() -> void
       spdlog::error("data window: failed to set the cargo of {}", carrier);
     show_carrier_cargo();
   };
-  connect(cargo_set, &QPushButton::clicked, this, [this, set_count] { set_count(cargo_name_->text(), cargo_count_->value()); });
+  connect(
+    cargo_set,
+    &QPushButton::clicked,
+    this,
+    [this, set_count]
+    { set_count(cargo_commodity_->currentData().toString(), cargo_commodity_->currentText(), cargo_count_->value()); }
+  );
   connect(
     cargo_view_,
     &QTableWidget::cellChanged,
@@ -341,7 +355,9 @@ auto micro_resource_window_t::setup_ui() -> void
       bool ok{};
       int const count{cargo_view_->item(row, 1)->text().toInt(&ok)};
       if(ok)
-        set_count(cargo_view_->item(row, 0)->text(), count);
+        set_count(
+          cargo_view_->item(row, 0)->data(Qt::UserRole).toString(), cargo_view_->item(row, 0)->text(), count
+        );
     }
   );
   show_carrier_cargo();
@@ -355,8 +371,10 @@ auto micro_resource_window_t::setup_ui() -> void
     {
       show_carriers();
       // a docking's balance may have moved the cargo - unless a count is being edited
+      // nor while the list of commodities is open, which a refill would close
       QWidget const * const focused{QApplication::focusWidget()};
-      if(cargo_view_ and not(focused != nullptr and cargo_view_->isAncestorOf(focused)))
+      if(cargo_view_ and not(focused != nullptr and cargo_view_->isAncestorOf(focused))
+         and not cargo_commodity_->view()->isVisible())
         show_carrier_cargo();
     }
   );
@@ -595,9 +613,34 @@ auto micro_resource_window_t::show_carrier_cargo() -> void
       int const row{cargo_view_->rowCount()};
       cargo_view_->insertRow(row);
       auto * name = new QTableWidgetItem(QString::fromStdString(item.commodity));
+      name->setData(Qt::UserRole, QString::fromStdString(item.key));
       name->setFlags(name->flags() & ~Qt::ItemIsEditable);
       cargo_view_->setItem(row, 0, name);
       cargo_view_->setItem(row, 1, new QTableWidgetItem(QString::number(qlonglong(item.count))));
       }
   cargo_filling_ = false;
+  fill_cargo_commodities(cargo ? *cargo : std::vector<info::carrier_cargo_t>{});
+  }
+
+auto micro_resource_window_t::fill_cargo_commodities(std::vector<info::carrier_cargo_t> const & cargo) -> void
+  {
+  if(not cargo_commodity_)
+    return;
+  auto names{db_.load_commodity_names()};
+  if(not names)
+    return;
+  QString const keep{cargo_commodity_->currentData().toString()};
+  bool const colonisation{cargo_colonisation_->isChecked()};
+  QSignalBlocker const block{cargo_commodity_};
+  cargo_commodity_->clear();
+  for(auto const & [key, name]: *names)
+    {
+    if(colonisation and not commodity_facts::find(key))
+      continue;
+    if(std::ranges::any_of(cargo, [&key](info::carrier_cargo_t const & item) { return item.key == key; }))
+      continue;
+    cargo_commodity_->addItem(QString::fromStdString(name), QString::fromStdString(key));
+    }
+  if(auto const index{cargo_commodity_->findData(keep)}; index >= 0)
+    cargo_commodity_->setCurrentIndex(index);
   }

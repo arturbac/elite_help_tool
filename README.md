@@ -160,7 +160,10 @@ it can take the game down: [overlay/README.md](overlay/README.md).
   on docking at one of our carriers it notes the hold, and on leaving what the hold has less of is added
   to the carrier and what it has more of is taken off. A ship changed there - a small one taken so as
   not to run far across the pad - stays with its whole hold, and leaving by escape pod leaves the load
-  too; taking the big ship back and flying off with its hold takes it off the carrier again. The *Carrier cargo* tab of the Data window shows it and lets you correct any count by hand.
+  too; taking the big ship back and flying off with its hold takes it off the carrier again. The *Carrier cargo* tab of the Data window shows it and lets you correct any count by hand, or add a
+  commodity picked from the list of those not yet on the carrier, narrowed by default to what colonies
+  are built from. Sales to other commanders at the carrier's market are not in the journal, so they
+  need that correction too.
   It is kept in `live.sqlite`, as it cannot be rebuilt from journals, and it counts only while EHT runs.
 - **In the colony's service**: the Construction window and the site on the overlay show, beside each
   commodity still needed, how much of it our carriers hold.

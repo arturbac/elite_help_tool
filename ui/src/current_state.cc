@@ -971,7 +971,8 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
                 .id = entry.id,
                 .name = entry.Name_Localised,
                 .category = entry.Category_Localised,
-                .mean_price = entry.MeanPrice
+                .mean_price = entry.MeanPrice,
+                .key = info::commodity_key(entry.Name)
               }
             );
             items.emplace_back(
