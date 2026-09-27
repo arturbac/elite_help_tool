@@ -311,6 +311,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
         or std::same_as<T, events::mission_abandoned_t> or std::same_as<T, events::mission_failed_t>
         or std::same_as<T, events::mission_redirected_t> or std::same_as<T, events::missions_t>
         or std::same_as<T, events::sell_micro_resources_t> or std::same_as<T, events::backpack_change_t>
+        or std::same_as<T, events::shipyard_transfer_t>
       )
         if(not personal_)
           return;
