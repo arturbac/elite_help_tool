@@ -110,6 +110,9 @@ auto main_window_t::publish_overlay() -> void
     };
 
   overlay_feed_->publish(state_, plotted);
+
+  if(extension_)
+    extension_->tick(eht::extension::route_view_t{.waypoints = plotted.waypoints, .reached = plotted.reached});
   }
 
 auto main_window_t::choose_opening_window(bool inhabited) -> void
@@ -136,7 +139,13 @@ auto main_window_t::start_monitoring() -> void
     std::filesystem::path{"eddn_held.jsonl"},
     [this](eddn::message_t && message) { eddn_sender_->enqueue(std::move(message)); }
   );
-  state_.raw_line_listener_ = [this](std::string_view line, bool live) { eddn_publisher_->feed(line, live); };
+  extension_ = eht::extension::make_extension(std::filesystem::path{state_.journal_dir_path_});
+  state_.raw_line_listener_ = [this](std::string_view line, bool live)
+  {
+    eddn_publisher_->feed(line, live);
+    if(extension_)
+      extension_->journal_line(line, live);
+  };
 
   worker_thread_ = std::jthread([this](std::stop_token stoken) { background_worker(stoken); });
   }

@@ -9,6 +9,7 @@
 #include <faction_state_window.h>
 #include <micro_resource_window.h>
 #include <bgs_window.h>
+#include <eht_extension.h>
 #include <overlay_feed.h>
 #include <eddn_sender.h>
 
@@ -52,6 +53,8 @@ public:
   ///\brief what goes to EDDN - declared before the journal's thread, so they outlive what feeds them
   std::unique_ptr<eddn::sender_t> eddn_sender_;
   std::unique_ptr<eddn::publisher_t> eddn_publisher_;
+  ///\brief an extension built in from outside the repository, or none
+  std::unique_ptr<eht::extension::extension_t> extension_;
   current_state_t state_;
   std::jthread worker_thread_;
   QPointer<system_window_t> system_view_;
