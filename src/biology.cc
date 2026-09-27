@@ -8,6 +8,7 @@
 #include <map>
 #include <numbers>
 #include <ranges>
+#include <tuple>
 
 using namespace std::string_view_literals;
 
@@ -278,5 +279,14 @@ auto unsold_samples(std::filesystem::path const & journal_dir) -> std::vector<un
       }
     }
   return result;
+  }
+
+auto merge_history(std::vector<species_record_t> & into, std::vector<species_record_t> && from) -> void
+  {
+  auto const key = [](species_record_t const & r) { return std::tie(r.system_address, r.body_id, r.species); };
+  std::ranges::sort(into, {}, key);
+  for(species_record_t & record: from)
+    if(not std::ranges::binary_search(into, key(record), {}, key))
+      into.push_back(std::move(record));
   }
   }  // namespace bio

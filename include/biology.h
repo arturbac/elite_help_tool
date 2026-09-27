@@ -74,7 +74,15 @@ struct species_record_t
   double surface_pressure;
   ///\brief the first star up the body's parents - the one whose light it gets; empty when not scanned
   std::string star_type;
+  ///\brief where it was - what tells the same find apart when two accounts' histories are joined
+  uint64_t system_address{};
+  uint32_t body_id{};
   };
+
+///\brief adds another account's history to one's own, each find once
+///\detail two accounts playing from one game profile read many of the same journals, so their
+/// histories overlap - a find counted twice would weigh twice in every guess
+auto merge_history(std::vector<species_record_t> & into, std::vector<species_record_t> && from) -> void;
 
 ///\brief one find of a species and the place it was made - a row of the codex
 ///\detail the field names are the columns of the query that reads them

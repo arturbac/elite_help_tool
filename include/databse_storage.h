@@ -242,6 +242,13 @@ struct database_storage_t
   [[nodiscard]]
   auto load_species_history() -> expected_ec<std::vector<bio::species_record_t>>;
 
+  ///\brief the same out of another account's galaxy.sqlite, opened read-only for the reading alone
+  ///\detail the knowledge of species is shared between accounts while the codex is not - so the other
+  /// galaxy is read, never written, and never attached to this connection
+  [[nodiscard]]
+  static auto load_species_history_from(std::string const & galaxy_path)
+    -> expected_ec<std::vector<bio::species_record_t>>;
+
   ///\brief every find of a species with its system, body and world - what the codex page is written from
   [[nodiscard]]
   auto load_codex_finds() -> expected_ec<std::vector<bio::find_t>>;
@@ -279,7 +286,8 @@ struct database_storage_t
     events::body_id_t body_id,
     std::string_view genus,
     std::string_view species,
-    bool sampled
+    bool personal,
+    bool analysed
   ) -> expected_ec<void>;
 
   [[nodiscard]]

@@ -611,11 +611,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
 
           if(
             auto res{db_.store_genus_species(
-              event.SystemAddress,
-              event.Body,
-              event.Genus_Localised,
-              event.Species_Localised,
-              analysed and personal_
+              event.SystemAddress, event.Body, event.Genus_Localised, event.Species_Localised, personal_, analysed
             )};
             not res
           )

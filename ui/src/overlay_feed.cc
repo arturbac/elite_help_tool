@@ -1877,16 +1877,28 @@ auto overlay_feed_t::refresh_unsold(current_state_t const & state) -> void
 
 auto overlay_feed_t::refresh_species_history(current_state_t const & state) -> void
   {
-  // the history grows only when a sample is taken, so it is read at the start and after each scan seen
-  if(history_scans_ == state.organic_scans_seen_)
+  // our history grows only when we take a sample; another account's whenever they do, which we cannot see
+  auto const now{std::chrono::steady_clock::now()};
+  bool const sampled{history_scans_ != state.organic_scans_seen_};
+  if(not sampled and now - history_read_ < std::chrono::minutes{5})
     return;
   history_scans_ = state.organic_scans_seen_;
+  history_read_ = now;
+
   if(auto history{db_.load_species_history()}; history)
     species_history_ = std::move(*history);
   else
     spdlog::error("failed to read the species found before");
-  // the codex is written from the same finds, so it follows them
-  codex_.write_page(db_);
+  size_t const own{species_history_.size()};
+  for(std::string const & galaxy: eht::settings()->exploration.shared_galaxies)
+    if(auto shared{database_storage_t::load_species_history_from(galaxy)}; shared)
+      bio::merge_history(species_history_, std::move(*shared));
+  if(species_history_.size() != own)
+    spdlog::debug("species history: {} own finds, {} from the shared galaxies", own, species_history_.size() - own);
+
+  // the codex is this commander's alone and changes only with their own samples
+  if(sampled)
+    codex_.write_page(db_);
   }
 
 auto overlay_feed_t::refresh_status(current_state_t const & state) -> void

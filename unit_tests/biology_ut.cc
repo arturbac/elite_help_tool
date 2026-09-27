@@ -87,4 +87,20 @@ auto main() -> int
       expect(other[0].fit == bio::fit_e::unlike);
     };
   };
+
+  "merge"_test = []
+  {
+    using bio::species_record_t;
+    std::vector<species_record_t> own{
+      species_record_t{.genus = "Stratum", .species = "Stratum Tectonicas", .system_address = 1u, .body_id = 2u},
+      species_record_t{.genus = "Bacterium", .species = "Bacterium Aurasus", .system_address = 1u, .body_id = 2u},
+    };
+    std::vector<species_record_t> other{
+      // the same find, read by both accounts out of the shared journals
+      species_record_t{.genus = "Stratum", .species = "Stratum Tectonicas", .system_address = 1u, .body_id = 2u},
+      species_record_t{.genus = "Stratum", .species = "Stratum Tectonicas", .system_address = 7u, .body_id = 3u},
+    };
+    bio::merge_history(own, std::move(other));
+    expect(own.size() == 3_u) << "a find both accounts know counts once";
+  };
   }

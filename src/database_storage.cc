@@ -1782,27 +1782,61 @@ auto database_storage_t::store_fss_complete(uint64_t system_address) -> expected
   return sqlite::execute_query_no_result(db_->db, query);
   }
 
-auto database_storage_t::load_species_history() -> expected_ec<std::vector<bio::species_record_t>>
+namespace
+  {
+///\brief the query behind the history, over whichever names the tables have on the connection
+[[nodiscard]]
+auto species_history_source(
+  std::string_view genus, std::string_view body, std::string_view planet_details, std::string_view star_details
+) -> std::string
   {
   // the planet and the star both have a surface temperature, so the join is wrapped in a query of its own
   // that names each column once - the generator then reads it like a table
+  return std::format(
+    "(SELECT g.genus AS genus, g.species AS species, pd.planet_class AS planet_class,"
+    " pd.atmosphere_type AS atmosphere_type, pd.volcanism AS volcanism,"
+    " pd.surface_temperature AS surface_temperature, pd.surface_gravity AS surface_gravity,"
+    " pd.surface_pressure AS surface_pressure, sd.star_type AS star_type,"
+    " b.ref_system_address AS system_address, b.body_id AS body_id"
+    " FROM {0} g JOIN {1} b ON b.oid = g.ref_body_oid JOIN {2} pd ON pd.ref_body_oid = b.oid"
+    " LEFT JOIN {1} bs ON bs.ref_system_address = b.ref_system_address AND bs.body_id = pd.parent_star"
+    " LEFT JOIN {3} sd ON sd.ref_body_oid = bs.oid"
+    " WHERE g.species <> '') AS history",
+    genus,
+    body,
+    planet_details,
+    star_details
+  );
+  }
+  }  // namespace
+
+auto database_storage_t::load_species_history() -> expected_ec<std::vector<bio::species_record_t>>
+  {
   return sqlite::select_from<bio::species_record_t>(
     db_->db,
-    std::format(
-      "(SELECT g.genus AS genus, g.species AS species, pd.planet_class AS planet_class,"
-      " pd.atmosphere_type AS atmosphere_type, pd.volcanism AS volcanism,"
-      " pd.surface_temperature AS surface_temperature, pd.surface_gravity AS surface_gravity,"
-      " pd.surface_pressure AS surface_pressure, sd.star_type AS star_type"
-      " FROM {0} g JOIN {1} b ON b.oid = g.ref_body_oid JOIN {2} pd ON pd.ref_body_oid = b.oid"
-      " LEFT JOIN {1} bs ON bs.ref_system_address = b.ref_system_address AND bs.body_id = pd.parent_star"
-      " LEFT JOIN {3} sd ON sd.ref_body_oid = bs.oid"
-      " WHERE g.species <> '') AS history",
+    species_history_source(
       sql_iface::tables::genus,
       sql_iface::tables::body,
       sql_iface::tables::planet_details,
       sql_iface::tables::star_details
     ),
     ""
+  );
+  }
+
+auto database_storage_t::load_species_history_from(std::string const & galaxy_path)
+  -> expected_ec<std::vector<bio::species_record_t>>
+  {
+  sqlite3_handle_t other;
+  if(sqlite3_open_v2(galaxy_path.c_str(), &other.db, SQLITE_OPEN_READONLY, nullptr) != SQLITE_OK)
+    {
+    spdlog::warn("the shared galaxy {} could not be opened", galaxy_path);
+    return cxx23::unexpected(std::make_error_code(std::errc::no_such_file_or_directory));
+    }
+  // the other account may be writing it this very moment - a short wait instead of an error
+  sqlite3_busy_timeout(other.db, 200);
+  return sqlite::select_from<bio::species_record_t>(
+    other.db, species_history_source("genus", "body", "planet_details", "star_details"), ""
   );
   }
 
@@ -1822,7 +1856,8 @@ auto database_storage_t::load_codex_finds() -> expected_ec<std::vector<bio::find
       " JOIN {4} s ON s.system_address = b.ref_system_address"
       " LEFT JOIN {1} bs ON bs.ref_system_address = b.ref_system_address AND bs.body_id = pd.parent_star"
       " LEFT JOIN {3} sd ON sd.ref_body_oid = bs.oid"
-      " LEFT JOIN {5} gp ON gp.system_address = b.ref_system_address AND gp.body_id = b.body_id"
+      // the codex is this commander's own - a find is theirs when they logged it, whatever else the galaxy knows
+      " JOIN {5} gp ON gp.system_address = b.ref_system_address AND gp.body_id = b.body_id"
       " AND gp.genus = g.genus"
       " WHERE g.species <> '') AS finds",
       sql_iface::tables::genus,
@@ -1975,7 +2010,12 @@ auto database_storage_t::store(uint64_t ref_body_oid, events::genus_t const & va
   }
 
 auto database_storage_t::store_genus_species(
-  uint64_t system_address, events::body_id_t body_id, std::string_view genus, std::string_view species, bool sampled
+  uint64_t system_address,
+  events::body_id_t body_id,
+  std::string_view genus,
+  std::string_view species,
+  bool personal,
+  bool analysed
 ) -> expected_ec<void>
   {
   auto body_oid{oid_for_body(system_address, body_id)};
@@ -2029,17 +2069,20 @@ auto database_storage_t::store_genus_species(
         return res;
     }
 
-  if(not sampled)
+  // the species grows there for everyone; that THIS commander logged it is theirs alone, and what makes
+  // it a line of their codex rather than a fact learnt from another account's journals
+  if(not personal)
     return {};
 
   // the sampled mark is never taken off - a further Log of the same genus does not undo the taking
   std::string progress{std::format(
-    "INSERT INTO {0} (system_address, body_id, genus, sampled) VALUES ({1}, {2}, '{3}', 1)"
-    " ON CONFLICT(system_address, body_id, genus) DO UPDATE SET sampled = 1",
+    "INSERT INTO {0} (system_address, body_id, genus, sampled) VALUES ({1}, {2}, '{3}', {4})"
+    " ON CONFLICT(system_address, body_id, genus) DO UPDATE SET sampled = max(sampled, excluded.sampled)",
     sql_iface::tables::genus_progress,
     system_address,
     body_id,
-    sqlite::escape_sql_quotes(genus)
+    sqlite::escape_sql_quotes(genus),
+    analysed ? 1 : 0
   )};
   return sqlite::execute_query_no_result(db_->db, progress);
   }

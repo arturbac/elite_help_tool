@@ -541,11 +541,7 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
 
         if(
           auto res{state.db_.store_genus_species(
-            event.SystemAddress,
-            event.Body,
-            event.Genus_Localised,
-            event.Species_Localised,
-            analysed and state.personal
+            event.SystemAddress, event.Body, event.Genus_Localised, event.Species_Localised, state.personal, analysed
           )};
           not res
         ) [[unlikely]]

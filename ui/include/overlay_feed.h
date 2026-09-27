@@ -124,6 +124,8 @@ private:
   /// sample was analysed, since that is when the history grows
   std::vector<bio::species_record_t> species_history_;
   uint64_t history_scans_{~uint64_t{}};
+  ///\brief the other accounts sample on their own time, so their galaxies are read again now and then
+  std::chrono::steady_clock::time_point history_read_{};
   ///\brief the pictures of the samples and the page they go on
   codex_t codex_;
   ///\brief the scans already asked a picture of

@@ -190,7 +190,9 @@ int main()
   {
     expect(bool(dbs.store_fss_complete(address)));
     expect(bool(dbs.store_dss_complete(address, body)));
-    expect(bool(dbs.store_genus_species(address, body, "Bacterium", "Bacterium Aurasus", true)));
+    expect(bool(dbs.store_genus_species(address, body, "Bacterium", "Bacterium Aurasus", true, true)));
+    // a later Log of the same genus does not take the finished sample back
+    expect(bool(dbs.store_genus_species(address, body, "Bacterium", "Bacterium Aurasus", true, false)));
     expect(bool(dbs.update_faction_info(info::faction_info_t{.name = "Crew of Pethes", .reputation = 87.5})));
 
     auto reloaded{dbs.load_system(address)};
@@ -204,6 +206,18 @@ int main()
     expect(genuses.size() == 1u);
     expect(genuses[0].Sampled) << "the sample lost";
     expect(genuses[0].Species_Localised == "Bacterium Aurasus"sv) << "the species lost";
+
+    // the codex lists what this commander logged; a species learnt from another account's journals
+    // stays in the shared history, not in the codex
+    expect(bool(dbs.store_genus_species(address, body, "Stratum", "Stratum Tectonicas", false, true)));
+    auto finds{dbs.load_codex_finds()};
+    expect(bool(finds));
+    expect(finds->size() == 1u) << "only the commander's own find belongs in the codex";
+    expect(finds->front().species == "Bacterium Aurasus"sv);
+    expect(finds->front().sampled);
+    auto history{dbs.load_species_history()};
+    expect(bool(history));
+    expect(history->size() == 2u) << "the history knows both";
 
     auto faction{dbs.load_faction("Crew of Pethes")};
     expect(bool(faction));

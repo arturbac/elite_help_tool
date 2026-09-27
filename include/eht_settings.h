@@ -9,6 +9,7 @@
 #include <memory>
 #include <stop_token>
 #include <string>
+#include <vector>
 #include <thread>
 
 ///\brief what used to be written into the code and is a matter of taste or of judgement
@@ -145,6 +146,8 @@ struct exploration_settings_t
   float capture_size{0.4f};
   ///\brief where the pictures and the codex page are kept, relative to where the tool runs
   std::string codex_dir{"codex"};
+  ///\brief other accounts' galaxy.sqlite, read for their finds - the knowledge of species is shared, the codex not
+  std::vector<std::string> shared_galaxies{};
   uint32_t jpeg_quality{90u};
   };
 
