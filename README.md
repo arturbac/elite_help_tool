@@ -122,11 +122,14 @@ it can take the game down: [overlay/README.md](overlay/README.md).
 - **On the overlay**, when the flight's destination is a construction site in the current system, when
   docked at one, or when it is chosen in the Construction window: the commodities still needed, most
   wanted first, with how much is in the hold and how much the port you stand at sells, and for how
-  much. What can be loaded right here stands out.
+  much. What can be loaded right here stands out, and the trading hints give way, since the load
+  is the colony's.
 - **The Construction window** lists the sites under way, and for the one chosen every commodity:
   what is left, required, provided, in the hold, and in the port you stand at.
 - A site is known from the first docking at it: the game writes nothing when one is placed in the
-  system map.
+  system map. Nor does it say that a site lapsed unless someone visits it, so a site can be marked
+  abandoned in the window, which hides it; "Show abandoned" brings it back. The mark is kept in
+  `live.sqlite`, since no journal records it.
 
 ## Exploration and exobiology
 

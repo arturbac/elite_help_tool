@@ -353,6 +353,14 @@ struct construction_delivery_t
   std::string commander;
   };
 
+///\brief a construction site the commander gave up on - the game never says a site lapsed unless it is
+/// visited, so the choice is the commander's; it cannot be rebuilt from journals
+struct construction_abandoned_t
+  {
+  uint64_t market_id;
+  std::chrono::sys_seconds marked;
+  };
+
 ///\brief a construction site under way in one of our systems, with what it still needs
 struct construction_site_t
   {
@@ -360,6 +368,7 @@ struct construction_site_t
   std::string name;
   std::string system;
   std::vector<construction_need_t> needs;
+  bool abandoned{};
   };
 
 ///\brief when we last read this station's market

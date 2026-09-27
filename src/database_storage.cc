@@ -515,6 +515,8 @@ namespace tables
   inline constexpr std::string_view micro_acquisition{"micro_acquisition"};
   // a route plotted outside the game is in no journal at all, so a rebuild would wipe it
   inline constexpr std::string_view neutron_route{"live.neutron_route"};
+  // the commander's own choice, which no journal records - kept with what cannot be rebuilt
+  inline constexpr std::string_view construction_abandoned{"live.construction_abandoned"};
   inline constexpr std::string_view carrier{"live.carrier"};
   inline constexpr std::string_view carrier_materials{"live.carrier_materials"};
   }  // namespace tables
@@ -1346,6 +1348,12 @@ auto database_storage_t::create_database() -> expected_ec<void>
     auto res{sqlite::create_table<info::neutron_waypoint_t>(db_->db, "oid"sv, sql_iface::tables::neutron_route)};
     not res
   ) [[unlikely]]
+    return res;
+
+  if(auto res{sqlite::create_table<info::construction_abandoned_t>(
+       db_->db, "market_id"sv, sql_iface::tables::construction_abandoned
+     )};
+     not res) [[unlikely]]
     return res;
 
   if(auto res{sqlite::create_table<info::carrier_t>(db_->db, "oid"sv, sql_iface::tables::carrier)}; not res)
@@ -3327,7 +3335,26 @@ auto database_storage_t::store_delivery(info::construction_delivery_t const & va
   );
   }
 
-auto database_storage_t::load_construction_sites() -> expected_ec<std::vector<info::construction_site_t>>
+auto database_storage_t::mark_construction_abandoned(uint64_t market_id, bool abandoned, std::chrono::sys_seconds when)
+  -> expected_ec<void>
+  {
+  if(not abandoned)
+    return sqlite::execute_query_no_result(
+      db_->db, std::format("DELETE FROM {} WHERE market_id={}", sql_iface::tables::construction_abandoned, market_id)
+    );
+  return sqlite::execute_query_no_result(
+    db_->db,
+    std::format(
+      "INSERT OR REPLACE INTO {} (market_id, marked) VALUES ({}, '{:%Y-%m-%dT%H:%M:%SZ}')",
+      sql_iface::tables::construction_abandoned,
+      market_id,
+      when
+    )
+  );
+  }
+
+auto database_storage_t::load_construction_sites(bool with_abandoned)
+  -> expected_ec<std::vector<info::construction_site_t>>
   {
   auto depots{sqlite::select_from<info::construction_depot_t>(
     db_->db,
@@ -3344,7 +3371,16 @@ auto database_storage_t::load_construction_sites() -> expected_ec<std::vector<in
   std::vector<info::construction_site_t> sites;
   for(info::construction_depot_t const & depot: *depots)
     {
-    info::construction_site_t site{.depot = depot, .name = {}, .system = {}, .needs = {}};
+    auto marked{sqlite::select_signle_from<uint64_t>(
+      db_->db,
+      std::format(
+        "SELECT market_id FROM {} WHERE market_id={}", sql_iface::tables::construction_abandoned, depot.market_id
+      )
+    )};
+    bool const abandoned{marked and *marked};
+    if(abandoned and not with_abandoned)
+      continue;
+    info::construction_site_t site{.depot = depot, .name = {}, .system = {}, .needs = {}, .abandoned = abandoned};
     if(auto station{load_station(depot.market_id)}; station and *station)
       site.name = (*station)->name;
     // the colonisation ship's site goes by a name the game never localised

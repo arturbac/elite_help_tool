@@ -25,8 +25,14 @@ auto construction_window_t::setup_ui() -> void
   auto * central = new QWidget(this);
   auto * layout = new QVBoxLayout(central);
 
+  auto * selector = new QHBoxLayout();
   site_combo_ = new QComboBox(central);
-  layout->addWidget(site_combo_);
+  selector->addWidget(site_combo_, 1);
+  abandon_button_ = new QPushButton("Mark abandoned", central);
+  selector->addWidget(abandon_button_);
+  show_abandoned_ = new QCheckBox("Show abandoned", central);
+  selector->addWidget(show_abandoned_);
+  layout->addLayout(selector);
   header_ = new QLabel(central);
   header_->setWordWrap(true);
   layout->addWidget(header_);
@@ -43,6 +49,30 @@ auto construction_window_t::setup_ui() -> void
   setWidget(central);
 
   connect(site_combo_, &QComboBox::currentIndexChanged, this, [this](int) { show_site(); });
+  connect(show_abandoned_, &QCheckBox::toggled, this, [this](bool) { refresh_ui(true); });
+  connect(
+    abandon_button_,
+    &QPushButton::clicked,
+    this,
+    [this]
+    {
+      uint64_t const market{selected_market()};
+      if(market == 0u)
+        return;
+      auto const it{
+        std::ranges::find(sites_, market, [](info::construction_site_t const & s) { return s.depot.market_id; })
+      };
+      bool const abandoned{it == sites_.end() or not it->abandoned};
+      if(
+        auto res{db_.mark_construction_abandoned(
+          market, abandoned, std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())
+        )};
+        not res
+      )
+        spdlog::error("construction window: failed to mark {}", market);
+      refresh_ui(true);
+    }
+  );
   }
 
 auto construction_window_t::selected_market() const -> uint64_t
@@ -56,7 +86,7 @@ auto construction_window_t::refresh_ui(bool force) -> void
   read_ = now;
   changes_seen_ = state_.construction_changes_;
 
-  auto loaded{db_.load_construction_sites()};
+  auto loaded{db_.load_construction_sites(show_abandoned_->isChecked())};
   if(not loaded)
     {
     spdlog::error("construction window: failed to load the sites");
@@ -73,10 +103,12 @@ auto construction_window_t::refresh_ui(bool force) -> void
   for(info::construction_site_t const & site: sites_)
     site_combo_->addItem(
       qformat(
-        "{}  -  {}  ({:.0f}%)",
+        "{}  -  {}  ({:.0f}%, seen {:%Y-%m-%d}){}",
         site.name.empty() ? std::format("site {}", site.depot.market_id) : site.name,
         site.system,
-        site.depot.progress * 100.0
+        site.depot.progress * 100.0,
+        site.depot.updated,
+        site.abandoned ? "  [abandoned]" : ""
       ),
       QVariant::fromValue(qulonglong{site.depot.market_id})
     );
@@ -92,6 +124,8 @@ auto construction_window_t::show_site() -> void
   auto const it{
     std::ranges::find(sites_, market, [](info::construction_site_t const & s) { return s.depot.market_id; })
   };
+  abandon_button_->setEnabled(it != sites_.end());
+  abandon_button_->setText(it != sites_.end() and it->abandoned ? "Not abandoned" : "Mark abandoned");
   if(it == sites_.end())
     {
     header_->setText(

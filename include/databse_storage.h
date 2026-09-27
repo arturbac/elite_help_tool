@@ -391,9 +391,15 @@ struct database_storage_t
   [[nodiscard]]
   auto store_delivery(info::construction_delivery_t const & value) -> expected_ec<void>;
 
-  ///\brief the construction sites under way in the systems our commanders claimed and still hold
+  ///\brief the construction sites under way in the systems our commanders claimed and still hold -
+  /// without those marked abandoned, unless asked for
   [[nodiscard]]
-  auto load_construction_sites() -> expected_ec<std::vector<info::construction_site_t>>;
+  auto load_construction_sites(bool with_abandoned = false) -> expected_ec<std::vector<info::construction_site_t>>;
+
+  ///\brief marks a construction site abandoned, or takes the mark back
+  [[nodiscard]]
+  auto mark_construction_abandoned(uint64_t market_id, bool abandoned, std::chrono::sys_seconds when)
+    -> expected_ec<void>;
 
   ///\brief the wars under way in the system, with the settlements of both sides: whose each was when the
   /// war began, and the intensity of its conflict zone before this war and in it

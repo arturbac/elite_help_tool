@@ -3028,7 +3028,10 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
 
   // a construction site in view - what it still needs, what the hold carries, what this port sells
   refresh_construction(state);
-  if(auto construction{build_construction_lines(state)}; not construction.empty())
+  auto construction{build_construction_lines(state)};
+  // flying to a site, the load is the colony's - the trading hints would only be in the way
+  bool const construction_shown{not construction.empty()};
+  if(construction_shown)
     frame.blocks.push_back(
       overlay::block_t{
         .corner = overlay::corner_e::top_right,
@@ -3133,7 +3136,7 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
     );
 
   // the market underneath, because it is longer and less urgent than what the missions still lack
-  if(not market_lines_.empty())
+  if(not market_lines_.empty() and not construction_shown)
     frame.blocks.push_back(
       overlay::block_t{
         .corner = overlay::corner_e::top_right,

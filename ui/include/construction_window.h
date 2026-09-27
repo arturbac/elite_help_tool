@@ -1,6 +1,8 @@
 #pragma once
 #include "logic.h"
+#include <qcheckbox.h>
 #include <qcombobox.h>
+#include <qpushbutton.h>
 #include <qlabel.h>
 #include <qmdisubwindow.h>
 #include <qtablewidget.h>
@@ -35,6 +37,9 @@ private:
   database_storage_t db_;
 
   QComboBox * site_combo_{};
+  ///\brief the game never says a site lapsed unless it is visited - giving one up is the commander's call
+  QPushButton * abandon_button_{};
+  QCheckBox * show_abandoned_{};
   QLabel * header_{};
   QTableWidget * table_{};
 
