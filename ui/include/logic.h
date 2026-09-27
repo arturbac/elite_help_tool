@@ -152,10 +152,19 @@ struct current_state_t : public generic_state_t
 
   ///\brief every journal line as written, with whether it is happening now or being replayed
   std::function<void(std::string_view, bool)> raw_line_listener_;
+  ///\brief counts what lowers the sum a death would cost - a sale, a hand-in, the death itself - so the
+  /// overlay counts it again at once rather than at its next minute
+  uint64_t at_risk_changes_{};
   auto raw_line(std::string_view line) -> void override
     {
     if(raw_line_listener_)
       raw_line_listener_(line, not catching_up_);
+    if(
+      not catching_up_
+      and (line.contains("\"SellOrganicData\"") or line.contains("SellExplorationData\"")
+           or line.contains("\"RedeemVoucher\"") or line.contains("\"event\":\"Died\""))
+    )
+      ++at_risk_changes_;
     }
   
   void route_system_visited(uint64_t system_address);

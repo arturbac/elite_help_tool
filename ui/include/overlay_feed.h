@@ -150,6 +150,7 @@ private:
   bio::at_risk_t at_risk_;
   uint64_t unsold_scans_{~uint64_t{}};
   std::chrono::steady_clock::time_point unsold_bounty_at_{};
+  uint64_t unsold_changes_{~uint64_t{}};
   std::chrono::steady_clock::time_point unsold_read_{};
   ///\brief where the ship is set to go, as Status.json has it
   std::optional<events::status_file_t::destination_t> status_destination_;

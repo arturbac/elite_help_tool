@@ -1943,13 +1943,15 @@ auto overlay_feed_t::refresh_mission_places(current_state_t const & state) -> vo
 auto overlay_feed_t::refresh_unsold(current_state_t const & state) -> void
   {
   auto const now{std::chrono::steady_clock::now()};
-  // a sample analysed or a bounty earned changes it at once; a sale or a hand-in is caught within the minute
+  // a sample analysed, a bounty earned, a sale, a hand-in or a death changes it at once; the cartography
+  // growing with every scan is caught within the minute
   if(
     unsold_scans_ == state.organic_scans_seen_ and unsold_bounty_at_ == state.last_bounty_at
-    and now - unsold_read_ < std::chrono::seconds{60}
+    and unsold_changes_ == state.at_risk_changes_ and now - unsold_read_ < std::chrono::seconds{60}
   )
     return;
   unsold_scans_ = state.organic_scans_seen_;
+  unsold_changes_ = state.at_risk_changes_;
   unsold_bounty_at_ = state.last_bounty_at;
   unsold_read_ = now;
   at_risk_ = bio::at_risk(state.journal_dir_path_, state.owner_fid_);
