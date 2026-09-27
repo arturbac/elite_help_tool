@@ -19,14 +19,74 @@ EHT is made of three parts:
 
 - CMake ≥ 3.28, Ninja
 - **clang 19** or newer. The presets expect `clang++-19`, and the warning flags assume clang, so
-  gcc will not build it
+  gcc will not build it. Plain `clang++` works too, see below
 - Qt6: Widgets, Charts
 - Boost ≥ 1.70: thread, program_options
 - SQLite3, OpenSSL, zlib
 - Vulkan headers (for the overlay)
 
+- libxcb headers (the overlay loads libxcb at run time, from the game's process)
+- **libstdc++ from GCC 14** or newer, since the code uses `std::println`, `std::ranges::to` and
+  `std::chrono::current_zone`. clang uses the newest GCC installed, so installing `g++-14` next
+  to an older default is enough
+
 Everything else (glaze, spdlog, simple_enum, small_vectors, stralgo, imgui) is downloaded by CPM
-at configure time.
+at configure time, so `git` has to be installed too.
+
+### Installing the dependencies
+
+Only the Gentoo line is what the author builds on. The others follow each distribution's package
+names and have not been tried.
+
+**Debian 13 (trixie)** already has clang 19, GCC 14 and a new enough CMake:
+
+```sh
+sudo apt install git cmake ninja-build clang-19 \
+  qt6-base-dev libqt6charts6-dev \
+  libboost-thread-dev libboost-program-options-dev \
+  libsqlite3-dev libssl-dev zlib1g-dev libvulkan-dev libxcb1-dev
+```
+
+Debian 12 is too old: its CMake is 3.25 and it has no Qt6 Charts package.
+
+**Ubuntu 24.04 and derivatives:** Linux Mint 22.x (the usual pick for people coming from
+Windows), Pop!_OS 24.04, Zorin OS 18. They share Ubuntu 24.04's packages. The default GCC there is
+13, so install `g++-14` as well:
+
+```sh
+sudo apt install git cmake ninja-build clang-19 g++-14 \
+  qt6-base-dev libqt6charts6-dev \
+  libboost-thread-dev libboost-program-options-dev \
+  libsqlite3-dev libssl-dev zlib1g-dev libvulkan-dev libxcb1-dev
+```
+
+If `clang-19` is not found, enable the *universe* repository, or take it from
+[apt.llvm.org](https://apt.llvm.org). Linux Mint 21 and Ubuntu 22.04 are too old (no Qt6 Charts,
+CMake 3.22).
+
+**Arch Linux** (and CachyOS, EndeavourOS, Manjaro):
+
+```sh
+sudo pacman -S --needed base-devel git cmake ninja clang \
+  qt6-base qt6-charts boost sqlite openssl zlib vulkan-headers vulkan-icd-loader libxcb
+```
+
+Arch names its compiler plain `clang++`, so configure with
+`cmake --preset eht-release -DCMAKE_CXX_COMPILER=clang++`.
+
+**Gentoo** (`dev-qt/qtbase` needs `USE="gui widgets"`):
+
+```sh
+emerge --ask --noreplace dev-vcs/git dev-build/cmake dev-build/ninja llvm-core/clang:19 \
+  dev-qt/qtbase:6 dev-qt/qtcharts:6 dev-libs/boost dev-db/sqlite dev-libs/openssl \
+  virtual/zlib dev-util/vulkan-headers media-libs/vulkan-loader x11-libs/libxcb
+```
+
+**Immutable gaming systems** (Bazzite, SteamOS) have no package manager for development
+libraries. Build inside a [distrobox](https://distrobox.it) with Arch or Debian 13 and the matching
+line above, and run EHT inside it as well, since it needs that box's Qt and Boost. distrobox shares
+`$HOME` and the display. The overlay layer carries its own C++ runtime, so after `overlay-install`
+the game on the host loads it from `$HOME` as usual.
 
 ### Configure and build
 
