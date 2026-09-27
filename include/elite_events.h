@@ -910,6 +910,8 @@ struct scan_organic_t
   std::string Genus_Localised;
   std::string Species_Localised;
   std::string Variant_Localised;
+  ///\brief this commander has logged the species before - the codex entry is not new to them
+  bool WasLogged;
   uint64_t SystemAddress;
   body_id_t Body;
   };
@@ -1088,6 +1090,17 @@ struct status_file_t
     std::string Name;
     };
   std::optional<destination_t> Destination;
+  ///\brief on foot, in a taxi, in a hangar - the ship's Flags know nothing of the commander's own legs
+  uint64_t Flags2;
+  ///\brief the place on the body's surface, present only near one or on it - degrees, altitude in metres
+  std::optional<double> Latitude;
+  std::optional<double> Longitude;
+  std::optional<double> Altitude;
+  std::optional<double> Heading;
+  ///\brief in metres; what turns two points in degrees into a walk in metres
+  std::optional<double> PlanetRadius;
+  ///\brief what the commander holds on foot - the genetic sampler says a sample is being taken
+  std::string SelectedWeapon;
   };
 
 struct market_file_t
@@ -1507,6 +1520,9 @@ struct star_system_t
   std::string security;
   std::string controlling_faction;
   uint64_t population;
+  ///\brief how many stars and planets the system holds, as the discovery scan counted them - 0 until
+  /// someone honked; the scans in bodies measured against it say how much of the system is still dark
+  uint32_t body_count{};
 
   [[nodiscard]]
   auto body_by_id(this auto && self, events::body_id_t const body_id) noexcept

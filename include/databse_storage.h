@@ -5,6 +5,7 @@
 #include <simple_enum/simple_enum.hpp>
 #include <elite_events.h>
 #include <elite_data.h>
+#include <biology.h>
 #include <array>
 #include <span>
 
@@ -236,6 +237,14 @@ struct database_storage_t
 
   [[nodiscard]]
   auto store_fss_complete(uint64_t system_address) -> expected_ec<void>;
+
+  ///\brief every species sampled, with the world it grew on - what a genus is guessed from
+  [[nodiscard]]
+  auto load_species_history() -> expected_ec<std::vector<bio::species_record_t>>;
+
+  ///\brief what the discovery scan counted - a fact of the system, not of who honked
+  [[nodiscard]]
+  auto store_body_count(uint64_t system_address, uint32_t body_count) -> expected_ec<void>;
 
   [[nodiscard]]
   auto store_system_location(uint64_t system_address, std::array<double, 3> const & loc) -> expected_ec<void>;

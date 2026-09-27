@@ -346,6 +346,12 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
         {
         spdlog::info("discovery system {} body:{} nonbody:{}", event.SystemName, event.BodyCount, event.NonBodyCount);
         state.system.bodies.reserve(event.BodyCount);
+        if(state.system.system_address == event.SystemAddress and state.system.body_count != event.BodyCount)
+          {
+          state.system.body_count = event.BodyCount;
+          if(auto res{state.db_.store_body_count(event.SystemAddress, event.BodyCount)}; not res) [[unlikely]]
+            spdlog::error("failed to store body count of {}", event.SystemName);
+          }
         }
       else if constexpr(std::same_as<T, events::scan_detailed_scan_t>)
         {

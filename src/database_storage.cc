@@ -357,6 +357,7 @@ struct star_system_t
   std::string security;
   std::string controlling_faction;
   uint64_t population;
+  uint32_t body_count;
   };
 
 [[nodiscard]]
@@ -375,7 +376,8 @@ auto to_db_fromat(::star_system_t const & system) noexcept -> sql_iface::star_sy
     .allegiance = system.allegiance,
     .security = system.security,
     .controlling_faction = system.controlling_faction,
-    .population = system.population
+    .population = system.population,
+    .body_count = system.body_count
   };
   }
 
@@ -394,7 +396,8 @@ auto to_native_fromat(sql_iface::star_system_t && system) noexcept -> ::star_sys
     .allegiance = std::move(system.allegiance),
     .security = std::move(system.security),
     .controlling_faction = std::move(system.controlling_faction),
-    .population = system.population
+    .population = system.population,
+    .body_count = system.body_count
   };
   }
 
@@ -1139,6 +1142,8 @@ auto database_storage_t::migrate_live_schema() -> expected_ec<void>
        // what a star orbits - stars written before it was kept stay NULL until a rebuild or a rescan
        addition_t{sql_iface::tables::star_details, "parent_star"sv, "INTEGER"sv},
        addition_t{sql_iface::tables::star_details, "parent_barycenter"sv, "INTEGER"sv},
+       // what the discovery scan counted - systems honked before it was kept say 0, as if never honked
+       addition_t{sql_iface::tables::star_system, "body_count"sv, "INTEGER DEFAULT 0"sv},
        // the carrier's state from CarrierStats - added in place, because live.sqlite is never created anew
        addition_t{sql_iface::tables::carrier, "carrier_type"sv, "TEXT DEFAULT ''"sv},
        addition_t{sql_iface::tables::carrier, "docking_access"sv, "TEXT DEFAULT ''"sv},
@@ -1775,6 +1780,40 @@ auto database_storage_t::store_fss_complete(uint64_t system_address) -> expected
     system_address
   )};
   return sqlite::execute_query_no_result(db_->db, query);
+  }
+
+auto database_storage_t::load_species_history() -> expected_ec<std::vector<bio::species_record_t>>
+  {
+  // the planet and the star both have a surface temperature, so the join is wrapped in a query of its own
+  // that names each column once - the generator then reads it like a table
+  return sqlite::select_from<bio::species_record_t>(
+    db_->db,
+    std::format(
+      "(SELECT g.genus AS genus, g.species AS species, pd.planet_class AS planet_class,"
+      " pd.atmosphere_type AS atmosphere_type, pd.volcanism AS volcanism,"
+      " pd.surface_temperature AS surface_temperature, pd.surface_gravity AS surface_gravity,"
+      " pd.surface_pressure AS surface_pressure, sd.star_type AS star_type"
+      " FROM {0} g JOIN {1} b ON b.oid = g.ref_body_oid JOIN {2} pd ON pd.ref_body_oid = b.oid"
+      " LEFT JOIN {1} bs ON bs.ref_system_address = b.ref_system_address AND bs.body_id = pd.parent_star"
+      " LEFT JOIN {3} sd ON sd.ref_body_oid = bs.oid"
+      " WHERE g.species <> '') AS history",
+      sql_iface::tables::genus,
+      sql_iface::tables::body,
+      sql_iface::tables::planet_details,
+      sql_iface::tables::star_details
+    ),
+    ""
+  );
+  }
+
+auto database_storage_t::store_body_count(uint64_t system_address, uint32_t body_count) -> expected_ec<void>
+  {
+  return sqlite::execute_query_no_result(
+    db_->db,
+    std::format(
+      "UPDATE {} SET body_count={} WHERE system_address={}", sql_iface::tables::star_system, body_count, system_address
+    )
+  );
   }
 
 auto database_storage_t::store_system_location(uint64_t system_address, std::array<double, 3> const & loc)

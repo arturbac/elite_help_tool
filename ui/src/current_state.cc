@@ -793,6 +793,17 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
 
           update_system = true;
           }
+        else if constexpr(std::same_as<T, events::fss_discovery_scan_t>)
+          {
+          // the count is what the scans are measured against - without it "7 bodies" says nothing
+          if(system.system_address == event.SystemAddress and system.body_count != event.BodyCount)
+            {
+            system.body_count = event.BodyCount;
+            if(auto res{db_.store_body_count(event.SystemAddress, event.BodyCount)}; not res) [[unlikely]]
+              spdlog::error("failed to store body count of {}", event.SystemName);
+            }
+          update_system = true;
+          }
         else if constexpr(std::same_as<T, events::fss_all_bodies_found_t>)
           {
           system.fss_complete = true;
