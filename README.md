@@ -29,6 +29,13 @@ process carries no state of ours.
 - **Head-up readouts** flank the centre of the middle screen: the target in a fight, crew, and the
   sample in progress on foot. They give way to any interface that takes over that screen, such as
   the galaxy map.
+- **Dogfights.** The target readout, on the left of centre, fills in as the scan goes: ship, pilot
+  and combat rank, then hull and shield in per cent, then faction, legal status, bounty and the
+  targeted subsystem with its health. On the right stand your hired pilot with their rank and the
+  fighter's state: out and who flies it, in the bay, or destroyed and being rebuilt. A kill stays on
+  screen for a few seconds with the credits it paid and the factions that paid them. When the danger
+  is now (heat, an interdiction, the game's own danger warning), what a death would cost moves to the
+  middle of the screen. Both readouts stand where you look during a fight, clear of the crosshair.
 - **What stands where:** the system and its exploration work on the right, the station's market
   and mission cargo top right, the route, cargo, missions and what a death would cost on the left.
 - **System map:** the bodies and ports of the current system, drawn in the game's colours, with
