@@ -88,7 +88,11 @@ namespace
       {
       uint32_t const value{bio::species_value(genus.Species_Localised).value_or(0u)};
       return genus_view_t{
-        .text = std::format("{}  {}{}", genus.Species_Localised, short_credits(value), genus.Sampled ? "  done" : ""),
+        // known without being done means it was logged at least - the codex has it and its picture; what is
+        // missing is only the samples that pay, often not worth the walk for a cheap species
+        .text = std::format(
+          "{}  {}  {}", genus.Species_Localised, short_credits(value), genus.Sampled ? "done" : "logged"
+        ),
         .colour = genus.Sampled ? colour_below() : (value >= worth ? colour_first() : colour_below()),
         .potential = genus.Sampled ? 0u : value,
         .done = genus.Sampled
