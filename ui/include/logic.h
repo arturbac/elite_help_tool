@@ -8,6 +8,7 @@
 #include <simple_enum/simple_enum.hpp>
 #include <databse_storage.h>
 #include <biology.h>
+#include <fleet.h>
 #include <mutex>
 
 class main_window_t;
@@ -151,6 +152,8 @@ struct current_state_t : public generic_state_t
   std::string commander_name_;
   ///\brief counts changes of construction sites, so the overlay reads them again at once
   uint64_t construction_changes_{};
+  ///\brief counts changes of the fleet, so the Ships window reads it again at once
+  uint64_t fleet_changes_{};
   ///\brief counts carriers' moves, so the overlay and the window read them again at once
   uint64_t carrier_changes_{};
   ///\brief docked at one of our carriers: the hold as it was on docking - what differs on leaving is

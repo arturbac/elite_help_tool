@@ -29,43 +29,66 @@ constexpr uint32_t first_fullscreen_interface{5u};
 // What used to be constants here now comes from the settings file, read afresh at every use so that a
 // saved change shows at the next refresh. Each accessor takes the snapshot in force at that moment
 auto colour_heading() -> uint32_t { return eht::settings()->overlay.colours.heading.rgb; }
+
 auto colour_plain() -> uint32_t { return eht::settings()->overlay.colours.plain.rgb; }
+
 auto colour_alert() -> uint32_t { return eht::settings()->overlay.colours.alert.rgb; }
+
 ///\brief undiscovered by anyone - that is the case worth stopping for
 auto colour_first() -> uint32_t { return eht::settings()->overlay.colours.first.rgb; }
+
 auto colour_expiring() -> uint32_t { return eht::settings()->overlay.colours.expiring.rgb; }
 
 ///\brief the blocks go out when the tool falls silent - better no text than text from an hour ago
 auto block_ttl_ms() -> uint32_t { return eht::settings()->overlay.refresh.block_ttl_ms; }
+
 ///\brief an unchanged picture has to be repeated anyway, or it expires on a player standing still
 auto heartbeat() -> std::chrono::seconds { return std::chrono::seconds{eht::settings()->overlay.refresh.heartbeat_s}; }
 
 ///\brief below this threshold going down to a body does not pay for the time it takes
 auto minimum_body_value() -> uint32_t { return eht::settings()->overlay.minimum_body_value; }
+
 ///\brief the side band has its limits, and a long list will not be read in flight anyway
 auto listed_bodies() -> size_t { return eht::settings()->overlay.lists.bodies; }
+
 auto listed_factions() -> size_t { return eht::settings()->overlay.lists.factions; }
+
 auto listed_missions() -> size_t { return eht::settings()->overlay.lists.missions; }
+
 auto listed_cargo() -> size_t { return eht::settings()->overlay.lists.cargo; }
+
 auto listed_commodities() -> size_t { return eht::settings()->overlay.lists.commodities; }
+
 ///\brief below this much time in hand a mission is a problem, not a plan
 auto expiry_warning() -> std::chrono::hours { return std::chrono::hours{eht::settings()->overlay.expiry_warning_h}; }
+
 ///\brief smaller departures from the galactic average are not worth showing
 auto interesting_deviation() -> double { return eht::settings()->overlay.interesting_deviation; }
+
 ///\brief a percentage without an amount lies - 93% off a commodity worth 20 Cr saves nothing that matters
 auto interesting_margin() -> uint32_t { return eht::settings()->overlay.interesting_margin; }
+
 ///\brief influence updates once a day; asking more often serves nothing
-auto faction_refresh() -> std::chrono::seconds { return std::chrono::seconds{eht::settings()->overlay.refresh.factions_s}; }
+auto faction_refresh() -> std::chrono::seconds
+  { return std::chrono::seconds{eht::settings()->overlay.refresh.factions_s}; }
+
 ///\brief a market can appear at any moment, as soon as the player opens it
-auto market_refresh() -> std::chrono::seconds { return std::chrono::seconds{eht::settings()->overlay.refresh.market_s}; }
+auto market_refresh() -> std::chrono::seconds
+  { return std::chrono::seconds{eht::settings()->overlay.refresh.market_s}; }
+
 ///\brief missions arrive rarely, and the query goes across both databases
-auto supply_refresh() -> std::chrono::seconds { return std::chrono::seconds{eht::settings()->overlay.refresh.supply_s}; }
+auto supply_refresh() -> std::chrono::seconds
+  { return std::chrono::seconds{eht::settings()->overlay.refresh.supply_s}; }
+
 ///\brief Status.json is rewritten whenever anything in it changes, so it is read often but cheaply
 auto status_refresh() -> std::chrono::milliseconds
   { return std::chrono::milliseconds{eht::settings()->overlay.refresh.status_ms}; }
+
 auto listed_sources() -> size_t { return eht::settings()->overlay.lists.sources; }
+
 ///\brief the band is not a mission log - beyond this the list stops being read at a glance
 auto listed_settlement_work() -> size_t { return eht::settings()->overlay.lists.settlement_work; }
+
 auto listed_trades() -> unsigned { return eht::settings()->overlay.lists.trades; }
 
 ///\brief how long a kill stays on the head-up display after it is made
@@ -205,172 +228,172 @@ auto short_body_name(std::string const & system_name, std::string const & body_n
 
 namespace system_map
   {
-// The sizes and colours come from the settings; what stays here is the spacing of the grid.
-// Sizes keep an order, not a scale: a star twice a planet, a giant above a rocky world, a moon small.
-// Drawn to scale a system would be one disc and a scatter of dust
-constexpr float barycentre_radius{3.5f};
-constexpr float star_column{30.f};
-constexpr float column{19.f};
-constexpr float label_band{16.f};
-constexpr float moon_step{10.f};
-constexpr float row_gap{8.f};
-constexpr float port_step{10.f};
+  // The sizes and colours come from the settings; what stays here is the spacing of the grid.
+  // Sizes keep an order, not a scale: a star twice a planet, a giant above a rocky world, a moon small.
+  // Drawn to scale a system would be one disc and a scatter of dust
+  constexpr float barycentre_radius{3.5f};
+  constexpr float star_column{30.f};
+  constexpr float column{19.f};
+  constexpr float label_band{16.f};
+  constexpr float moon_step{10.f};
+  constexpr float row_gap{8.f};
+  constexpr float port_step{10.f};
 
-///\brief the orbital ports, each with the outline the game's map gives it; the rest - surface ports,
-/// settlements, construction sites, installations, carriers - are not drawn
-enum struct port_e : uint8_t
-  {
-  none,
-  coriolis,
-  orbis,
-  ocellus,
-  dodec,
-  outpost,
-  asteroid
-  };
-
-[[nodiscard]]
-auto port_shape(std::string_view type) -> port_e
-  {
-  if(type == "Coriolis")
-    return port_e::coriolis;
-  // Artemis and Apollo are both Orbis to the journal
-  if(type == "Orbis")
-    return port_e::orbis;
-  // Bernal is the older name of the same wheel
-  if(type == "Ocellus" or type == "Bernal")
-    return port_e::ocellus;
-  if(type == "Dodec")
-    return port_e::dodec;
-  if(type == "Outpost")
-    return port_e::outpost;
-  if(type == "AsteroidBase")
-    return port_e::asteroid;
-  return port_e::none;
-  }
-
-///\brief the order the game numbers bodies in - "A 10" after "A 9", not after "A 1"
-[[nodiscard]]
-auto natural_less(std::string_view a, std::string_view b) -> bool
-  {
-  auto ta{a | std::views::split(' ')};
-  auto tb{b | std::views::split(' ')};
-  auto ia{ta.begin()};
-  auto ib{tb.begin()};
-  for(; ia != ta.end() and ib != tb.end(); ++ia, ++ib)
+  ///\brief the orbital ports, each with the outline the game's map gives it; the rest - surface ports,
+  /// settlements, construction sites, installations, carriers - are not drawn
+  enum struct port_e : uint8_t
     {
-    std::string_view const x{(*ia).begin(), (*ia).end()};
-    std::string_view const y{(*ib).begin(), (*ib).end()};
-    if(x == y)
-      continue;
-    bool const nx{not x.empty() and std::ranges::all_of(x, [](unsigned char c) { return std::isdigit(c) != 0; })};
-    bool const ny{not y.empty() and std::ranges::all_of(y, [](unsigned char c) { return std::isdigit(c) != 0; })};
-    if(nx and ny and x.size() != y.size())
-      return x.size() < y.size();
-    return x < y;
-    }
-  return ib != tb.end();
-  }
+    none,
+    coriolis,
+    orbis,
+    ocellus,
+    dodec,
+    outpost,
+    asteroid
+    };
 
-///\brief the last word of a body's name - "3" of "A 3", "a" of "A 3 a"; the row and column say the rest
-[[nodiscard]]
-auto last_word(std::string_view name) -> std::string_view
-  {
-  auto const at{name.rfind(' ')};
-  return at == std::string_view::npos ? name : name.substr(at + 1);
-  }
-
-[[nodiscard]]
-auto star_colour(std::string_view type) -> uint32_t
-  {
-  // the exotic ones first, because several of them begin with the letter of an ordinary class
-  if(type.starts_with("TTS"))
-    return 0xffb070u;
-  if(type.starts_with("AeBe"))
-    return 0xf0f0ffu;
-  if(type == "H" or type.contains("BlackHole"))
-    return 0x505050u;
-  if(type == "N")
-    return 0x9fd8ffu;
-  if(type.starts_with('D'))
-    return 0xe8f0ffu;
-  if(type.starts_with('W'))
-    return 0x8fa8ffu;
-  if(type.starts_with('C') or type.starts_with('S') or type == "MS")
-    return 0xd05030u;
-  switch(type.empty() ? '?' : type.front())
+  [[nodiscard]]
+  auto port_shape(std::string_view type) -> port_e
     {
-    case 'O': return 0x9bb0ffu;
-    case 'B': return 0xaabfffu;
-    case 'A': return 0xdbe4ffu;
-    case 'F': return 0xfff6e0u;
-    // the tints the game's own system map gives them - an M star is peach there, not red, and the red
-    // is left to the brown dwarfs, darkening as they cool
-    case 'G': return 0xfff0a0u;
-    case 'K': return 0xffcf7au;
-    case 'M': return 0xffa468u;
-    case 'L': return 0xd83c6au;
-    case 'T': return 0xa8306eu;
-    case 'Y': return 0x74304cu;
-    default:  return 0xccccccu;
+    if(type == "Coriolis")
+      return port_e::coriolis;
+    // Artemis and Apollo are both Orbis to the journal
+    if(type == "Orbis")
+      return port_e::orbis;
+    // Bernal is the older name of the same wheel
+    if(type == "Ocellus" or type == "Bernal")
+      return port_e::ocellus;
+    if(type == "Dodec")
+      return port_e::dodec;
+    if(type == "Outpost")
+      return port_e::outpost;
+    if(type == "AsteroidBase")
+      return port_e::asteroid;
+    return port_e::none;
     }
-  }
 
-[[nodiscard]]
-auto is_giant(std::string_view planet_class) -> bool
-  { return planet_class.contains("gas giant") or planet_class == "Water giant"; }
+  ///\brief the order the game numbers bodies in - "A 10" after "A 9", not after "A 1"
+  [[nodiscard]]
+  auto natural_less(std::string_view a, std::string_view b) -> bool
+    {
+    auto ta{a | std::views::split(' ')};
+    auto tb{b | std::views::split(' ')};
+    auto ia{ta.begin()};
+    auto ib{tb.begin()};
+    for(; ia != ta.end() and ib != tb.end(); ++ia, ++ib)
+      {
+      std::string_view const x{(*ia).begin(), (*ia).end()};
+      std::string_view const y{(*ib).begin(), (*ib).end()};
+      if(x == y)
+        continue;
+      bool const nx{not x.empty() and std::ranges::all_of(x, [](unsigned char c) { return std::isdigit(c) != 0; })};
+      bool const ny{not y.empty() and std::ranges::all_of(y, [](unsigned char c) { return std::isdigit(c) != 0; })};
+      if(nx and ny and x.size() != y.size())
+        return x.size() < y.size();
+      return x < y;
+      }
+    return ib != tb.end();
+    }
 
-[[nodiscard]]
-auto has_bio(planet_details_t const & details) -> bool
-  {
-  return not details.genuses_.empty()
-         or std::ranges::any_of(
-           details.signals_,
-           [](events::signal_t const & s) { return s.Count != 0u and s.Type_Localised.contains("Biological"); }
-         );
-  }
+  ///\brief the last word of a body's name - "3" of "A 3", "a" of "A 3 a"; the row and column say the rest
+  [[nodiscard]]
+  auto last_word(std::string_view name) -> std::string_view
+    {
+    auto const at{name.rfind(' ')};
+    return at == std::string_view::npos ? name : name.substr(at + 1);
+    }
 
-///\brief metal grey, rock yellow, ice white - and green over all of it where there is life to sample
-[[nodiscard]]
-auto planet_colour(planet_details_t const & details) -> uint32_t
-  {
-  if(has_bio(details))
-    return eht::settings()->overlay.system_map.bio.rgb;
-  std::string_view const pc{details.planet_class};
-  if(pc.contains("water based life"))
-    return 0x6fb6c8u;
-  if(pc.contains("ammonia based life"))
-    return 0xc8905au;
-  if(pc.contains("Helium"))
-    return 0xe0d8c0u;
-  if(pc == "Water giant")
-    return 0x5f8fd8u;
-  if(pc.contains("class I gas"))
-    return 0xd8b080u;
-  if(pc.contains("class II gas"))
-    return 0xe8d8b0u;
-  if(pc.contains("class III gas"))
-    return 0xa8c8e8u;
-  if(pc.contains("class IV gas"))
-    return 0x9fb0c8u;
-  if(pc.contains("class V gas"))
-    return 0x8090b0u;
-  if(pc == "Metal rich body" or pc == "High metal content body")
-    return 0x9a9a9au;
-  if(pc == "Rocky body")
-    return 0xd9c060u;
-  if(pc == "Rocky ice body")
-    return 0xe8e0a8u;
-  if(pc == "Icy body")
-    return 0xf2f6ffu;
-  if(pc == "Earthlike body")
-    return 0x4fc38au;
-  if(pc == "Water world")
-    return 0x4a88e0u;
-  if(pc == "Ammonia world")
-    return 0xb07a40u;
-  return 0x808080u;
-  }
+  [[nodiscard]]
+  auto star_colour(std::string_view type) -> uint32_t
+    {
+    // the exotic ones first, because several of them begin with the letter of an ordinary class
+    if(type.starts_with("TTS"))
+      return 0xffb070u;
+    if(type.starts_with("AeBe"))
+      return 0xf0f0ffu;
+    if(type == "H" or type.contains("BlackHole"))
+      return 0x505050u;
+    if(type == "N")
+      return 0x9fd8ffu;
+    if(type.starts_with('D'))
+      return 0xe8f0ffu;
+    if(type.starts_with('W'))
+      return 0x8fa8ffu;
+    if(type.starts_with('C') or type.starts_with('S') or type == "MS")
+      return 0xd05030u;
+    switch(type.empty() ? '?' : type.front())
+      {
+      case 'O': return 0x9bb0ffu;
+      case 'B': return 0xaabfffu;
+      case 'A': return 0xdbe4ffu;
+      case 'F': return 0xfff6e0u;
+      // the tints the game's own system map gives them - an M star is peach there, not red, and the red
+      // is left to the brown dwarfs, darkening as they cool
+      case 'G': return 0xfff0a0u;
+      case 'K': return 0xffcf7au;
+      case 'M': return 0xffa468u;
+      case 'L': return 0xd83c6au;
+      case 'T': return 0xa8306eu;
+      case 'Y': return 0x74304cu;
+      default:  return 0xccccccu;
+      }
+    }
+
+  [[nodiscard]]
+  auto is_giant(std::string_view planet_class) -> bool
+    { return planet_class.contains("gas giant") or planet_class == "Water giant"; }
+
+  [[nodiscard]]
+  auto has_bio(planet_details_t const & details) -> bool
+    {
+    return not details.genuses_.empty()
+           or std::ranges::any_of(
+             details.signals_,
+             [](events::signal_t const & s) { return s.Count != 0u and s.Type_Localised.contains("Biological"); }
+           );
+    }
+
+  ///\brief metal grey, rock yellow, ice white - and green over all of it where there is life to sample
+  [[nodiscard]]
+  auto planet_colour(planet_details_t const & details) -> uint32_t
+    {
+    if(has_bio(details))
+      return eht::settings()->overlay.system_map.bio.rgb;
+    std::string_view const pc{details.planet_class};
+    if(pc.contains("water based life"))
+      return 0x6fb6c8u;
+    if(pc.contains("ammonia based life"))
+      return 0xc8905au;
+    if(pc.contains("Helium"))
+      return 0xe0d8c0u;
+    if(pc == "Water giant")
+      return 0x5f8fd8u;
+    if(pc.contains("class I gas"))
+      return 0xd8b080u;
+    if(pc.contains("class II gas"))
+      return 0xe8d8b0u;
+    if(pc.contains("class III gas"))
+      return 0xa8c8e8u;
+    if(pc.contains("class IV gas"))
+      return 0x9fb0c8u;
+    if(pc.contains("class V gas"))
+      return 0x8090b0u;
+    if(pc == "Metal rich body" or pc == "High metal content body")
+      return 0x9a9a9au;
+    if(pc == "Rocky body")
+      return 0xd9c060u;
+    if(pc == "Rocky ice body")
+      return 0xe8e0a8u;
+    if(pc == "Icy body")
+      return 0xf2f6ffu;
+    if(pc == "Earthlike body")
+      return 0x4fc38au;
+    if(pc == "Water world")
+      return 0x4a88e0u;
+    if(pc == "Ammonia world")
+      return 0xb07a40u;
+    return 0x808080u;
+    }
   }  // namespace system_map
 
 ///\brief where a mission is owed: a done one goes back to whoever redirected it, an open one to the
@@ -455,11 +478,12 @@ auto build_system_diagram(
   if(by_id.empty())
     return std::nullopt;
 
-  auto const planet_of = [](body_t const * body) -> planet_details_t const *
-  { return std::get_if<planet_details_t>(&body->details); };
+  auto const planet_of
+    = [](body_t const * body) -> planet_details_t const * { return std::get_if<planet_details_t>(&body->details); };
 
   // a moon hangs under its planet only when the planet is known; otherwise it stands in the row itself
   std::map<body_id_t, std::vector<body_t const *>> moons;
+
   struct row_t
     {
     body_t const * star{};
@@ -467,6 +491,7 @@ auto build_system_diagram(
     std::optional<body_id_t> barycentre;
     std::vector<body_t const *> planets;
     };
+
   std::map<std::pair<int, body_id_t>, row_t> rows;  // (0 star / 1 barycentre / 2 unknown, id)
 
   for(auto const & [id, body]: by_id)
@@ -557,7 +582,9 @@ auto build_system_diagram(
     if(auto const it{mission_bodies.find(body->body_id)}; it != mission_bodies.end())
       mission_arrow(x, y, r, it->second);
     if(not here_short.empty() and body->name == here_short)
-      diagram.discs.push_back(overlay::disc_t{.x = x, .y = y, .radius = r + 3.5f, .color = here_colour, .outline = true});
+      diagram.discs.push_back(
+        overlay::disc_t{.x = x, .y = y, .radius = r + 3.5f, .color = here_colour, .outline = true}
+      );
     // a surface port's destination names the body it stands on
     if(going_here and destination->Body == body->body_id)
       diagram.discs.push_back(
@@ -612,7 +639,14 @@ auto build_system_diagram(
     {
       diagram.segments.push_back(
         overlay::segment_t{
-          .x0 = x0 - x, .y0 = y0 - y, .x1 = x1 - x, .y1 = y1 - y, .color = port_colour, .relative = true, .ax = x, .ay = y
+          .x0 = x0 - x,
+          .y0 = y0 - y,
+          .x1 = x1 - x,
+          .y1 = y1 - y,
+          .color = port_colour,
+          .relative = true,
+          .ax = x,
+          .ay = y
         }
       );
     };
@@ -732,9 +766,9 @@ auto build_system_diagram(
       continue;
       }
 
-    bool const any_giant{std::ranges::any_of(
-      row->planets, [&](body_t const * b) { return is_giant(planet_of(b)->planet_class); }
-    )};
+    bool const any_giant{
+      std::ranges::any_of(row->planets, [&](body_t const * b) { return is_giant(planet_of(b)->planet_class); })
+    };
     float const lead{row->star != nullptr ? star_radius : (any_giant ? giant_radius : planet_radius)};
     float const line_y{top + label_band + lead};
     float const lead_x{star_column / 2.f};
@@ -778,16 +812,18 @@ auto build_system_diagram(
     else
       {
       diagram.discs.push_back(
-        overlay::disc_t{
-          .x = lead_x, .y = line_y, .radius = barycentre_radius, .color = line_colour, .outline = true
-        }
+        overlay::disc_t{.x = lead_x, .y = line_y, .radius = barycentre_radius, .color = line_colour, .outline = true}
       );
       // the row's name is what its planets are called without their number - "BC" of "BC 1"
       std::string_view const first{row_name(row)};
       std::string_view const prefix{first.substr(0, std::min(first.size(), first.rfind(' ')))};
       diagram.labels.push_back(
         overlay::label_t{
-          .x = lead_x, .y = line_y - star_radius - 5.f, .text = std::string{prefix}, .color = label_colour, .align = 0.5f
+          .x = lead_x,
+          .y = line_y - star_radius - 5.f,
+          .text = std::string{prefix},
+          .color = label_colour,
+          .align = 0.5f
         }
       );
       }
@@ -806,7 +842,10 @@ auto build_system_diagram(
       diagram.discs.push_back(overlay::disc_t{.x = x, .y = line_y, .radius = r, .color = planet_colour(pd)});
       diagram.labels.push_back(
         overlay::label_t{
-          .x = x, .y = line_y - giant_radius - 9.f, .text = std::string{last_word(planet->name)}, .color = label_colour,
+          .x = x,
+          .y = line_y - giant_radius - 9.f,
+          .text = std::string{last_word(planet->name)},
+          .color = label_colour,
           .align = 0.5f
         }
       );
@@ -831,7 +870,11 @@ auto build_system_diagram(
           diagram.discs.push_back(overlay::disc_t{.x = x, .y = y, .radius = mr, .color = planet_colour(md)});
           diagram.labels.push_back(
             overlay::label_t{
-              .x = x + mr + 5.5f, .y = y, .text = std::string{last_word(moon->name)}, .color = label_colour, .align = 0.f
+              .x = x + mr + 5.5f,
+              .y = y,
+              .text = std::string{last_word(moon->name)},
+              .color = label_colour,
+              .align = 0.f
             }
           );
           mark_here(moon, x, y, mr);
@@ -890,14 +933,26 @@ auto build_system_diagram(
     float const off{-star_radius - 4.f};
     diagram.segments.push_back(
       overlay::segment_t{
-        .x0 = off, .y0 = 0.f, .x1 = off, .y1 = ys.back() - ys.front(), .color = label_colour, .relative = true,
-        .ax = lead_x, .ay = ys.front()
+        .x0 = off,
+        .y0 = 0.f,
+        .x1 = off,
+        .y1 = ys.back() - ys.front(),
+        .color = label_colour,
+        .relative = true,
+        .ax = lead_x,
+        .ay = ys.front()
       }
     );
     for(float const y: ys)
       diagram.segments.push_back(
         overlay::segment_t{
-          .x0 = off, .y0 = 0.f, .x1 = -star_radius, .y1 = 0.f, .color = label_colour, .relative = true, .ax = lead_x,
+          .x0 = off,
+          .y0 = 0.f,
+          .x1 = -star_radius,
+          .y1 = 0.f,
+          .color = label_colour,
+          .relative = true,
+          .ax = lead_x,
           .ay = y
         }
       );
@@ -993,9 +1048,7 @@ auto format_remaining(std::chrono::seconds left) -> std::string
 [[nodiscard]]
 auto mission_wording(info::mission_t const & mission) -> std::string
   {
-  std::string wording{
-    mission.description.empty() ? info::transform_mission_name(mission.type) : mission.description
-  };
+  std::string wording{mission.description.empty() ? info::transform_mission_name(mission.type) : mission.description};
 
   // Whose man is being killed. For a kill in space the journal does say it - "Assassinate Politician:
   // Rayner" comes with The Mercs of Mikunn attached - and it is the faction that pays for the deed in
@@ -1038,8 +1091,8 @@ auto describe_missions(
   // Who holds the place a mission points at. The journal does not say: "Kill Casey Sanders" comes
   // with a settlement and a name and nothing else, yet the killing counts against the faction that
   // holds the settlement - which is the whole reason for going, or for not going
-  auto const with_owner = [&owners, &destination](info::mission_t const & mission, std::string const & place)
-    -> std::string
+  auto const with_owner
+    = [&owners, &destination](info::mission_t const & mission, std::string const & place) -> std::string
   {
     if(place.empty())
       return {};
@@ -1176,8 +1229,10 @@ auto describe_system(star_system_t const & system, bool with_controlling) -> std
 ///\detail ten days left the days far apart in the band's width; twenty fit the same rectangle and
 /// carry more of the story - a faction's climb usually takes longer than a week to show as a climb
 auto chart_window() -> std::chrono::days { return std::chrono::days{eht::settings()->overlay.influence_chart.days}; }
+
 ///\brief the height of the plot itself, without the caption and the legend
 auto chart_height() -> uint32_t { return eht::settings()->overlay.influence_chart.height; }
+
 ///\brief the shapes handed out in the order of the legend
 ///\detail three independent factions share one colour, so without distinct shapes their lines
 /// could not be told apart
@@ -1295,10 +1350,7 @@ auto build_influence_chart(
     if(gathered[ix].size() < 2u)
       continue;
 
-    overlay::series_t series{
-      .name = shown[ix].name, .color = shown[ix].color,
-      .marker = shown[ix].marker
-    };
+    overlay::series_t series{.name = shown[ix].name, .color = shown[ix].color, .marker = shown[ix].marker};
     series.points.reserve(gathered[ix].size());
     for(sample_t const & point: gathered[ix])
       series.points.push_back(overlay::point_t{.x = static_cast<float>(point.x), .y = map_y(point.percent)});
@@ -1314,8 +1366,11 @@ auto build_influence_chart(
 
 ///\brief how far back the tick chart reaches
 auto tick_chart_window() -> std::chrono::days { return std::chrono::days{eht::settings()->overlay.tick_chart.days}; }
+
 auto tick_chart_height() -> uint32_t { return eht::settings()->overlay.tick_chart.height; }
+
 auto colour_tick_influence() -> uint32_t { return eht::settings()->overlay.colours.tick_influence.rgb; }
+
 auto colour_tick_war() -> uint32_t { return eht::settings()->overlay.colours.tick_war.rgb; }
 
 ///\brief when the recalculation came, day by day, as the hour of the day it came at
@@ -1346,7 +1401,8 @@ auto build_tick_chart(
   for(int hour{}; hour <= 24; hour += 6)
     chart.grid.push_back(
       overlay::grid_line_t{
-        .y = static_cast<float>(hour) / 24.f, .label = hour == 0 or hour == 24 ? std::string{} : std::format("{:02}h", hour)
+        .y = static_cast<float>(hour) / 24.f,
+        .label = hour == 0 or hour == 24 ? std::string{} : std::format("{:02}h", hour)
       }
     );
 
@@ -1644,7 +1700,7 @@ auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
           continue;
           }
 
-        item.trend = *after > *before  ? overlay::trend_e::up
+        item.trend = *after > *before   ? overlay::trend_e::up
                      : *after < *before ? overlay::trend_e::down
                                         : overlay::trend_e::flat;
         }
@@ -1746,7 +1802,9 @@ auto overlay_feed_t::refresh_market(
     market_lines_.push_back(overlay::line_t{.text = std::format("{}: no market data", name), .color = colour_alert()});
     if(not owner.empty())
       market_lines_.push_back(overlay::line_t{.text = std::format("  {}", owner), .color = colour_first()});
-    market_lines_.push_back(overlay::line_t{.text = "  open the commodity market to record it", .color = colour_plain()});
+    market_lines_.push_back(
+      overlay::line_t{.text = "  open the commodity market to record it", .color = colour_plain()}
+    );
     return;
     }
 
@@ -1784,11 +1842,13 @@ auto overlay_feed_t::refresh_market(
     bool const sells_it{flags_known ? entry.producer : entry.stock > 0u};
 
     if(
-      buys_it and sell_gain(entry) >= interesting_deviation() and entry.sell_price > entry.mean_price + interesting_margin()
+      buys_it and sell_gain(entry) >= interesting_deviation()
+      and entry.sell_price > entry.mean_price + interesting_margin()
     )
       sells.push_back(&entry);
     if(
-      sells_it and buy_gain(entry) >= interesting_deviation() and entry.buy_price + interesting_margin() < entry.mean_price
+      sells_it and buy_gain(entry) >= interesting_deviation()
+      and entry.buy_price + interesting_margin() < entry.mean_price
     )
       buys.push_back(&entry);
     }
@@ -1927,7 +1987,9 @@ auto overlay_feed_t::refresh_market(
       return;
     // silence would read as nothing being worth it, when mostly it means none of its markets were ever opened
     market_lines_.push_back(
-      overlay::line_t{.text = std::format("{}: no known market trades with here", destination_name), .color = colour_alert()}
+      overlay::line_t{
+        .text = std::format("{}: no known market trades with here", destination_name), .color = colour_alert()
+      }
     );
     }
 
@@ -1996,9 +2058,7 @@ auto overlay_feed_t::refresh_mission_places(current_state_t const & state) -> vo
 
   for(info::mission_t const & mission: state.active_missions)
     {
-    if(
-      mission.status != info::mission_status_e::accepted and mission.status != info::mission_status_e::redirected
-    )
+    if(mission.status != info::mission_status_e::accepted and mission.status != info::mission_status_e::redirected)
       continue;
 
     resolve(mission.destination_system, std::string{mission.destination_place()});
@@ -2100,8 +2160,10 @@ auto overlay_feed_t::build_construction_lines(current_state_t const & state) con
     site = by_market(state.settlement_market_id_);
   if(site == nullptr and status_destination_ and status_destination_->System == state.current_system_address_)
     for(info::construction_site_t const & s: construction_sites_)
-      if(s.depot.system_address == state.current_system_address_ and not s.name.empty()
-         and s.name == status_destination_->Name)
+      if(
+        s.depot.system_address == state.current_system_address_ and not s.name.empty()
+        and s.name == status_destination_->Name
+      )
         site = &s;
   if(site == nullptr)
     return {};
@@ -2183,11 +2245,11 @@ auto overlay_feed_t::build_construction_lines(current_state_t const & state) con
   for(info::construction_need_t const * need: needed)
     name_width = std::max(name_width, need->commodity.size());
   size_t const carrier_width{std::max<size_t>(7u, carrier_heading.size() + 3u)};
-  {
-  std::string heading(name_width, ' ');
-  heading += std::format("{:>7}{:>7}{:>7}{:>{}}   here", "left", "diff", "hold", carrier_heading, carrier_width);
-  lines.push_back(overlay::line_t{.text = std::move(heading), .color = colour_heading(), .swatch_space = true});
-  }
+    {
+    std::string heading(name_width, ' ');
+    heading += std::format("{:>7}{:>7}{:>7}{:>{}}   here", "left", "diff", "hold", carrier_heading, carrier_width);
+    lines.push_back(overlay::line_t{.text = std::move(heading), .color = colour_heading(), .swatch_space = true});
+    }
 
   size_t shown{};
   int64_t to_bring{};
@@ -2222,7 +2284,7 @@ auto overlay_feed_t::build_construction_lines(current_state_t const & state) con
     text += h != hold.end() ? std::format("{:>7}", h->second) : std::string(7u, ' ');
     auto const c{on_carrier.find(need->key)};
     text += c != on_carrier.end() and c->second > 0 ? std::format("{:>{}}", c->second, carrier_width)
-                                                     : std::string(carrier_width, ' ');
+                                                    : std::string(carrier_width, ' ');
     auto const m{here.find(need->key)};
     if(m != here.end())
       text += std::format("   {} @ {}", m->second->stock, m->second->buy_price);
@@ -2246,7 +2308,9 @@ auto overlay_feed_t::build_construction_lines(current_state_t const & state) con
     lines.push_back(overlay::line_t{.text = std::format("  ... and {} more", wanted - shown), .color = colour_plain()});
   if(to_bring > 0)
     lines.push_back(
-      overlay::line_t{.text = std::format("still to bring: {} t", to_bring), .color = colour_heading(), .swatch_space = true}
+      overlay::line_t{
+        .text = std::format("still to bring: {} t", to_bring), .color = colour_heading(), .swatch_space = true
+      }
     );
   return lines;
   }
@@ -2335,9 +2399,7 @@ auto overlay_feed_t::build_war_blocks() const -> std::vector<std::vector<overlay
     if(not c.stake1.empty() or not c.stake2.empty())
       lines.push_back(
         overlay::line_t{
-          .text = std::format(
-            "stake: {}  /  {}", c.stake1.empty() ? "-" : c.stake1, c.stake2.empty() ? "-" : c.stake2
-          ),
+          .text = std::format("stake: {}  /  {}", c.stake1.empty() ? "-" : c.stake1, c.stake2.empty() ? "-" : c.stake2),
           .color = colour_plain()
         }
       );
@@ -2506,12 +2568,15 @@ auto overlay_feed_t::build_settlement_owners() const -> std::vector<overlay::lin
     {
     // An approach records a place with no type, so building sites come in by their names too. A name the
     // game never localised - the colonisation ship, a megaship's operations - is no settlement either
-    if(std::ranges::contains(not_settlements, std::string_view{station.station_type})
-       or station.name.starts_with('$') or station.name.starts_with("Planetary Construction Site:")
-       or station.name.starts_with("Orbital Construction Site:"))
+    if(
+      std::ranges::contains(not_settlements, std::string_view{station.station_type}) or station.name.starts_with('$')
+      or station.name.starts_with("Planetary Construction Site:")
+      or station.name.starts_with("Orbital Construction Site:")
+    )
       continue;
-    by_owner[station.controlling_faction.empty() ? std::string{"owner unknown"} : station.controlling_faction]
-      .emplace(station.name, station.economy);
+    by_owner[station.controlling_faction.empty() ? std::string{"owner unknown"} : station.controlling_faction].emplace(
+      station.name, station.economy
+    );
     ++count;
     }
   if(by_owner.empty())
@@ -2596,9 +2661,7 @@ auto overlay_feed_t::build_settlement_owners() const -> std::vector<overlay::lin
 
   std::vector<overlay::line_t> lines;
   // only the places visited or flown close to are known - the game lists no others, and nothing is downloaded
-  lines.push_back(
-    overlay::line_t{.text = std::format("settlements known here: {}", count), .color = colour_heading()}
-  );
+  lines.push_back(overlay::line_t{.text = std::format("settlements known here: {}", count), .color = colour_heading()});
   size_t const height{std::ranges::max(columns, {}, &std::vector<std::string>::size).size()};
   for(size_t row{}; row != height; ++row)
     {
@@ -2680,7 +2743,8 @@ auto overlay_feed_t::build_target_lines(current_state_t const & state) const -> 
     {
     std::string status{target.LegalStatus};
     if(target.Bounty != 0u)
-      status += std::format("   {} Cr", format_credits_value(uint32_t(std::min<uint64_t>(target.Bounty, 0xffffffffull))));
+      status
+        += std::format("   {} Cr", format_credits_value(uint32_t(std::min<uint64_t>(target.Bounty, 0xffffffffull))));
 
     lines.push_back(overlay::line_t{.text = std::move(status), .color = legal_colour(target.LegalStatus)});
     }
@@ -2743,7 +2807,9 @@ auto overlay_feed_t::build_crew_lines(current_state_t const & state) const -> st
       lines.push_back(overlay::line_t{.text = "fighter destroyed", .color = colour_expiring()});
       break;
 
-    case fighter_e::stowed: lines.push_back(overlay::line_t{.text = "fighter in the bay", .color = colour_plain()}); break;
+    case fighter_e::stowed:
+      lines.push_back(overlay::line_t{.text = "fighter in the bay", .color = colour_plain()});
+      break;
     }
 
   return lines;
@@ -2988,9 +3054,7 @@ auto overlay_feed_t::build_route_lines(current_state_t const & state, plotted_ro
   ///\brief at which stars one can refuel
   ///\detail KGBFOAM; the class sometimes comes with a subtype, so what counts is the first letter
   auto const scoopable = [](std::string_view star_class) -> bool
-  {
-    return not star_class.empty() and std::string_view{"KGBFOAM"}.find(star_class.front()) != std::string_view::npos;
-  };
+  { return not star_class.empty() and std::string_view{"KGBFOAM"}.find(star_class.front()) != std::string_view::npos; };
 
   std::vector<overlay::line_t> lines;
 
@@ -3070,7 +3134,9 @@ auto describe_carrier(info::carrier_state_t const & c, std::chrono::sys_seconds 
                    : (c.callsign.empty() ? c.name : std::format("{} ({})", c.name, c.callsign))
   };
   if(not c.jumping)
-    return overlay::line_t{.text = std::format("  {}: {}", who, c.system.empty() ? "?" : c.system), .color = colour_plain()};
+    return overlay::line_t{
+      .text = std::format("  {}: {}", who, c.system.empty() ? "?" : c.system), .color = colour_plain()
+    };
 
   auto const minutes = [](auto d) { return std::chrono::duration_cast<std::chrono::minutes>(d).count(); };
   // five minutes after the arrival the next jump can be ordered; before it the arrival is reckoned
@@ -3157,6 +3223,78 @@ auto overlay_feed_t::build_logistics_lines() const -> std::vector<overlay::line_
   return lines;
   }
 
+auto overlay_feed_t::refresh_fleet(current_state_t const & state) -> void
+  {
+  auto const now{std::chrono::steady_clock::now()};
+  // carriers jump and transfers arrive with no change of the fleet, so the list is read now and then anyway
+  if(
+    fleet_changes_ == state.fleet_changes_ and fleet_system_ == state.system.system_address
+    and now - fleet_read_ < std::chrono::seconds{30}
+  )
+    return;
+  fleet_changes_ = state.fleet_changes_;
+  fleet_system_ = state.system.system_address;
+  fleet_read_ = now;
+
+  auto placed{fleet::locate(
+    db_,
+    state.system.name,
+    state.system.system_location,
+    std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())
+  )};
+  fleet_ = placed ? std::move(*placed) : std::vector<fleet::placed_ship_t>{};
+  }
+
+auto overlay_feed_t::build_fleet_lines() const -> std::vector<overlay::line_t>
+  {
+  double const radius{eht::settings()->overlay.ships_radius_ly};
+  if(radius <= 0.0)
+    return {};
+
+  std::vector<fleet::placed_ship_t const *> nearby;
+  for(fleet::placed_ship_t const & placed: fleet_)
+    if(not placed.ship.current and placed.distance_ly and *placed.distance_ly <= radius)
+      nearby.push_back(&placed);
+  if(nearby.empty())
+    return {};
+
+  auto const now{std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())};
+  size_t const shown{std::min<size_t>(nearby.size(), eht::settings()->overlay.lists.ships)};
+  std::vector<overlay::line_t> lines;
+  lines.push_back(overlay::line_t{.text = std::format("ships within {:.0f} ly:", radius), .color = colour_heading()});
+  for(fleet::placed_ship_t const * placed: nearby | std::views::take(shown))
+    {
+    std::string where{
+      placed->station.empty() ? placed->system : std::format("{}, {}", placed->system, placed->station)
+    };
+    std::string distance{
+      *placed->distance_ly < 0.05 ? std::string{"here"} : std::format("{:.1f} ly", *placed->distance_ly)
+    };
+    std::string note;
+    if(placed->travelling and placed->ship.arrives != std::chrono::sys_seconds{})
+      {
+      auto const left{std::chrono::duration_cast<std::chrono::minutes>(placed->ship.arrives - now)};
+      note = std::format("  (arrives in {}h {:02}min)", left.count() / 60, left.count() % 60);
+      }
+    else if(placed->travelling)
+      note = "  (in transit)";
+    std::string const type{
+      placed->ship.name.empty() or placed->ship.name == placed->ship.type_name
+        ? std::string{}
+        : std::format(" ({})", placed->ship.type_name)
+    };
+    lines.push_back(
+      overlay::line_t{
+        .text = std::format("  {}{}  {}  {}{}", fleet::shown_name(placed->ship), type, distance, where, note),
+        .color = colour_plain()
+      }
+    );
+    }
+  if(nearby.size() > shown)
+    lines.push_back(overlay::line_t{.text = std::format("  +{} more", nearby.size() - shown), .color = colour_plain()});
+  return lines;
+  }
+
 auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t const & plotted) -> void
   {
   // the codex does not need the game - its page is written whether anyone is drawing or not
@@ -3207,13 +3345,12 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
     lines.insert(lines.end(), faction_lines_.begin(), faction_lines_.end());
     lines.insert(lines.end(), conflict_lines_.begin(), conflict_lines_.end());
     frame.blocks.push_back(
-      overlay::block_t{
-        // the chart goes under the text, because the names and the current values are what one
-        // reads at a glance; the shape of the last ten days is what one studies when there is time
-        .corner = overlay::corner_e::top_left,
-        .ttl_ms = block_ttl_ms(),
-        .lines = std::move(lines),
-        .charts = faction_charts_
+      overlay::block_t{// the chart goes under the text, because the names and the current values are what one
+                       // reads at a glance; the shape of the last ten days is what one studies when there is time
+                       .corner = overlay::corner_e::top_left,
+                       .ttl_ms = block_ttl_ms(),
+                       .lines = std::move(lines),
+                       .charts = faction_charts_
       }
     );
     }
@@ -3280,9 +3417,14 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
     auto loaded{db_.load_stations(stations_system_)};
     stations_ = loaded ? std::move(*loaded) : std::vector<info::station_t>{};
     }
-  if(auto map{build_system_diagram(state.system, stations_, status_body_, status_destination_, state.active_missions)}; map)
+  if(
+    auto map{build_system_diagram(state.system, stations_, status_body_, status_destination_, state.active_missions)};
+    map
+  )
     frame.blocks.push_back(
-      overlay::block_t{.corner = overlay::corner_e::bottom_right, .ttl_ms = block_ttl_ms(), .diagrams = {std::move(*map)}}
+      overlay::block_t{
+        .corner = overlay::corner_e::bottom_right, .ttl_ms = block_ttl_ms(), .diagrams = {std::move(*map)}
+      }
     );
 
   // what can be done here comes first: it is the only thing on this side that asks nothing of the
@@ -3295,7 +3437,9 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
 
   if(auto aimed{interface_open ? std::vector<overlay::line_t>{} : build_target_lines(state)}; not aimed.empty())
     frame.blocks.push_back(
-      overlay::block_t{.corner = overlay::corner_e::centre_top_left, .ttl_ms = block_ttl_ms(), .lines = std::move(aimed)}
+      overlay::block_t{
+        .corner = overlay::corner_e::centre_top_left, .ttl_ms = block_ttl_ms(), .lines = std::move(aimed)
+      }
     );
   // on the ground there is rarely a target, and the same place serves the sampling: the distance to the
   // last sample is read while walking, eyes on the ground ahead
@@ -3314,7 +3458,9 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
 
   if(auto crew{interface_open ? std::vector<overlay::line_t>{} : build_crew_lines(state)}; not crew.empty())
     frame.blocks.push_back(
-      overlay::block_t{.corner = overlay::corner_e::centre_top_right, .ttl_ms = block_ttl_ms(), .lines = std::move(crew)}
+      overlay::block_t{
+        .corner = overlay::corner_e::centre_top_right, .ttl_ms = block_ttl_ms(), .lines = std::move(crew)
+      }
     );
 
   if(auto settlement{build_settlement_lines(state)}; not settlement.empty())
@@ -3342,7 +3488,23 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
 
   if(auto logistics{build_logistics_lines()}; not logistics.empty())
     frame.blocks.push_back(
-      overlay::block_t{.corner = overlay::corner_e::bottom_left, .ttl_ms = block_ttl_ms(), .lines = std::move(logistics)}
+      overlay::block_t{
+        .corner = overlay::corner_e::bottom_left, .ttl_ms = block_ttl_ms(), .lines = std::move(logistics)
+      }
+    );
+
+  // our ships nearby - which one to go and take, or have brought over
+  refresh_fleet(state);
+  if(auto ships{build_fleet_lines()}; not ships.empty())
+    frame.blocks.push_back(
+      overlay::block_t{
+        .corner = overlay::corner_e::bottom_left,
+        .ttl_ms = block_ttl_ms(),
+        .lines = std::move(ships),
+        .charts = {},
+        // a list read when choosing, not glanced at in flight
+        .text = overlay::text_e::small
+      }
     );
 
   // the route on the left, above the hold - in flight it is the thing one looks at
@@ -3383,17 +3545,14 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
     constexpr uint64_t overheating_flag{1u << 20u};
     constexpr uint64_t in_danger_flag{1u << 22u};
     constexpr uint64_t interdicted_flag{1u << 23u};
-    if(
-      not interface_open and (status_flags_ & (overheating_flag | in_danger_flag | interdicted_flag)) != 0u
-    )
+    if(not interface_open and (status_flags_ & (overheating_flag | in_danger_flag | interdicted_flag)) != 0u)
       frame.blocks.push_back(
         overlay::block_t{
           .corner = overlay::corner_e::centre_top_right,
           .ttl_ms = block_ttl_ms(),
           .lines = {overlay::line_t{
             .text = std::format(
-              "at stake: {}",
-              overlay_exploration::short_credits(bio_total + at_risk_.bounties + at_risk_.cartography)
+              "at stake: {}", overlay_exploration::short_credits(bio_total + at_risk_.bounties + at_risk_.cartography)
             ),
             .color = colour_alert()
           }}
@@ -3430,7 +3589,9 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
             .color = colour_expiring()
           }
         );
-    frame.blocks.push_back(overlay::block_t{.corner = overlay::corner_e::bottom_left, .ttl_ms = block_ttl_ms(), .lines = std::move(lines)});
+    frame.blocks.push_back(
+      overlay::block_t{.corner = overlay::corner_e::bottom_left, .ttl_ms = block_ttl_ms(), .lines = std::move(lines)}
+    );
     }
 
   // Wanted here, or worse - the game's own word, and the only one: the sums of bounties are in no file,

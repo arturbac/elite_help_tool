@@ -888,6 +888,13 @@ auto generic_state_t::discovery(std::string_view input) -> void
     // what is left on a carrier: the ship changed there keeps its hold, and so does one left by escape pod
     case ShipyardSwap:         parse_and_handle.template operator()<events::shipyard_swap_t>(); break;
     case Resurrect:            parse_and_handle.template operator()<events::resurrect_t>(); break;
+    // the fleet - where each ship is, what it is called, and which are gone
+    case StoredShips:          parse_and_handle.template operator()<events::stored_ships_t>(); break;
+    case ShipyardBuy:          parse_and_handle.template operator()<events::shipyard_buy_t>(); break;
+    case ShipyardNew:          parse_and_handle.template operator()<events::shipyard_new_t>(); break;
+    case ShipyardSell:         parse_and_handle.template operator()<events::shipyard_sell_t>(); break;
+    case SellShipOnRebuy:      parse_and_handle.template operator()<events::sell_ship_on_rebuy_t>(); break;
+    case SetUserShipName:      parse_and_handle.template operator()<events::set_user_ship_name_t>(); break;
     case CarrierStats:      parse_and_handle.template operator()<events::carrier_stats_t>(); break;
     case FCMaterials:
         {

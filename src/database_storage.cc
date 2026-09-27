@@ -510,6 +510,8 @@ namespace tables
   // both rebuild from journals, so their place is in the personal database, not in live
   inline constexpr std::string_view ship_transfer{"ship_transfer"};
   inline constexpr std::string_view port_visit{"port_visit"};
+  // the fleet as the last shipyard and the moves since told it - rebuilt from journals
+  inline constexpr std::string_view ship{"ship"};
   inline constexpr std::string_view micro_resource{"live.micro_resource"};
   // selling micro resources is a journal event, so it is rebuildable
   inline constexpr std::string_view micro_sale{"micro_sale"};
@@ -1336,6 +1338,9 @@ auto database_storage_t::create_database() -> expected_ec<void>
 
   if(auto res{sqlite::create_table<info::port_visit_t>(db_->db, "market_id"sv, sql_iface::tables::port_visit)};
      not res) [[unlikely]]
+    return res;
+
+  if(auto res{sqlite::create_table<info::ship_t>(db_->db, "ship_id"sv, sql_iface::tables::ship)}; not res) [[unlikely]]
     return res;
 
   if(auto res{sqlite::create_table<info::micro_resource_t>(db_->db, "name"sv, sql_iface::tables::micro_resource)};
@@ -2999,6 +3004,65 @@ auto database_storage_t::load_transfers_in_flight(std::chrono::sys_seconds now)
     sql_iface::tables::ship_transfer,
     std::format(" WHERE arrives > '{:%Y-%m-%dT%H:%M:%SZ}' ORDER BY arrives", now)
   );
+  }
+
+auto database_storage_t::load_fleet() -> expected_ec<std::vector<info::ship_t>>
+  {
+  return sqlite::select_from<info::ship_t>(db_->db, sql_iface::tables::ship, " ORDER BY ship_id");
+  }
+
+auto database_storage_t::store_fleet(std::span<info::ship_t const> ships) -> expected_ec<void>
+  {
+  // a few dozen rows, and every change is worked out on the whole list - so the list replaces the table
+  if(auto res{sqlite::execute_query_no_result(db_->db, std::format("DELETE FROM {}", sql_iface::tables::ship))};
+     not res) [[unlikely]]
+    return res;
+
+  for(info::ship_t const & ship: ships)
+    if(auto res{sqlite::insert_into<info::ship_t, true>(db_->db, "ship_id"sv, sql_iface::tables::ship, ship)}; not res)
+      [[unlikely]]
+      return res;
+
+  return {};
+  }
+
+namespace sql_iface
+  {
+///\brief a system's name and position, without the rest of its row
+struct system_position_t
+  {
+  std::string name;
+  double loc_x;
+  double loc_y;
+  double loc_z;
+  };
+  }  // namespace sql_iface
+
+auto database_storage_t::load_system_positions(std::span<std::string const> names)
+  -> expected_ec<std::map<std::string, std::array<double, 3>>>
+  {
+  std::map<std::string, std::array<double, 3>> result;
+  if(names.empty())
+    return result;
+
+  std::string list;
+  for(std::string const & name: names)
+    list += std::format("{}'{}'", list.empty() ? "" : ",", sqlite::escape_sql_quotes(name));
+
+  auto rows{sqlite::select_from<sql_iface::system_position_t>(
+    db_->db,
+    sql_iface::tables::star_system,
+    std::format(" WHERE name IN ({})", list)
+  )};
+  if(not rows) [[unlikely]]
+    return cxx23::unexpected{rows.error()};
+
+  // a system known only by name - from a signal or a mission, never jumped to - has no position; Sol has
+  // one at the origin
+  for(sql_iface::system_position_t const & row: *rows)
+    if(row.loc_x != 0.0 or row.loc_y != 0.0 or row.loc_z != 0.0 or row.name == "Sol")
+      result[row.name] = {row.loc_x, row.loc_y, row.loc_z};
+  return result;
   }
 
 auto database_storage_t::store(info::port_visit_t const & value) -> expected_ec<void>

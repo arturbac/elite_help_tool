@@ -119,6 +119,8 @@ auto main_window_t::publish_overlay() -> void
       construction_focus = construction_view_->selected_market();
     }
   overlay_feed_->set_construction_focus(construction_focus);
+  if(ships_view_)
+    ships_view_->refresh_ui();
   overlay_feed_->publish(state_, plotted);
 
   if(extension_)
@@ -203,6 +205,9 @@ auto main_window_t::setup_ui() -> void
 
   construction_view_ = new construction_window_t{state_, db_path_};
   add_tool_window(construction_view_, window_type_e::construction);
+
+  ships_view_ = new ships_window_t{state_, db_path_};
+  add_tool_window(ships_view_, window_type_e::ships);
   }
 
 auto main_window_t::add_tool_window(QMdiSubWindow * sub, window_type_e type) -> void
@@ -230,6 +235,7 @@ auto main_window_t::subwindow_for(window_type_e type) const -> QMdiSubWindow *
     case window_type_e::micro_resource: return micro_resource_view_;
     case window_type_e::bgs: return bgs_view_;
     case window_type_e::construction: return construction_view_;
+    case window_type_e::ships:        return ships_view_;
     case window_type_e::journal_log:   return jlw_;
     case window_type_e::none:          break;
     }
@@ -283,6 +289,7 @@ auto main_window_t::setup_toolbox() -> void
     {window_type_e::micro_resource, "Data"},
     {window_type_e::bgs, "BGS"},
     {window_type_e::construction, "Construction"},
+    {window_type_e::ships, "Ships"},
     {window_type_e::journal_log, "Log"}
   };
 

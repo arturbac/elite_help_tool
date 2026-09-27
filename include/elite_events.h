@@ -108,6 +108,9 @@ enum struct event_e : uint16_t
   StoredShips,
   ShipyardTransfer,
   ShipyardBuy,
+  ShipyardSell,
+  SellShipOnRebuy,
+  SetUserShipName,
   CommitCrime,
   CrimeVictim,
   UnderAttack,
@@ -1069,7 +1072,94 @@ struct carrier_jump_t
 struct shipyard_swap_t
   {
   std::string ShipType;
+  std::string ShipType_Localised;
+  ///\brief the ship taken
+  uint64_t ShipID{};
+  ///\brief the ship left here, unless it was sold in the same move
+  std::string StoreOldShip;
+  std::optional<uint64_t> StoreShipID;
+  std::optional<uint64_t> SellShipID;
   uint64_t MarketID{};
+  };
+
+///\brief a ship waiting at the shipyard we stand in
+struct stored_ship_here_t
+  {
+  uint64_t ShipID{};
+  std::string ShipType;
+  std::string ShipType_Localised;
+  std::string Name;
+  uint64_t Value{};
+  bool Hot{};
+  };
+
+///\brief a ship waiting elsewhere, or on its way - one in transit has no system
+struct stored_ship_remote_t
+  {
+  uint64_t ShipID{};
+  std::string ShipType;
+  std::string ShipType_Localised;
+  std::string Name;
+  std::string StarSystem;
+  uint64_t ShipMarketID{};
+  uint64_t TransferPrice{};
+  ///\brief seconds it would take to bring it here
+  uint64_t TransferTime{};
+  uint64_t Value{};
+  bool Hot{};
+  bool InTransit{};
+  };
+
+///\brief every ship but the one flown, written on opening a shipyard - the whole fleet at once
+struct stored_ships_t
+  {
+  std::string StationName;
+  uint64_t MarketID{};
+  std::string StarSystem;
+  std::vector<stored_ship_here_t> ShipsHere;
+  std::vector<stored_ship_remote_t> ShipsRemote;
+  };
+
+///\brief a ship bought - the one flown so far stays here or is sold; ShipyardNew names the new one
+struct shipyard_buy_t
+  {
+  std::string ShipType;
+  std::string ShipType_Localised;
+  std::optional<uint64_t> StoreShipID;
+  std::optional<uint64_t> SellShipID;
+  uint64_t MarketID{};
+  };
+
+///\brief the ship just bought, with the id the game gave it
+struct shipyard_new_t
+  {
+  std::string ShipType;
+  std::string ShipType_Localised;
+  uint64_t NewShipID{};
+  };
+
+///\brief a stored ship sold
+struct shipyard_sell_t
+  {
+  std::string ShipType;
+  uint64_t SellShipID{};
+  uint64_t MarketID{};
+  };
+
+///\brief a ship sold instead of paying the rebuy
+struct sell_ship_on_rebuy_t
+  {
+  std::string ShipType;
+  uint64_t SellShipId{};
+  };
+
+///\brief a ship renamed
+struct set_user_ship_name_t
+  {
+  std::string Ship;
+  uint64_t ShipID{};
+  std::string UserShipName;
+  std::string UserShipId;
   };
 
 ///\brief waking up again - after a death, or leaving by escape pod ("escape"), which leaves no death behind
@@ -1466,7 +1556,13 @@ using event_holder_t = std::variant<
   carrier_jump_cancelled_t,
   carrier_jump_t,
   shipyard_swap_t,
-  resurrect_t>;
+  resurrect_t,
+  stored_ships_t,
+  shipyard_buy_t,
+  shipyard_new_t,
+  shipyard_sell_t,
+  sell_ship_on_rebuy_t,
+  set_user_ship_name_t>;
 
   }  // namespace events
 

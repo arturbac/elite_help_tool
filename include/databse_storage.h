@@ -7,6 +7,7 @@
 #include <elite_data.h>
 #include <biology.h>
 #include <array>
+#include <map>
 #include <span>
 
 struct sqlite3_handle_t;
@@ -208,6 +209,19 @@ struct database_storage_t
   ///\brief transfers that have not arrived as of the given moment
   [[nodiscard]]
   auto load_transfers_in_flight(std::chrono::sys_seconds now) -> expected_ec<std::vector<info::ship_transfer_t>>;
+
+  ///\brief the fleet, the ship flown among it
+  [[nodiscard]]
+  auto load_fleet() -> expected_ec<std::vector<info::ship_t>>;
+
+  ///\brief replaces the fleet with the given list
+  [[nodiscard]]
+  auto store_fleet(std::span<info::ship_t const> ships) -> expected_ec<void>;
+
+  ///\brief where the named systems are, for those that have a known position
+  [[nodiscard]]
+  auto load_system_positions(std::span<std::string const> names)
+    -> expected_ec<std::map<std::string, std::array<double, 3>>>;
 
   ///\brief records a stop at a port, moving the mark forward on a repeat visit
   [[nodiscard]]

@@ -70,6 +70,8 @@ struct overlay_lists_t
   uint32_t settlement_name_chars{28u};
   uint32_t trades{3u};
   uint32_t route_hops{10u};
+  ///\brief the ships nearby, the nearest first
+  uint32_t ships{8u};
   };
 
 ///\brief how often the overlay asks again - the database and the files it reads change at their own pace
@@ -143,6 +145,8 @@ struct overlay_settings_t
   uint32_t interesting_margin{500u};
   ///\brief how long a kill stays on the target readout
   uint32_t kill_shown_s{10u};
+  ///\brief how far a ship may stand to be listed as nearby; 0 turns the list off
+  double ships_radius_ly{100.0};
   overlay_chart_t influence_chart{.days = 20u, .height = 98u};
   overlay_chart_t tick_chart{.days = 30u, .height = 90u};
   system_map_t system_map;

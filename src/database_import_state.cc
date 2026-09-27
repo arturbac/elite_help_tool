@@ -1,5 +1,6 @@
 #include <eht_settings.h>
 #include <database_import_state.h>
+#include <fleet.h>
 #include <spdlog/spdlog.h>
 #include <simple_enum/std_format.hpp>
 #include <stralgo/stralgo.h>
@@ -20,7 +21,8 @@ void critical_abort(std::format_string<Args...> fmt, Args &&... args)
 /// With a longer gap between readings the span covers half a day; intersecting with it narrows nothing
 /// and only litters the table
 [[nodiscard]]
-auto max_tick_window() -> std::chrono::hours { return std::chrono::hours{eht::settings()->ticks.max_window_h}; }
+auto max_tick_window() -> std::chrono::hours
+  { return std::chrono::hours{eht::settings()->ticks.max_window_h}; }
 
 ///\brief records the trace of a tick when the watched value changed between two readings of the system
 void note_tick(
@@ -36,9 +38,11 @@ void note_tick(
     return;
 
   if(
-    auto res{db.store(info::tick_observation_t{
-      .kind = kind, .system_address = system_address, .window_begin = *previously_seen, .window_end = timestamp
-    })};
+    auto res{db.store(
+      info::tick_observation_t{
+        .kind = kind, .system_address = system_address, .window_begin = *previously_seen, .window_end = timestamp
+      }
+    )};
     not res
   )
     spdlog::error("failed to store tick observation for {}", system_address);
@@ -49,9 +53,8 @@ void note_tick(
 /// The end of a war shares out the beaten faction's holding at once, outside the daily recalculation, so
 /// a change of influence seen in the same reading is no trace of a tick and must not be counted as one
 [[nodiscard]]
-auto war_settled_now(
-  database_storage_t & db, uint64_t system_address, std::span<events::conflict_t const> conflicts
-) -> bool
+auto war_settled_now(database_storage_t & db, uint64_t system_address, std::span<events::conflict_t const> conflicts)
+  -> bool
   {
   for(events::conflict_t const & conflict: conflicts)
     {
@@ -62,7 +65,7 @@ auto war_settled_now(
       continue;
 
     auto last{db.last_conflict(system_address, record.faction1, record.faction2)};
-    if(last and *last and not (*last)->status.empty())
+    if(last and *last and not(*last)->status.empty())
       return true;
     }
 
@@ -198,10 +201,14 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
         or std::same_as<T, events::mission_abandoned_t> or std::same_as<T, events::mission_failed_t>
         or std::same_as<T, events::mission_redirected_t> or std::same_as<T, events::missions_t>
         or std::same_as<T, events::sell_micro_resources_t> or std::same_as<T, events::backpack_change_t>
-        or std::same_as<T, events::shipyard_transfer_t>
+        or std::same_as<T, events::shipyard_transfer_t> or fleet::changes_fleet<T>
       )
         if(not state.personal)
           return;
+
+      // the fleet - the same work in the live state, so it lives in one place
+      if constexpr(fleet::changes_fleet<T>)
+        fleet::record(state.db_, timestamp, event, state.system.name, state.settlement_market_id);
 
       if constexpr(std::same_as<T, events::start_jump_t>)
         {
@@ -297,9 +304,7 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
         // from this event, a rebuild reading journals in order has no business finding a gap here
         if(state.system.system_address != event.SystemAddress)
           critical_abort(
-            "jump to {} without start jump, the state was still at {}",
-            event.SystemAddress,
-            state.system.system_address
+            "jump to {} without start jump, the state was still at {}", event.SystemAddress, state.system.system_address
           );
         else if(state.system.system_location != event.StarPos)
           {
@@ -541,10 +546,7 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
       else if constexpr(std::same_as<T, events::sell_micro_resources_t>)
         {
         info::micro_sale_t sale{
-          .timestamp = timestamp,
-          .market_id = event.MarketID,
-          .price = event.Price,
-          .total_count = event.TotalCount
+          .timestamp = timestamp, .market_id = event.MarketID, .price = event.Price, .total_count = event.TotalCount
         };
 
         std::vector<info::micro_sale_item_t> items;
@@ -553,10 +555,12 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
           {
           auto key{micro_resource_key(sold.Name)};
           // the category comes only from here, the id and the readable name from the bartender
-          if(auto res{state.db_.store(info::micro_resource_t{
-               .name = key, .id = {}, .localised = sold.Name_Localised, .category = sold.Category
-             })};
-             not res)
+          if(
+            auto res{state.db_.store(
+              info::micro_resource_t{.name = key, .id = {}, .localised = sold.Name_Localised, .category = sold.Category}
+            )};
+            not res
+          )
             spdlog::error("failed to store micro resource {}", sold.Name);
 
           items.emplace_back(info::micro_sale_item_t{.name = std::move(key), .count = sold.Count});
@@ -565,24 +569,32 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
         if(auto res{state.db_.store(sale, items)}; not res)
           critical_abort("failed to store micro resource sale at {}", event.MarketID);
         }
-        else if constexpr(std::same_as<T, events::approach_settlement_t>)
+      else if constexpr(std::same_as<T, events::approach_settlement_t>)
         {
         state.settlement_market_id = event.MarketID;
-        if(auto res{state.db_.store(info::station_t{
-             .market_id = event.MarketID,
-             .system_address = event.SystemAddress,
-             .name = event.Name,
-             .station_type = {},
-             .economy = event.StationEconomy_Localised,
-             .government = event.StationGovernment_Localised,
-             .controlling_faction = event.StationFaction.Name,
-             .body_id = event.BodyID
-           })};
-           not res)
+        if(
+          auto res{state.db_.store(
+            info::station_t{
+              .market_id = event.MarketID,
+              .system_address = event.SystemAddress,
+              .name = event.Name,
+              .station_type = {},
+              .economy = event.StationEconomy_Localised,
+              .government = event.StationGovernment_Localised,
+              .controlling_faction = event.StationFaction.Name,
+              .body_id = event.BodyID
+            }
+          )};
+          not res
+        )
           spdlog::error("failed to store settlement {}", event.MarketID);
         state.ground_cz.approach(event);
-        if(auto res{state.db_.note_settlement_owner(event.MarketID, event.SystemAddress, event.StationFaction.Name, timestamp)};
-           not res)
+        if(
+          auto res{
+            state.db_.note_settlement_owner(event.MarketID, event.SystemAddress, event.StationFaction.Name, timestamp)
+          };
+          not res
+        )
           spdlog::error("failed to note the owner of {}", event.MarketID);
         }
       else if constexpr(std::same_as<T, events::disembark_t>)
@@ -592,15 +604,19 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
         if(event.MarketID != 0)
           {
           state.settlement_market_id = event.MarketID;
-          if(auto res{state.db_.store(info::station_t{
-               .market_id = event.MarketID,
-               .system_address = event.SystemAddress,
-               .name = event.StationName,
-               .station_type = event.StationType,
-               .economy = {},
-               .government = {}
-             })};
-             not res)
+          if(
+            auto res{state.db_.store(
+              info::station_t{
+                .market_id = event.MarketID,
+                .system_address = event.SystemAddress,
+                .name = event.StationName,
+                .station_type = event.StationType,
+                .economy = {},
+                .government = {}
+              }
+            )};
+            not res
+          )
             spdlog::error("failed to store station {}", event.MarketID);
           }
         }
@@ -612,8 +628,12 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
         state.settlement_market_id = 0;
         // a name given while docked - a construction site's, chosen from the game's rolls - shows first here
         if(event.MarketID != 0u and not event.StationName.empty())
-          if(auto res{state.db_.store(info::station_t{.market_id = event.MarketID, .system_address = 0u, .name = event.StationName})};
-             not res)
+          if(
+            auto res{state.db_.store(
+              info::station_t{.market_id = event.MarketID, .system_address = 0u, .name = event.StationName}
+            )};
+            not res
+          )
             spdlog::error("failed to store the name of {}", event.MarketID);
         }
       else if constexpr(std::same_as<T, events::backpack_change_t>)
@@ -622,50 +642,66 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
           {
           auto key{micro_resource_key(item.Name)};
           // the type out of the backpack is the same category as the one used when selling
-          if(auto res{state.db_.store(info::micro_resource_t{
-               .name = key, .id = {}, .localised = item.Name_Localised, .category = item.Type
-             })};
-             not res)
+          if(
+            auto res{state.db_.store(
+              info::micro_resource_t{.name = key, .id = {}, .localised = item.Name_Localised, .category = item.Type}
+            )};
+            not res
+          )
             spdlog::error("failed to store micro resource {}", item.Name);
 
           // the place is stored as a market_id, so the economy follows on its own once we learn it
-          if(auto res{state.db_.store(info::micro_acquisition_t{
-               .timestamp = timestamp, .market_id = state.settlement_market_id, .name = std::move(key),
-               .count = item.Count,
-               .source = info::acquisition_source_e::collected
-             })};
-             not res)
+          if(
+            auto res{state.db_.store(
+              info::micro_acquisition_t{
+                .timestamp = timestamp,
+                .market_id = state.settlement_market_id,
+                .name = std::move(key),
+                .count = item.Count,
+                .source = info::acquisition_source_e::collected
+              }
+            )};
+            not res
+          )
             spdlog::error("failed to store acquisition {}", item.Name);
           }
         }
       else if constexpr(std::same_as<T, events::shipyard_transfer_t>)
         {
         // the game gives the delivery time once and never mentions it again, and announces the arrival not at all
-        if(auto res{state.db_.store(info::ship_transfer_t{
-             .ship_id = event.ShipID,
-             .ship_type = event.ShipType_Localised.empty() ? event.ShipType : event.ShipType_Localised,
-             .from_system = event.System,
-             .to_market_id = event.MarketID,
-             .distance = event.Distance,
-             .price = event.TransferPrice,
-             .ordered = timestamp,
-             .arrives = timestamp + std::chrono::seconds{event.TransferTime}
-           })};
-           not res)
+        if(
+          auto res{state.db_.store(
+            info::ship_transfer_t{
+              .ship_id = event.ShipID,
+              .ship_type = event.ShipType_Localised.empty() ? event.ShipType : event.ShipType_Localised,
+              .from_system = event.System,
+              .to_market_id = event.MarketID,
+              .distance = event.Distance,
+              .price = event.TransferPrice,
+              .ordered = timestamp,
+              .arrives = timestamp + std::chrono::seconds{event.TransferTime}
+            }
+          )};
+          not res
+        )
           spdlog::error("failed to store ship transfer {}", event.ShipID);
         }
       else if constexpr(std::same_as<T, events::docked_t>)
         {
         // the escape pod sends the character home, and another account's ports mean nothing to it
         if(state.personal and info::is_escape_pod_port(event.StationType, event.StationName))
-          if(auto res{state.db_.store(info::port_visit_t{
-               .market_id = event.MarketID,
-               .name = event.StationName,
-               .system = event.StarSystem,
-               .station_type = event.StationType,
-               .visited = timestamp
-             })};
-             not res)
+          if(
+            auto res{state.db_.store(
+              info::port_visit_t{
+                .market_id = event.MarketID,
+                .name = event.StationName,
+                .system = event.StarSystem,
+                .station_type = event.StationType,
+                .visited = timestamp
+              }
+            )};
+            not res
+          )
             spdlog::error("failed to store port visit {}", event.MarketID);
 
         // a station's identity is rebuilt from journals - the type tells a carrier from a station
@@ -684,8 +720,12 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
         if(auto res{state.db_.store(station)}; not res) [[unlikely]]
           critical_abort("failed to store station {}", event.MarketID);
         state.ground_cz.docked(event);
-        if(auto res{state.db_.note_settlement_owner(event.MarketID, event.SystemAddress, event.StationFaction.Name, timestamp)};
-           not res)
+        if(
+          auto res{
+            state.db_.note_settlement_owner(event.MarketID, event.SystemAddress, event.StationFaction.Name, timestamp)
+          };
+          not res
+        )
           spdlog::error("failed to note the owner of {}", event.MarketID);
         }
       // conflict zones on foot: where the commander stands, and the kills that tell a zone's intensity
@@ -706,91 +746,161 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
       // colonisation: whose systems, what a site needs, what came to it
       else if constexpr(std::same_as<T, events::colonisation_system_claim_t>)
         {
-        if(auto res{state.db_.store(info::colony_claim_t{
-             .system_address = event.SystemAddress, .system = event.StarSystem, .commander = state.commander,
-             .claimed = timestamp, .released = false
-           })};
-           not res)
+        if(
+          auto res{state.db_.store(
+            info::colony_claim_t{
+              .system_address = event.SystemAddress,
+              .system = event.StarSystem,
+              .commander = state.commander,
+              .claimed = timestamp,
+              .released = false
+            }
+          )};
+          not res
+        )
           spdlog::error("failed to store the claim of {}", event.StarSystem);
         }
       else if constexpr(std::same_as<T, events::colonisation_system_claim_release_t>)
         {
-        if(auto res{state.db_.store(info::colony_claim_t{
-             .system_address = event.SystemAddress, .system = event.StarSystem, .commander = state.commander,
-             .claimed = timestamp, .released = true
-           })};
-           not res)
+        if(
+          auto res{state.db_.store(
+            info::colony_claim_t{
+              .system_address = event.SystemAddress,
+              .system = event.StarSystem,
+              .commander = state.commander,
+              .claimed = timestamp,
+              .released = true
+            }
+          )};
+          not res
+        )
           spdlog::error("failed to store the release of {}", event.StarSystem);
         }
       else if constexpr(std::same_as<T, events::colonisation_construction_depot_t>)
         {
         std::vector<info::construction_need_t> needs;
         for(events::construction_resource_t const & r: event.ResourcesRequired)
-          needs.push_back(info::construction_need_t{
-            .market_id = event.MarketID, .key = info::commodity_key(r.Name),
-            .commodity = r.Name_Localised.empty() ? r.Name : r.Name_Localised, .required = r.RequiredAmount,
-            .provided = r.ProvidedAmount, .payment = r.Payment
-          });
+          needs.push_back(
+            info::construction_need_t{
+              .market_id = event.MarketID,
+              .key = info::commodity_key(r.Name),
+              .commodity = r.Name_Localised.empty() ? r.Name : r.Name_Localised,
+              .required = r.RequiredAmount,
+              .provided = r.ProvidedAmount,
+              .payment = r.Payment
+            }
+          );
         // docked at the site - the system we are in is the site's
-        if(auto res{state.db_.store_construction(
-             info::construction_depot_t{
-               .market_id = event.MarketID, .system_address = state.system.system_address,
-               .progress = event.ConstructionProgress, .complete = event.ConstructionComplete,
-               .failed = event.ConstructionFailed, .updated = timestamp
-             },
-             needs
-           )};
-           not res)
+        if(
+          auto res{state.db_.store_construction(
+            info::construction_depot_t{
+              .market_id = event.MarketID,
+              .system_address = state.system.system_address,
+              .progress = event.ConstructionProgress,
+              .complete = event.ConstructionComplete,
+              .failed = event.ConstructionFailed,
+              .updated = timestamp
+            },
+            needs
+          )};
+          not res
+        )
           spdlog::error("failed to store construction site {}", event.MarketID);
         }
       else if constexpr(std::same_as<T, events::colonisation_contribution_t>)
         {
         for(events::construction_contribution_t const & c: event.Contributions)
-          if(auto res{state.db_.store_delivery(info::construction_delivery_t{
-               .timestamp = timestamp, .market_id = event.MarketID, .key = info::commodity_key(c.Name),
-               .amount = c.Amount, .commander = state.commander
-             })};
-             not res)
+          if(
+            auto res{state.db_.store_delivery(
+              info::construction_delivery_t{
+                .timestamp = timestamp,
+                .market_id = event.MarketID,
+                .key = info::commodity_key(c.Name),
+                .amount = c.Amount,
+                .commander = state.commander
+              }
+            )};
+            not res
+          )
             spdlog::error("failed to store a delivery to {}", event.MarketID);
         }
       // carriers: every move, so that where each is and where it goes can be read back
       else if constexpr(std::same_as<T, events::carrier_jump_request_t>)
         {
-        if(auto res{state.db_.store(info::carrier_movement_t{
-             .timestamp = timestamp, .carrier_id = event.CarrierID, .carrier_type = event.CarrierType, .kind = "request",
-             .system = event.SystemName, .system_address = event.SystemAddress, .body = event.Body,
-             .departure = event.DepartureTime
-           })};
-           not res)
+        if(
+          auto res{state.db_.store(
+            info::carrier_movement_t{
+              .timestamp = timestamp,
+              .carrier_id = event.CarrierID,
+              .carrier_type = event.CarrierType,
+              .kind = "request",
+              .system = event.SystemName,
+              .system_address = event.SystemAddress,
+              .body = event.Body,
+              .departure = event.DepartureTime
+            }
+          )};
+          not res
+        )
           spdlog::error("failed to store the jump of carrier {}", event.CarrierID);
         }
       else if constexpr(std::same_as<T, events::carrier_location_t>)
         {
-        if(auto res{state.db_.store(info::carrier_movement_t{
-             .timestamp = timestamp, .carrier_id = event.CarrierID, .carrier_type = event.CarrierType, .kind = "location",
-             .system = event.StarSystem, .system_address = event.SystemAddress, .body = {}, .departure = {}
-           })};
-           not res)
+        if(
+          auto res{state.db_.store(
+            info::carrier_movement_t{
+              .timestamp = timestamp,
+              .carrier_id = event.CarrierID,
+              .carrier_type = event.CarrierType,
+              .kind = "location",
+              .system = event.StarSystem,
+              .system_address = event.SystemAddress,
+              .body = {},
+              .departure = {}
+            }
+          )};
+          not res
+        )
           spdlog::error("failed to store the position of carrier {}", event.CarrierID);
         }
       else if constexpr(std::same_as<T, events::carrier_jump_cancelled_t>)
         {
-        if(auto res{state.db_.store(info::carrier_movement_t{
-             .timestamp = timestamp, .carrier_id = event.CarrierID, .carrier_type = event.CarrierType, .kind = "cancel",
-             .system = {}, .system_address = 0u, .body = {}, .departure = {}
-           })};
-           not res)
+        if(
+          auto res{state.db_.store(
+            info::carrier_movement_t{
+              .timestamp = timestamp,
+              .carrier_id = event.CarrierID,
+              .carrier_type = event.CarrierType,
+              .kind = "cancel",
+              .system = {},
+              .system_address = 0u,
+              .body = {},
+              .departure = {}
+            }
+          )};
+          not res
+        )
           spdlog::error("failed to store the cancelled jump of carrier {}", event.CarrierID);
         }
       else if constexpr(std::same_as<T, events::carrier_jump_t>)
         {
         // aboard a carrier as it jumps - the carrier is the station, by its market
         if(event.StationType == "FleetCarrier" and event.MarketID != 0u)
-          if(auto res{state.db_.store(info::carrier_movement_t{
-               .timestamp = timestamp, .carrier_id = event.MarketID, .carrier_type = {}, .kind = "jump",
-               .system = event.StarSystem, .system_address = event.SystemAddress, .body = event.Body, .departure = {}
-             })};
-             not res)
+          if(
+            auto res{state.db_.store(
+              info::carrier_movement_t{
+                .timestamp = timestamp,
+                .carrier_id = event.MarketID,
+                .carrier_type = {},
+                .kind = "jump",
+                .system = event.StarSystem,
+                .system_address = event.SystemAddress,
+                .body = event.Body,
+                .departure = {}
+              }
+            )};
+            not res
+          )
             spdlog::error("failed to store the jump of carrier {}", event.MarketID);
         }
       else if constexpr(std::same_as<T, events::market_t>)
@@ -880,8 +990,8 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
             planet_details_t & details{std::get<planet_details_t>(it->details)};
             details.mapped = true;
             if(state.personal)
-              if(auto res{state.db_.store_dss_complete(state.system.system_address, event.BodyID)};
-                 not res) [[unlikely]]
+              if(auto res{state.db_.store_dss_complete(state.system.system_address, event.BodyID)}; not res)
+                [[unlikely]]
                 critical_abort(
                   "failed to update dss scan complete for {}:{}", state.system.system_address, event.BodyID
                 );
@@ -940,53 +1050,68 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
               continue;
 
             auto const magnitude{int32_t(influence.Influence.size())};
-            if(auto res{state.db_.store(info::mission_influence_t{
-                 .mission_id = event.MissionID,
-                 .timestamp = timestamp,
-                 .faction = effect.Faction,
-                 .system_address = influence.SystemAddress,
-                 .pluses = influence.Trend == "DownBad" ? -magnitude : magnitude
-               })};
-               not res)
+            if(
+              auto res{state.db_.store(
+                info::mission_influence_t{
+                  .mission_id = event.MissionID,
+                  .timestamp = timestamp,
+                  .faction = effect.Faction,
+                  .system_address = influence.SystemAddress,
+                  .pluses = influence.Trend == "DownBad" ? -magnitude : magnitude
+                }
+              )};
+              not res
+            )
               spdlog::error("failed to store mission influence for {}", event.MissionID);
             }
 
-          // rewards go straight to the locker and never appear in the backpack - nothing is counted twice
-          for(events::material_reward_t const & reward: event.MaterialsReward)
-            {
-            // Encoded, Manufactured and Elements are ship materials, not micro resources
-            if(reward.Category_Localised != "Data" and reward.Category_Localised != "Item"
-               and reward.Category_Localised != "Component" and reward.Category_Localised != "Consumable")
-              continue;
-      
-            auto key{micro_resource_key(reward.Name)};
-            if(auto res{state.db_.store(info::micro_resource_t{
-                 .name = key, .id = {}, .localised = {}, .category = reward.Category_Localised
-               })};
-               not res)
-              spdlog::error("failed to store micro resource {}", reward.Name);
-      
-            if(auto res{state.db_.store(info::micro_acquisition_t{
-                 .timestamp = timestamp,
-                 .market_id = state.settlement_market_id,
-                 .name = std::move(key),
-                 .count = reward.Count,
-                 .source = info::acquisition_source_e::mission_reward
-               })};
-               not res)
-              spdlog::error("failed to store mission reward {}", reward.Name);
-            }
+        // rewards go straight to the locker and never appear in the backpack - nothing is counted twice
+        for(events::material_reward_t const & reward: event.MaterialsReward)
+          {
+          // Encoded, Manufactured and Elements are ship materials, not micro resources
+          if(
+            reward.Category_Localised != "Data" and reward.Category_Localised != "Item"
+            and reward.Category_Localised != "Component" and reward.Category_Localised != "Consumable"
+          )
+            continue;
+
+          auto key{micro_resource_key(reward.Name)};
+          if(
+            auto res{state.db_.store(
+              info::micro_resource_t{.name = key, .id = {}, .localised = {}, .category = reward.Category_Localised}
+            )};
+            not res
+          )
+            spdlog::error("failed to store micro resource {}", reward.Name);
+
+          if(
+            auto res{state.db_.store(
+              info::micro_acquisition_t{
+                .timestamp = timestamp,
+                .market_id = state.settlement_market_id,
+                .name = std::move(key),
+                .count = reward.Count,
+                .source = info::acquisition_source_e::mission_reward
+              }
+            )};
+            not res
+          )
+            spdlog::error("failed to store mission reward {}", reward.Name);
+          }
         }
       else if constexpr(std::same_as<T, events::mission_abandoned_t>)
         {
-        if(auto res{state.db_.change_mission_status(event.MissionID, info::mission_status_e::abandoned, timestamp)}; not res)
-          [[unlikely]]
+        if(
+          auto res{state.db_.change_mission_status(event.MissionID, info::mission_status_e::abandoned, timestamp)};
+          not res
+        ) [[unlikely]]
           critical_abort("failed to change mission status for {}", event.MissionID);
         }
       else if constexpr(std::same_as<T, events::mission_failed_t>)
         {
-        if(auto res{state.db_.change_mission_status(event.MissionID, info::mission_status_e::failed, timestamp)}; not res)
-          [[unlikely]]
+        if(
+          auto res{state.db_.change_mission_status(event.MissionID, info::mission_status_e::failed, timestamp)}; not res
+        ) [[unlikely]]
           critical_abort("failed to change mission status for {}", event.MissionID);
         }
       else if constexpr(std::same_as<T, events::mission_redirected_t>)
@@ -1002,12 +1127,16 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
       else if constexpr(std::same_as<T, events::missions_t>)
         {
         for(events::mission_failed_t const & mission: event.Failed)
-          if(auto res{state.db_.change_mission_status(mission.MissionID, info::mission_status_e::failed, timestamp)}; not res)
-            [[unlikely]]
+          if(
+            auto res{state.db_.change_mission_status(mission.MissionID, info::mission_status_e::failed, timestamp)};
+            not res
+          ) [[unlikely]]
             spdlog::warn("failed to change mission status for {}", mission.MissionID);
         for(events::mission_completed_t const & mission: event.Complete)
-          if(auto res{state.db_.change_mission_status(mission.MissionID, info::mission_status_e::completed, timestamp)}; not res)
-            [[unlikely]]
+          if(
+            auto res{state.db_.change_mission_status(mission.MissionID, info::mission_status_e::completed, timestamp)};
+            not res
+          ) [[unlikely]]
             spdlog::warn("failed to change mission status for {}", mission.MissionID);
 
         // this is the only moment the game says outright what is still open - everything outside that list has closed

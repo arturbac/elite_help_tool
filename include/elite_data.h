@@ -946,6 +946,36 @@ struct ship_transfer_t
   std::chrono::sys_seconds arrives;
   };
 
+///\brief one ship of the fleet and the place it was last known at
+///
+/// The full list comes only with StoredShips, written on opening a shipyard; between two of them the
+/// swaps, purchases, sales and transfers move single ships. The ship flown has no place of its own -
+/// it is wherever the commander is
+struct ship_t
+  {
+  uint64_t ship_id;
+  ///\brief the internal name, lower case - the journal writes it in either case
+  std::string ship_type;
+  ///\brief the name the game shows, when the journal gave one; the internal name otherwise
+  std::string type_name;
+  std::string name;
+  std::string ident;
+  std::string system;
+  std::string station;
+  ///\brief the port it stands in - for a carrier its id, so the ship follows the carrier's jumps
+  uint64_t market_id;
+  uint64_t value;
+  bool hot;
+  ///\brief the one being flown
+  bool current;
+  ///\brief ordered to another port; system, station and market are then the destination
+  bool in_transit;
+  ///\brief when a transfer arrives, empty when none was seen ordered
+  std::chrono::sys_seconds arrives;
+  ///\brief when this place was last told
+  std::chrono::sys_seconds seen;
+  };
+
 ///\brief a port we stood at with a ship
 ///
 /// Only a place one docks at with a ship counts - on-foot settlements and carriers are not

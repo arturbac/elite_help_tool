@@ -114,6 +114,12 @@ private:
   [[nodiscard]]
   auto build_logistics_lines() const -> std::vector<overlay::line_t>;
 
+  ///\brief the fleet placed, read again when it changed, on a change of system, or every half minute
+  auto refresh_fleet(current_state_t const & state) -> void;
+  ///\brief our ships within reach of here, the nearest first - which one to go and take, or have brought
+  [[nodiscard]]
+  auto build_fleet_lines() const -> std::vector<overlay::line_t>;
+
   ///\brief joins the requirements with the hold - without it two corners of the screen have to be compared
   [[nodiscard]]
   auto build_supply_lines(events::cargo_file_t const & cargo) const -> std::vector<overlay::line_t>;
@@ -176,6 +182,10 @@ private:
   bio::at_risk_t at_risk_;
   ///\brief the factions that probably hold a bounty on the commander - read back with what a death would cost
   legal_standing_t legal_;
+  std::vector<fleet::placed_ship_t> fleet_;
+  uint64_t fleet_changes_{~uint64_t{}};
+  uint64_t fleet_system_{~uint64_t{}};
+  std::chrono::steady_clock::time_point fleet_read_{};
   std::vector<info::construction_site_t> construction_sites_;
   uint64_t construction_changes_{~uint64_t{}};
   std::chrono::steady_clock::time_point construction_read_{};

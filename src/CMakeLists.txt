@@ -5,6 +5,7 @@ target_sources(eht
   biology.cc
   ground_cz.cc
   legal.cc
+  fleet.cc
   database_storage.cc
   database_import_state.cc
   elite_data.cc

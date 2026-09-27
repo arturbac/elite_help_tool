@@ -175,6 +175,21 @@ it can take the game down: [overlay/README.md](overlay/README.md).
   window; otherwise it is all our carriers together.
   A cancelled jump is dropped.
 
+## Your ships
+
+- **The Ships window** lists every ship you own: its name, type and ID, the system and port it stands
+  at, how far that is from where you are, its value, and whether it is the one you fly, in transit
+  (with the arrival time) or standing on a carrier. The nearest come first.
+- **On the overlay**, bottom left, the ships within 100 ly of you (`overlay.ships_radius_ly`, 0 turns
+  it off), the nearest first, up to 8 rows (`overlay.lists.ships`).
+- The game writes the whole fleet only when you open a shipyard, and leaves out the ship you fly.
+  Between two visits EHT follows the swaps, purchases, sales, renames and transfers. A transfer ordered
+  while EHT saw it keeps its destination and arrival time. A ship left on one of our carriers moves
+  with the carrier's jumps.
+- A distance is known only for systems whose position is in `galaxy.sqlite`, that is ones you or the
+  other account have been to. The rest stay at the bottom with a question mark.
+- The ship you fly is taken to be where you are, even when you have taken a taxi away from it.
+
 ## Exploration and exobiology
 
 The bottom right corner of the overlay follows the order of work in a new system:
@@ -247,7 +262,7 @@ The data is split into three files lying side by side, because they differ in or
 
 | file | holds | rebuilt from journals | shared between accounts |
 |---|---|---|---|
-| `ehtdb.sqlite` | missions, loot, reputation, scanning progress | yes | **no** — belongs to one commander |
+| `ehtdb.sqlite` | missions, loot, reputation, scanning progress, your ships | yes | **no** — belongs to one commander |
 | `galaxy.sqlite` | systems, bodies, stations, factions, influence, conflicts | yes | yes |
 | `live.sqlite` | markets, prices, the bartender's shelf | **no** | yes |
 
