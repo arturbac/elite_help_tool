@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <format>
+#include <limits>
 #include <ranges>
 
 namespace overlay_exploration
@@ -76,7 +77,8 @@ namespace
     star_system_t const & system,
     body_t const & body,
     events::genus_t const & genus,
-    std::span<bio::species_record_t const> history
+    std::span<bio::species_record_t const> history,
+    size_t guesses_shown
   ) -> genus_view_t
     {
     uint32_t const worth{bio_worth()};
@@ -115,7 +117,7 @@ namespace
       }
 
     std::string text{std::format("{} ?", genus.Genus_Localised)};
-    size_t const shown{std::max<size_t>(1u, eht::settings()->exploration.candidates)};
+    size_t const shown{std::max<size_t>(1u, guesses_shown)};
     for(auto const & [index, guess]: guesses | std::views::take(shown) | std::views::enumerate)
       {
       // the family's name is already in front - "Stratum ? Tectonicas" reads better than the name twice
@@ -153,7 +155,7 @@ namespace
     uint32_t best{};
     if(auto const * const planet{planet_of(body)}; planet != nullptr)
       for(events::genus_t const & genus: planet->genuses_)
-        best = std::max(best, view_genus(system, body, genus, history).potential);
+        best = std::max(best, view_genus(system, body, genus, history, 1u).potential);
     return best;
     }
   }  // namespace
@@ -192,18 +194,15 @@ auto describe_arrival(star_system_t const & system) -> std::vector<overlay::line
     );
     }
 
-  size_t const scanned{system.bodies.size()};
+  size_t scanned{};
   uint64_t worth{};
-  uint32_t life_bodies{};
-  uint32_t life_signals{};
   for(body_t const & body: system.bodies)
     {
+    // the belt's clusters come as scans of their own, but the honk counts only stars and planets
+    if(body.name.contains("Belt Cluster"))
+      continue;
+    ++scanned;
     worth += body.value;
-    if(auto const * const planet{planet_of(body)}; planet != nullptr and has_life(*planet))
-      {
-      ++life_bodies;
-      life_signals += std::max<uint32_t>(bio_signals(*planet), uint32_t(planet->genuses_.size()));
-      }
     }
 
   if(system.fss_complete or (system.body_count != 0u and scanned >= system.body_count))
@@ -222,12 +221,6 @@ auto describe_arrival(star_system_t const & system) -> std::vector<overlay::line
       }
     );
 
-  if(life_bodies != 0u)
-    lines.push_back(
-      overlay::line_t{
-        .text = std::format("life on {} bodies, {} signals", life_bodies, life_signals), .color = colour_heading()
-      }
-    );
   return lines;
   }
 
@@ -332,7 +325,7 @@ auto describe_life(star_system_t const & system, std::span<bio::species_record_t
 
     std::vector<genus_view_t> genera;
     for(events::genus_t const & genus: planet->genuses_)
-      genera.push_back(view_genus(system, body, genus, history));
+      genera.push_back(view_genus(system, body, genus, history, eht::settings()->exploration.candidates));
     bool const all_done{not genera.empty() and std::ranges::all_of(genera, &genus_view_t::done)};
 
     lines.push_back(
@@ -413,13 +406,8 @@ auto describe_sampling(
       {
       lines.push_back(
         overlay::line_t{
-          .text = std::format(
-            "{}  {}  {}/3{}",
-            sampling.species,
-            short_credits(value),
-            sampling.samples,
-            value >= worth ? "" : "  - below the line"
-          ),
+          // the colour says whether it pays the landing - a head-up readout has no room for the words
+          .text = std::format("{}  {}  {}/3", sampling.species, short_credits(value), sampling.samples),
           .color = colour
         }
       );
@@ -443,17 +431,14 @@ auto describe_sampling(
           );
         else
           {
-          std::string distances;
-          bool far_enough{true};
-          for(auto const & [index, point]: sampling.points | std::views::enumerate)
-            {
-            double const d{bio::surface_distance_m(point, *surface.here, surface.planet_radius)};
-            far_enough = far_enough and d >= double(range);
-            distances += std::format("  #{} {:.0f} m", index + 1, d);
-            }
+          // every earlier sample has to be a colony's range away, so the nearest one is all that decides
+          double nearest{std::numeric_limits<double>::max()};
+          for(bio::surface_point_t const & point: sampling.points)
+            nearest = std::min(nearest, bio::surface_distance_m(point, *surface.here, surface.planet_radius));
+          bool const far_enough{nearest >= double(range)};
           lines.push_back(
             overlay::line_t{
-              .text = std::format("colony {} m:{}{}", range, distances, far_enough ? "  - sample" : "  - too close"),
+              .text = std::format("{}: {:.0f} of {} m", far_enough ? "sample" : "too close", nearest, range),
               .color = far_enough ? colour_first() : colour_alert()
             }
           );
@@ -466,7 +451,8 @@ auto describe_sampling(
   std::vector<genus_view_t> left;
   for(events::genus_t const & genus: planet->genuses_)
     if(not(sampling_here and genus.Genus_Localised == sampling.genus))
-      if(genus_view_t view{view_genus(system, body, genus, history)}; not view.done)
+      // head-up there is room for the likeliest guess only
+      if(genus_view_t view{view_genus(system, body, genus, history, 1u)}; not view.done)
         left.push_back(std::move(view));
   std::ranges::sort(left, std::ranges::greater{}, &genus_view_t::potential);
 
