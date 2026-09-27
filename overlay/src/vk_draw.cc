@@ -1114,6 +1114,7 @@ auto draw_overlay(
     device_data_t & device{*data.device};
     frame_resources_t & frame{data.frames[image_index]};
 
+    double const entered{now_seconds()};
     if(frame.submitted)
       {
       // a whole second is a failure; we would rather lose the overlay than stall the game's frames
@@ -1132,6 +1133,28 @@ auto draw_overlay(
     auto const now{now_seconds()};
     auto const delta{std::max(1.0 / 10000.0, now - data.last_draw_seconds)};
     data.last_draw_seconds = now;
+    if(debug_enabled()) [[unlikely]]
+      {
+      auto & r{data.report};
+      if(r.started == 0.0)
+        r.started = now;
+      ++r.frames;
+      r.worst_gap = std::max(r.worst_gap, delta);
+      r.waiting += now - entered;
+      if(now - r.started >= 10.0)
+        {
+        log(
+          "{}x{}: {:.1f} fps, worst frame {:.0f} ms, ours per frame {:.2f} ms drawing + {:.2f} ms waiting",
+          data.extent.width,
+          data.extent.height,
+          double(r.frames) / (now - r.started),
+          r.worst_gap * 1000.0,
+          r.drawing * 1000.0 / double(r.frames),
+          r.waiting * 1000.0 / double(r.frames)
+        );
+        r = {};
+        }
+      }
     data.fps = static_cast<float>(0.9 * double{data.fps} + 0.1 / delta);
     ++data.drawn_frames;
 
@@ -1215,6 +1238,7 @@ auto draw_overlay(
 
     frame.submitted = true;
 
+    data.report.drawing += now_seconds() - now;
     if(auto const spent{now_seconds() - now}; spent > slow_draw_seconds) [[unlikely]]
       log("overlay draw took {:.1f} ms", spent * 1000.0);
 

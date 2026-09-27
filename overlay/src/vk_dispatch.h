@@ -177,6 +177,18 @@ struct swapchain_data_t
 
   uint64_t drawn_frames{};
   double last_draw_seconds{};
+
+  ///\brief what the debug log reports every few seconds - the frame rate the game reaches, and how much
+  /// of each frame is ours: the drawing on the CPU, and the wait for our previous submission of the image
+  struct report_t
+    {
+    double started{};
+    uint64_t frames{};
+    double worst_gap{};
+    double drawing{};
+    double waiting{};
+    };
+  report_t report;
   float fps{};
   };
 
