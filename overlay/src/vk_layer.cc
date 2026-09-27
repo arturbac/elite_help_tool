@@ -132,6 +132,9 @@ namespace
     data->GetPhysicalDeviceMemoryProperties = reinterpret_cast<PFN_vkGetPhysicalDeviceMemoryProperties>(
       next_gipa(*instance, "vkGetPhysicalDeviceMemoryProperties")
     );
+    data->GetPhysicalDeviceSurfaceCapabilitiesKHR = reinterpret_cast<PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR>(
+      next_gipa(*instance, "vkGetPhysicalDeviceSurfaceCapabilitiesKHR")
+    );
     data->api_version = create_info->pApplicationInfo != nullptr and create_info->pApplicationInfo->apiVersion != 0u
                           ? create_info->pApplicationInfo->apiVersion
                           : VK_API_VERSION_1_0;
@@ -355,10 +358,24 @@ namespace
     // we draw into the swapchain images, so they must be usable as an attachment - and copied from, for
     // the picture of the middle of the screen
     VkSwapchainCreateInfoKHR patched{*create_info};
-    patched.imageUsage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+    patched.imageUsage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+    // the transfer usage is not promised by the specification, so it is asked for only where the surface
+    // says it has it - an invalid usage need not fail, it may simply misbehave
+    if(
+      VkSurfaceCapabilitiesKHR capabilities{};
+      data->instance != nullptr and data->instance->GetPhysicalDeviceSurfaceCapabilitiesKHR != nullptr
+      and data->instance->GetPhysicalDeviceSurfaceCapabilitiesKHR(
+            data->physical_device, create_info->surface, &capabilities
+          ) == VK_SUCCESS
+      and (capabilities.supportedUsageFlags & VK_IMAGE_USAGE_TRANSFER_SRC_BIT) != 0u
+    )
+      patched.imageUsage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 
     VkResult result{data->CreateSwapchainKHR(device, &patched, allocator, swapchain)};
-    if(result != VK_SUCCESS and (create_info->imageUsage & VK_IMAGE_USAGE_TRANSFER_SRC_BIT) == 0u)
+    if(
+      result != VK_SUCCESS and (patched.imageUsage & VK_IMAGE_USAGE_TRANSFER_SRC_BIT) != 0u
+      and (create_info->imageUsage & VK_IMAGE_USAGE_TRANSFER_SRC_BIT) == 0u
+    )
       {
       // the pictures are the least of it - without the copy we still draw
       log("swapchain rejected the transfer usage, trying without pictures");

@@ -50,6 +50,7 @@ struct instance_data_t
   PFN_vkDestroyInstance DestroyInstance{};
   PFN_vkGetPhysicalDeviceQueueFamilyProperties GetPhysicalDeviceQueueFamilyProperties{};
   PFN_vkGetPhysicalDeviceMemoryProperties GetPhysicalDeviceMemoryProperties{};
+  PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR GetPhysicalDeviceSurfaceCapabilitiesKHR{};
   uint32_t api_version{VK_API_VERSION_1_0};
   };
 
