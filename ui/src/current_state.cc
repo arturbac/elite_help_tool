@@ -713,6 +713,14 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
         else if constexpr(std::same_as<T, events::undocked_t>)
           {
           settlement_market_id_ = 0;
+          // a name given while docked - a construction site's, chosen from the game's rolls - shows first here
+          if(event.MarketID != 0u and not event.StationName.empty())
+            {
+            if(auto res{db_.store(info::station_t{.market_id = event.MarketID, .system_address = 0u, .name = event.StationName})};
+               not res)
+              spdlog::error("failed to store the name of {}", event.MarketID);
+            ++construction_changes_;
+            }
           if(not catching_up_)
             close_carrier_visit(timestamp, false, "docking");
           }

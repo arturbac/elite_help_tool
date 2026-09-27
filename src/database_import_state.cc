@@ -620,7 +620,14 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
         state.settlement_market_id = 0;
       // leaving the pad ends our presence at the place just as supercruise does
       else if constexpr(std::same_as<T, events::undocked_t>)
+        {
         state.settlement_market_id = 0;
+        // a name given while docked - a construction site's, chosen from the game's rolls - shows first here
+        if(event.MarketID != 0u and not event.StationName.empty())
+          if(auto res{state.db_.store(info::station_t{.market_id = event.MarketID, .system_address = 0u, .name = event.StationName})};
+             not res)
+            spdlog::error("failed to store the name of {}", event.MarketID);
+        }
       else if constexpr(std::same_as<T, events::backpack_change_t>)
         {
         for(events::backpack_item_t const & item: event.Added)
