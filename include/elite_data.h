@@ -331,6 +331,15 @@ struct construction_depot_t
   std::chrono::sys_seconds updated;
   };
 
+///\brief names in the order a reader expects - "CMM Composite" after "Ceramic Composites", not before
+[[nodiscard]]
+auto names_before(std::string_view a, std::string_view b) noexcept -> bool;
+
+///\brief the order of a site's list: by type, then by name, the way the game's own list reads
+[[nodiscard]]
+auto needs_before(std::string_view category_a, std::string_view name_a, std::string_view category_b, std::string_view name_b) noexcept
+  -> bool;
+
 ///\brief one commodity a construction site needs - required, and provided so far
 struct construction_need_t
   {

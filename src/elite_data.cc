@@ -202,3 +202,19 @@ auto transform_mission_name(std::string_view input) -> std::string
   return std::string(trimmed.begin(), trimmed.end());
   }
   }  // namespace info
+
+namespace info
+  {
+auto names_before(std::string_view a, std::string_view b) noexcept -> bool
+  { return std::ranges::lexicographical_compare(a, b, {}, stralgo::to_lower, stralgo::to_lower); }
+
+auto needs_before(std::string_view category_a, std::string_view name_a, std::string_view category_b, std::string_view name_b) noexcept
+  -> bool
+  {
+  if(names_before(category_a, category_b))
+    return true;
+  if(names_before(category_b, category_a))
+    return false;
+  return names_before(name_a, name_b);
+  }
+  }  // namespace info

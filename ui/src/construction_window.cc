@@ -383,7 +383,7 @@ auto construction_window_t::show_site() -> void
   std::ranges::sort(
     wanted,
     [&](info::construction_need_t const * a, info::construction_need_t const * b)
-    { return std::tuple{category_of(*a), a->commodity} < std::tuple{category_of(*b), b->commodity}; }
+    { return info::needs_before(category_of(*a), a->commodity, category_of(*b), b->commodity); }
   );
 
   auto const number = [](uint64_t v) { return QString::number(qulonglong(v)); };

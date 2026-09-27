@@ -22,6 +22,14 @@ auto main() -> int
     expect(not info::is_escape_pod_port("", "Somewhere"));
   };
 
+  "a site's list is ordered by name whatever the case"_test = []
+  {
+    expect(info::names_before("Ceramic Composites", "CMM Composite"));
+    expect(not info::names_before("CMM Composite", "Ceramic Composites"));
+    expect(info::needs_before("Industrial Materials", "Steel", "Machinery", "Aluminium")) << "the type goes first";
+    expect(info::needs_before("Industrial Materials", "Ceramic Composites", "Industrial Materials", "CMM Composite"));
+  };
+
   "a site is shown without the game's prefix"_test = []
   {
     info::construction_site_t site{};

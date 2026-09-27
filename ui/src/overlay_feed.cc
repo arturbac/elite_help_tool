@@ -2160,7 +2160,7 @@ auto overlay_feed_t::build_construction_lines(current_state_t const & state) con
   std::ranges::sort(
     needed,
     [&](info::construction_need_t const * a, info::construction_need_t const * b)
-    { return std::tuple{category_of(*a), a->commodity} < std::tuple{category_of(*b), b->commodity}; }
+    { return info::needs_before(category_of(*a), a->commodity, category_of(*b), b->commodity); }
   );
 
   // the carrier the site is supplied from, when one was chosen in the Construction window - its callsign
