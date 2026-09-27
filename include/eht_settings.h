@@ -164,9 +164,38 @@ struct windows_settings_t
   uint32_t faction_tick_refresh_s{60u};
   };
 
+///\brief the colours of the tool's own windows
+struct gui_settings_t
+  {
+  ///\brief a body's value class, in the system window's table
+  colour_t value_high{0x1166ffu};
+  colour_t value_medium{0xffd700u};
+  ///\brief the system's name at the top of the system window, by the value of its star
+  colour_t system_high{0x1144aau};
+  colour_t system_medium{0xffd700u};
+  ///\brief the ticked columns of the table - terraformable, mapped, discovered
+  colour_t flag_column{0x22aa22u};
+  ///\brief the column saying someone mapped the body before us
+  colour_t mapped_before_column{0xff3322u};
+  ///\brief a mission's status in the mission window
+  colour_t mission_ready{0x2fd700u};
+  colour_t mission_open{0x1136ffu};
+  colour_t ship_header{0xffad33u};
+  colour_t hull_bar{0xcc4444u};
+  colour_t fuel_bar{0x4444ccu};
+  colour_t cargo_bar{0x44cc44u};
+  colour_t module_healthy{0x2ecc71u};
+  colour_t module_damaged{0xe74c3cu};
+  colour_t module_on{0x00ff00u};
+  colour_t module_off{0xff4444u};
+  ///\brief a module below this share of its health is shown as damaged
+  double module_damaged_below{0.4};
+  };
+
 struct settings_t
   {
   overlay_settings_t overlay;
+  gui_settings_t gui;
   trade_settings_t trade;
   tick_settings_t ticks;
   journal_settings_t journal;

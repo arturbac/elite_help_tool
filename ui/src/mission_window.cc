@@ -1,3 +1,4 @@
+#include <eht_settings.h>
 #include <mission_window.h>
 #include <qformat.h>
 #include <simple_enum/std_format.hpp>
@@ -106,10 +107,11 @@ auto mission_model_t::data(QModelIndex const & index, int role) const -> QVarian
     {
     if(column_e::status == static_cast<column_e>(index.column()))
       {
+      auto const cfg{eht::settings()};
       if(mission.status == info::mission_status_e::redirected)
-        return QColor(0x2f, 0xd7, 00);
+        return QColor::fromRgb(cfg->gui.mission_ready.rgb);
       else
-        return QColor(0x11, 0x36, 0xff);
+        return QColor::fromRgb(cfg->gui.mission_open.rgb);
       }
     }
 

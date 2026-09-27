@@ -1,3 +1,4 @@
+#include <eht_settings.h>
 #include <system_window.h>
 #include <spdlog/spdlog.h>
 #include <qformat.h>
@@ -123,16 +124,17 @@ auto system_bodies_model_t::data(QModelIndex const & index, int role) const -> Q
 
   if(role == Qt::ForegroundRole)
     {
+    auto const cfg{eht::settings()};
     if(index.column() >= 8)
-      return QColor(0xff, 0x33, 0x22);
+      return QColor::fromRgb(cfg->gui.mapped_before_column.rgb);
     if(index.column() >= 5)
-      return QColor(0x22, 0xAA, 0x22);
+      return QColor::fromRgb(cfg->gui.flag_column.rgb);
 
     switch(value_class(b.value))
       {
       using enum planet_value_e;
-      case high:   return QColor(0x11, 0x66, 0xff);
-      case medium: return QColor(0xff, 0xd7, 00);
+      case high:   return QColor::fromRgb(cfg->gui.value_high.rgb);
+      case medium: return QColor::fromRgb(cfg->gui.value_medium.rgb);
       // case low:    return QColor(160, 160, 160);  // grey
       default: return {};
       }
@@ -446,16 +448,16 @@ static auto set_label_color(QLabel * label, planet_value_e val) -> void
   if(!label or planet_value_e::low == val) [[unlikely]]
     return;
 
-  std::string_view color;
+  auto const cfg{eht::settings()};
+  std::string color;
   switch(val)
     {
-    // case planet_value_e::low:    color = "#808080"; break;  // grey
-    case planet_value_e::medium: color = "#FFD700"; break;
-    case planet_value_e::high:   color = "#1144AA"; break;
+    case planet_value_e::medium: color = cfg->gui.system_medium.write(); break;
+    case planet_value_e::high:   color = cfg->gui.system_high.write(); break;
     case planet_value_e::low:    break;
     }
 
-  label->setStyleSheet(QString("color: %1; font-weight: bold;").arg(color.data()));
+  label->setStyleSheet(QString("color: %1; font-weight: bold;").arg(QString::fromStdString(color)));
   }
 
 auto system_window_t::update_labels() -> void

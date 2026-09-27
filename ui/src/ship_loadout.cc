@@ -1,3 +1,4 @@
+#include <eht_settings.h>
 #include <ship_loadout.h>
 #include <qscrollarea.h>
 
@@ -15,7 +16,10 @@ auto ship_loadout_window_t::setup_ui() -> void
 
   // the ship's header
   ship_info_label = new QLabel("Waiting for Loadout Data...", container);
-  ship_info_label->setStyleSheet("font-size: 15px; font-weight: bold; color: #ffad33;");
+  ship_info_label->setStyleSheet(
+    QString("font-size: 15px; font-weight: bold; color: %1;")
+      .arg(QString::fromStdString(eht::settings()->gui.ship_header.write()))
+  );
   layout->addWidget(ship_info_label);
 
   // the section of main parameters
@@ -30,9 +34,11 @@ auto ship_loadout_window_t::setup_ui() -> void
     return bar;
   };
 
-  hull_bar = create_bar("HULL", "#cc4444");
-  fuel_bar = create_bar("FUEL", "#4444cc");
-  cargo_bar = create_bar("CARGO", "#44cc44");
+  auto const cfg{eht::settings()};
+  auto const hex = [](eht::colour_t const & c) { return QString::fromStdString(c.write()); };
+  hull_bar = create_bar("HULL", hex(cfg->gui.hull_bar));
+  fuel_bar = create_bar("FUEL", hex(cfg->gui.fuel_bar));
+  cargo_bar = create_bar("CARGO", hex(cfg->gui.cargo_bar));
 
   grid->addWidget(new QLabel("Hull Health:"), 0, 0);
   grid->addWidget(hull_bar, 0, 1);
@@ -129,12 +135,20 @@ auto ship_loadout_window_t::refresh_ui(ship_loadout_t const & load) -> void
     auto & ui = module_rows[i];
 
     ui.health->setValue(static_cast<int>(mod.Health * 100));
+    auto const cfg{eht::settings()};
     ui.health->setStyleSheet(
-      QString("QProgressBar::chunk { background-color: %1; }").arg(mod.Health > 0.4 ? "#2ecc71" : "#e74c3c")
+      QString("QProgressBar::chunk { background-color: %1; }")
+        .arg(
+          QString::fromStdString(
+            mod.Health > cfg->gui.module_damaged_below ? cfg->gui.module_healthy.write() : cfg->gui.module_damaged.write()
+          )
+        )
     );
 
     ui.prio->setText(QString("P%1").arg(mod.Priority));
     ui.status->setText(mod.On ? "ONLINE" : "OFF");
-    ui.status->setStyleSheet(mod.On ? "color: #00ff00;" : "color: #ff4444;");
+    ui.status->setStyleSheet(
+      QString("color: %1;").arg(QString::fromStdString(mod.On ? cfg->gui.module_on.write() : cfg->gui.module_off.write()))
+    );
     }
   }
