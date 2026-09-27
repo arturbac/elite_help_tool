@@ -1221,38 +1221,24 @@ namespace
     overlay::layout_t const layout{snapshot ? snapshot->frame.layout : overlay::layout_t{}};
     float const band{side_band_width(display, layout)};
 
-    for(auto const corner:
-        {overlay::corner_e::top_left,
-         overlay::corner_e::top_right,
-         overlay::corner_e::bottom_left,
-         overlay::corner_e::bottom_right,
-         overlay::corner_e::centre_top_left,
-         overlay::corner_e::centre_top_right})
-      {
-      bool const stats_here{layout.stats and corner == overlay::corner_e::top_right};
-
-      bool anything{stats_here};
-      if(snapshot and not anything)
-        for(overlay::block_t const & block: snapshot->frame.blocks)
-          anything = anything or (block.corner == corner and block_visible(block, age_ms));
-
-      if(not anything)
-        continue;
-
-      bool const head_up{
-        corner == overlay::corner_e::centre_top_left or corner == overlay::corner_e::centre_top_right
-      };
-      // a head-up readout is glanced at, not read - past this width it stops being a glance
-      float const width{head_up ? std::min(band, centre_screen_width(display, layout) * layout.hud_width) : band};
-
-      auto const [position, pivot]{corner_position(corner, display, layout)};
+    // one window of blocks; its size is what the next window beside it has to keep clear of
+    auto const draw_window = [&](
+                               char const * name,
+                               ImVec2 position,
+                               ImVec2 pivot,
+                               float width,
+                               bool stats_here,
+                               auto const & wanted
+                             ) -> ImVec2
+    {
       // the ground is drawn by hand, see draw_ground
       ImGui::SetNextWindowBgAlpha(0.f);
       ImGui::SetNextWindowPos(position, ImGuiCond_Always, pivot);
       // long text should wrap inside the band rather than run into the player's field of view
       ImGui::SetNextWindowSizeConstraints(ImVec2{0.f, 0.f}, ImVec2{width, display.y});
 
-      if(ImGui::Begin(window_name(corner), nullptr, flags))
+      ImVec2 size{};
+      if(ImGui::Begin(name, nullptr, flags))
         {
         draw_ground(data, layout);
         ImGui::PushTextWrapPos(width - 2.f * ImGui::GetStyle().WindowPadding.x);
@@ -1279,7 +1265,7 @@ namespace
         if(snapshot)
           for(overlay::block_t const & block: snapshot->frame.blocks)
             {
-            if(block.corner != corner or not block_visible(block, age_ms))
+            if(not wanted(block) or not block_visible(block, age_ms))
               continue;
 
             if(stats_here)
@@ -1310,8 +1296,82 @@ namespace
             }
 
         ImGui::PopTextWrapPos();
+        size = ImGui::GetWindowSize();
         }
       ImGui::End();
+      return size;
+    };
+
+    auto const any_visible = [&](auto const & wanted) -> bool
+    {
+      if(snapshot)
+        for(overlay::block_t const & block: snapshot->frame.blocks)
+          if(wanted(block) and block_visible(block, age_ms))
+            return true;
+      return false;
+    };
+
+    constexpr std::array corners{
+      overlay::corner_e::top_left,
+      overlay::corner_e::top_right,
+      overlay::corner_e::bottom_left,
+      overlay::corner_e::bottom_right,
+      overlay::corner_e::centre_top_left,
+      overlay::corner_e::centre_top_right
+    };
+    std::array<ImVec2, corners.size()> stack_size{};
+
+    for(size_t index{}; index != corners.size(); ++index)
+      {
+      overlay::corner_e const corner{corners[index]};
+      bool const stats_here{layout.stats and corner == overlay::corner_e::top_right};
+      auto const in_stack = [corner](overlay::block_t const & block) -> bool
+      { return block.corner == corner and not block.beside; };
+
+      if(not stats_here and not any_visible(in_stack))
+        continue;
+
+      bool const head_up{
+        corner == overlay::corner_e::centre_top_left or corner == overlay::corner_e::centre_top_right
+      };
+      // a head-up readout is glanced at, not read - past this width it stops being a glance
+      float const width{head_up ? std::min(band, centre_screen_width(display, layout) * layout.hud_width) : band};
+
+      auto const [position, pivot]{corner_position(corner, display, layout)};
+      stack_size[index] = draw_window(window_name(corner), position, pivot, width, stats_here, in_stack);
+      }
+
+    // the blocks asked to stand beside a stack take what is left of the band next to it, on the same edge;
+    // when the stack leaves too little of the band they go on top of it after all
+    for(size_t index{}; index != 4u; ++index)
+      {
+      overlay::corner_e const corner{corners[index]};
+      auto const beside = [corner](overlay::block_t const & block) -> bool
+      { return block.corner == corner and block.beside; };
+      if(not any_visible(beside))
+        continue;
+
+      bool const left{corner == overlay::corner_e::top_left or corner == overlay::corner_e::bottom_left};
+      bool const bottom{corner == overlay::corner_e::bottom_left or corner == overlay::corner_e::bottom_right};
+      ImVec2 const used{stack_size[index]};
+      float const gap{layout.corner_margin};
+      auto [position, pivot]{corner_position(corner, display, layout)};
+
+      float width{band - used.x - gap};
+      if(used.x == 0.f)
+        width = band;
+      else if(width >= band * 0.25f)
+        position.x += left ? used.x + gap : -(used.x + gap);
+      else
+        {
+        width = band;
+        position.y += bottom ? -(used.y + gap) : used.y + gap;
+        }
+
+      static constexpr std::array names{
+        "eht_top_left_beside", "eht_top_right_beside", "eht_bottom_left_beside", "eht_bottom_right_beside"
+      };
+      draw_window(names[index], position, pivot, width, false, beside);
       }
 
     draw_capture_guide(data, display);

@@ -253,6 +253,9 @@ struct block_t
   std::vector<picture_t> pictures;
   ///\brief how many pictures stand side by side
   uint32_t picture_columns{3u};
+  ///\brief drawn in a column of its own beside the corner's stack, towards the middle, aligned with the
+  /// same edge - a field an older layer skips, so there the block simply joins the stack
+  bool beside{false};
   };
 
 ///\brief how the layer lays the overlay out - sent by the tool with every frame

@@ -147,6 +147,8 @@ struct overlay_settings_t
   uint32_t kill_shown_s{10u};
   ///\brief how far a ship may stand to be listed as nearby; 0 turns the list off
   double ships_radius_ly{100.0};
+  ///\brief and flown within this many days - the rest are kept, not used; 0 lists every one nearby
+  uint32_t ships_flown_days{30u};
   overlay_chart_t influence_chart{.days = 20u, .height = 98u};
   overlay_chart_t tick_chart{.days = 30u, .height = 90u};
   system_map_t system_map;

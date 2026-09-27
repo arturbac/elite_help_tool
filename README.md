@@ -180,8 +180,11 @@ it can take the game down: [overlay/README.md](overlay/README.md).
 - **The Ships window** lists every ship you own: its name, type and ID, the system and port it stands
   at, how far that is from where you are, its value, and whether it is the one you fly, in transit
   (with the arrival time) or standing on a carrier. The nearest come first.
-- **On the overlay**, bottom left, the ships within 100 ly of you (`overlay.ships_radius_ly`, 0 turns
-  it off), the nearest first, up to 8 rows (`overlay.lists.ships`).
+- **On the overlay**, bottom left, in a column of its own beside the stack there, the ships within
+  100 ly of you (`overlay.ships_radius_ly`, 0 turns it off) that you have flown in the last 30 days
+  (`overlay.ships_flown_days`, 0 lists every one nearby), the nearest first, up to 8 rows
+  (`overlay.lists.ships`). A ship counts as flown when you board it, leave it at a shipyard or leave
+  it behind by escape pod.
 - The game writes the whole fleet only when you open a shipyard, and leaves out the ship you fly.
   Between two visits EHT follows the swaps, purchases, sales, renames and transfers. A transfer ordered
   while EHT saw it keeps its destination and arrival time. A ship left on one of our carriers moves

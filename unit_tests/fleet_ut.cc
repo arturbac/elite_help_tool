@@ -134,6 +134,8 @@ auto main() -> int
     expect(ships.size() == 2u);
     expect(not by_id(ships, 2u)->current and by_id(ships, 2u)->market_id == 4379304195u);
     expect(by_id(ships, 40u)->current);
+    // the one left was flown until the swap, the one taken from it on
+    expect(by_id(ships, 2u)->flown == morning and by_id(ships, 40u)->flown == morning);
   };
 
   "an escape pod leaves the ship on the carrier, and a swap far away does not move it"_test = []
@@ -163,6 +165,7 @@ auto main() -> int
       fleet::here_t{.system = "Bleia Eohn PW-D b32-1", .station = "Arkush City", .market_id = 4391602179u}
     );
     expect(by_id(ships, 54u)->system == std::string{"Kusauts"} and by_id(ships, 54u)->market_id == 3706381824u);
+    expect(by_id(ships, 54u)->flown == morning) << "the pod is the last moment the ship was flown";
     expect(by_id(ships, 68u)->current and by_id(ships, 68u)->market_id == 4391602179u);
   };
 

@@ -3185,17 +3185,29 @@ auto overlay_feed_t::build_fleet_lines() const -> std::vector<overlay::line_t>
   if(radius <= 0.0)
     return {};
 
+  auto const now{std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())};
+  uint32_t const flown_days{eht::settings()->overlay.ships_flown_days};
+  auto const flown_since{now - std::chrono::days{flown_days}};
+
   std::vector<fleet::placed_ship_t const *> nearby;
   for(fleet::placed_ship_t const & placed: fleet_)
-    if(not placed.ship.current and placed.distance_ly and *placed.distance_ly <= radius)
+    if(
+      not placed.ship.current and placed.distance_ly and *placed.distance_ly <= radius
+      and (flown_days == 0u or placed.ship.flown >= flown_since)
+    )
       nearby.push_back(&placed);
   if(nearby.empty())
     return {};
 
-  auto const now{std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())};
   size_t const shown{std::min<size_t>(nearby.size(), eht::settings()->overlay.lists.ships)};
   std::vector<overlay::line_t> lines;
-  lines.push_back(overlay::line_t{.text = std::format("ships within {:.0f} ly:", radius), .color = colour_heading()});
+  lines.push_back(
+    overlay::line_t{
+      .text = flown_days == 0u ? std::format("ships within {:.0f} ly:", radius)
+                               : std::format("ships within {:.0f} ly, flown in {} days:", radius, flown_days),
+      .color = colour_heading()
+    }
+  );
   for(fleet::placed_ship_t const * placed: nearby | std::views::take(shown))
     {
     std::string where{
@@ -3427,7 +3439,12 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
         .lines = std::move(ships),
         .charts = {},
         // a list read when choosing, not glanced at in flight
-        .text = overlay::text_e::small
+        .text = overlay::text_e::small,
+        .diagrams = {},
+        .pictures = {},
+        .picture_columns = 3u,
+        // the stack on the left reaches up to the faction block already, so it goes beside it
+        .beside = true
       }
     );
 

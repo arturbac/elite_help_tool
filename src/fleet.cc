@@ -61,13 +61,19 @@ namespace
     ship.seen = when;
     }
 
-  auto fly(std::vector<info::ship_t> & ships, uint64_t ship_id) -> info::ship_t &
+  auto fly(std::vector<info::ship_t> & ships, uint64_t ship_id, std::chrono::sys_seconds when) -> info::ship_t &
     {
+    // the one left now was flown until this moment
     for(info::ship_t & other: ships)
+      {
+      if(other.current)
+        other.flown = when;
       other.current = false;
+      }
     info::ship_t & ship{obtain(ships, ship_id)};
     ship.current = true;
     ship.in_transit = false;
+    ship.flown = when;
     return ship;
     }
 
@@ -156,7 +162,7 @@ auto apply(
   std::vector<info::ship_t> & ships, std::chrono::sys_seconds when, events::loadout_t const & event, here_t const & here
 ) -> void
   {
-  info::ship_t & ship{fly(ships, event.ShipID)};
+  info::ship_t & ship{fly(ships, event.ShipID, when)};
   set_type(ship, event.Ship, {});
   ship.name = event.ShipName;
   ship.ident = event.ShipIdent;
@@ -181,7 +187,7 @@ auto apply(
     if(stays_with_commander(left))
       put(left, when, here, event.MarketID);
     }
-  info::ship_t & taken{fly(ships, event.ShipID)};
+  info::ship_t & taken{fly(ships, event.ShipID, when)};
   set_type(taken, event.ShipType, event.ShipType_Localised);
   put(taken, when, here, event.MarketID);
   }
@@ -211,7 +217,7 @@ auto apply(
   here_t const & here
 ) -> void
   {
-  info::ship_t & ship{fly(ships, event.NewShipID)};
+  info::ship_t & ship{fly(ships, event.NewShipID, when)};
   set_type(ship, event.ShipType, event.ShipType_Localised);
   put(ship, when, here, here.market_id);
   }
@@ -245,6 +251,7 @@ auto apply(
     if(ship.current)
       {
       ship.current = false;
+      ship.flown = when;
       put(ship, when, here, here.market_id);
       }
   }

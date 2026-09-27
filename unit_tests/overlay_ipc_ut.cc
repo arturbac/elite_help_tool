@@ -52,7 +52,13 @@ auto sample_frame(uint64_t sequence) -> overlay::frame_t
           .spans = {overlay::span_t{.from = 12u, .length = 7u, .color = 0x66dd66u}}
         },
         overlay::line_t{.text = "Camorra of Purui 6.3%", .color = 0xd9534fu}
-      }
+      },
+      .charts = {},
+      .text = overlay::text_e::normal,
+      .diagrams = {},
+      .pictures = {},
+      .picture_columns = 3u,
+      .beside = true
     }}
   };
   }
@@ -85,6 +91,7 @@ auto main() -> int
       expect(received->frame.blocks.size() == 1_ul);
       expect(received->frame.blocks.front().corner == overlay::corner_e::top_right);
       expect(received->frame.blocks.front().ttl_ms == 2500_u);
+      expect(received->frame.blocks.front().beside);
       auto const & lines{received->frame.blocks.front().lines};
       expect(lines.size() == 4_ul);
       expect(lines.front().text == std::string{"Bleia Eohn QT-O d7-43"});
