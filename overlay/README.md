@@ -129,6 +129,24 @@ Ostatni wiersz odpowiada alt-tabowaniu i zmianom rozdzielczości w grze.
 ENABLE_EHT_OVERLAY=1 eht-overlay-headless-check /tmp/x.ppm 1920 1080 10 200
 ```
 
+## Zdjęcie środka ekranu
+
+Przy każdej próbce organizmu narzędzie prosi warstwę o zdjęcie — commander patrzy wtedy prosto na
+roślinę. Prośba jedzie w ramce (`frame_t.capture`: numer, ścieżka, bok kwadratu jako ułamek
+wysokości ekranu) i powtarza się w każdej kolejnej ramce, więc prosi **zmiana numeru**, nie sama
+obecność. Pierwszy numer, który świeżo uruchomiona warstwa zobaczy, uznaje za załatwiony — to
+ostatnia ramka narzędzia podana nowemu klientowi, a chwila, dla której była, dawno minęła.
+
+Warstwa kopiuje kwadrat ze środka obrazu gry **zanim** narysuje na nim overlay, odbiera piksele
+dopiero po ogrodzeniu tej klatki i zapisuje PPM w osobnym wątku, pod docelową nazwą dopiero gdy
+plik jest kompletny. Pliki trafiają obok gniazda (`~/.local/share/elite_help_tool/captures/`),
+jedynego miejsca widocznego po obu stronach kontenera; narzędzie zamienia je na JPG w swoim
+katalogu `codex/`.
+
+Łańcuch wymiany dostaje dodatkowo `TRANSFER_SRC`; sterownik, który tego nie przyjmie, zostawia
+overlay bez zdjęć, nie bez overlaya. Zdjęcie, które raz się nie uda, nie jest już próbowane.
+Starsza warstwa pomija nowe pole i po prostu zdjęć nie robi.
+
 ## Czego overlay nie może zrobić
 
 Nic z tego nie ma prawa położyć gry:
