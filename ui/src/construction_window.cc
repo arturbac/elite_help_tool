@@ -42,9 +42,24 @@ auto construction_window_t::setup_ui() -> void
 
   table_ = new QTableWidget(central);
   table_->setColumnCount(8);
-  table_->setHorizontalHeaderLabels(
-    {"Commodity", "Left", "Required", "Provided", "In hold", "On carriers", "Here", "Price here"}
-  );
+  // short captions in a small font - the numbers beneath are narrow, and long captions widened every
+  // column; the full meaning is in the tooltips
+  table_->setHorizontalHeaderLabels({"Commodity", "Left", "Req.", "Given", "Hold", "Carriers", "Here", "Price"});
+  QStringList const tips{
+    "Commodity",
+    "Still to deliver",
+    "Required in all",
+    "Provided so far",
+    "In the ship's hold",
+    "On our carriers",
+    "For sale at the port you stand at",
+    "Price at the port you stand at"
+  };
+  for(int column{}; column != tips.size(); ++column)
+    table_->horizontalHeaderItem(column)->setToolTip(tips[column]);
+  QFont small{table_->horizontalHeader()->font()};
+  small.setPointSizeF(small.pointSizeF() * 0.8);
+  table_->horizontalHeader()->setFont(small);
   table_->verticalHeader()->setVisible(false);
   table_->setEditTriggers(QAbstractItemView::NoEditTriggers);
   table_->setSelectionBehavior(QAbstractItemView::SelectRows);
