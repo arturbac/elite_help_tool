@@ -107,6 +107,12 @@ struct device_data_t
   PFN_vkMapMemory MapMemory{};
   PFN_vkUnmapMemory UnmapMemory{};
   PFN_vkInvalidateMappedMemoryRanges InvalidateMappedMemoryRanges{};
+  // for the ground under the blocks, darkened by how bright the game is beneath it
+  PFN_vkCreateShaderModule CreateShaderModule{};
+  PFN_vkDestroyShaderModule DestroyShaderModule{};
+  PFN_vkCreateGraphicsPipelines CreateGraphicsPipelines{};
+  PFN_vkDestroyPipeline DestroyPipeline{};
+  PFN_vkCmdBindPipeline CmdBindPipeline{};
 
   std::vector<VkQueueFamilyProperties> queue_families;
 
@@ -169,6 +175,9 @@ struct swapchain_data_t
 
   VkRenderPass render_pass{};
   VkDescriptorPool descriptor_pool{};
+  ///\brief the ground pipeline, made at the first draw from ImGui's own pipeline layout; broken when that failed
+  VkPipeline ground_pipeline{};
+  bool ground_broken{};
   VkCommandPool command_pool{};
   std::vector<VkImage> images;
   std::vector<frame_resources_t> frames;

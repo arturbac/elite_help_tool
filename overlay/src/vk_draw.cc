@@ -1,6 +1,7 @@
 #include "vk_draw.h"
 #include "vk_capture.h"
 #include "overlay_font.h"
+#include "ground_shaders.h"
 
 #include <backends/imgui_impl_vulkan.h>
 #include <imgui.h>
@@ -887,6 +888,232 @@ namespace
     draw->AddText(at, frame_colour, text.c_str());
     }
 
+  ///\brief the pipeline the ground under the blocks is drawn with
+  ///\detail ImGui's own vertex stage and layout, so the draw list feeds it as it feeds ImGui, but a blend
+  /// that reads the game beneath: colour = src*dst + dst*(1-dst). With the ground's grey k as src that is
+  /// g*(1+k) - g*g - dark space kept as it is, a bright ice body pulled down to dark grey. Nothing of
+  /// the game is read back to decide it: the blend does it for every pixel, at once, with no flicker
+  auto make_ground_pipeline(swapchain_data_t & data, VkPipelineLayout layout) -> void
+    {
+    device_data_t & device{*data.device};
+    if(
+      device.CreateShaderModule == nullptr or device.DestroyShaderModule == nullptr
+      or device.CreateGraphicsPipelines == nullptr or device.CmdBindPipeline == nullptr
+    )
+      {
+      data.ground_broken = true;
+      return;
+      }
+
+    auto const module = [&](auto const & code) -> VkShaderModule
+    {
+      VkShaderModuleCreateInfo const info{
+        .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0u,
+        .codeSize = code.size() * sizeof(uint32_t),
+        .pCode = code.data()
+      };
+      VkShaderModule made{};
+      return device.CreateShaderModule(device.device, &info, nullptr, &made) == VK_SUCCESS ? made : VK_NULL_HANDLE;
+    };
+    VkShaderModule const vert{module(ground_vert_spv)};
+    VkShaderModule const frag{module(ground_frag_spv)};
+
+    if(vert != VK_NULL_HANDLE and frag != VK_NULL_HANDLE)
+      {
+      std::array<VkPipelineShaderStageCreateInfo, 2> const stages{
+        VkPipelineShaderStageCreateInfo{
+          .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+          .pNext = nullptr,
+          .flags = 0u,
+          .stage = VK_SHADER_STAGE_VERTEX_BIT,
+          .module = vert,
+          .pName = "main",
+          .pSpecializationInfo = nullptr
+        },
+        VkPipelineShaderStageCreateInfo{
+          .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+          .pNext = nullptr,
+          .flags = 0u,
+          .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
+          .module = frag,
+          .pName = "main",
+          .pSpecializationInfo = nullptr
+        }
+      };
+      VkVertexInputBindingDescription const binding{
+        .binding = 0u, .stride = sizeof(ImDrawVert), .inputRate = VK_VERTEX_INPUT_RATE_VERTEX
+      };
+      std::array<VkVertexInputAttributeDescription, 3> const attributes{
+        VkVertexInputAttributeDescription{
+          .location = 0u, .binding = 0u, .format = VK_FORMAT_R32G32_SFLOAT, .offset = offsetof(ImDrawVert, pos)
+        },
+        VkVertexInputAttributeDescription{
+          .location = 1u, .binding = 0u, .format = VK_FORMAT_R32G32_SFLOAT, .offset = offsetof(ImDrawVert, uv)
+        },
+        VkVertexInputAttributeDescription{
+          .location = 2u, .binding = 0u, .format = VK_FORMAT_R8G8B8A8_UNORM, .offset = offsetof(ImDrawVert, col)
+        }
+      };
+      VkPipelineVertexInputStateCreateInfo const vertex_input{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0u,
+        .vertexBindingDescriptionCount = 1u,
+        .pVertexBindingDescriptions = &binding,
+        .vertexAttributeDescriptionCount = static_cast<uint32_t>(attributes.size()),
+        .pVertexAttributeDescriptions = attributes.data()
+      };
+      VkPipelineInputAssemblyStateCreateInfo const assembly{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0u,
+        .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+        .primitiveRestartEnable = VK_FALSE
+      };
+      VkPipelineViewportStateCreateInfo const viewport{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0u,
+        .viewportCount = 1u,
+        .pViewports = nullptr,
+        .scissorCount = 1u,
+        .pScissors = nullptr
+      };
+      VkPipelineRasterizationStateCreateInfo const raster{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0u,
+        .depthClampEnable = VK_FALSE,
+        .rasterizerDiscardEnable = VK_FALSE,
+        .polygonMode = VK_POLYGON_MODE_FILL,
+        .cullMode = VK_CULL_MODE_NONE,
+        .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
+        .depthBiasEnable = VK_FALSE,
+        .depthBiasConstantFactor = 0.f,
+        .depthBiasClamp = 0.f,
+        .depthBiasSlopeFactor = 0.f,
+        .lineWidth = 1.f
+      };
+      VkPipelineMultisampleStateCreateInfo const multisample{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0u,
+        .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
+        .sampleShadingEnable = VK_FALSE,
+        .minSampleShading = 0.f,
+        .pSampleMask = nullptr,
+        .alphaToCoverageEnable = VK_FALSE,
+        .alphaToOneEnable = VK_FALSE
+      };
+      // the game's alpha is left as it is - only the colour is pulled down
+      VkPipelineColorBlendAttachmentState const blend{
+        .blendEnable = VK_TRUE,
+        .srcColorBlendFactor = VK_BLEND_FACTOR_DST_COLOR,
+        .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR,
+        .colorBlendOp = VK_BLEND_OP_ADD,
+        .srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
+        .dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+        .alphaBlendOp = VK_BLEND_OP_ADD,
+        .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT
+                        | VK_COLOR_COMPONENT_A_BIT
+      };
+      VkPipelineColorBlendStateCreateInfo const blend_state{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0u,
+        .logicOpEnable = VK_FALSE,
+        .logicOp = VK_LOGIC_OP_CLEAR,
+        .attachmentCount = 1u,
+        .pAttachments = &blend,
+        .blendConstants = {0.f, 0.f, 0.f, 0.f}
+      };
+      std::array<VkDynamicState, 2> const dynamic{VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
+      VkPipelineDynamicStateCreateInfo const dynamic_state{
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0u,
+        .dynamicStateCount = static_cast<uint32_t>(dynamic.size()),
+        .pDynamicStates = dynamic.data()
+      };
+      VkGraphicsPipelineCreateInfo const info{
+        .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+        .pNext = nullptr,
+        .flags = 0u,
+        .stageCount = static_cast<uint32_t>(stages.size()),
+        .pStages = stages.data(),
+        .pVertexInputState = &vertex_input,
+        .pInputAssemblyState = &assembly,
+        .pTessellationState = nullptr,
+        .pViewportState = &viewport,
+        .pRasterizationState = &raster,
+        .pMultisampleState = &multisample,
+        .pDepthStencilState = nullptr,
+        .pColorBlendState = &blend_state,
+        .pDynamicState = &dynamic_state,
+        .layout = layout,
+        .renderPass = data.render_pass,
+        .subpass = 0u,
+        .basePipelineHandle = VK_NULL_HANDLE,
+        .basePipelineIndex = -1
+      };
+      if(device.CreateGraphicsPipelines(device.device, VK_NULL_HANDLE, 1u, &info, nullptr, &data.ground_pipeline) != VK_SUCCESS)
+        data.ground_pipeline = VK_NULL_HANDLE;
+      }
+
+    if(vert != VK_NULL_HANDLE)
+      device.DestroyShaderModule(device.device, vert, nullptr);
+    if(frag != VK_NULL_HANDLE)
+      device.DestroyShaderModule(device.device, frag, nullptr);
+    data.ground_broken = data.ground_pipeline == VK_NULL_HANDLE;
+    if(data.ground_broken)
+      log("ground pipeline failed, the blocks keep a plain ground");
+    else
+      log("ground pipeline ready");
+    }
+
+  ///\brief draw callbacks: the pipeline can only be made while ImGui records - its layout is not
+  /// shown anywhere else. One makes it, the other binds it for the ground that follows
+  auto make_ground(ImDrawList const *, ImDrawCmd const * cmd) -> void
+    {
+    auto & data{*static_cast<swapchain_data_t *>(cmd->UserCallbackData)};
+    auto const * state{static_cast<ImGui_ImplVulkan_RenderState const *>(ImGui::GetPlatformIO().Renderer_RenderState)};
+    if(data.ground_pipeline == VK_NULL_HANDLE and not data.ground_broken and state != nullptr)
+      make_ground_pipeline(data, state->PipelineLayout);
+    }
+
+  auto bind_ground(ImDrawList const *, ImDrawCmd const * cmd) -> void
+    {
+    auto & data{*static_cast<swapchain_data_t *>(cmd->UserCallbackData)};
+    auto const * state{static_cast<ImGui_ImplVulkan_RenderState const *>(ImGui::GetPlatformIO().Renderer_RenderState)};
+    if(state != nullptr)
+      data.device->CmdBindPipeline(state->CommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, data.ground_pipeline);
+    }
+
+  ///\brief the ground under the block just begun: pulled down by how bright the game is, then darkened
+  /// as before; without the pipeline, the plain half-transparent ground alone
+  auto draw_ground(swapchain_data_t & data, overlay::layout_t const & layout) -> void
+    {
+    ImDrawList * const list{ImGui::GetWindowDrawList()};
+    ImVec2 const from{ImGui::GetWindowPos()};
+    ImVec2 const to{from.x + ImGui::GetWindowSize().x, from.y + ImGui::GetWindowSize().y};
+    float const rounding{ImGui::GetStyle().WindowRounding};
+    ImVec4 plain{ImGui::GetStyle().Colors[ImGuiCol_WindowBg]};
+    plain.w = std::clamp(layout.window_alpha, 0.f, 1.f);
+
+    if(layout.bright_ground >= 0.f and data.ground_pipeline != VK_NULL_HANDLE)
+      {
+      auto const k{static_cast<ImU32>(std::clamp(layout.bright_ground, 0.f, 1.f) * 255.f + 0.5f)};
+      list->AddCallback(&bind_ground, &data);
+      list->AddRectFilled(from, to, IM_COL32(k, k, k, 255), rounding);
+      list->AddCallback(ImDrawCallback_ResetRenderState, nullptr);
+      }
+    else if(layout.bright_ground >= 0.f and not data.ground_broken)
+      list->AddCallback(&make_ground, &data);
+    list->AddRectFilled(from, to, ImGui::GetColorU32(plain), rounding);
+    }
+
   auto build_ui(swapchain_data_t & data) -> void
     {
     auto const snapshot{ipc_client().snapshot()};
@@ -931,13 +1158,15 @@ namespace
       float const width{head_up ? std::min(band, centre_screen_width(display, layout) * layout.hud_width) : band};
 
       auto const [position, pivot]{corner_position(corner, display, layout)};
-      ImGui::SetNextWindowBgAlpha(std::clamp(layout.window_alpha, 0.f, 1.f));
+      // the ground is drawn by hand, see draw_ground
+      ImGui::SetNextWindowBgAlpha(0.f);
       ImGui::SetNextWindowPos(position, ImGuiCond_Always, pivot);
       // long text should wrap inside the band rather than run into the player's field of view
       ImGui::SetNextWindowSizeConstraints(ImVec2{0.f, 0.f}, ImVec2{width, display.y});
 
       if(ImGui::Begin(window_name(corner), nullptr, flags))
         {
+        draw_ground(data, layout);
         ImGui::PushTextWrapPos(width - 2.f * ImGui::GetStyle().WindowPadding.x);
         if(stats_here)
           {
@@ -1049,6 +1278,12 @@ auto destroy_resources(swapchain_data_t & data) -> void
     device.DestroyDescriptorPool(device.device, data.descriptor_pool, nullptr);
     data.descriptor_pool = VK_NULL_HANDLE;
     }
+  if(data.ground_pipeline != VK_NULL_HANDLE)
+    {
+    device.DestroyPipeline(device.device, data.ground_pipeline, nullptr);
+    data.ground_pipeline = VK_NULL_HANDLE;
+    }
+  data.ground_broken = false;
   if(data.render_pass != VK_NULL_HANDLE)
     {
     device.DestroyRenderPass(device.device, data.render_pass, nullptr);

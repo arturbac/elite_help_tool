@@ -293,6 +293,11 @@ namespace
     EHT_LOAD(MapMemory);
     EHT_LOAD(UnmapMemory);
     EHT_LOAD(InvalidateMappedMemoryRanges);
+    EHT_LOAD(CreateShaderModule);
+    EHT_LOAD(DestroyShaderModule);
+    EHT_LOAD(CreateGraphicsPipelines);
+    EHT_LOAD(DestroyPipeline);
+    EHT_LOAD(CmdBindPipeline);
 #undef EHT_LOAD
 
     if(instance->GetPhysicalDeviceQueueFamilyProperties != nullptr)

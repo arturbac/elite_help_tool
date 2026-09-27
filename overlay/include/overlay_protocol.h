@@ -260,6 +260,11 @@ struct layout_t
   float corner_margin{14.f};
   ///\brief how opaque the ground under the blocks is, 0..1
   float window_alpha{0.35f};
+  ///\brief how much of a bright game shows through the ground, before window_alpha darkens it further
+  ///\detail The ground takes each pixel g beneath it to g*(1+k) - g*g: dark space stays as it is, an ice
+  /// body turns dark grey - a half-transparent ground alone left the text unreadable over one. The most
+  /// that shows through is (1+k)^2/4, 0.30 at the default. Below 0 the ground is window_alpha alone
+  float bright_ground{0.1f};
   ///\brief the widest a chart is drawn, in pixels at scale 1
   float chart_width{360.f};
   ///\brief the layer's own line - frame rate and connection - at the top of the right band

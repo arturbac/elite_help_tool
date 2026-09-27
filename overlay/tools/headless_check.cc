@@ -318,8 +318,14 @@ auto main(int argc, char ** argv) -> int
         images[index], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 0u, VK_ACCESS_TRANSFER_WRITE_BIT
       );
 
-      // a background shade that is easy to tell apart from whatever the overlay draws
-      VkClearColorValue const colour{.float32 = {0.06f, 0.10f, 0.18f, 1.f}};
+      // a background shade that is easy to tell apart from whatever the overlay draws; EHT_CHECK_GREY
+      // paints it grey instead - 0.9 stands for an ice body, to see what the ground does over one
+      VkClearColorValue colour{.float32 = {0.06f, 0.10f, 0.18f, 1.f}};
+      if(char const * const grey{std::getenv("EHT_CHECK_GREY")}; grey != nullptr)
+        {
+        float const g{std::strtof(grey, nullptr)};
+        colour = VkClearColorValue{.float32 = {g, g, g, 1.f}};
+        }
       VkImageSubresourceRange const range{
         .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
         .baseMipLevel = 0u,
