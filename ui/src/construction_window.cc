@@ -8,6 +8,7 @@
 
 #include <qboxlayout.h>
 #include <qheaderview.h>
+#include <qsettings.h>
 
 #include <spdlog/spdlog.h>
 
@@ -43,18 +44,35 @@ auto construction_window_t::setup_ui() -> void
   show_abandoned_ = new QCheckBox("Show abandoned", central);
   selector->addWidget(show_abandoned_);
   layout->addLayout(selector);
+  auto * supply = new QHBoxLayout();
+  supply->addWidget(new QLabel("Supplied from:", central));
+  carrier_combo_ = new QComboBox(central);
+  carrier_combo_->setToolTip("The carrier this site is supplied from - the Diff column compares its cargo with what is left");
+  carrier_combo_->addItem("no carrier", QVariant::fromValue(qulonglong{0}));
+  if(auto carriers{db_.load_carriers()}; carriers)
+    for(info::carrier_t const & c: *carriers)
+      if(c.tracked or c.carrier_type == "SquadronCarrier")
+        carrier_combo_->addItem(
+          qformat("{} ({})", c.carrier_name, c.carrier_id), QVariant::fromValue(qulonglong{c.market_id})
+        );
+  supply->addWidget(carrier_combo_, 1);
+  layout->addLayout(supply);
   header_ = new QLabel(central);
   header_->setWordWrap(true);
   layout->addWidget(header_);
 
   table_ = new QTableWidget(central);
-  table_->setColumnCount(8);
+  table_->setColumnCount(9);
   // short captions in a small font - the numbers beneath are narrow, and long captions widened every
   // column; the full meaning is in the tooltips
-  table_->setHorizontalHeaderLabels({"Commodity", "Left", "Req.", "Given", "Hold", "Carriers", "Here", "Price"});
+  table_->setHorizontalHeaderLabels(
+    {"Commodity", "Left", "Diff", "Req.", "Given", "Hold", "Carriers", "Here", "Price"}
+  );
   QStringList const tips{
     "Commodity",
     "Still to deliver",
+    "The chosen carrier's cargo less what is still to deliver - below zero is what it lacks, above what it "
+    "has to spare",
     "Required in all",
     "Provided so far",
     "In the ship's hold",
@@ -79,7 +97,29 @@ auto construction_window_t::setup_ui() -> void
   layout->addWidget(table_, 1);
   setWidget(central);
 
-  connect(site_combo_, &QComboBox::currentIndexChanged, this, [this](int) { show_site(); });
+  connect(
+    site_combo_,
+    &QComboBox::currentIndexChanged,
+    this,
+    [this](int)
+    {
+      restore_carrier();
+      show_site();
+    }
+  );
+  connect(
+    carrier_combo_,
+    &QComboBox::currentIndexChanged,
+    this,
+    [this](int)
+    {
+      if(uint64_t const market{selected_market()}; market != 0u)
+        QSettings{"ebasoft", "EliteHelpTool"}.setValue(
+          QString::fromStdString(std::format("construction/carrier/{}", market)), carrier_combo_->currentData()
+        );
+      show_site();
+    }
+  );
   connect(show_abandoned_, &QCheckBox::toggled, this, [this](bool) { refresh_ui(true); });
   connect(
     abandon_button_,
@@ -104,6 +144,20 @@ auto construction_window_t::setup_ui() -> void
       refresh_ui(true);
     }
   );
+  }
+
+auto construction_window_t::restore_carrier() -> void
+  {
+  uint64_t const market{selected_market()};
+  QVariant const saved{
+    market == 0u ? QVariant{}
+                 : QSettings{"ebasoft", "EliteHelpTool"}.value(
+                     QString::fromStdString(std::format("construction/carrier/{}", market))
+                   )
+  };
+  int const index{saved.isValid() ? carrier_combo_->findData(saved) : 0};
+  QSignalBlocker const block{carrier_combo_};
+  carrier_combo_->setCurrentIndex(index < 0 ? 0 : index);
   }
 
 auto construction_window_t::selected_market() const -> uint64_t
@@ -146,6 +200,7 @@ auto construction_window_t::refresh_ui(bool force) -> void
     );
   if(auto const index{site_combo_->findData(QVariant::fromValue(qulonglong{keep}))}; index >= 0)
     site_combo_->setCurrentIndex(index);
+  restore_carrier();
   show_site();
   }
 
@@ -273,6 +328,13 @@ auto construction_window_t::show_site() -> void
   std::map<std::string, int64_t> carriers;
   if(auto totals{db_.load_carrier_cargo_totals()}; totals)
     carriers = std::move(*totals);
+  // and the one this site is supplied from, alone
+  uint64_t const supplier{carrier_combo_->currentData().toULongLong()};
+  std::map<std::string, int64_t> supplier_cargo;
+  if(supplier != 0u)
+    if(auto cargo{db_.load_carrier_cargo(supplier)}; cargo)
+      for(info::carrier_cargo_t const & item: *cargo)
+        supplier_cargo[item.key] += item.count;
 
   // by type, then by name - the way the game's own list reads; every type opens with a row of its own
   std::map<std::string, std::string> categories;
@@ -308,6 +370,15 @@ auto construction_window_t::show_site() -> void
   );
 
   auto const number = [](uint64_t v) { return QString::number(qulonglong(v)); };
+  QColor const lacking{0xcc, 0x44, 0x44};
+  QColor const enough{0x44, 0xaa, 0x44};
+  auto const diff_cell = [&](int64_t diff)
+  {
+    auto * cell = new QTableWidgetItem(diff > 0 ? QStringLiteral("+%1").arg(diff) : QString::number(diff));
+    cell->setForeground(diff < 0 ? lacking : enough);
+    return cell;
+  };
+  int64_t lacking_total{};
   QBrush const band{palette().color(QPalette::Highlight)};
   QBrush const band_text{palette().color(QPalette::HighlightedText)};
   std::string last_category;
@@ -337,18 +408,25 @@ auto construction_window_t::show_site() -> void
       }
     table_->setItem(row, 0, name);
     table_->setItem(row, 1, new QTableWidgetItem(number(left)));
-    table_->setItem(row, 2, new QTableWidgetItem(number(need->required)));
-    table_->setItem(row, 3, new QTableWidgetItem(number(need->provided)));
+    if(supplier != 0u)
+      {
+      auto const s{supplier_cargo.find(need->key)};
+      int64_t const diff{(s == supplier_cargo.end() ? 0 : s->second) - int64_t(left)};
+      lacking_total += std::min<int64_t>(diff, 0);
+      table_->setItem(row, 2, diff_cell(diff));
+      }
+    table_->setItem(row, 3, new QTableWidgetItem(number(need->required)));
+    table_->setItem(row, 4, new QTableWidgetItem(number(need->provided)));
     auto const h{hold.find(need->key)};
-    table_->setItem(row, 4, new QTableWidgetItem(h == hold.end() ? QString{} : number(h->second)));
+    table_->setItem(row, 5, new QTableWidgetItem(h == hold.end() ? QString{} : number(h->second)));
     auto const c{carriers.find(need->key)};
     table_->setItem(
-      row, 5, new QTableWidgetItem(c == carriers.end() or c->second <= 0 ? QString{} : number(uint64_t(c->second)))
+      row, 6, new QTableWidgetItem(c == carriers.end() or c->second <= 0 ? QString{} : number(uint64_t(c->second)))
     );
     auto const m{here.find(need->key)};
     bool const sold{m != here.end() and m->second.stock > 0u and m->second.buy_price > 0u};
-    table_->setItem(row, 6, new QTableWidgetItem(sold ? number(m->second.stock) : QString{}));
-    table_->setItem(row, 7, new QTableWidgetItem(sold ? number(m->second.buy_price) : QString{}));
+    table_->setItem(row, 7, new QTableWidgetItem(sold ? number(m->second.stock) : QString{}));
+    table_->setItem(row, 8, new QTableWidgetItem(sold ? number(m->second.buy_price) : QString{}));
     }
   if(not wanted.empty())
     {
@@ -358,6 +436,13 @@ auto construction_window_t::show_site() -> void
     total->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
     table_->setItem(row, 0, total);
     table_->setItem(row, 1, new QTableWidgetItem(number(left_total)));
+    // what the carrier still lacks in all - a surplus of one commodity makes up for nothing of another
+    if(supplier != 0u)
+      {
+      auto * cell = diff_cell(lacking_total);
+      cell->setToolTip("What the carrier still lacks, in all");
+      table_->setItem(row, 2, cell);
+      }
     }
   header_->setText(qformat(
     "{} in {}: {:.1f}% built, {} t of {} t left, {} commodities complete. Updated {:%Y-%m-%d %H:%M} UTC.",

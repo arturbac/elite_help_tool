@@ -40,6 +40,8 @@ private:
   ///\brief the game never says a site lapsed unless it is visited - giving one up is the commander's call
   QPushButton * abandon_button_{};
   QCheckBox * show_abandoned_{};
+  ///\brief the carrier the site is supplied from, remembered for each site; none leaves the Diff column empty
+  QComboBox * carrier_combo_{};
   QLabel * header_{};
   QTableWidget * table_{};
 
@@ -49,4 +51,6 @@ private:
 
   auto setup_ui() -> void;
   auto show_site() -> void;
+  ///\brief puts the carrier remembered for the chosen site back into the box
+  auto restore_carrier() -> void;
   };
