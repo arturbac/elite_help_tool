@@ -130,7 +130,7 @@ auto scanner_sheet_t::observe(bool scanner_open, std::string const & body) -> vo
   pending_ = pending_t{.spool = request_.path, .body = body, .asked = now};
   }
 
-auto scanner_sheet_t::collect() -> void
+auto scanner_sheet_t::collect(bool scanner_open) -> void
   {
   if(not pending_)
     return;
@@ -147,7 +147,7 @@ auto scanner_sheet_t::collect() -> void
   std::filesystem::remove(pending_->spool, ec);
   std::string const body{std::move(pending_->body)};
   pending_.reset();
-  if(image.isNull())
+  if(image.isNull() or not scanner_open)
     return;
 
   auto const cfg{eht::settings()};
@@ -164,6 +164,7 @@ auto scanner_sheet_t::collect() -> void
       }
 
   std::filesystem::path file;
+  bool fresh{};
   if(nearest != nullptr and closest < cfg->exploration.scanner_difference)
     // the same filter a moment later - the newer picture is kept in its place
     file = nearest->file;
@@ -176,6 +177,7 @@ auto scanner_sheet_t::collect() -> void
     file = body_dir(body) / std::format("{:02}.jpg", number);
     views.push_back(view_t{.file = file, .signature = {}, .thumbnail = {}, .generation = 0u});
     nearest = &views.back();
+    fresh = true;
     spdlog::info("scanner: a new view of {} kept as {}", body, file.string());
     }
   else
@@ -187,6 +189,12 @@ auto scanner_sheet_t::collect() -> void
     return;
     }
   nearest->signature = std::move(signature);
+  news_ = news_t{
+    .body = body,
+    .view = size_t(nearest - views.data()) + 1u,
+    .fresh = fresh,
+    .at = std::chrono::steady_clock::now()
+  };
   // the thumbnail is made again when next wanted, under a new name the layer will read afresh
   nearest->thumbnail.clear();
   ++nearest->generation;

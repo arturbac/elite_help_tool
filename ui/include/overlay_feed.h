@@ -123,6 +123,8 @@ private:
 
   ///\brief the interface the game has open, 0 when it is showing nothing but the cockpit
   uint32_t gui_focus_{};
+  ///\brief the ship's flags from Status.json
+  uint64_t status_flags_{};
   ///\brief the body the game says we are at, empty away from any
   std::string status_body_;
   ///\brief where on the body we stand, and what we hold - for the samples

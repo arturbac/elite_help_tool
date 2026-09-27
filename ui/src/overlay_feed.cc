@@ -1986,6 +1986,7 @@ auto overlay_feed_t::refresh_status(current_state_t const & state) -> void
   if(auto status{load_status(state.journal_dir_path_)}; status)
     {
     gui_focus_ = status->GuiFocus;
+    status_flags_ = status->Flags;
     surface_ = overlay_exploration::surface_view_t{
       .body_name = status->BodyName,
       .here = status->Latitude and status->Longitude
@@ -2493,9 +2494,15 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
     }
   if(codex_.collect())
     codex_.write_page(db_);
-  scanner_.collect();
-  // the scanner's own interface is the tenth
-  scanner_.observe(gui_focus_ == 10u, state.scanner_body_);
+  // The scanner's own interface is the tenth. Its views are worth keeping only from a ship in supercruise
+  // round the planet - opened from the ground or a Nomad it looks at the sky
+  constexpr uint64_t supercruise_flag{1u << 4u};
+  constexpr uint64_t main_ship_flag{1u << 24u};
+  bool const scanner_on_planet{
+    gui_focus_ == 10u and (status_flags_ & supercruise_flag) != 0u and (status_flags_ & main_ship_flag) != 0u
+  };
+  scanner_.collect(scanner_on_planet);
+  scanner_.observe(scanner_on_planet, state.scanner_body_);
   refresh_species_history(state);
 
   if(not server_->listening())
@@ -2711,6 +2718,34 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
     capture_ = asked;
     }
   frame.capture = capture_;
+
+  // In the scanner the band says what the last picture did: a new view is the sign that the filter is in
+  // and the next one may be chosen
+  if(gui_focus_ == 10u and eht::settings()->exploration.scanner_pictures and not state.scanner_body_.empty())
+    {
+    std::vector<overlay::line_t> lines{overlay::line_t{
+      .text = std::format(
+        "scanner views of {}: {} kept",
+        short_body_name(state.system.name, state.scanner_body_),
+        scanner_.view_count(state.scanner_body_)
+      ),
+      .color = colour_heading()
+    }};
+    if(auto const & news{scanner_.news()}; news and news->body == state.scanner_body_)
+      {
+      auto const ago{std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - news->at)};
+      lines.push_back(
+        overlay::line_t{
+          .text = std::format("view {} {}  -  {} s ago", news->view, news->fresh ? "new" : "refreshed", ago.count()),
+          // a new view stands out for a few seconds, the time it takes to see it and switch the filter
+          .color = news->fresh and ago < std::chrono::seconds{4} ? colour_first() : colour_plain()
+        }
+      );
+      }
+    frame.blocks.push_back(
+      overlay::block_t{.corner = overlay::corner_e::bottom_left, .ttl_ms = block_ttl_ms(), .lines = std::move(lines)}
+    );
+    }
 
   // On the ground the scanner's views come back: its filters showed from orbit where each genus grows.
   // Not in the scanner itself, where they are being taken and the middle of the screen is its own

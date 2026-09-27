@@ -23,7 +23,7 @@
 class scanner_sheet_t final
   {
 public:
-  ///\brief asks for a picture while the scanner is open on a body, at most once an interval
+  ///\brief asks for a picture while the scanner looks at a body from the ship, at most once an interval
   auto observe(bool scanner_open, std::string const & body) -> void;
 
   ///\brief what goes into the frame - the newest request, or none
@@ -31,12 +31,33 @@ public:
   auto capture_request() const -> overlay::capture_t const &
     { return request_; }
 
-  ///\brief files the picture the layer has finished, if there is one
-  auto collect() -> void;
+  ///\brief files the picture the layer has finished, if there is one - unless the scanner closed before it came,
+  /// when it shows the cockpit instead
+  auto collect(bool scanner_open) -> void;
 
   ///\brief the thumbnails of a body's views, in the order they were first seen
   [[nodiscard]]
   auto pictures(std::string const & body) -> std::vector<overlay::picture_t>;
+
+  ///\brief what the last picture did - the player switching filters wants to know the view is in
+  struct news_t
+    {
+    std::string body;
+    ///\brief the view's number, from 1, in the order they were first seen
+    size_t view{};
+    ///\brief a view not kept before, rather than a known one taken again
+    bool fresh{};
+    std::chrono::steady_clock::time_point at;
+    };
+
+  [[nodiscard]]
+  auto news() const noexcept -> std::optional<news_t> const &
+    { return news_; }
+
+  ///\brief how many views of a body are kept
+  [[nodiscard]]
+  auto view_count(std::string const & body) -> size_t
+    { return views_of(body).size(); }
 
 private:
   struct view_t
@@ -60,6 +81,7 @@ private:
   std::optional<pending_t> pending_;
   std::chrono::steady_clock::time_point last_asked_{};
   std::map<std::string, std::vector<view_t>> views_;
+  std::optional<news_t> news_;
 
   ///\brief the views of a body, read from its directory the first time the body comes up
   auto views_of(std::string const & body) -> std::vector<view_t> &;
