@@ -867,6 +867,19 @@ auto generic_state_t::discovery(std::string_view input) -> void
     case DropshipDeploy:    parse_and_handle.template operator()<events::dropship_deploy_t>(); break;
     case Embark:            parse_and_handle.template operator()<events::embark_t>(); break;
     case Died:              handle(gevt.timestamp, events::died_t{}); break;
+    // colonisation - what a construction site needs, what came, and whose systems they are
+    case ColonisationConstructionDepot:
+      parse_and_handle.template operator()<events::colonisation_construction_depot_t>();
+      break;
+    case ColonisationContribution:
+      parse_and_handle.template operator()<events::colonisation_contribution_t>();
+      break;
+    case ColonisationSystemClaim:
+      parse_and_handle.template operator()<events::colonisation_system_claim_t>();
+      break;
+    case ColonisationSystemClaimRelease:
+      parse_and_handle.template operator()<events::colonisation_system_claim_release_t>();
+      break;
     case CarrierStats:      parse_and_handle.template operator()<events::carrier_stats_t>(); break;
     case FCMaterials:
         {

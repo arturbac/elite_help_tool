@@ -708,6 +708,56 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
         state.ground_cz.embark();
       else if constexpr(std::same_as<T, events::died_t>)
         state.ground_cz.died();
+      // colonisation: whose systems, what a site needs, what came to it
+      else if constexpr(std::same_as<T, events::colonisation_system_claim_t>)
+        {
+        if(auto res{state.db_.store(info::colony_claim_t{
+             .system_address = event.SystemAddress, .system = event.StarSystem, .commander = state.commander,
+             .claimed = timestamp, .released = false
+           })};
+           not res)
+          spdlog::error("failed to store the claim of {}", event.StarSystem);
+        }
+      else if constexpr(std::same_as<T, events::colonisation_system_claim_release_t>)
+        {
+        if(auto res{state.db_.store(info::colony_claim_t{
+             .system_address = event.SystemAddress, .system = event.StarSystem, .commander = state.commander,
+             .claimed = timestamp, .released = true
+           })};
+           not res)
+          spdlog::error("failed to store the release of {}", event.StarSystem);
+        }
+      else if constexpr(std::same_as<T, events::colonisation_construction_depot_t>)
+        {
+        std::vector<info::construction_need_t> needs;
+        for(events::construction_resource_t const & r: event.ResourcesRequired)
+          needs.push_back(info::construction_need_t{
+            .market_id = event.MarketID, .key = info::commodity_key(r.Name),
+            .commodity = r.Name_Localised.empty() ? r.Name : r.Name_Localised, .required = r.RequiredAmount,
+            .provided = r.ProvidedAmount, .payment = r.Payment
+          });
+        // docked at the site - the system we are in is the site's
+        if(auto res{state.db_.store_construction(
+             info::construction_depot_t{
+               .market_id = event.MarketID, .system_address = state.system.system_address,
+               .progress = event.ConstructionProgress, .complete = event.ConstructionComplete,
+               .failed = event.ConstructionFailed, .updated = timestamp
+             },
+             needs
+           )};
+           not res)
+          spdlog::error("failed to store construction site {}", event.MarketID);
+        }
+      else if constexpr(std::same_as<T, events::colonisation_contribution_t>)
+        {
+        for(events::construction_contribution_t const & c: event.Contributions)
+          if(auto res{state.db_.store_delivery(info::construction_delivery_t{
+               .timestamp = timestamp, .market_id = event.MarketID, .key = info::commodity_key(c.Name),
+               .amount = c.Amount, .commander = state.commander
+             })};
+             not res)
+            spdlog::error("failed to store a delivery to {}", event.MarketID);
+        }
       else if constexpr(std::same_as<T, events::market_t>)
         {
         // a market's contents exist only in Market.json and only live; the import knows the station alone
@@ -736,6 +786,7 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
         {
         // from this moment to the end of the file it is known whose the entries are
         state.personal = state.owner_fid.empty() or event.FID == state.owner_fid;
+        state.commander = event.Name;
         if(not state.personal)
           spdlog::info("journal of {} - taking the world from it, not the career", event.Name);
         }

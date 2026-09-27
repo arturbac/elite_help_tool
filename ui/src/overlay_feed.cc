@@ -2017,6 +2017,109 @@ auto overlay_feed_t::refresh_mission_places(current_state_t const & state) -> vo
 /// game's frame path and reading pixels back off the card means waiting for the card. It does not
 /// have to: the game writes what it is showing into Status.json beside the journals, and rewrites it
 /// whenever it changes.
+auto overlay_feed_t::refresh_construction(current_state_t const & state) -> void
+  {
+  auto const now{std::chrono::steady_clock::now()};
+  if(construction_changes_ != state.construction_changes_ or now - construction_read_ > std::chrono::seconds{30})
+    {
+    construction_changes_ = state.construction_changes_;
+    construction_read_ = now;
+    auto loaded{db_.load_construction_sites()};
+    construction_sites_ = loaded ? std::move(*loaded) : std::vector<info::construction_site_t>{};
+    }
+  // the port's market is read again when the port changes, or with the sites
+  uint64_t const port{state.settlement_market_id_};
+  if(port != construction_port_ or construction_read_ == now)
+    {
+    construction_port_ = port;
+    construction_port_market_.clear();
+    if(port != 0u)
+      if(auto entries{db_.load_market_entries(port)}; entries)
+        construction_port_market_ = std::move(*entries);
+    }
+  }
+
+auto overlay_feed_t::build_construction_lines(current_state_t const & state) const -> std::vector<overlay::line_t>
+  {
+  if(construction_sites_.empty())
+    return {};
+
+  // which site: the one chosen in the window, the one docked at, or the destination in this system -
+  // a destination elsewhere is only a system to the game, so it cannot name a site
+  auto const by_market = [&](uint64_t market) -> info::construction_site_t const *
+  {
+    auto const it{std::ranges::find(construction_sites_, market, [](auto const & s) { return s.depot.market_id; })};
+    return it == construction_sites_.end() ? nullptr : &*it;
+  };
+  info::construction_site_t const * site{by_market(construction_focus_)};
+  if(site == nullptr and state.settlement_market_id_ != 0u)
+    site = by_market(state.settlement_market_id_);
+  if(site == nullptr and status_destination_ and status_destination_->System == state.current_system_address_)
+    for(info::construction_site_t const & s: construction_sites_)
+      if(s.depot.system_address == state.current_system_address_ and not s.name.empty()
+         and s.name == status_destination_->Name)
+        site = &s;
+  if(site == nullptr)
+    return {};
+
+  std::map<std::string, uint32_t> hold;
+  for(events::cargo_item_t const & item: state.cargo.Inventory)
+    hold[info::commodity_key(item.Name)] += item.Count;
+  std::map<std::string, info::market_entry_t const *> here;
+  if(construction_port_ != site->depot.market_id)
+    for(info::market_entry_t const & entry: construction_port_market_)
+      if(entry.stock > 0u and entry.buy_price > 0u)
+        here[info::commodity_key(entry.name)] = &entry;
+
+  std::vector<overlay::line_t> lines;
+  uint64_t left_total{};
+  size_t wanted{};
+  for(info::construction_need_t const & need: site->needs)
+    if(need.required > need.provided)
+      {
+      left_total += need.required - need.provided;
+      ++wanted;
+      }
+  lines.push_back(
+    overlay::line_t{
+      .text = std::format(
+        "construction: {}  {:.0f}%  {} t left  ({})",
+        site->name.empty() ? std::format("site {}", site->depot.market_id) : site->name,
+        site->depot.progress * 100.0,
+        left_total,
+        site->system
+      ),
+      .color = colour_heading()
+    }
+  );
+
+  size_t const limit{eht::settings()->overlay.lists.construction};
+  size_t shown{};
+  for(info::construction_need_t const & need: site->needs)
+    {
+    if(need.required <= need.provided)
+      continue;
+    if(shown == limit)
+      break;
+    ++shown;
+    uint32_t const left{need.required - need.provided};
+    std::string text{"  " + need.commodity};
+    text.resize(std::max<size_t>(text.size(), 24u), ' ');
+    text += std::format("{:>6} t", left);
+    auto const h{hold.find(need.key)};
+    if(h != hold.end())
+      text += std::format("   hold {}", h->second);
+    auto const m{here.find(need.key)};
+    if(m != here.end())
+      text += std::format("   here {} @ {}", m->second->stock, m->second->buy_price);
+    // what can be loaded right here stands out
+    lines.push_back(overlay::line_t{.text = std::move(text), .color = m != here.end() ? colour_first() : colour_plain()});
+    }
+  if(wanted > shown)
+    lines.push_back(overlay::line_t{.text = std::format("  ... and {} more", wanted - shown), .color = colour_plain()});
+  return lines;
+  }
+
 auto overlay_feed_t::refresh_wars(current_state_t const & state) -> void
   {
   auto const now{std::chrono::steady_clock::now()};
@@ -2922,6 +3025,19 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
       }
     );
     }
+
+  // a construction site in view - what it still needs, what the hold carries, what this port sells
+  refresh_construction(state);
+  if(auto construction{build_construction_lines(state)}; not construction.empty())
+    frame.blocks.push_back(
+      overlay::block_t{
+        .corner = overlay::corner_e::top_right,
+        .ttl_ms = block_ttl_ms(),
+        .lines = std::move(construction),
+        .charts = {},
+        .text = overlay::text_e::small
+      }
+    );
 
   // the wars here - their official state and the settlements fought over, under the system and its factions
   refresh_wars(state);

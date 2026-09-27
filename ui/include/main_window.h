@@ -9,6 +9,7 @@
 #include <faction_state_window.h>
 #include <micro_resource_window.h>
 #include <bgs_window.h>
+#include <construction_window.h>
 #include <eht_extension.h>
 #include <overlay_feed.h>
 #include <eddn_sender.h>
@@ -35,13 +36,14 @@ enum struct window_type_e
   faction,
   faction_state,
   micro_resource,
-  bgs
+  bgs,
+  construction
   };
 
 consteval auto adl_enum_bounds(window_type_e)
   {
   using enum window_type_e;
-  return simple_enum::adl_info{none, bgs};
+  return simple_enum::adl_info{none, construction};
   }
 
 class main_window_t : public QMainWindow
@@ -65,6 +67,7 @@ public:
   QPointer<faction_state_window_t> faction_state_view_;
   QPointer<micro_resource_window_t> micro_resource_view_;
   QPointer<bgs_window_t> bgs_view_;
+  QPointer<construction_window_t> construction_view_;
 
   ///\brief feeds the overlay in the game window; it lives whether or not the game is running at all
   std::unique_ptr<overlay_feed_t> overlay_feed_;

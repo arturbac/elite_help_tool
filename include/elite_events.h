@@ -175,6 +175,8 @@ enum struct event_e : uint16_t
   FactionKillBond,
   BookDropship,
   DropshipDeploy,
+  ColonisationSystemClaim,
+  ColonisationSystemClaimRelease,
   
   NavRoute,
   NavRouteClear
@@ -991,6 +993,54 @@ struct died_t
   {
   };
 
+///\brief one commodity a construction site needs, and how much of it has come
+struct construction_resource_t
+  {
+  std::string Name;
+  std::string Name_Localised;
+  uint32_t RequiredAmount{};
+  uint32_t ProvidedAmount{};
+  uint32_t Payment{};
+  };
+
+///\brief the whole state of a construction site - written on docking at it, and again every little while
+struct colonisation_construction_depot_t
+  {
+  uint64_t MarketID{};
+  double ConstructionProgress{};
+  bool ConstructionComplete{};
+  bool ConstructionFailed{};
+  std::vector<construction_resource_t> ResourcesRequired;
+  };
+
+struct construction_contribution_t
+  {
+  std::string Name;
+  std::string Name_Localised;
+  uint32_t Amount{};
+  };
+
+///\brief cargo handed in at a construction site
+struct colonisation_contribution_t
+  {
+  uint64_t MarketID{};
+  std::vector<construction_contribution_t> Contributions;
+  };
+
+///\brief a system claimed for colonisation - by the commander of the session
+struct colonisation_system_claim_t
+  {
+  std::string StarSystem;
+  uint64_t SystemAddress{};
+  };
+
+///\brief a claim given up
+struct colonisation_system_claim_release_t
+  {
+  std::string StarSystem;
+  uint64_t SystemAddress{};
+  };
+
 ///\brief a backpack row
 struct backpack_item_t
   {
@@ -1349,7 +1399,11 @@ using event_holder_t = std::variant<
   book_dropship_t,
   dropship_deploy_t,
   embark_t,
-  died_t>;
+  died_t,
+  colonisation_construction_depot_t,
+  colonisation_contribution_t,
+  colonisation_system_claim_t,
+  colonisation_system_claim_release_t>;
 
   }  // namespace events
 

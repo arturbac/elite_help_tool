@@ -145,6 +145,10 @@ struct current_state_t : public generic_state_t
   ///\detail if someone logged into a second account from this game profile, their missions and finds
   /// must not land in somebody else's career - the world we still take, because the galaxy is shared
   std::string owner_fid_;
+  ///\brief the commander of the session being read - a colonisation claim is theirs
+  std::string commander_name_;
+  ///\brief counts changes of construction sites, so the overlay reads them again at once
+  uint64_t construction_changes_{};
   bool personal_{true};
 
   current_state_t(main_window_t * p, std::string db_path, std::string journal_path) : generic_state_t{journal_path}, parent{p}, db_{db_path} {}

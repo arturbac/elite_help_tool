@@ -377,6 +377,24 @@ struct database_storage_t
   [[nodiscard]]
   auto store(info::ground_bond_t const & value) -> expected_ec<void>;
 
+  ///\brief a claim, or its release when released is set
+  [[nodiscard]]
+  auto store(info::colony_claim_t const & value) -> expected_ec<void>;
+
+  ///\brief the site's state and needs as the game wrote them - the needs replaced only when they changed
+  [[nodiscard]]
+  auto store_construction(
+    info::construction_depot_t const & depot, std::span<info::construction_need_t const> needs
+  ) -> expected_ec<void>;
+
+  ///\brief cargo handed in: what is provided grows at once, before the site writes its state again
+  [[nodiscard]]
+  auto store_delivery(info::construction_delivery_t const & value) -> expected_ec<void>;
+
+  ///\brief the construction sites under way in the systems our commanders claimed and still hold
+  [[nodiscard]]
+  auto load_construction_sites() -> expected_ec<std::vector<info::construction_site_t>>;
+
   ///\brief the wars under way in the system, with the settlements of both sides: whose each was when the
   /// war began, and the intensity of its conflict zone before this war and in it
   [[nodiscard]]

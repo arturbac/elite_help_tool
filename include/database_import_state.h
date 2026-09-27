@@ -29,6 +29,8 @@ struct database_import_state_t : public generic_state_t
     /// the world we take from all of them, because the galaxy is shared, but missions, finds, reputation
     /// and scanning progress belong to one commander and, once mixed, cannot be told apart again
     std::string owner_fid;
+    ///\brief the commander of the session being read - a colonisation claim is theirs
+    std::string commander;
     ///\brief whether the journal being read belongs to the database's owner
     bool personal{true};
 

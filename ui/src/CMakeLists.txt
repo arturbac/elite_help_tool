@@ -12,6 +12,7 @@ target_sources(elite_help_tool
   faction_state_window.cc
   micro_resource_window.cc
   bgs_window.cc
+  construction_window.cc
   overlay_feed.cc
   overlay_exploration.cc
   codex.cc

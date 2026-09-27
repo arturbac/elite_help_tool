@@ -290,6 +290,78 @@ struct war_view_t
   std::vector<war_settlement_t> settlements;
   };
 
+///\brief a commodity's name as a key the three sources agree on - a construction site's "$cmmcomposite_name;",
+/// the market's "CMM Composite" and the hold's "cmmcomposite" all become "cmmcomposite"
+[[nodiscard]]
+inline auto commodity_key(std::string_view name) -> std::string
+  {
+  if(name.starts_with('$'))
+    name.remove_prefix(1u);
+  if(name.ends_with("_name;") or name.ends_with("_Name;"))
+    name.remove_suffix(6u);
+  std::string key;
+  for(char const c: name)
+    if((c >= 'a' and c <= 'z') or (c >= '0' and c <= '9'))
+      key.push_back(c);
+    else if(c >= 'A' and c <= 'Z')
+      key.push_back(char(c - 'A' + 'a'));
+  return key;
+  }
+
+///\brief a system claimed for colonisation by one of our commanders, and whether the claim was given up
+struct colony_claim_t
+  {
+  uint64_t system_address;
+  std::string system;
+  std::string commander;
+  std::chrono::sys_seconds claimed;
+  bool released;
+  };
+
+///\brief a construction site's state as the game last told it
+struct construction_depot_t
+  {
+  uint64_t market_id;
+  uint64_t system_address;
+  double progress;
+  bool complete;
+  bool failed;
+  std::chrono::sys_seconds updated;
+  };
+
+///\brief one commodity a construction site needs - required, and provided so far
+struct construction_need_t
+  {
+  int64_t oid{-1};
+  uint64_t market_id;
+  ///\brief commodity_key of the name - what the market and the hold are matched by
+  std::string key;
+  std::string commodity;
+  uint32_t required;
+  uint32_t provided;
+  uint32_t payment;
+  };
+
+///\brief cargo handed in at a construction site
+struct construction_delivery_t
+  {
+  int64_t oid{-1};
+  std::chrono::sys_seconds timestamp;
+  uint64_t market_id;
+  std::string key;
+  uint32_t amount;
+  std::string commander;
+  };
+
+///\brief a construction site under way in one of our systems, with what it still needs
+struct construction_site_t
+  {
+  construction_depot_t depot;
+  std::string name;
+  std::string system;
+  std::vector<construction_need_t> needs;
+  };
+
 ///\brief when we last read this station's market
 ///\detail the contents themselves come from Market.json, which cannot be rebuilt, so the time of
 /// the reading belongs to the database gathered live

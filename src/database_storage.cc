@@ -484,6 +484,11 @@ namespace tables
   // galaxy, rebuilt from journals
   inline constexpr std::string_view settlement_owner{"galaxy.settlement_owner"};
   inline constexpr std::string_view ground_bond{"galaxy.ground_bond"};
+  // colonisation: our claims, the construction sites in them and what they need - rebuilt from journals
+  inline constexpr std::string_view colony_claim{"galaxy.colony_claim"};
+  inline constexpr std::string_view construction_depot{"galaxy.construction_depot"};
+  inline constexpr std::string_view construction_need{"galaxy.construction_need"};
+  inline constexpr std::string_view construction_delivery{"galaxy.construction_delivery"};
   // the tick belongs to the game, not to a character - and rebuilds from journals with the rest of the galaxy
   inline constexpr std::string_view tick_observation{"galaxy.tick_observation"};
   // what cannot be rebuilt sits in a separate file attached as the live schema
@@ -1266,6 +1271,23 @@ auto database_storage_t::create_database() -> expected_ec<void>
     [[unlikely]]
     return res;
 
+  if(auto res{sqlite::create_table<info::colony_claim_t>(db_->db, "system_address"sv, sql_iface::tables::colony_claim)};
+     not res) [[unlikely]]
+    return res;
+  if(auto res{
+       sqlite::create_table<info::construction_depot_t>(db_->db, "market_id"sv, sql_iface::tables::construction_depot)
+     };
+     not res) [[unlikely]]
+    return res;
+  if(auto res{sqlite::create_table<info::construction_need_t>(db_->db, "oid"sv, sql_iface::tables::construction_need)};
+     not res) [[unlikely]]
+    return res;
+  if(auto res{
+       sqlite::create_table<info::construction_delivery_t>(db_->db, "oid"sv, sql_iface::tables::construction_delivery)
+     };
+     not res) [[unlikely]]
+    return res;
+
   if(auto res{sqlite::create_table<info::market_info_t>(db_->db, "market_id"sv, sql_iface::tables::market)}; not res)
     [[unlikely]]
     return res;
@@ -1472,6 +1494,9 @@ auto database_storage_t::create_database() -> expected_ec<void>
     return res;
   if(auto res{sqlite::create_index(db_->db, sql_iface::tables::ground_bond, "market_id, timestamp", "place")};
      not res) [[unlikely]]
+    return res;
+  if(auto res{sqlite::create_index(db_->db, sql_iface::tables::construction_need, "market_id", "site")}; not res)
+    [[unlikely]]
     return res;
 
   return {};
@@ -3209,6 +3234,132 @@ auto database_storage_t::note_settlement_owner(
 
 auto database_storage_t::store(info::ground_bond_t const & value) -> expected_ec<void>
   { return sqlite::insert_into(db_->db, "oid"sv, sql_iface::tables::ground_bond, value); }
+
+auto database_storage_t::store(info::colony_claim_t const & value) -> expected_ec<void>
+  {
+  auto known{sqlite::select_from<info::colony_claim_t>(
+    db_->db, sql_iface::tables::colony_claim, std::format(" WHERE system_address={}", value.system_address)
+  )};
+  if(not known) [[unlikely]]
+    return cxx23::unexpected{known.error()};
+  if(known->empty())
+    return sqlite::insert_into<info::colony_claim_t, true>(
+      db_->db, "system_address"sv, sql_iface::tables::colony_claim, value
+    );
+  // a release keeps who claimed it and when; a claim again takes the system back
+  info::colony_claim_t row{known->front()};
+  if(value.released)
+    row.released = true;
+  else
+    row = value;
+  return sqlite::update_pk(db_->db, "system_address"sv, sql_iface::tables::colony_claim, row, row.system_address);
+  }
+
+auto database_storage_t::store_construction(
+  info::construction_depot_t const & depot, std::span<info::construction_need_t const> needs
+) -> expected_ec<void>
+  {
+  auto known{sqlite::select_from<info::construction_depot_t>(
+    db_->db, sql_iface::tables::construction_depot, std::format(" WHERE market_id={}", depot.market_id)
+  )};
+  if(not known) [[unlikely]]
+    return cxx23::unexpected{known.error()};
+  // an older reading - a journal read again - never overwrites a newer one
+  if(not known->empty() and depot.updated < known->front().updated)
+    return {};
+  info::construction_depot_t row{depot};
+  // the event does not name the system; the station row, from the docking, does
+  if(row.system_address == 0u and not known->empty())
+    row.system_address = known->front().system_address;
+  auto stored{
+    known->empty()
+      ? sqlite::insert_into<info::construction_depot_t, true>(
+          db_->db, "market_id"sv, sql_iface::tables::construction_depot, row
+        )
+      : sqlite::update_pk(db_->db, "market_id"sv, sql_iface::tables::construction_depot, row, row.market_id)
+  };
+  if(not stored) [[unlikely]]
+    return stored;
+
+  // the site writes its state every little while, mostly the same - rows are rewritten only on a change
+  auto current{sqlite::select_from<info::construction_need_t>(
+    db_->db, sql_iface::tables::construction_need, std::format(" WHERE market_id={} ORDER BY key", depot.market_id)
+  )};
+  if(not current) [[unlikely]]
+    return cxx23::unexpected{current.error()};
+  std::vector<info::construction_need_t> incoming{needs.begin(), needs.end()};
+  std::ranges::sort(incoming, {}, &info::construction_need_t::key);
+  bool const same{std::ranges::equal(
+    *current,
+    incoming,
+    [](info::construction_need_t const & a, info::construction_need_t const & b)
+    { return a.key == b.key and a.required == b.required and a.provided == b.provided; }
+  )};
+  if(same)
+    return {};
+
+  if(auto res{sqlite::execute_query_no_result(
+       db_->db, std::format("DELETE FROM {} WHERE market_id={}", sql_iface::tables::construction_need, depot.market_id)
+     )};
+     not res) [[unlikely]]
+    return res;
+  for(info::construction_need_t const & need: incoming)
+    if(auto res{sqlite::insert_into(db_->db, "oid"sv, sql_iface::tables::construction_need, need)}; not res)
+      [[unlikely]]
+      return res;
+  return {};
+  }
+
+auto database_storage_t::store_delivery(info::construction_delivery_t const & value) -> expected_ec<void>
+  {
+  if(auto res{sqlite::insert_into(db_->db, "oid"sv, sql_iface::tables::construction_delivery, value)}; not res)
+    [[unlikely]]
+    return res;
+  return sqlite::execute_query_no_result(
+    db_->db,
+    std::format(
+      "UPDATE {} SET provided = min(required, provided + {}) WHERE market_id={} AND key='{}'",
+      sql_iface::tables::construction_need,
+      value.amount,
+      value.market_id,
+      sqlite::escape_sql_quotes(value.key)
+    )
+  );
+  }
+
+auto database_storage_t::load_construction_sites() -> expected_ec<std::vector<info::construction_site_t>>
+  {
+  auto depots{sqlite::select_from<info::construction_depot_t>(
+    db_->db,
+    sql_iface::tables::construction_depot,
+    std::format(
+      " WHERE complete=0 AND failed=0 AND system_address IN (SELECT system_address FROM {} WHERE released=0)"
+      " ORDER BY system_address, market_id",
+      sql_iface::tables::colony_claim
+    )
+  )};
+  if(not depots) [[unlikely]]
+    return cxx23::unexpected{depots.error()};
+
+  std::vector<info::construction_site_t> sites;
+  for(info::construction_depot_t const & depot: *depots)
+    {
+    info::construction_site_t site{.depot = depot, .name = {}, .system = {}, .needs = {}};
+    if(auto station{load_station(depot.market_id)}; station and *station)
+      site.name = (*station)->name;
+    if(auto system{load_system(depot.system_address)}; system and *system)
+      site.system = (*system)->name;
+    auto needs{sqlite::select_from<info::construction_need_t>(
+      db_->db,
+      sql_iface::tables::construction_need,
+      std::format(" WHERE market_id={} ORDER BY (required - provided) DESC", depot.market_id)
+    )};
+    if(needs)
+      site.needs = std::move(*needs);
+    sites.push_back(std::move(site));
+    }
+  return sites;
+  }
 
 auto database_storage_t::load_war_views(uint64_t system_address) -> expected_ec<std::vector<info::war_view_t>>
   {

@@ -39,6 +39,9 @@ public:
     std::string_view name;
     };
 
+  ///\brief the construction site chosen in the Construction window while that window is the active one, 0 for none
+  auto set_construction_focus(uint64_t market_id) -> void { construction_focus_ = market_id; }
+
   ///\brief builds the image from the state and sends it, provided anything has changed
   auto publish(current_state_t const & state, plotted_route_t const & plotted) -> void;
 
@@ -84,6 +87,11 @@ private:
   auto refresh_unsold(current_state_t const & state) -> void;
   ///\brief the wars under way in the system we are in, and the bonds not yet handed in
   auto refresh_wars(current_state_t const & state) -> void;
+  ///\brief the construction sites of our systems, and the market of the port we stand at
+  auto refresh_construction(current_state_t const & state) -> void;
+  ///\brief what the site in view still needs: chosen in the window, docked at, or the destination in this system
+  [[nodiscard]]
+  auto build_construction_lines(current_state_t const & state) const -> std::vector<overlay::line_t>;
   ///\brief one block per war: the official state of it, the bonds, and the settlements of both sides with
   /// their owner before the war and what is known of their conflict zone's intensity
   [[nodiscard]]
@@ -163,6 +171,12 @@ private:
   uint64_t scanner_capture_id_{};
   ///\brief the samples carried and not sold, read back from the journals
   bio::at_risk_t at_risk_;
+  std::vector<info::construction_site_t> construction_sites_;
+  uint64_t construction_changes_{~uint64_t{}};
+  std::chrono::steady_clock::time_point construction_read_{};
+  uint64_t construction_focus_{};
+  uint64_t construction_port_{};
+  std::vector<info::market_entry_t> construction_port_market_;
   std::vector<info::war_view_t> wars_;
   uint64_t wars_system_{};
   std::chrono::steady_clock::time_point wars_read_{};

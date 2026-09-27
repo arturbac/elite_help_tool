@@ -35,6 +35,7 @@ target_sources(elite_help_tool
             include/faction_state_window.h
             include/micro_resource_window.h
             include/bgs_window.h
+            include/construction_window.h
             include/overlay_feed.h
             include/eht_extension.h
 )

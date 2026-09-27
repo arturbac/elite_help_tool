@@ -109,6 +109,15 @@ auto main_window_t::publish_overlay() -> void
       .waypoints = route_view_->neutron_route_, .reached = route_view_->reached_, .name = route_view_->neutron_name_
     };
 
+  // the site chosen in the Construction window goes to the overlay while that window is the active one
+  uint64_t construction_focus{};
+  if(construction_view_)
+    {
+    construction_view_->refresh_ui();
+    if(mdi_area_->activeSubWindow() == construction_view_ and not construction_view_->isMinimized())
+      construction_focus = construction_view_->selected_market();
+    }
+  overlay_feed_->set_construction_focus(construction_focus);
   overlay_feed_->publish(state_, plotted);
 
   if(extension_)
@@ -190,6 +199,9 @@ auto main_window_t::setup_ui() -> void
 
   bgs_view_ = new bgs_window_t{db_path_};
   add_tool_window(bgs_view_, window_type_e::bgs);
+
+  construction_view_ = new construction_window_t{state_, db_path_};
+  add_tool_window(construction_view_, window_type_e::construction);
   }
 
 auto main_window_t::add_tool_window(QMdiSubWindow * sub, window_type_e type) -> void
@@ -216,6 +228,7 @@ auto main_window_t::subwindow_for(window_type_e type) const -> QMdiSubWindow *
     case window_type_e::faction_state: return faction_state_view_;
     case window_type_e::micro_resource: return micro_resource_view_;
     case window_type_e::bgs: return bgs_view_;
+    case window_type_e::construction: return construction_view_;
     case window_type_e::journal_log:   return jlw_;
     case window_type_e::none:          break;
     }
@@ -268,6 +281,7 @@ auto main_window_t::setup_toolbox() -> void
     {window_type_e::ship, "Ship"},
     {window_type_e::micro_resource, "Data"},
     {window_type_e::bgs, "BGS"},
+    {window_type_e::construction, "Construction"},
     {window_type_e::journal_log, "Log"}
   };
 

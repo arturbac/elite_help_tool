@@ -112,6 +112,22 @@ it can take the game down: [overlay/README.md](overlay/README.md).
 - Market data is recorded when you open the commodity market, and kept in `live.sqlite`, the one
   database that cannot be rebuilt from journals.
 
+## Colonisation
+
+- **What a construction site still needs**: the game writes a site's whole state on every docking
+  there (what it requires, what has been provided, its progress) and each delivery as it is handed
+  in. EHT keeps both, so after dropping a load the rest is known at once.
+- **Only our own systems**: the systems claimed by the commanders of this journal directory and not
+  released, read from the claims in the journals. Only sites still under construction are listed.
+- **On the overlay**, when the flight's destination is a construction site in the current system, when
+  docked at one, or when it is chosen in the Construction window: the commodities still needed, most
+  wanted first, with how much is in the hold and how much the port you stand at sells, and for how
+  much. What can be loaded right here stands out.
+- **The Construction window** lists the sites under way, and for the one chosen every commodity:
+  what is left, required, provided, in the hold, and in the port you stand at.
+- A site is known from the first docking at it: the game writes nothing when one is placed in the
+  system map.
+
 ## Exploration and exobiology
 
 The bottom right corner of the overlay follows the order of work in a new system:
