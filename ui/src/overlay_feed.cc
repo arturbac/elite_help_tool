@@ -575,6 +575,28 @@ auto build_system_diagram(
       );
   };
 
+  // A star with nothing around it would take a whole row for one disc - in a system of five stars and
+  // two of them with planets that is most of the height. Such stars stand side by side in one row,
+  // unless one pairs with a star that has a row of its own: the bracket on the left must reach both
+  auto const lone = [&](row_t const * row)
+  { return row->star != nullptr and row->planets.empty() and not ports.contains(row->star->body_id); };
+  std::set<body_id_t> split_pairs;
+  for(row_t const * row: ordered)
+    if(row->star != nullptr and not lone(row))
+      if(auto const & sd{std::get<star_details_t>(row->star->details)}; sd.parent_barycenter)
+        split_pairs.insert(*sd.parent_barycenter);
+  auto const packed = [&](row_t const * row)
+  {
+    if(not lone(row))
+      return false;
+    auto const & sd{std::get<star_details_t>(row->star->details)};
+    return not sd.parent_barycenter or not split_pairs.contains(*sd.parent_barycenter);
+  };
+  std::vector<body_t const *> packed_stars;
+  for(row_t const * row: ordered)
+    if(packed(row))
+      packed_stars.push_back(row->star);
+
   // the star rows, remembered for the brackets pairing stars around a shared barycentre
   std::map<body_id_t, std::vector<float>> star_pairs;
   float top{};
@@ -582,6 +604,51 @@ auto build_system_diagram(
 
   for(row_t const * row: ordered)
     {
+    if(packed(row))
+      {
+      // the whole group is drawn where its first star stands in the order, the rest are already in it
+      if(row->star != packed_stars.front())
+        continue;
+      float const line_y{top + label_band + star_radius};
+      float bottom{line_y + star_radius};
+      std::map<body_id_t, std::vector<float>> pairs;
+      for(size_t ix{}; ix != packed_stars.size(); ++ix)
+        {
+        body_t const * const star{packed_stars[ix]};
+        auto const & sd{std::get<star_details_t>(star->details)};
+        float const x{(static_cast<float>(ix) + 0.5f) * star_column};
+        diagram.discs.push_back(
+          overlay::disc_t{.x = x, .y = line_y, .radius = star_radius, .color = star_colour(sd.star_type)}
+        );
+        diagram.labels.push_back(
+          overlay::label_t{
+            .x = x, .y = line_y - star_radius - 5.f, .text = star->name, .color = label_colour, .align = 0.5f
+          }
+        );
+        mark_here(star, x, line_y, star_radius);
+        if(sd.parent_barycenter)
+          pairs[*sd.parent_barycenter].push_back(x);
+        }
+      // side by side the pair is bracketed underneath, where the names do not stand
+      float const bracket_y{line_y + star_radius + 4.f};
+      for(auto const & [id, xs]: pairs)
+        {
+        if(xs.size() < 2u)
+          continue;
+        diagram.segments.push_back(
+          overlay::segment_t{.x0 = xs.front(), .y0 = bracket_y, .x1 = xs.back(), .y1 = bracket_y, .color = label_colour}
+        );
+        for(float const x: xs)
+          diagram.segments.push_back(
+            overlay::segment_t{.x0 = x, .y0 = bracket_y, .x1 = x, .y1 = line_y + star_radius, .color = label_colour}
+          );
+        bottom = bracket_y + 2.f;
+        }
+      widest = std::max(widest, static_cast<float>(packed_stars.size()) * star_column + 6.f);
+      top = bottom + row_gap;
+      continue;
+      }
+
     bool const any_giant{std::ranges::any_of(
       row->planets, [&](body_t const * b) { return is_giant(planet_of(b)->planet_class); }
     )};
