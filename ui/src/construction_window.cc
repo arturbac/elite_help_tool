@@ -27,6 +27,9 @@ auto construction_window_t::setup_ui() -> void
 
   auto * selector = new QHBoxLayout();
   site_combo_ = new QComboBox(central);
+  // a long site name must not widen the whole tool - the box keeps a modest width and cuts the name
+  site_combo_->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+  site_combo_->setMinimumContentsLength(24);
   selector->addWidget(site_combo_, 1);
   abandon_button_ = new QPushButton("Mark abandoned", central);
   selector->addWidget(abandon_button_);
@@ -45,8 +48,12 @@ auto construction_window_t::setup_ui() -> void
   table_->verticalHeader()->setVisible(false);
   table_->setEditTriggers(QAbstractItemView::NoEditTriggers);
   table_->setSelectionBehavior(QAbstractItemView::SelectRows);
+  // the commodity takes the room there is, the numbers only what they need - the last column, empty at a
+  // site with no market, must not be the one stretched
   table_->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
-  table_->horizontalHeader()->setStretchLastSection(true);
+  table_->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
+  table_->horizontalHeader()->setStretchLastSection(false);
+  table_->setSizeAdjustPolicy(QAbstractScrollArea::AdjustIgnored);
   layout->addWidget(table_, 1);
   setWidget(central);
 
