@@ -46,6 +46,9 @@ auto minimum_body_value() -> uint32_t { return eht::settings()->overlay.minimum_
 auto listed_bodies() -> size_t { return eht::settings()->overlay.lists.bodies; }
 auto listed_factions() -> size_t { return eht::settings()->overlay.lists.factions; }
 auto listed_missions() -> size_t { return eht::settings()->overlay.lists.missions; }
+///\brief how many rows of a list to show - one past the limit is shown too, since a "... and 1 more" row
+/// would take the room of the row it stands for
+auto rows_for(size_t total, size_t limit) noexcept -> size_t { return total == limit + 1u ? total : std::min(total, limit); }
 auto listed_cargo() -> size_t { return eht::settings()->overlay.lists.cargo; }
 auto listed_commodities() -> size_t { return eht::settings()->overlay.lists.commodities; }
 ///\brief below this much time in hand a mission is a problem, not a plan
@@ -946,7 +949,8 @@ auto describe_cargo(events::cargo_file_t const & cargo) -> std::vector<overlay::
   auto sorted{cargo.Inventory};
   std::ranges::sort(sorted, std::ranges::greater{}, &events::cargo_item_t::Count);
 
-  for(events::cargo_item_t const & item: sorted | std::views::take(listed_cargo()))
+  size_t const cargo_rows{rows_for(sorted.size(), listed_cargo())};
+  for(events::cargo_item_t const & item: sorted | std::views::take(cargo_rows))
     lines.push_back(
       overlay::line_t{
         .text = std::format(
@@ -959,9 +963,9 @@ auto describe_cargo(events::cargo_file_t const & cargo) -> std::vector<overlay::
       }
     );
 
-  if(sorted.size() > listed_cargo())
+  if(sorted.size() > cargo_rows)
     lines.push_back(
-      overlay::line_t{.text = std::format("... and {} more", sorted.size() - listed_cargo()), .color = colour_plain()}
+      overlay::line_t{.text = std::format("... and {} more", sorted.size() - cargo_rows), .color = colour_plain()}
     );
 
   return lines;
@@ -1083,9 +1087,10 @@ auto describe_missions(
   );
 
   size_t shown{};
+  size_t const mission_rows{rows_for(open.size(), listed_missions())};
   for(group_t const & group: groups)
     {
-    if(shown >= listed_missions())
+    if(shown >= mission_rows)
       break;
 
     // one stop in the system means the place belongs in the heading, not on every row under it
@@ -1105,7 +1110,7 @@ auto describe_missions(
 
     for(info::mission_t const * mission: group.rows)
       {
-      if(shown >= listed_missions())
+      if(shown >= mission_rows)
         break;
       ++shown;
 
@@ -2135,9 +2140,10 @@ auto overlay_feed_t::build_construction_lines(current_state_t const & state) con
     }
   );
 
-  size_t const limit{
+  size_t const limit{rows_for(
+    wanted,
     eht::settings()->overlay.lists.construction == 0u ? site->needs.size() : eht::settings()->overlay.lists.construction
-  };
+  )};
   // by type, then by name - the way the game's own list reads, each type under a line of its own
   auto const category_of = [&](info::construction_need_t const & need) -> std::string
   {
@@ -2802,7 +2808,8 @@ auto overlay_feed_t::build_settlement_lines(current_state_t const & state) const
       return;
 
     lines.push_back(overlay::line_t{.text = caption, .color = colour_heading()});
-    for(info::mission_t const * mission: group | std::views::take(listed_settlement_work()))
+    size_t const work_rows{rows_for(group.size(), listed_settlement_work())};
+    for(info::mission_t const * mission: group | std::views::take(work_rows))
       {
       auto const left{std::chrono::duration_cast<std::chrono::seconds>(mission->expiry - now)};
       auto const count{mission->mission_count()};
@@ -2820,11 +2827,9 @@ auto overlay_feed_t::build_settlement_lines(current_state_t const & state) const
       );
       }
 
-    if(group.size() > listed_settlement_work())
+    if(group.size() > work_rows)
       lines.push_back(
-        overlay::line_t{
-          .text = std::format("  ... and {} more", group.size() - listed_settlement_work()), .color = colour_plain()
-        }
+        overlay::line_t{.text = std::format("  ... and {} more", group.size() - work_rows), .color = colour_plain()}
       );
   };
 
@@ -3199,7 +3204,7 @@ auto overlay_feed_t::build_fleet_lines() const -> std::vector<overlay::line_t>
   if(nearby.empty())
     return {};
 
-  size_t const shown{std::min<size_t>(nearby.size(), eht::settings()->overlay.lists.ships)};
+  size_t const shown{rows_for(nearby.size(), eht::settings()->overlay.lists.ships)};
   std::vector<overlay::line_t> lines;
   lines.push_back(
     overlay::line_t{
