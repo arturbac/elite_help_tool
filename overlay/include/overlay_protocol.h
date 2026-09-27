@@ -88,6 +88,14 @@ consteval auto adl_enum_bounds(trend_e)
   return simple_enum::adl_info{unknown, down};
   }
 
+///\brief a part of a line's text in a colour of its own - counted in bytes of the text
+struct span_t
+  {
+  uint32_t from{};
+  uint32_t length{};
+  uint32_t color{0xffffffu};
+  };
+
 ///\brief a single line of text, the colour as 0xRRGGBB
 struct line_t
   {
@@ -110,6 +118,9 @@ struct line_t
   ///\brief keeps the square's room without drawing one, so that a heading of columns stands above the
   /// text of lines that have squares. A field an older layer skips
   bool swatch_space{};
+  ///\brief parts of the text in colours of their own, in order and not overlapping; a line with any is not
+  /// wrapped. A field an older layer skips, drawing the whole text in the line's colour
+  std::vector<span_t> spans;
   };
 
 ///\brief one point of a series, both coordinates already scaled to 0..1 by the tool

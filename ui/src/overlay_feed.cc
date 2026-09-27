@@ -2213,6 +2213,10 @@ auto overlay_feed_t::build_construction_lines(current_state_t const & state) con
     if(auto const b{on_board.find(need->key)}; b != on_board.end())
       diff += b->second;
     to_bring += std::max<int64_t>(-diff, 0);
+    // red what is lacking, green what is there - the same as in the window
+    overlay::span_t const diff_span{
+      .from = uint32_t(text.size()), .length = 7u, .color = diff < 0 ? 0xff6666u : 0x66dd66u
+    };
     text += diff > 0 ? std::format("{:>7}", std::format("+{}", diff)) : std::format("{:>7}", diff);
     auto const h{hold.find(need->key)};
     text += h != hold.end() ? std::format("{:>7}", h->second) : std::string(7u, ' ');
@@ -2228,6 +2232,7 @@ auto overlay_feed_t::build_construction_lines(current_state_t const & state) con
     // what can be loaded right here stands out; the square says which economies produce it - grey when
     // the table of facts does not know, so that the names still stand in a column
     overlay::line_t line{.text = std::move(text), .color = m != here.end() ? colour_first() : colour_plain()};
+    line.spans.push_back(diff_span);
     if(auto const fact{commodity_facts::find(need->key)}; fact)
       {
       line.swatch = economy_colours(fact->produced_by);
