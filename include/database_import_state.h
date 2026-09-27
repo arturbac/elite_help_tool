@@ -2,6 +2,7 @@
 
 #include <elite_events.h>
 #include <databse_storage.h>
+#include <ground_cz.h>
 #include <vector>
 
 struct database_import_state_t : public generic_state_t
@@ -20,6 +21,8 @@ struct database_import_state_t : public generic_state_t
     uint64_t settlement_market_id{};
     std::vector<buffered_signal_t> buffered_signals;
     database_storage_t db_;
+    ///\brief which settlement a kill on foot is made at
+    ground_cz_tracker_t ground_cz;
 
     ///\brief the account this database belongs to - empty means "take everything"
     ///\detail the journal directory can hold records of several commanders, because the prefix gets copied.

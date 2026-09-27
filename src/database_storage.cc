@@ -6,6 +6,8 @@
 #include <filesystem>
 #include <glaze/glaze.hpp>
 #include <elite_events.h>
+#include <map>
+#include <tuple>
 #include <spdlog/spdlog.h>
 #include <simple_enum/enum_cast.hpp>
 #include <simple_enum/std_format.hpp>
@@ -478,6 +480,10 @@ namespace tables
   inline constexpr std::string_view system_conflict{"galaxy.system_conflict"};
   inline constexpr std::string_view system_signal{"galaxy.system_signal"};
   inline constexpr std::string_view station{"galaxy.station"};
+  // who held a settlement when, and the kills on foot that tell a conflict zone's intensity - facts of the
+  // galaxy, rebuilt from journals
+  inline constexpr std::string_view settlement_owner{"galaxy.settlement_owner"};
+  inline constexpr std::string_view ground_bond{"galaxy.ground_bond"};
   // the tick belongs to the game, not to a character - and rebuilds from journals with the rest of the galaxy
   inline constexpr std::string_view tick_observation{"galaxy.tick_observation"};
   // what cannot be rebuilt sits in a separate file attached as the live schema
@@ -1252,6 +1258,14 @@ auto database_storage_t::create_database() -> expected_ec<void>
     [[unlikely]]
     return res;
 
+  if(auto res{sqlite::create_table<info::settlement_owner_t>(db_->db, "oid"sv, sql_iface::tables::settlement_owner)};
+     not res) [[unlikely]]
+    return res;
+
+  if(auto res{sqlite::create_table<info::ground_bond_t>(db_->db, "oid"sv, sql_iface::tables::ground_bond)}; not res)
+    [[unlikely]]
+    return res;
+
   if(auto res{sqlite::create_table<info::market_info_t>(db_->db, "market_id"sv, sql_iface::tables::market)}; not res)
     [[unlikely]]
     return res;
@@ -1449,6 +1463,14 @@ auto database_storage_t::create_database() -> expected_ec<void>
 
   // the search for the last ticks goes by the end of the window
   if(auto res{sqlite::create_index(db_->db, sql_iface::tables::tick_observation, "kind, window_end", "recent")};
+     not res) [[unlikely]]
+    return res;
+
+  // a settlement's owners are looked up one settlement at a time, and so are the kills made at it
+  if(auto res{sqlite::create_index(db_->db, sql_iface::tables::settlement_owner, "market_id, first_seen", "place")};
+     not res) [[unlikely]]
+    return res;
+  if(auto res{sqlite::create_index(db_->db, sql_iface::tables::ground_bond, "market_id, timestamp", "place")};
      not res) [[unlikely]]
     return res;
 
@@ -3145,6 +3167,152 @@ auto database_storage_t::load_station(uint64_t market_id) -> expected_ec<std::op
     return std::optional<info::station_t>{};
 
   return std::optional<info::station_t>{std::move((*res)[0])};
+  }
+
+auto database_storage_t::note_settlement_owner(
+  uint64_t market_id, uint64_t system_address, std::string_view faction, std::chrono::sys_seconds when
+) -> expected_ec<void>
+  {
+  if(market_id == 0u or faction.empty())
+    return {};
+
+  auto last{sqlite::select_from<info::settlement_owner_t>(
+    db_->db,
+    sql_iface::tables::settlement_owner,
+    std::format(" WHERE market_id={} ORDER BY last_seen DESC LIMIT 1", market_id)
+  )};
+  if(not last) [[unlikely]]
+    return cxx23::unexpected{last.error()};
+
+  // the same owner as the last seen stretches its row; one seen again later than that row keeps it
+  if(not last->empty() and last->front().faction == faction)
+    {
+    info::settlement_owner_t row{last->front()};
+    if(when <= row.last_seen)
+      return {};
+    row.last_seen = when;
+    return sqlite::update_pk(db_->db, "oid"sv, sql_iface::tables::settlement_owner, row, row.oid);
+    }
+  // a rebuild reads the journals in order, so an older sighting of another owner is a stray - kept out
+  if(not last->empty() and when < last->front().last_seen)
+    return {};
+
+  return sqlite::insert_into(
+    db_->db,
+    "oid"sv,
+    sql_iface::tables::settlement_owner,
+    info::settlement_owner_t{
+      .market_id = market_id, .system_address = system_address, .faction = std::string{faction}, .first_seen = when, .last_seen = when
+    }
+  );
+  }
+
+auto database_storage_t::store(info::ground_bond_t const & value) -> expected_ec<void>
+  { return sqlite::insert_into(db_->db, "oid"sv, sql_iface::tables::ground_bond, value); }
+
+auto database_storage_t::load_war_views(uint64_t system_address) -> expected_ec<std::vector<info::war_view_t>>
+  {
+  auto conflicts{load_conflicts(system_address)};
+  if(not conflicts) [[unlikely]]
+    return cxx23::unexpected{conflicts.error()};
+
+  // A war is the rows of one pair of factions since the last row that said it was over - its start is the
+  // first row after that. What is under way now is a pair whose newest row is pending or active
+  struct run_t
+    {
+    info::conflict_t newest;
+    std::chrono::sys_seconds started;
+    };
+  std::map<std::pair<std::string, std::string>, run_t> runs;
+  for(info::conflict_t const & row: *conflicts)
+    {
+    auto const key{std::pair{row.faction1, row.faction2}};
+    auto it{runs.find(key)};
+    bool const fresh{it == runs.end() or it->second.newest.status.empty()};
+    if(it == runs.end())
+      it = runs.emplace(key, run_t{row, row.timestamp}).first;
+    else if(fresh and not row.status.empty())
+      it->second.started = row.timestamp;
+    it->second.newest = row;
+    }
+
+  auto stations{load_stations(system_address)};
+  if(not stations) [[unlikely]]
+    return cxx23::unexpected{stations.error()};
+
+  auto const highest = [&](uint64_t market_id, std::string_view condition) -> info::cz_intensity_e
+  {
+    auto res{sqlite::select_signle_from<uint64_t>(
+      db_->db,
+      std::format(
+        "SELECT intensity FROM {} WHERE market_id={} AND {} ORDER BY intensity DESC LIMIT 1",
+        sql_iface::tables::ground_bond,
+        market_id,
+        condition
+      )
+    )};
+    if(not res or not *res)
+      return info::cz_intensity_e::unknown;
+    return static_cast<info::cz_intensity_e>(std::min<uint64_t>(**res, 3u));
+  };
+
+  std::vector<info::war_view_t> views;
+  for(auto const & [key, run]: runs)
+    {
+    info::conflict_t const & war{run.newest};
+    if(war.status != "pending" and war.status != "active")
+      continue;
+    // an election is no fight for settlements
+    if(war.war_type == "election")
+      continue;
+
+    info::war_view_t view{.conflict = war, .started = run.started, .settlements = {}};
+    std::string const start{std::format("{:%Y-%m-%dT%H:%M:%SZ}", run.started)};
+    for(info::station_t const & station: *stations)
+      {
+      if(not info::is_ground_settlement(station))
+        continue;
+
+      // the owner when the war began: the last seen before it, else the first seen since, else the
+      // one the place is known by now - a war hands a settlement over only when it ends
+      std::string owner{station.controlling_faction};
+      auto before{sqlite::select_from<info::settlement_owner_t>(
+        db_->db,
+        sql_iface::tables::settlement_owner,
+        std::format(" WHERE market_id={} AND first_seen<='{}' ORDER BY first_seen DESC LIMIT 1", station.market_id, start)
+      )};
+      auto since{sqlite::select_from<info::settlement_owner_t>(
+        db_->db,
+        sql_iface::tables::settlement_owner,
+        std::format(" WHERE market_id={} AND first_seen>'{}' ORDER BY first_seen LIMIT 1", station.market_id, start)
+      )};
+      if(before and not before->empty())
+        owner = before->front().faction;
+      else if(since and not since->empty())
+        owner = since->front().faction;
+
+      if(owner != war.faction1 and owner != war.faction2)
+        continue;
+
+      view.settlements.push_back(
+        info::war_settlement_t{
+          .market_id = station.market_id,
+          .name = station.name,
+          .economy = station.economy,
+          .owner_before = owner,
+          .before = highest(station.market_id, std::format("timestamp<'{}'", start)),
+          .now = highest(station.market_id, std::format("timestamp>='{}'", start))
+        }
+      );
+      }
+    std::ranges::sort(
+      view.settlements,
+      [](info::war_settlement_t const & a, info::war_settlement_t const & b)
+      { return std::tie(a.owner_before, a.name) < std::tie(b.owner_before, b.name); }
+    );
+    views.push_back(std::move(view));
+    }
+  return views;
   }
 
 auto database_storage_t::load_station(uint64_t system_address, std::string_view name)

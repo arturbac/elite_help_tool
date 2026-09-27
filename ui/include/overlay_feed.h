@@ -82,6 +82,12 @@ private:
 
   ///\brief the samples not sold yet - after a scan, and now and then for the sale at a station
   auto refresh_unsold(current_state_t const & state) -> void;
+  ///\brief the wars under way in the system we are in, and the bonds not yet handed in
+  auto refresh_wars(current_state_t const & state) -> void;
+  ///\brief one block per war: the official state of it, the bonds, and the settlements of both sides with
+  /// their owner before the war and what is known of their conflict zone's intensity
+  [[nodiscard]]
+  auto build_war_blocks() const -> std::vector<std::vector<overlay::line_t>>;
 
   ///\brief the species found before, read when a scan could have added to them
   auto refresh_species_history(current_state_t const & state) -> void;
@@ -157,6 +163,12 @@ private:
   uint64_t scanner_capture_id_{};
   ///\brief the samples carried and not sold, read back from the journals
   bio::at_risk_t at_risk_;
+  std::vector<info::war_view_t> wars_;
+  uint64_t wars_system_{};
+  std::chrono::steady_clock::time_point wars_read_{};
+  std::map<std::string, uint64_t> unsold_bonds_;
+  uint64_t bond_changes_{~uint64_t{}};
+  std::chrono::steady_clock::time_point bonds_read_{};
   uint64_t unsold_scans_{~uint64_t{}};
   std::chrono::steady_clock::time_point unsold_bounty_at_{};
   uint64_t unsold_changes_{~uint64_t{}};

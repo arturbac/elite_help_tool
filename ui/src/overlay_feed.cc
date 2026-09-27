@@ -1443,6 +1443,7 @@ auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
   factions_loaded_ = now;
   faction_lines_.clear();
   conflict_lines_.clear();
+  bool war_running{};
   faction_charts_.clear();
 
   if(factions_system_ == 0u)
@@ -1479,6 +1480,12 @@ auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
       // the finished ones and the merely announced ones change nothing about what to do now
       if(conflict.status != "active")
         continue;
+      // a war's score and stakes stand at the head of its own block, with the settlements fought over
+      if(conflict.war_type != "election")
+        {
+        war_running = true;
+        continue;
+        }
 
       conflict_lines_.push_back(
         overlay::line_t{
@@ -1509,7 +1516,7 @@ auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
     }
 
   // the war clock is shown only while something is running - it is what bonds are sold by
-  if(not conflict_lines_.empty())
+  if(not conflict_lines_.empty() or war_running)
     {
     // a conflict is settled at the fourth day won, so the end can be counted down without knowing when
     // the recalculation falls - and that is exactly when bonds are worth the most
@@ -2010,6 +2017,139 @@ auto overlay_feed_t::refresh_mission_places(current_state_t const & state) -> vo
 /// game's frame path and reading pixels back off the card means waiting for the card. It does not
 /// have to: the game writes what it is showing into Status.json beside the journals, and rewrites it
 /// whenever it changes.
+auto overlay_feed_t::refresh_wars(current_state_t const & state) -> void
+  {
+  auto const now{std::chrono::steady_clock::now()};
+  uint64_t const here{state.current_system_address_};
+  // a kill writes its bond at once, and the settlements change slowly - half a minute, or a new system
+  if(here != wars_system_ or bond_changes_ != state.bond_changes_ or now - wars_read_ > std::chrono::seconds{30})
+    {
+    wars_system_ = here;
+    wars_read_ = now;
+    auto loaded{db_.load_war_views(here)};
+    wars_ = loaded ? std::move(*loaded) : std::vector<info::war_view_t>{};
+    }
+  if(wars_.empty())
+    return;
+  // the bonds are read back from the journals - on a kill or a hand-in, and now and then
+  if(bond_changes_ != state.bond_changes_ or now - bonds_read_ > std::chrono::minutes{5})
+    {
+    bond_changes_ = state.bond_changes_;
+    bonds_read_ = now;
+    unsold_bonds_ = unsold_bonds(state.journal_dir_path_, state.owner_fid_);
+    }
+  }
+
+namespace
+  {
+///\brief a faction's name cut to fit a column - the long ones run past thirty characters
+[[nodiscard]]
+auto cut_name(std::string_view name, size_t most) -> std::string
+  {
+  if(name.size() <= most)
+    return std::string{name};
+  size_t end{most - 3u};
+  while(end != 0u and (static_cast<unsigned char>(name[end]) & 0xc0u) == 0x80u)
+    --end;
+  return std::string{name.substr(0u, end)} + "...";
+  }
+
+///\brief what is known of a settlement's zone: confirmed in this war, a lower bound from an earlier one,
+/// or nothing - the intensity never falls from one war to the next
+[[nodiscard]]
+auto intensity_text(info::war_settlement_t const & s) -> std::string
+  {
+  auto const name = [](info::cz_intensity_e i) -> std::string_view
+  {
+    switch(i)
+      {
+      case info::cz_intensity_e::low:    return "Low";
+      case info::cz_intensity_e::medium: return "Medium";
+      case info::cz_intensity_e::high:   return "High";
+      default:                           return "unknown";
+      }
+  };
+  if(s.now != info::cz_intensity_e::unknown)
+    return std::string{name(s.now)};
+  if(s.before != info::cz_intensity_e::unknown)
+    return std::string{name(s.before)} + "?";
+  return "unknown";
+  }
+  }  // namespace
+
+auto overlay_feed_t::build_war_blocks() const -> std::vector<std::vector<overlay::line_t>>
+  {
+  std::vector<std::vector<overlay::line_t>> blocks;
+  for(info::war_view_t const & war: wars_)
+    {
+    info::conflict_t const & c{war.conflict};
+    std::vector<overlay::line_t> lines;
+    lines.push_back(
+      overlay::line_t{
+        .text = std::format(
+          "{} {}  {} : {}  {}  ({})",
+          c.war_type == "civilwar" ? "civil war" : "war",
+          c.faction1,
+          c.won_days1,
+          c.won_days2,
+          c.faction2,
+          c.status
+        ),
+        .color = colour_heading()
+      }
+    );
+    if(not c.stake1.empty() or not c.stake2.empty())
+      lines.push_back(
+        overlay::line_t{
+          .text = std::format(
+            "stake: {}  /  {}", c.stake1.empty() ? "-" : c.stake1, c.stake2.empty() ? "-" : c.stake2
+          ),
+          .color = colour_plain()
+        }
+      );
+    auto const bonds_of = [&](std::string const & faction) -> std::string
+    {
+      auto const it{unsold_bonds_.find(faction)};
+      return it == unsold_bonds_.end() or it->second == 0u ? std::string{"-"}
+                                                           : overlay_exploration::short_credits(it->second);
+    };
+    // zones reached by dropship are paid by Frontline Solutions, not by the side fought for
+    std::string const frontline{bonds_of("$faction_FrontlineSolutions;")};
+    lines.push_back(
+      overlay::line_t{
+        .text = std::format(
+          "bonds: {} {}  /  {} {}{}",
+          cut_name(c.faction1, 20),
+          bonds_of(c.faction1),
+          cut_name(c.faction2, 20),
+          bonds_of(c.faction2),
+          frontline == "-" ? std::string{} : std::format("  /  Frontline {}", frontline)
+        ),
+        .color = colour_plain()
+      }
+    );
+
+    // the text is monospaced - the columns are names padded with spaces
+    size_t name_width{10u};
+    for(info::war_settlement_t const & s: war.settlements)
+      name_width = std::max(name_width, std::min<size_t>(s.name.size(), 30u));
+    constexpr size_t owner_width{24u};
+    for(info::war_settlement_t const & s: war.settlements)
+      {
+      std::string text{"  " + cut_name(s.name, 30u)};
+      text.resize(2u + name_width + 2u, ' ');
+      text += cut_name(s.owner_before, owner_width);
+      text.resize(2u + name_width + 2u + owner_width + 2u, ' ');
+      text += intensity_text(s);
+      lines.push_back(overlay::line_t{.text = std::move(text), .color = colour_plain()});
+      }
+    if(war.settlements.empty())
+      lines.push_back(overlay::line_t{.text = "  no settlements of either side known here", .color = colour_plain()});
+    blocks.push_back(std::move(lines));
+    }
+  return blocks;
+  }
+
 auto overlay_feed_t::refresh_unsold(current_state_t const & state) -> void
   {
   auto const now{std::chrono::steady_clock::now()};
@@ -2771,6 +2911,19 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
       }
     );
     }
+
+  // the wars here - their official state and the settlements fought over, under the system and its factions
+  refresh_wars(state);
+  for(auto & war: build_war_blocks())
+    frame.blocks.push_back(
+      overlay::block_t{
+        .corner = overlay::corner_e::top_left,
+        .ttl_ms = block_ttl_ms(),
+        .lines = std::move(war),
+        .charts = {},
+        .text = overlay::text_e::small
+      }
+    );
 
   // exploration in the order the work goes: is the system new, what to map, where to land
   if(auto arrival{overlay_exploration::describe_arrival(state.system)}; not arrival.empty())

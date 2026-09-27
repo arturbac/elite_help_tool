@@ -1,4 +1,5 @@
 #pragma once
+#include <ground_cz.h>
 #include <functional>
 #include <elite_events.h>
 #include <elite_data.h>
@@ -155,6 +156,10 @@ struct current_state_t : public generic_state_t
   ///\brief counts what lowers the sum a death would cost - a sale, a hand-in, the death itself - so the
   /// overlay counts it again at once rather than at its next minute
   uint64_t at_risk_changes_{};
+  ///\brief counts kills in conflict zones and bond hand-ins, so the war block counts its bonds again at once
+  uint64_t bond_changes_{};
+  ///\brief which settlement a kill on foot is made at
+  ground_cz_tracker_t ground_cz_;
   auto raw_line(std::string_view line) -> void override
     {
     if(raw_line_listener_)
@@ -165,6 +170,8 @@ struct current_state_t : public generic_state_t
            or line.contains("\"RedeemVoucher\"") or line.contains("\"event\":\"Died\""))
     )
       ++at_risk_changes_;
+    if(not catching_up_ and (line.contains("\"FactionKillBond\"") or line.contains("\"CombatBond\"")))
+      ++bond_changes_;
     }
   
   void route_system_visited(uint64_t system_address);

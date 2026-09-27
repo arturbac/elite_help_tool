@@ -13,6 +13,7 @@
 #include <qdatetime.h>
 #include <qlineedit.h>
 #include <qlocale.h>
+#include <qtreewidget.h>
 #include <simple_enum/simple_enum.hpp>
 #include <spdlog/spdlog.h>
 #include <algorithm>
@@ -679,6 +680,20 @@ auto faction_state_window_t::setup_ui() -> void
   stations_layout->addWidget(stations_view_);
   tabs->addTab(stations_page, "Stations");
 
+  // --- the settlements fought over in the wars under way ---
+  auto * war_page = new QWidget(tabs);
+  auto * war_layout = new QVBoxLayout(war_page);
+  war_settlements_note_ = new QLabel(war_page);
+  war_settlements_note_->setWordWrap(true);
+  war_layout->addWidget(war_settlements_note_);
+  war_settlements_ = new QTreeWidget(war_page);
+  war_settlements_->setColumnCount(4);
+  war_settlements_->setHeaderLabels({"Settlement", "Economy", "Owner before the war", "Zone intensity"});
+  war_settlements_->header()->setSectionResizeMode(QHeaderView::ResizeToContents);
+  war_settlements_->setRootIsDecorated(true);
+  war_layout->addWidget(war_settlements_, 1);
+  tabs->addTab(war_page, "Settlements at war");
+
   // --- the tab with the clicked station's market ---
   auto * market_page = new QWidget(tabs);
   auto * market_layout = new QVBoxLayout(market_page);
@@ -870,6 +885,7 @@ auto faction_state_window_t::show_system(uint64_t system_address) -> void
     }
 
   update_system_info(system_address);
+  update_war_settlements(system_address);
 
   auto res{db_.load_influence_history(system_address)};
   if(not res)
@@ -1010,6 +1026,65 @@ auto faction_state_window_t::update_conflicts(uint64_t system_address) -> void
   auto const table{conflicts_view_->horizontalHeader()->height() + rows * row + 4};
   conflicts_view_->setMaximumHeight(table);
   conflicts_container_->setMaximumHeight(table + 2 * line + 16);
+  }
+
+auto faction_state_window_t::update_war_settlements(uint64_t system_address) -> void
+  {
+  war_settlements_->clear();
+  auto wars{db_.load_war_views(system_address)};
+  if(not wars)
+    {
+    spdlog::error("failed to load the wars of {}", system_address);
+    return;
+    }
+  if(wars->empty())
+    {
+    war_settlements_note_->setText("No war under way in this system");
+    return;
+    }
+  // confirmed in this war, a lower bound from an earlier one - the intensity never falls - or nothing
+  auto const intensity = [](info::war_settlement_t const & s) -> QString
+  {
+    auto const name = [](info::cz_intensity_e i) -> QString
+    {
+      switch(i)
+        {
+        case info::cz_intensity_e::low:    return "Low";
+        case info::cz_intensity_e::medium: return "Medium";
+        case info::cz_intensity_e::high:   return "High";
+        default:                           return "unknown";
+        }
+    };
+    if(s.now != info::cz_intensity_e::unknown)
+      return name(s.now);
+    if(s.before != info::cz_intensity_e::unknown)
+      return name(s.before) + "?";
+    return "unknown";
+  };
+  war_settlements_note_->setText(
+    "Intensity: confirmed by a kill in this war, \"?\" when seen only in an earlier one (it never falls), "
+    "unknown when never fought. Only settlements visited or flown close to are known."
+  );
+  for(info::war_view_t const & war: *wars)
+    {
+    info::conflict_t const & c{war.conflict};
+    auto * top = new QTreeWidgetItem(war_settlements_);
+    top->setText(0, qformat("{} vs {}", c.faction1, c.faction2));
+    top->setText(1, qformat("{} : {} days, {}", c.won_days1, c.won_days2, c.status));
+    top->setText(
+      2, qformat("stake: {} / {}", c.stake1.empty() ? "-" : c.stake1, c.stake2.empty() ? "-" : c.stake2)
+    );
+    top->setText(3, qformat("since {:%Y-%m-%d %H:%M}", war.started));
+    for(info::war_settlement_t const & settlement: war.settlements)
+      {
+      auto * item = new QTreeWidgetItem(top);
+      item->setText(0, QString::fromStdString(settlement.name));
+      item->setText(1, QString::fromStdString(settlement.economy));
+      item->setText(2, QString::fromStdString(settlement.owner_before));
+      item->setText(3, intensity(settlement));
+      }
+    top->setExpanded(true);
+    }
   }
 
 auto faction_state_window_t::update_stations(uint64_t system_address) -> void

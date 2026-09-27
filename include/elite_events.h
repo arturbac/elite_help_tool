@@ -173,6 +173,8 @@ enum struct event_e : uint16_t
   SquadronStartup,
   
   FactionKillBond,
+  BookDropship,
+  DropshipDeploy,
   
   NavRoute,
   NavRouteClear
@@ -951,6 +953,44 @@ struct supercruise_entry_t
   uint64_t SystemAddress;
   };
 
+///\brief a kill in a conflict zone - who pays for it and whom it was against. The reward also says the
+/// intensity of a zone on foot: the game pays from fixed tables, one per intensity
+struct faction_kill_bond_t
+  {
+  uint64_t Reward{};
+  std::string AwardingFaction;
+  std::string VictimFaction;
+  };
+
+///\brief a Frontline Solutions dropship booked - to the settlement of a conflict zone, or back from one
+struct book_dropship_t
+  {
+  bool Retreat{};
+  std::string DestinationSystem;
+  std::string DestinationLocation;
+  };
+
+///\brief the dropship has set the commander down, on foot, on the body of the settlement booked
+struct dropship_deploy_t
+  {
+  uint64_t SystemAddress{};
+  std::string Body;
+  std::optional<body_id_t> BodyID;
+  };
+
+///\brief boarding the ship, the SRV or a taxi - the commander is no longer on foot
+struct embark_t
+  {
+  uint64_t SystemAddress{};
+  bool SRV{};
+  bool Taxi{};
+  };
+
+///\brief the commander died - on foot no longer, wherever they wake up
+struct died_t
+  {
+  };
+
 ///\brief a backpack row
 struct backpack_item_t
   {
@@ -1304,7 +1344,12 @@ using event_holder_t = std::variant<
   fighter_rebuilt_t,
   crew_assign_t,
   npc_crew_rank_t,
-  commander_t>;
+  commander_t,
+  faction_kill_bond_t,
+  book_dropship_t,
+  dropship_deploy_t,
+  embark_t,
+  died_t>;
 
   }  // namespace events
 

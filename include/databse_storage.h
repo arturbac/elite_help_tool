@@ -368,6 +368,20 @@ struct database_storage_t
   [[nodiscard]]
   auto store(info::station_t const & value) -> expected_ec<void>;
 
+  ///\brief notes who holds a settlement at the moment - the same owner stretches its row, a new one opens one
+  [[nodiscard]]
+  auto note_settlement_owner(
+    uint64_t market_id, uint64_t system_address, std::string_view faction, std::chrono::sys_seconds when
+  ) -> expected_ec<void>;
+
+  [[nodiscard]]
+  auto store(info::ground_bond_t const & value) -> expected_ec<void>;
+
+  ///\brief the wars under way in the system, with the settlements of both sides: whose each was when the
+  /// war began, and the intensity of its conflict zone before this war and in it
+  [[nodiscard]]
+  auto load_war_views(uint64_t system_address) -> expected_ec<std::vector<info::war_view_t>>;
+
   ///\brief the time of the last market reading, from the database gathered live
   [[nodiscard]]
   auto load_market_info(uint64_t market_id) -> expected_ec<std::optional<info::market_info_t>>;

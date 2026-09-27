@@ -252,6 +252,7 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
         {
         // after reloading game start at this system
         spdlog::info("location {}: {}", event.SystemAddress, event.StarSystem);
+        state.ground_cz.location(event);
         auto res{state.db_.load_system(event.SystemAddress)};
         if(not res) [[unlikely]]
           critical_abort("error loading system {} {}", event.SystemAddress, event.StarSystem);
@@ -303,6 +304,7 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
         }
       else if constexpr(std::same_as<T, events::fsd_jump_t>)
         {
+        state.ground_cz.jumped(event.SystemAddress);
         // the import stops rather than guesses: unlike the live state, which can rebuild the arrival
         // from this event, a rebuild reading journals in order has no business finding a gap here
         if(state.system.system_address != event.SystemAddress)
@@ -590,9 +592,14 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
            })};
            not res)
           spdlog::error("failed to store settlement {}", event.MarketID);
+        state.ground_cz.approach(event);
+        if(auto res{state.db_.note_settlement_owner(event.MarketID, event.SystemAddress, event.StationFaction.Name, timestamp)};
+           not res)
+          spdlog::error("failed to note the owner of {}", event.MarketID);
         }
       else if constexpr(std::same_as<T, events::disembark_t>)
         {
+        state.ground_cz.disembark(event);
         // arriving by taxi is sometimes the only trace that we are at this settlement
         if(event.MarketID != 0)
           {
@@ -681,7 +688,26 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
 
         if(auto res{state.db_.store(station)}; not res) [[unlikely]]
           critical_abort("failed to store station {}", event.MarketID);
+        state.ground_cz.docked(event);
+        if(auto res{state.db_.note_settlement_owner(event.MarketID, event.SystemAddress, event.StationFaction.Name, timestamp)};
+           not res)
+          spdlog::error("failed to note the owner of {}", event.MarketID);
         }
+      // conflict zones on foot: where the commander stands, and the kills that tell a zone's intensity
+      else if constexpr(std::same_as<T, events::faction_kill_bond_t>)
+        {
+        if(auto bond{state.ground_cz.bond(timestamp, event)}; bond)
+          if(auto res{state.db_.store(*bond)}; not res)
+            spdlog::error("failed to store a kill on foot at {}", bond->market_id);
+        }
+      else if constexpr(std::same_as<T, events::book_dropship_t>)
+        state.ground_cz.book_dropship(event);
+      else if constexpr(std::same_as<T, events::dropship_deploy_t>)
+        state.ground_cz.dropship_deploy(state.db_, event);
+      else if constexpr(std::same_as<T, events::embark_t>)
+        state.ground_cz.embark();
+      else if constexpr(std::same_as<T, events::died_t>)
+        state.ground_cz.died();
       else if constexpr(std::same_as<T, events::market_t>)
         {
         // a market's contents exist only in Market.json and only live; the import knows the station alone

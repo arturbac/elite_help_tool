@@ -861,6 +861,12 @@ auto generic_state_t::discovery(std::string_view input) -> void
     case CrewAssign:        parse_and_handle.template operator()<events::crew_assign_t>(); break;
     case NpcCrewRank:       parse_and_handle.template operator()<events::npc_crew_rank_t>(); break;
     case Shutdown:          break;
+    // conflict zones - where they are fought, on foot or not, and what each kill pays
+    case FactionKillBond:   parse_and_handle.template operator()<events::faction_kill_bond_t>(); break;
+    case BookDropship:      parse_and_handle.template operator()<events::book_dropship_t>(); break;
+    case DropshipDeploy:    parse_and_handle.template operator()<events::dropship_deploy_t>(); break;
+    case Embark:            parse_and_handle.template operator()<events::embark_t>(); break;
+    case Died:              handle(gevt.timestamp, events::died_t{}); break;
     case CarrierStats:      parse_and_handle.template operator()<events::carrier_stats_t>(); break;
     case FCMaterials:
         {

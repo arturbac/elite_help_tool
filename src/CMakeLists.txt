@@ -3,6 +3,7 @@ target_sources(eht
   file_io.cc
   discover_logic.cc
   biology.cc
+  ground_cz.cc
   database_storage.cc
   database_import_state.cc
   elite_data.cc

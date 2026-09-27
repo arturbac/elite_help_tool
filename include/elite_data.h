@@ -1,5 +1,8 @@
 #pragma once
 #include <elite_events.h>
+#include <algorithm>
+#include <array>
+#include <string_view>
 
 namespace info
   {
@@ -200,6 +203,91 @@ struct station_t
   ///\brief the body a settlement or a surface port stands on, from ApproachSettlement; unknown for
   /// a port in space - the game never tells it
   std::optional<uint32_t> body_id;
+  };
+
+///\brief whether a place stands on the ground and can be a conflict zone on foot - not a port in space,
+/// a carrier, a building site, nor the colonisation ship, which calls itself a surface station under a name
+/// the game never localised
+[[nodiscard]]
+inline auto is_ground_settlement(station_t const & station) -> bool
+  {
+  static constexpr std::array<std::string_view, 11> in_space{
+    "Coriolis", "Orbis", "Ocellus", "Outpost", "Bernal", "Dodec", "AsteroidBase", "MegaShip", "FleetCarrier",
+    "SpaceConstructionDepot", "PlanetaryConstructionDepot"
+  };
+  if(std::ranges::find(in_space, std::string_view{station.station_type}) != in_space.end())
+    return false;
+  return not station.name.starts_with('$') and not station.name.starts_with("Planetary Construction Site:")
+         and not station.name.starts_with("Orbital Construction Site:");
+  }
+
+///\brief who held a settlement over a stretch of time - one row per owner in turn
+///\detail a war can hand a settlement over, and what was at stake is said by whom it belonged to before
+struct settlement_owner_t
+  {
+  int64_t oid{-1};
+  uint64_t market_id;
+  uint64_t system_address;
+  std::string faction;
+  std::chrono::sys_seconds first_seen;
+  std::chrono::sys_seconds last_seen;
+  };
+
+///\brief the intensity of a conflict zone on foot, as the reward of a kill there tells it
+enum struct cz_intensity_e : uint8_t
+  {
+  unknown,
+  low,
+  medium,
+  high
+  };
+
+///\brief the game pays kills on foot from fixed tables, one per intensity, and the tables do not overlap:
+/// low 1 896 - 4 561, medium 7 226 - 33 762, high 39 642 - 87 362. A high zone pays some kills a fraction
+/// of its table, so a zone's intensity is the highest its kills told
+[[nodiscard]]
+constexpr auto cz_intensity_of(uint64_t reward) noexcept -> cz_intensity_e
+  {
+  if(reward < 6000u)
+    return cz_intensity_e::low;
+  if(reward < 36000u)
+    return cz_intensity_e::medium;
+  return cz_intensity_e::high;
+  }
+
+///\brief a kill on foot in a conflict zone, and the settlement it was at when that is known (market 0 if not)
+struct ground_bond_t
+  {
+  int64_t oid{-1};
+  std::chrono::sys_seconds timestamp;
+  uint64_t system_address;
+  uint64_t market_id;
+  std::string awarding_faction;
+  std::string victim_faction;
+  uint64_t reward;
+  uint8_t intensity;
+  };
+
+///\brief a settlement of one of the sides of a war, as the war found it
+struct war_settlement_t
+  {
+  uint64_t market_id;
+  std::string name;
+  std::string economy;
+  ///\brief the owner when the war began - what the settlement is fought for
+  std::string owner_before;
+  ///\brief the highest intensity seen there in earlier wars - a lower bound now, it never falls
+  cz_intensity_e before;
+  ///\brief the highest intensity seen there in this war
+  cz_intensity_e now;
+  };
+
+///\brief a war under way in a system, and the settlements of both its sides
+struct war_view_t
+  {
+  conflict_t conflict;
+  std::chrono::sys_seconds started;
+  std::vector<war_settlement_t> settlements;
   };
 
 ///\brief when we last read this station's market

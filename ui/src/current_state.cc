@@ -241,6 +241,9 @@ constexpr bool rebuilds_present_state{
   // a sample half taken when the tool was closed is still half taken - and the handler only repeats the
   // species already written, in the same order
   or std::same_as<event_t, events::scan_organic_t>
+  // where the commander stands on foot - they only move the tracker, write nothing
+  or std::same_as<event_t, events::book_dropship_t> or std::same_as<event_t, events::dropship_deploy_t>
+  or std::same_as<event_t, events::embark_t> or std::same_as<event_t, events::died_t>
 };
 
 ///\brief how often the mark is moved on disk while playing
@@ -354,6 +357,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           {
           // after reloading game start at this system
           buffered_signals.clear();
+          ground_cz_.location(event);
 
           if(auto res{db_.load_system(event.SystemAddress)}; not res) [[unlikely]]
             {
@@ -425,6 +429,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           }
         else if constexpr(std::same_as<T, events::fsd_jump_t>)
           {
+          ground_cz_.jumped(event.SystemAddress);
           if(system.system_address != event.SystemAddress)
             {
             // StartJump normally moves us here while the drive is still charging. Without it the state
@@ -677,9 +682,14 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
              })};
              not res)
             spdlog::error("failed to store settlement {}", event.MarketID);
+          ground_cz_.approach(event);
+          if(auto res{db_.note_settlement_owner(event.MarketID, event.SystemAddress, event.StationFaction.Name, timestamp)};
+             not res)
+            spdlog::error("failed to note the owner of {}", event.MarketID);
           }
         else if constexpr(std::same_as<T, events::disembark_t>)
           {
+          ground_cz_.disembark(event);
           // arriving by taxi is sometimes the only trace that we are at this settlement
           if(event.MarketID != 0)
             {
@@ -772,7 +782,26 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
 
           if(auto res{db_.store(station)}; not res)
             spdlog::error("failed to store station {}", event.MarketID);
+          ground_cz_.docked(event);
+          if(auto res{db_.note_settlement_owner(event.MarketID, event.SystemAddress, event.StationFaction.Name, timestamp)};
+             not res)
+            spdlog::error("failed to note the owner of {}", event.MarketID);
           }
+        // conflict zones on foot: where the commander stands, and the kills that tell a zone's intensity
+        else if constexpr(std::same_as<T, events::faction_kill_bond_t>)
+          {
+          if(auto bond{ground_cz_.bond(timestamp, event)}; bond)
+            if(auto res{db_.store(*bond)}; not res)
+              spdlog::error("failed to store a kill on foot at {}", bond->market_id);
+          }
+        else if constexpr(std::same_as<T, events::book_dropship_t>)
+          ground_cz_.book_dropship(event);
+        else if constexpr(std::same_as<T, events::dropship_deploy_t>)
+          ground_cz_.dropship_deploy(db_, event);
+        else if constexpr(std::same_as<T, events::embark_t>)
+          ground_cz_.embark();
+        else if constexpr(std::same_as<T, events::died_t>)
+          ground_cz_.died();
         else if constexpr(std::same_as<T, events::market_t>)
           {
           info::station_t station{

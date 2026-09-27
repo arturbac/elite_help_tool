@@ -212,6 +212,8 @@ public:
   auto update_data(std::vector<info::mission_stat_t> && new_data) -> void;
   };
 
+class QTreeWidget;
+
 class faction_state_window_t final : public QMdiSubWindow
   {
   Q_OBJECT
@@ -261,6 +263,8 @@ public:
   system_conflict_model_t * conflicts_model_{};
   QTableView * conflicts_view_{};
   QLabel * conflicts_note_{};
+  QTreeWidget * war_settlements_{};
+  QLabel * war_settlements_note_{};
   ///\brief the caption above the conflict table - hidden along with it when there is nothing to show
   QLabel * conflicts_caption_{};
   ///\brief the splitter panel holding the conflicts - its top edge gives room back to the faction list
@@ -305,6 +309,9 @@ private:
   auto update_tick_labels(uint64_t system_address) -> void;
   auto update_conflicts(uint64_t system_address) -> void;
   auto update_stations(uint64_t system_address) -> void;
+  ///\brief the settlements of both sides of each war under way, whose they were before it and what is
+  /// known of their conflict zone's intensity
+  auto update_war_settlements(uint64_t system_address) -> void;
 
   ///\brief shows the market of the station clicked in the list and switches to its tab
   auto show_market(std::string_view station_name) -> void;

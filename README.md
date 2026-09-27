@@ -63,6 +63,14 @@ it can take the game down: [overlay/README.md](overlay/README.md).
   is never averaged across systems.
 - **Wars.** The overlay counts the war ticks left until a conflict is settled, and says when the
   next one decides it. The BGS window lists the days won on both sides.
+- **Settlements in a war.** On entering a system at war, the overlay shows each war's official
+  state (sides, days won, status, what each side has at stake), the combat bonds not yet handed in
+  for both sides, and every settlement of both sides with its owner when the war began and the
+  intensity of its conflict zone on foot: `unknown`, `Low?` (seen in an earlier war; it never falls
+  from one war to the next) or `Low` (confirmed in this one). The intensity is read from what a
+  kill pays: the game pays kills on foot from fixed tables, low 1.9k–4.6k, medium 7.2k–33.8k,
+  high 39.6k–87.4k per kill. The settlement a kill is made at is the one last approached, docked
+  at, disembarked at or booked by dropship; a relog keeps it.
 - `journal_tailer --ticks`, `--bgs` and `--wars` print the same analyses in the terminal.
 
 ## Mission tracking
