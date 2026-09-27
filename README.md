@@ -47,7 +47,7 @@ process carries no state of ours.
 The layout (text size, band widths, where the readouts stand, opacity) comes from
 `eht_settings.json` and changes live. The Steam launch option is one variable:
 [doc/building_and_running.md](doc/building_and_running.md). How the layer works and why nothing in
-it can take the game down: [overlay/README.md](overlay/README.md) (in Polish).
+it can take the game down: [overlay/README.md](overlay/README.md).
 
 ## BGS
 

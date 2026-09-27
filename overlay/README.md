@@ -1,191 +1,200 @@
-# Overlay w oknie gry
+# Overlay in the game window
 
-Warstwa Vulkana rysująca informacje z `elite_help_tool` wprost w klatce Elite Dangerous.
+A Vulkan layer that draws information from `elite_help_tool` straight into Elite Dangerous' frames.
 
-## Dlaczego warstwa, a nie okno
+## Why a layer and not a window
 
-Sesja Wayland nie pozwala postawić obcego okna nad grą, a w pełnym ekranie nie działa to nigdzie.
-Warstwa Vulkana rysuje do obrazu łańcucha wymiany tuż przed prezentacją, więc trafia do obrazu gry
-niezależnie od trybu okna. Elite idzie DX11 → Proton → DXVK → natywny Vulkan, więc warstwa go łapie.
+A Wayland session does not let another program put a window over the game, and in fullscreen that
+works nowhere. A Vulkan layer draws into the swapchain image just before it is presented, so it
+ends up in the game's picture whatever the window mode. Elite goes DX11 → Proton → DXVK → native
+Vulkan, so the layer catches it.
 
-## Z czego się składa
+## What it is made of
 
-| plik | rola |
+| file | role |
 |---|---|
-| `libeht_overlay.so` | warstwa Vulkana, loader wkłada ją **do procesu gry** |
-| `eht-overlay-run` | opakowanie do `%command%` w Steam: ustawia zmienne i uruchamia grę |
-| `eht-overlay-feed` | źródło testowe, wysyła ramki bez udziału głównej aplikacji |
-| `eht-overlay-headless-check` | render bez ekranu do pliku PPM, do sprawdzania warstwy |
+| `libeht_overlay.so` | the Vulkan layer; the loader puts it **into the game's process** |
+| `eht-overlay-run` | a wrapper for `%command%` in Steam: sets the variables and starts the game |
+| `eht-overlay-feed` | a test source, sends frames without the main application |
+| `eht-overlay-headless-check` | renders without a screen into a PPM file, for checking the layer |
 
-Serwer siedzi w `elite_help_tool` — to on decyduje, co ma się pojawić. Warstwa dostaje gotowe linie
-tekstu i nie wie nic o bazie; dzięki temu w procesie gry nie ma ani SQLite, ani żadnego stanu.
+The server lives in `elite_help_tool`, and it decides what is to appear. The layer receives finished
+lines of text and knows nothing of the database, so there is neither SQLite nor any state of ours
+in the game's process.
 
-## Instalacja
+## Installation
 
 ```
 ninja overlay-install
 ```
 
-Kopiuje warstwę do `~/.local/lib`, opakowanie do `~/.local/bin`, manifest do
-`~/.local/share/vulkan/implicit_layer.d`. Musi to być katalog domowy — kontener Steam Linux Runtime
-nie widzi katalogu budowania.
+Copies the layer to `~/.local/lib`, the wrapper to `~/.local/bin` and the manifest to
+`~/.local/share/vulkan/implicit_layer.d`. It has to be the home directory, because the Steam Linux
+Runtime container does not see the build directory.
 
-W opcjach uruchamiania Steam dla Elite Dangerous najprościej bez opakowania, bo manifest leży
-w standardowej ścieżce, której loader i tak szuka:
+In Elite Dangerous' Steam launch options it is simplest without the wrapper, because the manifest
+lies in the standard path the loader searches anyway:
 
 ```
 ENABLE_EHT_OVERLAY=1 %command%
 ```
 
-Z opakowaniem **konieczna jest pełna ścieżka**. Steam uruchamia opcje przez `/bin/sh`, które nie ma
-`~/.local/bin` w `PATH`, a sama nazwa kończy się `command not found` i gra nie startuje wcale:
+With the wrapper, **the full path is required**. Steam runs launch options through `/bin/sh`,
+which has no `~/.local/bin` in its `PATH`. The bare name ends in `command not found`, and the game
+does not start at all:
 
 ```
-/home/artur/.local/bin/eht-overlay-run %command%
+/home/<you>/.local/bin/eht-overlay-run %command%
 ```
 
-Elite startuje przez własny launcher, a zmienne środowiskowe dziedziczą procesy potomne, więc gra
-dostaje je tak samo jak launcher. Launcher nie ma łańcucha wymiany, więc warstwa nic w nim nie robi.
+Elite starts through its own launcher, and child processes inherit environment variables, so the
+game gets them just as the launcher does. The launcher has no swapchain, so the layer does nothing
+in it.
 
-## Zmienne środowiskowe
+## Environment variables
 
-| zmienna | działanie |
+| variable | effect |
 |---|---|
-| `ENABLE_EHT_OVERLAY=1` | włącza warstwę |
-| `DISABLE_EHT_OVERLAY=1` | wyłącza ją mimo zainstalowanego manifestu — wyłącznik awaryjny |
-| `EHT_OVERLAY_DEBUG=1` | log warstwy na stderr procesu gry |
-| `EHT_OVERLAY_SOCKET` | ścieżka gniazda, domyślnie `~/.local/share/elite_help_tool/overlay.sock` |
-| `EHT_OVERLAY_CAPTURE=1` | pozwala kopiować obraz gry — bez tego nie ma zdjęć do codexu ani zrzutów ekranu klawiszem |
+| `ENABLE_EHT_OVERLAY=1` | turns the layer on |
+| `DISABLE_EHT_OVERLAY=1` | turns it off even with the manifest installed: the emergency switch |
+| `EHT_OVERLAY_DEBUG=1` | the layer's log on the game process' stderr |
+| `EHT_OVERLAY_SOCKET` | the socket's path, by default `~/.local/share/elite_help_tool/overlay.sock` |
+| `EHT_OVERLAY_CAPTURE=1` | lets the layer copy the game's image. Without it there are no codex pictures and no screenshots at the key |
 
-Tylko te — potrzebne, zanim warstwa połączy się z narzędziem. Cały układ (skala tekstu, szerokość
-pasów i środkowego ekranu, położenie czytników HUD, marginesy, przezroczystość, własna diagnostyka)
-przychodzi od `elite_help_tool` w każdej ramce, z sekcji `overlay.layout` pliku `eht_settings.json`
-w katalogu, z którego uruchomione jest narzędzie. Zapisana zmiana pojawia się w grze od razu; zmiana
-skali tekstu przebudowuje czcionki warstwy bez restartu gry. Dawne `EHT_OVERLAY_SCALE`,
-`_SIDE_WIDTH`, `_CENTRE_WIDTH`, `_HUD_GAP`, `_HUD_BOTTOM`, `_SMALL_TEXT` i `_STATS` nie są już czytane.
+These are the only ones, needed before the layer connects to the tool. The whole layout (text
+scale, the widths of the side bands and the middle screen, where the head-up readouts stand,
+margins, opacity, the layer's own diagnostics) comes from `elite_help_tool` with every frame, from
+the `overlay.layout` section of `eht_settings.json` in the directory the tool runs from. A saved
+change shows in the game at once, and a change of text scale rebuilds the layer's fonts without
+restarting the game. The old `EHT_OVERLAY_SCALE`, `_SIDE_WIDTH`, `_CENTRE_WIDTH`, `_HUD_GAP`,
+`_HUD_BOTTOM`, `_SMALL_TEXT` and `_STATS` are no longer read.
 
-## Dwa konta gry naraz
+## Two game accounts at once
 
-Nic nie stoi na przeszkodzie, żeby obok siebie chodziły dwa komplety narzędzie + gra — na przykład
-konto ze Steama i drugie z osobnego launchera. Warunek jest jeden: **każda para musi mieć własne
-gniazdo**, bo serwer przy starcie kasuje plik gniazda, który zastał (żeby nie blokował go plik po
-ubitym procesie). Dwie instancje na domyślnej ścieżce odbiorą sobie nawzajem połączenie.
+Nothing stops two tool + game pairs from running side by side, for example a Steam account and
+another from a separate launcher. There is one condition: **each pair needs a socket of its own**.
+At start the server deletes any socket file it finds, so that a file left by a killed process does
+not block it. Two instances on the default path would take the connection from each other.
 
 ```
-# konto główne - bez zmian, wartości domyślne
+# main account - unchanged, the defaults
 elite_help_tool
 
-# konto drugie - narzędzie i gra dostają tę samą, własną ścieżkę
+# second account - the tool and the game get the same path of their own
 EHT_OVERLAY_SOCKET=~/.local/share/elite_help_tool/overlay-alt.sock elite_help_tool
 EHT_OVERLAY_SOCKET=~/.local/share/elite_help_tool/overlay-alt.sock ENABLE_EHT_OVERLAY=1 <launcher>
 ```
 
-Ścieżka gniazda nie może przekroczyć 107 znaków — tyle mieści `sockaddr_un`. Dłuższa kończy się
-brakiem nasłuchu, co widać w logu narzędzia razem z jej długością.
+The socket's path cannot exceed 107 characters, which is all `sockaddr_un` holds. A longer one ends
+with nothing listening, which the tool's log shows together with the path's length.
 
-Każde konto potrzebuje też własnego katalogu roboczego narzędzia, bo `journal-dir` i `ehtdb.sqlite`
-są względne do katalogu bieżącego, a misje i zdobycze należą do konkretnej postaci. Plik
-`live.sqlite` przeciwnie — trzyma wyłącznie fakty o galaktyce (rynki, ceny, półki bartendera),
-więc warto go podlinkować, żeby oba konta korzystały ze wspólnej wiedzy o cenach.
+Each account also needs its own working directory for the tool, because `journal-dir` and
+`ehtdb.sqlite` are relative to the current directory, and missions and loot belong to one
+commander. `live.sqlite` is the opposite: it holds only facts about the galaxy (markets, prices,
+bartenders' shelves), so it is worth symlinking, letting both accounts share what they know of
+prices.
 
-Pas boczny ma znaczenie na panoramicznych ekranach: przy 8000 px środek należy do gry, a overlay
-mieści się w ~1600 px z każdej strony. Dłuższy tekst zawija się w pasie zamiast wjeżdżać na środek.
+The side band matters on panoramic screens: at 8000 px the middle belongs to the game, and the
+overlay fits into ~1600 px on each side. Longer text wraps within the band instead of running into
+the middle.
 
-## Sprawdzenie widoczności w kontenerze Steam
+## Checking visibility inside the Steam container
 
-Gra biegnie w kontenerze, który nie widzi katalogu budowania. Że loader w środku znajduje warstwę,
-sprawdza się bez uruchamiania gry:
+The game runs in a container that does not see the build directory. That the loader inside finds
+the layer can be checked without starting the game:
 
 ```
 ENABLE_EHT_OVERLAY=1 ~/.local/share/Steam/steamapps/common/SteamLinuxRuntime_4/run --   vulkaninfo --summary | grep EHT
 ```
 
-Wiersz `VK_LAYER_EHT_overlay` na liście warstw oznacza, że ścieżka pod `$HOME` działa, a biblioteka
-jest zgodna z biblioteką standardową C w kontenerze.
+A `VK_LAYER_EHT_overlay` line among the layers means the path under `$HOME` works, and the library
+is compatible with the C standard library in the container.
 
-## Sprawdzenie bez gry
+## Checking without the game
 
 ```
 eht-overlay-feed &
 ENABLE_EHT_OVERLAY=1 eht-overlay-headless-check /tmp/check.ppm 8000 1440
 ```
 
-`VK_EXT_headless_surface` daje łańcuch wymiany, którego nikt nie ogląda — warstwa rysuje tak samo
-jak w prawdziwym oknie, a obraz wraca do pliku. Nie potrzeba pulpitu ani gry.
+`VK_EXT_headless_surface` gives a swapchain nobody looks at. The layer draws exactly as in a real
+window, and the picture comes back into the file. Neither a desktop nor the game is needed.
 
-## Zmierzone
+## Measured
 
-Na RX 7900 XTX, 3000 klatek, RADV:
+On an RX 7900 XTX, 3000 frames, RADV:
 
-| pomiar | wynik |
+| measurement | result |
 |---|---|
-| koszt na klatkę | 0,018 ms (0,040 → 0,058) — ok. 0,1% budżetu przy 60 fps |
-| utworzenie zasobów warstwy | 0,2 ms |
-| zwolnienie zasobów | 0,2 ms |
-| 2000 odtworzeń łańcucha wymiany | bez awarii, przyrost pamięci 0,3 MB |
+| cost per frame | 0.018 ms (0.040 → 0.058), about 0.1% of the budget at 60 fps |
+| creating the layer's resources | 0.2 ms |
+| releasing the resources | 0.2 ms |
+| 2000 swapchain re-creations | no crash, memory growth 0.3 MB |
 
-Ostatni wiersz odpowiada alt-tabowaniu i zmianom rozdzielczości w grze.
+The last row stands for alt-tabbing and changes of resolution in the game.
 
 ```
 ENABLE_EHT_OVERLAY=1 eht-overlay-headless-check /tmp/x.ppm 1920 1080 10 200
 ```
 
-## Zdjęcie środka ekranu
+## A picture of the middle of the screen
 
-Przy każdej próbce organizmu narzędzie prosi warstwę o zdjęcie — commander patrzy wtedy prosto na
-roślinę. Prośba jedzie w ramce (`frame_t.capture`: numer, ścieżka, bok kwadratu jako ułamek
-wysokości ekranu) i powtarza się w każdej kolejnej ramce, więc prosi **zmiana numeru**, nie sama
-obecność. Pierwszy numer, który świeżo uruchomiona warstwa zobaczy, uznaje za załatwiony — to
-ostatnia ramka narzędzia podana nowemu klientowi, a chwila, dla której była, dawno minęła.
+At every sample of an organism the tool asks the layer for a picture, because the commander is
+looking straight at the plant then. The request rides in the frame (`frame_t.capture`: a number, a
+path, and the side of the square as a share of the screen's height) and repeats in every frame
+after, so it is **the change of the number** that asks, not its presence. The first number a
+freshly started layer sees counts as already served: it is the tool's last frame handed to a new
+client, and the moment it was meant for is long gone.
 
-Warstwa kopiuje kwadrat ze środka obrazu gry **zanim** narysuje na nim overlay, odbiera piksele
-dopiero po ogrodzeniu tej klatki i zapisuje PPM w osobnym wątku, pod docelową nazwą dopiero gdy
-plik jest kompletny. Pliki trafiają obok gniazda (`~/.local/share/elite_help_tool/captures/`),
-jedynego miejsca widocznego po obu stronach kontenera; narzędzie zamienia je na JPG w swoim
-katalogu `codex/`.
+The layer copies a square from the middle of the game's image **before** drawing the overlay over
+it. It takes the pixels out only once that frame's fence has signalled, and writes the PPM in a
+thread of its own, under its final name only when the file is complete. The files go beside the
+socket (`~/.local/share/elite_help_tool/captures/`), the one place visible on both sides of the
+container. The tool turns them into JPGs in its `codex/` directory.
 
-Łańcuch wymiany dostaje dodatkowo `TRANSFER_SRC`; sterownik, który tego nie przyjmie, zostawia
-overlay bez zdjęć, nie bez overlaya. Zdjęcie, które raz się nie uda, nie jest już próbowane.
-Starsza warstwa pomija nowe pole i po prostu zdjęć nie robi.
+The swapchain additionally gets `TRANSFER_SRC`. A driver that does not accept it leaves the overlay
+without pictures, not without the overlay. A picture that fails once is not tried again. An older
+layer skips the new field and simply takes no pictures.
 
-## Zrzut ekranu klawiszem
+## Screenshot at a key
 
-W grze **F11** robi zrzut całego ekranu **razem z overlayem** — tak, jak widzi go gracz. Klawisz
-i format ustawia sekcja `screenshots` w `eht_settings.json`:
+In the game, **F11** takes a screenshot of the whole screen **with the overlay**, as the player
+sees it. The key and the format are set in the `screenshots` section of `eht_settings.json`:
 
-| klucz | domyślnie | znaczenie |
+| key | default | meaning |
 |---|---|---|
-| `key` | `F11` | nazwa klawisza X (jak w `xev`): `F1`–`F35`, `Print`, `Pause`, `Scroll_Lock`, `KP_Multiply`…, litera, cyfra albo keysym `0xffc8`; pusty wyłącza |
-| `dir` | `screenshots` | katalog na zrzuty, względny do katalogu narzędzia |
-| `format` | `png` | `png` zostawia ostry tekst overlaya, `jpg` jest wielokrotnie mniejszy |
-| `jpeg_quality` | `92` | jakość dla `jpg` |
+| `key` | `F11` | the X key name (as in `xev`): `F1`–`F35`, `Print`, `Pause`, `Scroll_Lock`, `KP_Multiply`…, a letter, a digit or a keysym such as `0xffc8`; empty turns it off |
+| `dir` | `screenshots` | the directory for screenshots, relative to the tool's directory |
+| `format` | `png` | `png` keeps the overlay's text sharp, `jpg` is several times smaller |
+| `jpeg_quality` | `92` | the quality for `jpg` |
 
-Klawisz słyszy sama warstwa, nie narzędzie: osobny wątek w procesie gry pyta serwer X (przez
-`libxcb`, ładowane `dlopen` z procesu gry) o stan klawiatury co 30 ms. Pod XWayland serwer X zna
-klawisze tylko wtedy, gdy fokus ma jedno z jego okien, a przy dwóch grach naraz liczy się tylko ta,
-której okno jest aktywne (`_NET_ACTIVE_WINDOW` → `_NET_WM_PID` → ten sam proces albo ten sam
-`WINEPREFIX`). Gra dostaje klawisz tak samo jak bez overlaya — warstwa tylko patrzy.
+The layer hears the key itself, not the tool. A thread of its own in the game's process asks the X
+server for the keyboard's state every 30 ms, through `libxcb` loaded with `dlopen` from the game's
+process. Under XWayland the X server knows the keys only while one of its windows has the focus.
+With two games at once only the one whose window is active counts (`_NET_ACTIVE_WINDOW` →
+`_NET_WM_PID` → the same process or the same `WINEPREFIX`). The game gets the key just as without
+the overlay; the layer only watches.
 
-Kopia całego obrazu jest robiona **po** narysowaniu overlaya, trafia do spoolu jako
-`screenshot_<ms>.ppm`, a narzędzie w osobnym wątku zapisuje ją jako `ED <data czas>.png` i kasuje PPM.
-Zrzuty zrobione, gdy narzędzie nie działało, zapisze przy najbliższym starcie. Wymaga
-`EHT_OVERLAY_CAPTURE=1`, jak zdjęcia do codexu.
+The copy of the whole image is made **after** the overlay is drawn. It goes into the spool as
+`screenshot_<ms>.ppm`, and the tool, in a thread of its own, saves it as `ED <date time>.png` and
+deletes the PPM. Screenshots taken while the tool was not running are saved at its next start. It
+needs `EHT_OVERLAY_CAPTURE=1`, like the codex pictures.
 
-Działa tylko z grą w oknie X11 (XWayland) — domyślnie tak uruchamia ją Proton. Z
-`PROTON_ENABLE_WAYLAND=1` warstwa klawisza nie usłyszy.
+It works only with the game in an X11 window (XWayland), which is how Proton starts it by default.
+With `PROTON_ENABLE_WAYLAND=1` the layer will not hear the key.
 
-## Czego overlay nie może zrobić
+## What cannot take the game down
 
-Nic z tego nie ma prawa położyć gry:
+None of this may crash the game:
 
-- nieudane utworzenie zasobów albo inicjalizacja ImGui oznaczają jednorazowe odpuszczenie
-  danego łańcucha wymiany; prezentacja idzie dalej nietknięta,
-- łańcuch wymiany, który nie przyjmuje dołożonej flagi użycia, tworzony jest po staremu, bez overlaya,
-- czekanie na ogrodzenie ma limit sekundy, po którym warstwa wyłącza się sama,
-- nieudane założenie ImGui trafia do logu zamiast przerywać proces,
-- wątek klienta i rejestr są celowo nigdy nie zwalniane, żeby wygaszanie procesu gry nie
-  mogło się o nie zablokować.
+- a failure to create the resources or to initialise ImGui means giving up on that swapchain once;
+  presentation goes on untouched,
+- a swapchain that does not accept the added usage flag is created the old way, without the overlay,
+- waiting for a fence is limited to a second, after which the layer turns itself off,
+- a failed ImGui setup goes to the log instead of stopping the process,
+- the client thread and the registry are deliberately never released, so that the game process
+  winding down cannot get stuck on them.
 
-Kolejność uruchamiania jest dowolna: klient próbuje się łączyć w kółko, serwer przyjmuje kogo
-popadnie i obu nie przeszkadza nieobecność ani restart drugiej strony. Nowo podłączona gra dostaje
-ostatni obraz od razu, bez czekania na najbliższą zmianę.
+The start order does not matter: the client keeps trying to connect, the server accepts whoever
+comes, and neither minds the other side being absent or restarting. A newly connected game gets
+the latest picture at once, without waiting for the next change.

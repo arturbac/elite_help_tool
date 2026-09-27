@@ -214,7 +214,7 @@ If you use the wrapper instead, give its **full path**, because Steam runs launc
 Press **F11** in the game. The whole screen, overlay included, is saved as
 `screenshots/ED <date> <time>.png` in EHT's working directory. You can change the key, directory
 and format in the `screenshots` section of `eht_settings.json`. This needs `EHT_OVERLAY_CAPTURE=1`.
-Details are in [overlay/README.md](../overlay/README.md) (in Polish).
+Details are in [overlay/README.md](../overlay/README.md).
 
 ## Two accounts at once
 
