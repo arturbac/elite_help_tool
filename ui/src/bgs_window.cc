@@ -1,3 +1,4 @@
+#include <eht_settings.h>
 #include <bgs_window.h>
 #include <qformat.h>
 #include <qboxlayout.h>
@@ -16,7 +17,8 @@ constexpr std::array<uint32_t, 3> periods{7u, 14u, 30u};
 
 ///\brief a movement of influence below this threshold says nothing but the rounding and what other
 /// players did that day - influence is zero sum, so a rate from such a day would be made up
-constexpr double smallest_readable_move{0.3};
+[[nodiscard]]
+auto smallest_readable_move() -> double { return eht::settings()->windows.bgs_smallest_move; }
   }  // namespace
 
 bgs_effort_model_t::bgs_effort_model_t(QObject * parent) : QAbstractTableModel(parent) {}
@@ -40,7 +42,7 @@ auto bgs_effort_model_t::data(QModelIndex const & index, int role) const -> QVar
   // up to a hundred, so factions pushed on the same day share one gain between them
   auto const rate = [&]() -> std::optional<double>
   {
-    if(not row.system_gain or row.system_pushed_up <= 0 or *row.system_gain < smallest_readable_move)
+    if(not row.system_gain or row.system_pushed_up <= 0 or *row.system_gain < smallest_readable_move())
       return std::nullopt;
 
     return double(row.system_pushed_up) / *row.system_gain;

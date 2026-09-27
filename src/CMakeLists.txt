@@ -5,6 +5,7 @@ target_sources(eht
   database_storage.cc
   database_import_state.cc
   elite_data.cc
+  eht_settings.cc
   )
 
 target_sources(journal_tailer

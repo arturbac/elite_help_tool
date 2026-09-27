@@ -1,3 +1,4 @@
+#include <eht_settings.h>
 #include "logic.h"
 #include <main_window.h>
 #include <spdlog/spdlog.h>
@@ -20,7 +21,8 @@ static auto new_system_def(uint64_t system_address, std::string_view name, std::
 ///
 /// With a longer gap between readings the span covers half a day; intersecting with it narrows nothing
 /// and only litters the table
-constexpr std::chrono::hours max_tick_window{24};
+[[nodiscard]]
+static auto max_tick_window() -> std::chrono::hours { return std::chrono::hours{eht::settings()->ticks.max_window_h}; }
 
 ///\brief records the trace of a tick when the watched value changed between two readings of the system
 void note_tick(
@@ -32,7 +34,7 @@ void note_tick(
 )
   {
   // without a previous reading there is nothing to bound the window with - a first look at a system says nothing
-  if(not previously_seen or *previously_seen >= timestamp or timestamp - *previously_seen > max_tick_window)
+  if(not previously_seen or *previously_seen >= timestamp or timestamp - *previously_seen > max_tick_window())
     return;
 
   if(
@@ -239,7 +241,9 @@ constexpr bool rebuilds_present_state{
 };
 
 ///\brief how often the mark is moved on disk while playing
-constexpr std::chrono::seconds progress_write_interval{60};
+[[nodiscard]]
+static auto progress_write_interval() -> std::chrono::seconds
+  { return std::chrono::seconds{eht::settings()->journal.progress_write_s}; }
 
 void current_state_t::remember_progress()
   {
@@ -1371,7 +1375,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
       );
     // the mark is moved on from time to time rather than at every line; losing a minute of it only
     // means a minute of journal walked again
-    if(not catching_up_ and std::chrono::steady_clock::now() - progress_written_ > progress_write_interval)
+    if(not catching_up_ and std::chrono::steady_clock::now() - progress_written_ > progress_write_interval())
       remember_progress();
 
     // the overlay is given a picture after every batch of events and decides for itself whether anything changed

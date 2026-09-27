@@ -1,3 +1,4 @@
+#include <eht_settings.h>
 #include <main_window.h>
 #include <spdlog/spdlog.h>
 #include <spdlog/cfg/env.h>
@@ -417,6 +418,11 @@ auto main(int argc, char * argv[]) -> int
 
   // a look at the queries without a rebuild - SPDLOG_LEVEL=debug
   spdlog::cfg::load_env_levels();
+
+  // the settings live beside the databases, in the directory the tool runs in; saved again, they apply
+  // at once - the overlay's among them, since the layer takes its layout from us with every frame
+  eht::load_settings(eht::settings_file_name);
+  eht::settings_watcher_t const settings_watcher{std::filesystem::path{eht::settings_file_name}};
 
   main_window_t window{"ehtdb.sqlite", "journal-dir"};
   if(not window.state_.db_.open())

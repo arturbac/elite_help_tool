@@ -224,11 +224,44 @@ struct block_t
   std::vector<diagram_t> diagrams;
   };
 
+///\brief how the layer lays the overlay out - sent by the tool with every frame
+///\detail the layer keeps no settings of its own: these come from the tool's settings file, so one file
+/// shapes everything and a change there shows without touching the game. A zero means "work it out
+/// from the screen", which is what the layer did before anyone told it anything. The defaults are
+/// what it draws with until the first frame arrives
+struct layout_t
+  {
+  ///\brief the text size as a multiple of 13 pixels; 0 follows the screen's height (height / 780)
+  float scale{};
+  ///\brief the small text of the long lists against the ordinary one
+  float small_text{0.75f};
+  ///\brief the width of the middle screen in pixels; 0 derives it from the height at 16:9
+  float centre_width{};
+  ///\brief the width of the side bands in pixels; 0 takes the whole screen beside the middle one
+  float side_width{};
+  ///\brief the line the head-up readouts stand on, as a share of the screen's height
+  float hud_bottom{0.33f};
+  ///\brief how far either side of the centre the head-up readouts stand, as a share of the middle screen
+  float hud_gap{0.245f};
+  ///\brief the widest a head-up readout grows, as a share of the middle screen
+  float hud_width{0.22f};
+  ///\brief the gap between a corner block and the screen's edge, in pixels at scale 1
+  float corner_margin{14.f};
+  ///\brief how opaque the ground under the blocks is, 0..1
+  float window_alpha{0.35f};
+  ///\brief the widest a chart is drawn, in pixels at scale 1
+  float chart_width{360.f};
+  ///\brief the layer's own line - frame rate and connection - at the top of the right band
+  bool stats{true};
+  };
+
 ///\brief the full image to draw - replaces the previous one entirely, only the newest counts
 struct frame_t
   {
   uint64_t seq{};
   std::vector<block_t> blocks;
+  ///\brief a field an older layer skips; a frame without it leaves the layer on its defaults
+  layout_t layout;
   };
 
 ///\brief the socket lives under $HOME, the only place visible on both sides of the pressure-vessel container

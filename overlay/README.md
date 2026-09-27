@@ -54,10 +54,14 @@ dostaje je tak samo jak launcher. Launcher nie ma łańcucha wymiany, więc wars
 | `ENABLE_EHT_OVERLAY=1` | włącza warstwę |
 | `DISABLE_EHT_OVERLAY=1` | wyłącza ją mimo zainstalowanego manifestu — wyłącznik awaryjny |
 | `EHT_OVERLAY_DEBUG=1` | log warstwy na stderr procesu gry |
-| `EHT_OVERLAY_STATS=0` | chowa własną diagnostykę warstwy w prawym górnym rogu |
-| `EHT_OVERLAY_SCALE` | skala czcionki, domyślnie wysokość ekranu / 1080 |
-| `EHT_OVERLAY_SIDE_WIDTH` | szerokość pasa przy krawędzi, domyślnie 20% szerokości, najwyżej 1600 px |
 | `EHT_OVERLAY_SOCKET` | ścieżka gniazda, domyślnie `~/.local/share/elite_help_tool/overlay.sock` |
+
+Tylko te — potrzebne, zanim warstwa połączy się z narzędziem. Cały układ (skala tekstu, szerokość
+pasów i środkowego ekranu, położenie czytników HUD, marginesy, przezroczystość, własna diagnostyka)
+przychodzi od `elite_help_tool` w każdej ramce, z sekcji `overlay.layout` pliku `eht_settings.json`
+w katalogu, z którego uruchomione jest narzędzie. Zapisana zmiana pojawia się w grze od razu; zmiana
+skali tekstu przebudowuje czcionki warstwy bez restartu gry. Dawne `EHT_OVERLAY_SCALE`,
+`_SIDE_WIDTH`, `_CENTRE_WIDTH`, `_HUD_GAP`, `_HUD_BOTTOM`, `_SMALL_TEXT` i `_STATS` nie są już czytane.
 
 ## Dwa konta gry naraz
 

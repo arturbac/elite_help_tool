@@ -1,3 +1,4 @@
+#include <eht_settings.h>
 #include <file_io.h>
 #include <iostream>
 #include <filesystem>
@@ -40,8 +41,12 @@ auto find_latest_journal(fs::path const & dir) -> std::optional<fs::path>
 }
 namespace
   {
-constexpr auto tail_poll_interval{std::chrono::milliseconds(50)};
-constexpr auto journal_check_interval{std::chrono::seconds(2)};
+[[nodiscard]]
+auto tail_poll_interval() -> std::chrono::milliseconds
+  { return std::chrono::milliseconds{eht::settings()->journal.tail_poll_ms}; }
+[[nodiscard]]
+auto journal_check_interval() -> std::chrono::seconds
+  { return std::chrono::seconds{eht::settings()->journal.new_file_check_s}; }
 
 ///\brief reads the file to its end and goes on following the lines appended to it
 ///\param give_up checked once the end of the file is reached; following stops when it returns true
@@ -85,7 +90,7 @@ auto tail_until(
       }
 
     file.clear();
-    std::this_thread::sleep_for(tail_poll_interval);
+    std::this_thread::sleep_for(tail_poll_interval());
 
     if(give_up and give_up())
       {
@@ -118,7 +123,7 @@ auto tail_journal_dir(
     if(not latest)
       {
       // the game's directory can still be empty
-      std::this_thread::sleep_for(journal_check_interval);
+      std::this_thread::sleep_for(journal_check_interval());
       continue;
       }
 
@@ -132,7 +137,7 @@ auto tail_journal_dir(
     auto const newer_journal_available = [&dir, &current, &last_check]() -> bool
     {
       auto const now{std::chrono::steady_clock::now()};
-      if(now - last_check < journal_check_interval)
+      if(now - last_check < journal_check_interval())
         return false;
       last_check = now;
 
@@ -141,7 +146,7 @@ auto tail_journal_dir(
     };
 
     if(not tail_until(current, cb, stoken, newer_journal_available, on_caught_up))
-      std::this_thread::sleep_for(journal_check_interval);
+      std::this_thread::sleep_for(journal_check_interval());
     }
   }
 auto read_file(fs::path const & path, process_callback const & cb) -> void

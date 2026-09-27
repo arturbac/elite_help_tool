@@ -196,6 +196,9 @@ target_sources(eht
 target_compile_definitions(eht PUBLIC -DSMALL_VECTORS_ENABLE_CUSTOM_EXCPECTED=1
 -DSPDLOG_USE_STD_FORMAT=1)
 
+# the settings carry the overlay's layout as the protocol defines it - one struct, not a copy of it
+target_include_directories(eht PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/overlay/include)
+
 target_link_libraries(eht PUBLIC
   simple_enum::simple_enum
   small_vectors::small_vectors

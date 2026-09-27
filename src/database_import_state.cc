@@ -1,3 +1,4 @@
+#include <eht_settings.h>
 #include <database_import_state.h>
 #include <spdlog/spdlog.h>
 #include <simple_enum/std_format.hpp>
@@ -18,7 +19,8 @@ void critical_abort(std::format_string<Args...> fmt, Args &&... args)
 ///
 /// With a longer gap between readings the span covers half a day; intersecting with it narrows nothing
 /// and only litters the table
-constexpr std::chrono::hours max_tick_window{24};
+[[nodiscard]]
+auto max_tick_window() -> std::chrono::hours { return std::chrono::hours{eht::settings()->ticks.max_window_h}; }
 
 ///\brief records the trace of a tick when the watched value changed between two readings of the system
 void note_tick(
@@ -30,7 +32,7 @@ void note_tick(
 )
   {
   // without a previous reading there is nothing to bound the window with - a first look at a system says nothing
-  if(not previously_seen or *previously_seen >= timestamp or timestamp - *previously_seen > max_tick_window)
+  if(not previously_seen or *previously_seen >= timestamp or timestamp - *previously_seen > max_tick_window())
     return;
 
   if(

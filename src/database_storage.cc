@@ -1,4 +1,5 @@
 // #define SPDLOG_USE_STD_FORMAT
+#include <eht_settings.h>
 #include <databse_storage.h>
 #include <set>
 #include <sqlite3.h>
@@ -1627,7 +1628,7 @@ auto database_storage_t::load_trade_options(uint64_t market_id, unsigned limit, 
   std::string_view const buy_side{bring_here ? "other" : "here"};
   std::string_view const sell_side{bring_here ? "here" : "other"};
   // a rate on a single tonne is no rate - below this threshold the hint only litters the screen
-  constexpr unsigned minimum_quantity{50u};
+  unsigned const minimum_quantity{eht::settings()->trade.minimum_quantity};
   // the game names only the system a route ends in, never the station, so the whole system is the narrowest
   std::string const system_filter{in_system != 0u ? std::format(" AND st.system_address = {}", in_system) : ""};
 
@@ -2319,7 +2320,8 @@ namespace
 /// The galaxy recalculates system by system and the spread between them reaches hours, so a wave needs
 /// room. On the other hand the next one usually comes after a day, over a weekend after two, so a
 /// threshold around half a day separates them reliably
-constexpr std::chrono::hours same_wave_gap{8};
+[[nodiscard]]
+auto same_wave_gap() -> std::chrono::hours { return std::chrono::hours{eht::settings()->ticks.same_wave_gap_h}; }
 
 ///\brief by this much the start of a wave is moved back against what we saw
 ///
@@ -2327,7 +2329,8 @@ constexpr std::chrono::hours same_wave_gap{8};
 /// has not reached us yet. The data shows it: windows sometimes start exactly on the hour or the half
 /// hour, which is where the tick most likely really fell. When handing missions in, an error in this
 /// direction is the safe one - better to take the day as having closed earlier than to hand in too late
-constexpr std::chrono::minutes client_lag{5};
+[[nodiscard]]
+auto client_lag() -> std::chrono::minutes { return std::chrono::minutes{eht::settings()->ticks.client_lag_min}; }
 
 ///\brief the nearest Thursday 07:00 UTC after the given moment, that is the game's weekly recalculation
 ///
@@ -2395,7 +2398,7 @@ auto database_storage_t::load_recent_ticks(info::tick_kind_e kind, uint32_t with
     {
     auto const wave_begin{it};
     auto last_end{it->window_end};
-    for(; it != rows->end() and it->window_end - last_end <= same_wave_gap; ++it)
+    for(; it != rows->end() and it->window_end - last_end <= same_wave_gap(); ++it)
       last_end = it->window_end;
 
     // sorted by the end of the window, so the first element of a wave recalculated earliest
@@ -2412,7 +2415,7 @@ auto database_storage_t::load_recent_ticks(info::tick_kind_e kind, uint32_t with
 
     facts.push_back(info::tick_fact_t{
       .kind = kind,
-      .start_begin = first.window_begin - client_lag,
+      .start_begin = first.window_begin - client_lag(),
       .start_end = first.window_end,
       .end_begin = last.window_begin,
       .end_end = last.window_end,

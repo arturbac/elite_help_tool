@@ -133,6 +133,10 @@ struct swapchain_data_t
   std::array<int, 4> emblem_rects{-1, -1, -1, -1};
   ///\brief the same font rasterised smaller, for blocks that are lists rather than glances
   ImFont * small_font{};
+  ///\brief the text scale and small-text ratio the atlas was rasterised at - a layout asking for others
+  /// has the fonts built again
+  float font_scale{};
+  float font_small{};
   bool ready{};
   ///\brief an initialisation that failed once is not worth retrying every frame
   bool broken{};

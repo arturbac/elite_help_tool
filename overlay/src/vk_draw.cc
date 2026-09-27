@@ -16,7 +16,6 @@ namespace eht_overlay
   {
 namespace
   {
-  constexpr float corner_margin{14.f};
   ///\brief a present with more semaphores is simply skipped - not worth allocating on the frame path
   constexpr uint32_t max_wait_semaphores{16u};
   ///\brief we never wait for ever - a hung overlay has no right to hang the game
@@ -24,32 +23,14 @@ namespace
   ///\brief above this the drawing costs a frame, which is worth knowing about
   constexpr double slow_draw_seconds{0.004};
 
+  ///\brief the layout the tool sent with its newest frame, or the defaults before the first one
+  ///\detail the layer keeps no settings of its own - they live in the tool's settings file, and a saved
+  /// change arrives here with the next frame
   [[nodiscard]]
-  auto env_flag(char const * name, bool fallback) noexcept -> bool
+  auto current_layout() -> overlay::layout_t
     {
-    char const * const value{std::getenv(name)};
-    if(value == nullptr or *value == '\0')
-      return fallback;
-    return *value != '0';
-    }
-
-  [[nodiscard]]
-  auto stats_enabled() noexcept -> bool
-    {
-    static bool const enabled{env_flag("EHT_OVERLAY_STATS", true)};
-    return enabled;
-    }
-
-  ///\brief a number taken from the environment once, with a fallback
-  [[nodiscard]]
-  auto env_float(char const * name, float fallback) noexcept -> float
-    {
-    char const * const value{std::getenv(name)};
-    if(value == nullptr or *value == '\0')
-      return fallback;
-
-    float const parsed{std::strtof(value, nullptr)};
-    return parsed > 0.f ? parsed : fallback;
+    auto const snapshot{ipc_client().snapshot()};
+    return snapshot ? snapshot->frame.layout : overlay::layout_t{};
     }
 
   ///\brief width of the screen in the middle, which is the only one the player looks at
@@ -58,13 +39,12 @@ namespace
   /// have to. The game draws its own interface on the middle screen at the ordinary shape of a monitor
   /// however wide the whole surface is, so that screen's width follows from its height: 2160 tall makes
   /// it 3840 across, whether the surface beside it is 8000 or twice that. Only a middle screen of an
-  /// unusual shape needs telling, which EHT_OVERLAY_CENTRE_WIDTH still does.
+  /// unusual shape needs telling, which the layout's centre_width does.
   [[nodiscard]]
-  auto centre_screen_width(ImVec2 display) noexcept -> float
+  auto centre_screen_width(ImVec2 display, overlay::layout_t const & layout) noexcept -> float
     {
-    static float const told{env_float("EHT_OVERLAY_CENTRE_WIDTH", 0.f)};
-    if(told > 0.f and told <= display.x)
-      return told;
+    if(layout.centre_width > 0.f and layout.centre_width <= display.x)
+      return layout.centre_width;
 
     constexpr float ordinary_shape{16.f / 9.f};
     return std::min(display.y * ordinary_shape, display.x);
@@ -72,11 +52,15 @@ namespace
 
   ///\brief how much smaller the small text is than the ordinary text
   [[nodiscard]]
-  auto small_text_ratio() noexcept -> float
-    {
-    static float const ratio{std::clamp(env_float("EHT_OVERLAY_SMALL_TEXT", 0.75f), 0.4f, 1.f)};
-    return ratio;
-    }
+  auto small_text_ratio(overlay::layout_t const & layout) noexcept -> float
+    { return std::clamp(layout.small_text, 0.4f, 1.f); }
+
+  ///\brief the size the text is rasterised at, as a multiple of 13 pixels
+  ///\detail the goal is a constant fraction of screen height, so the text reads the same on 1080 and on
+  /// 4k - unless the layout names a scale of its own
+  [[nodiscard]]
+  auto text_scale(overlay::layout_t const & layout, VkExtent2D extent) noexcept -> float
+    { return layout.scale > 0.f ? layout.scale : std::max(1.f, static_cast<float>(extent.height) / 780.f); }
 
   ///\brief the line the head-up readouts stand on, which they grow upwards from
   ///\detail the game's own weapon panels begin about a third of the way down, and the space above
@@ -84,67 +68,30 @@ namespace
   /// rise as far as they need. Anchoring them by the bottom is what keeps them there whether they
   /// carry two lines or eight
   [[nodiscard]]
-  auto hud_bottom(ImVec2 display) noexcept -> float
-    {
-    static float const told{env_float("EHT_OVERLAY_HUD_BOTTOM", 0.f)};
-    return told > 0.f ? told : display.y * 0.33f;
-    }
+  auto hud_bottom(ImVec2 display, overlay::layout_t const & layout) noexcept -> float
+    { return display.y * std::clamp(layout.hud_bottom, 0.f, 1.f); }
 
   ///\brief half the corridor left clear down the middle, where the fighting happens
   ///\detail measured off the game's interface rather than chosen: SECONDARY and PRIMARY sit about a
   /// quarter of the middle screen's width either side of its centre, so the readouts stand over them
   [[nodiscard]]
-  auto hud_gap(ImVec2 display) noexcept -> float
-    {
-    static float const told{env_float("EHT_OVERLAY_HUD_GAP", 0.f)};
-    return told > 0.f ? told : centre_screen_width(display) * 0.245f;
-    }
-
-  ///\brief on wide screens the middle belongs to the game; the overlay lives in the side bands
-  [[nodiscard]]
-  auto side_band_override() noexcept -> float
-    {
-    static float const band{
-      []() -> float
-      {
-        char const * const value{std::getenv("EHT_OVERLAY_SIDE_WIDTH")};
-        if(value == nullptr or *value == '\0')
-          return 0.f;
-        return std::strtof(value, nullptr);
-      }()
-    };
-    return band;
-    }
+  auto hud_gap(ImVec2 display, overlay::layout_t const & layout) noexcept -> float
+    { return centre_screen_width(display, layout) * std::clamp(layout.hud_gap, 0.f, 0.5f); }
 
   ///\brief width of the band at the screen edge we are allowed to draw in
   [[nodiscard]]
-  auto side_band_width(ImVec2 display) noexcept -> float
+  auto side_band_width(ImVec2 display, overlay::layout_t const & layout) noexcept -> float
     {
-    if(side_band_override() > 0.f)
-      return side_band_override();
+    if(layout.side_width > 0.f)
+      return layout.side_width;
 
     // The band is not a guess: it is exactly the screen beside the middle one, edge to edge, and
     // every pixel of it lies outside where the player looks
-    if(float const centre{centre_screen_width(display)}; centre < display.x)
+    if(float const centre{centre_screen_width(display, layout)}; centre < display.x)
       return std::max(240.f, (display.x - centre) * 0.5f);
 
     // on a single screen the middle one is the whole surface, so the band goes back to a fifth of it
     return std::clamp(display.x * 0.2f, 240.f, 1600.f);
-    }
-
-  [[nodiscard]]
-  auto scale_override() noexcept -> float
-    {
-    static float const scale{
-      []() -> float
-      {
-        char const * const value{std::getenv("EHT_OVERLAY_SCALE")};
-        if(value == nullptr or *value == '\0')
-          return 0.f;
-        return std::strtof(value, nullptr);
-      }()
-    };
-    return scale;
     }
 
   [[nodiscard]]
@@ -172,8 +119,10 @@ namespace
     }
 
   [[nodiscard]]
-  auto corner_position(overlay::corner_e corner, ImVec2 display) noexcept -> std::pair<ImVec2, ImVec2>
+  auto corner_position(overlay::corner_e corner, ImVec2 display, overlay::layout_t const & layout) noexcept
+    -> std::pair<ImVec2, ImVec2>
     {
+    float const corner_margin{layout.corner_margin};
     using enum overlay::corner_e;
     switch(corner)
       {
@@ -185,9 +134,9 @@ namespace
       // both stand on the same line and grow upwards and outwards from it, so the corridor between
       // them keeps its width and the weapon panels below keep their room however much text arrives
       case centre_top_left:
-        return {ImVec2{display.x * 0.5f - hud_gap(display), hud_bottom(display)}, ImVec2{1.f, 1.f}};
+        return {ImVec2{display.x * 0.5f - hud_gap(display, layout), hud_bottom(display, layout)}, ImVec2{1.f, 1.f}};
       case centre_top_right:
-        return {ImVec2{display.x * 0.5f + hud_gap(display), hud_bottom(display)}, ImVec2{0.f, 1.f}};
+        return {ImVec2{display.x * 0.5f + hud_gap(display, layout), hud_bottom(display, layout)}, ImVec2{0.f, 1.f}};
       }
     return {ImVec2{corner_margin, corner_margin}, ImVec2{0.f, 0.f}};
     }
@@ -640,6 +589,59 @@ namespace
       }
     }
 
+  ///\brief rasterises the text at the size the layout asks for, the emblems with it, and sizes the style
+  ///\detail the font is rasterised at the target size, because stretching a finished bitmap turns to mush
+  auto build_fonts(swapchain_data_t & data, overlay::layout_t const & layout) -> void
+    {
+    ImGuiIO & io{ImGui::GetIO()};
+    float const scale{text_scale(layout, data.extent)};
+    float const small{small_text_ratio(layout)};
+
+    io.Fonts->Clear();
+    ImFontConfig font_config{};
+    font_config.SizePixels = std::round(13.f * scale);
+    io.Fonts->AddFontDefault(&font_config);
+
+    // the same face rasterised a second time rather than one bitmap stretched: a list of missions is
+    // read line by line, not glanced at, and at the size that suits a glance it eats the band
+    ImFontConfig small_config{};
+    small_config.SizePixels = std::max(8.f, std::round(font_config.SizePixels * small));
+    data.small_font = io.Fonts->AddFontDefault(&small_config);
+
+    // the emblems take their place in the atlas before it is built, and are written into it right after
+    data.emblem_rects = {-1, -1, -1, -1};
+    reserve_emblems(data);
+    blit_emblems(data);
+
+    // a fresh style each time, or a second scaling would multiply the first
+    ImGui::GetStyle() = ImGuiStyle{};
+    ImGui::StyleColorsDark();
+    ImGui::GetStyle().ScaleAllSizes(scale);
+
+    data.font_scale = scale;
+    data.font_small = small;
+    }
+
+  ///\brief builds the fonts again when the layout asks for another size than they were made at
+  ///\detail only the atlas and its texture go: our own frames in flight are waited for first, since the
+  /// texture is still bound in them, and the backend uploads the new one at the start of the next frame
+  auto follow_font_layout(swapchain_data_t & data) -> void
+    {
+    overlay::layout_t const layout{current_layout()};
+    if(text_scale(layout, data.extent) == data.font_scale and small_text_ratio(layout) == data.font_small)
+      return;
+
+    device_data_t & device{*data.device};
+    // only a frame actually submitted has a fence that will ever signal
+    for(frame_resources_t const & frame: data.frames)
+      if(frame.submitted and frame.fence != VK_NULL_HANDLE)
+        device.WaitForFences(device.device, 1u, &frame.fence, VK_TRUE, fence_timeout_ns);
+
+    ImGui_ImplVulkan_DestroyFontsTexture();
+    build_fonts(data, layout);
+    log("fonts rebuilt at scale {:.2f}, small text {:.2f}", data.font_scale, data.font_small);
+    }
+
   [[nodiscard]]
   auto block_visible(overlay::block_t const & block, uint64_t age_ms) noexcept -> bool
     {
@@ -663,7 +665,8 @@ namespace
     };
 
     ImVec2 const display{ImGui::GetIO().DisplaySize};
-    float const band{side_band_width(display)};
+    overlay::layout_t const layout{snapshot ? snapshot->frame.layout : overlay::layout_t{}};
+    float const band{side_band_width(display, layout)};
 
     for(auto const corner:
         {overlay::corner_e::top_left,
@@ -673,7 +676,7 @@ namespace
          overlay::corner_e::centre_top_left,
          overlay::corner_e::centre_top_right})
       {
-      bool const stats_here{stats_enabled() and corner == overlay::corner_e::top_right};
+      bool const stats_here{layout.stats and corner == overlay::corner_e::top_right};
 
       bool anything{stats_here};
       if(snapshot and not anything)
@@ -687,10 +690,10 @@ namespace
         corner == overlay::corner_e::centre_top_left or corner == overlay::corner_e::centre_top_right
       };
       // a head-up readout is glanced at, not read - past this width it stops being a glance
-      float const width{head_up ? std::min(band, centre_screen_width(display) * 0.22f) : band};
+      float const width{head_up ? std::min(band, centre_screen_width(display, layout) * layout.hud_width) : band};
 
-      auto const [position, pivot]{corner_position(corner, display)};
-      ImGui::SetNextWindowBgAlpha(0.35f);
+      auto const [position, pivot]{corner_position(corner, display, layout)};
+      ImGui::SetNextWindowBgAlpha(std::clamp(layout.window_alpha, 0.f, 1.f));
       ImGui::SetNextWindowPos(position, ImGuiCond_Always, pivot);
       // long text should wrap inside the band rather than run into the player's field of view
       ImGui::SetNextWindowSizeConstraints(ImVec2{0.f, 0.f}, ImVec2{width, display.y});
@@ -736,7 +739,7 @@ namespace
 
             // a chart wider than this is no more readable, only more of the view taken away
             float const chart_width{
-              std::min(width - 2.f * ImGui::GetStyle().WindowPadding.x, 360.f * ImGui::GetFontSize() / 13.f)
+              std::min(width - 2.f * ImGui::GetStyle().WindowPadding.x, layout.chart_width * ImGui::GetFontSize() / 13.f)
             };
             for(overlay::chart_t const & chart: block.charts)
               draw_chart(chart, chart_width);
@@ -1008,28 +1011,7 @@ auto ensure_resources(swapchain_data_t & data, VkQueue queue) -> bool
   io.IniFilename = nullptr;
   io.LogFilename = nullptr;
   io.DisplaySize = ImVec2{static_cast<float>(data.extent.width), static_cast<float>(data.extent.height)};
-  // the goal is a constant fraction of screen height, so the text reads the same on 1080 and on 4k.
-  // the font is rasterised at the target size, because stretching a finished bitmap turns to mush
-  float const scale{
-    scale_override() > 0.f ? scale_override() : std::max(1.f, static_cast<float>(data.extent.height) / 780.f)
-  };
-  ImFontConfig font_config{};
-  font_config.SizePixels = std::round(13.f * scale);
-  io.Fonts->AddFontDefault(&font_config);
-
-  // the same face rasterised a second time rather than one bitmap stretched: a list of missions is
-  // read line by line, not glanced at, and at the size that suits a glance it eats the band
-  ImFontConfig small_config{};
-  small_config.SizePixels = std::max(8.f, std::round(font_config.SizePixels * small_text_ratio()));
-  data.small_font = io.Fonts->AddFontDefault(&small_config);
-
-  // the emblems take their place in the atlas before it is built, and are written into it right after
-  reserve_emblems(data);
-  blit_emblems(data);
-
-  ImGui::GetStyle().ScaleAllSizes(scale);
-
-  ImGui::StyleColorsDark();
+  build_fonts(data, current_layout());
 
   if(not ImGui_ImplVulkan_LoadFunctions(device.instance->api_version, &vulkan_loader, static_cast<void *>(data.device)))
     {
@@ -1154,6 +1136,7 @@ auto draw_overlay(
     io.DisplaySize = ImVec2{static_cast<float>(data.extent.width), static_cast<float>(data.extent.height)};
     io.DeltaTime = static_cast<float>(delta);
 
+    follow_font_layout(data);
     ImGui_ImplVulkan_NewFrame();
     ImGui::NewFrame();
     build_ui(data);

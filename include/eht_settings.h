@@ -1,0 +1,206 @@
+#pragma once
+
+#include <overlay_protocol.h>
+
+#include <glaze/glaze.hpp>
+
+#include <cstdint>
+#include <filesystem>
+#include <memory>
+#include <stop_token>
+#include <string>
+#include <thread>
+
+///\brief what used to be written into the code and is a matter of taste or of judgement
+///
+/// Everything a player might want to tune - how the overlay looks and where it stands, how long its
+/// lists are, the thresholds behind the hints - sits in one JSON file beside the tool, created with
+/// these defaults when it is missing and read again whenever it is saved. What is a fact about the
+/// game stays in the code: which minerals can only be mined, which letter is which star class, how
+/// many won days end a war. Those are not settings, and a file inviting anyone to change them would
+/// only let them be wrong.
+namespace eht
+  {
+///\brief a colour, written in the file as "#rrggbb" so that it can be read and picked by eye
+struct colour_t
+  {
+  uint32_t rgb{};
+
+  auto read(std::string const & text) -> void;
+  [[nodiscard]]
+  auto write() const -> std::string;
+  };
+
+struct overlay_colours_t
+  {
+  colour_t heading{0x9ad1ffu};
+  colour_t plain{0xddddddu};
+  ///\brief what asks for attention without being lost yet
+  colour_t alert{0xd9a34au};
+  ///\brief the good news - a mission ready to hand in, the best offer
+  colour_t first{0x3cb371u};
+  ///\brief a mission about to run out
+  colour_t expiring{0xd9534fu};
+  colour_t tick_influence{0xddddddu};
+  colour_t tick_war{0xd9534fu};
+  };
+
+///\brief how many rows each list in the overlay shows
+struct overlay_lists_t
+  {
+  uint32_t bodies{5u};
+  uint32_t factions{5u};
+  uint32_t missions{6u};
+  uint32_t cargo{4u};
+  uint32_t commodities{3u};
+  uint32_t sources{2u};
+  uint32_t settlement_work{4u};
+  uint32_t trades{3u};
+  uint32_t route_hops{10u};
+  };
+
+///\brief how often the overlay asks again - the database and the files it reads change at their own pace
+struct overlay_refresh_t
+  {
+  uint32_t factions_s{60u};
+  uint32_t market_s{5u};
+  uint32_t supply_s{10u};
+  uint32_t status_ms{500u};
+  ///\brief a frame is sent at least this often even when nothing changed, so the layer knows we live
+  uint32_t heartbeat_s{3u};
+  ///\brief a block fades this long after its last refresh
+  uint32_t block_ttl_ms{10000u};
+  };
+
+struct overlay_chart_t
+  {
+  uint32_t days{};
+  ///\brief the plot itself, in pixels at scale 1
+  uint32_t height{};
+  };
+
+///\brief the picture of the system in the corner of the right band
+///\detail the sizes keep an order, not a scale - a star twice a planet, a giant above a rocky world
+struct system_map_t
+  {
+  ///\brief how much taller than the rest of the overlay it is drawn
+  float zoom{2.f};
+  ///\brief what part of the band's width it takes
+  float share{0.5f};
+  float star_radius{10.f};
+  float giant_radius{6.5f};
+  float planet_radius{4.5f};
+  float moon_radius{2.8f};
+  float submoon_radius{2.f};
+  float port_size{4.2f};
+  colour_t line{0x5a6470u};
+  colour_t label{0xa8b0bau};
+  ///\brief the ring round the body we are at
+  colour_t here{0x40e0ffu};
+  ///\brief the ring round the body or port we are going to
+  colour_t destination{0xffd24au};
+  ///\brief over a body's own colour wherever there is life to sample
+  colour_t bio{0x3cb371u};
+  colour_t port{0xc8d0dcu};
+  };
+
+struct overlay_settings_t
+  {
+  overlay::layout_t layout;
+  overlay_colours_t colours;
+  overlay_lists_t lists;
+  overlay_refresh_t refresh;
+  ///\brief a body worth less than this is not listed as worth mapping
+  uint32_t minimum_body_value{300000u};
+  ///\brief a mission with less than this left is shown as about to run out
+  uint32_t expiry_warning_h{3u};
+  ///\brief how far from the galactic average a price has to be to be worth a line
+  double interesting_deviation{0.25};
+  ///\brief and by how many credits a tonne at the least
+  uint32_t interesting_margin{500u};
+  ///\brief how long a kill stays on the target readout
+  uint32_t kill_shown_s{10u};
+  overlay_chart_t influence_chart{.days = 20u, .height = 98u};
+  overlay_chart_t tick_chart{.days = 30u, .height = 90u};
+  system_map_t system_map;
+  };
+
+struct trade_settings_t
+  {
+  ///\brief a rate on fewer tonnes than this in stock or in demand is no rate
+  uint32_t minimum_quantity{50u};
+  };
+
+///\brief the judgement behind reading the tick out of influence changes
+struct tick_settings_t
+  {
+  ///\brief recalculations further apart than this belong to different waves
+  uint32_t same_wave_gap_h{8u};
+  ///\brief how much earlier than seen a wave is reported - a reading with the old value proves only
+  /// that the new one had not reached us, so erring early is the safe side for handing missions in
+  uint32_t client_lag_min{5u};
+  ///\brief a window between two readings wider than this says nothing about when the tick came
+  uint32_t max_window_h{24u};
+  };
+
+struct journal_settings_t
+  {
+  ///\brief how often the journal being written is looked at for new lines
+  uint32_t tail_poll_ms{50u};
+  ///\brief how often the directory is looked at for a newer journal
+  uint32_t new_file_check_s{2u};
+  ///\brief how often the mark of how far the journal was read is written down while playing
+  uint32_t progress_write_s{60u};
+  };
+
+struct windows_settings_t
+  {
+  ///\brief a move of influence smaller than this, in points, is not shown in the BGS window
+  double bgs_smallest_move{0.3};
+  ///\brief how long a finished faction state stays in the faction window
+  uint32_t faction_keep_finished_h{24u};
+  ///\brief a state lasting longer than this is taken for a missed ending
+  uint32_t faction_max_duration_d{7u};
+  uint32_t faction_tick_refresh_s{60u};
+  };
+
+struct settings_t
+  {
+  overlay_settings_t overlay;
+  trade_settings_t trade;
+  tick_settings_t ticks;
+  journal_settings_t journal;
+  windows_settings_t windows;
+  };
+
+///\brief the name of the file, looked for in the directory the tool runs in
+inline constexpr std::string_view settings_file_name{"eht_settings.json"};
+
+///\brief the settings in force now - a snapshot, so a reload never changes them under a reader's feet
+[[nodiscard]]
+auto settings() -> std::shared_ptr<settings_t const>;
+
+///\brief reads the file into the settings in force, or writes it with the defaults when it is missing
+///\detail a file missing some keys - written by an older version - is filled in and written back, so
+/// every setting is always there to be found. A file that does not parse is left alone and the
+/// settings in force stay as they were
+///\returns false when the file exists but could not be read
+auto load_settings(std::filesystem::path const & path) -> bool;
+
+///\brief watches the file and reloads it whenever it is saved
+class settings_watcher_t
+  {
+public:
+  explicit settings_watcher_t(std::filesystem::path path);
+
+private:
+  std::filesystem::path path_;
+  std::jthread worker_;
+  };
+  }  // namespace eht
+
+template<>
+struct glz::meta<eht::colour_t>
+  {
+  static constexpr auto value{glz::custom<&eht::colour_t::read, &eht::colour_t::write>};
+  };

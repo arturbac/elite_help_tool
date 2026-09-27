@@ -1,3 +1,4 @@
+#include <eht_settings.h>
 #include <file_io.h>
 #include <iostream>
 #include <string>
@@ -258,6 +259,11 @@ auto main(int argc, char ** argv) -> int
   std::signal(SIGTERM, signal_handler);
 
   // spdlog::set_level(spdlog::level::debug);
+
+  // the thresholds behind reading the tick are the tool's settings - taken from the file when there is
+  // one here, but a rebuild in a scratch directory does not leave a fresh one behind
+  if(fs::exists(eht::settings_file_name))
+    eht::load_settings(eht::settings_file_name);
 
   // the FID sits in the Commander event right at the start of the file, so there is no need to read it all
   auto commander_of = [](fs::path const & journal) -> events::commander_t

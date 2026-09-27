@@ -1,4 +1,5 @@
 #include <overlay_feed.h>
+#include <eht_settings.h>
 #include <qformat.h>
 
 #include <spdlog/spdlog.h>
@@ -18,51 +19,55 @@
 
 namespace
   {
-constexpr uint32_t colour_heading{0x9ad1ffu};
-constexpr uint32_t colour_plain{0xddddddu};
-constexpr uint32_t colour_alert{0xd9a34au};
-///\brief undiscovered by anyone - that is the case worth stopping for
-constexpr uint32_t colour_first{0x3cb371u};
-constexpr uint32_t colour_expiring{0xd9534fu};
-
-///\brief the blocks go out when the tool falls silent - better no text than text from an hour ago
-constexpr uint32_t block_ttl_ms{10000u};
-///\brief an unchanged picture has to be repeated anyway, or it expires on a player standing still
-constexpr std::chrono::seconds heartbeat{3};
-
-///\brief below this threshold going down to a body does not pay for the time it takes
-constexpr uint32_t minimum_body_value{300000u};
-///\brief the side band has its limits, and a long list will not be read in flight anyway
-constexpr size_t listed_bodies{5u};
-constexpr size_t listed_factions{5u};
-constexpr size_t listed_missions{6u};
-constexpr size_t listed_cargo{4u};
-constexpr size_t listed_commodities{3u};
-///\brief below this much time in hand a mission is a problem, not a plan
-constexpr std::chrono::hours expiry_warning{3};
-///\brief smaller departures from the galactic average are not worth showing
-constexpr double interesting_deviation{0.25};
-///\brief a percentage without an amount lies - 93% off a commodity worth 20 Cr saves nothing that matters
-constexpr uint32_t interesting_margin{500u};
-///\brief influence updates once a day; asking more often serves nothing
-constexpr std::chrono::seconds faction_refresh{60};
-///\brief a market can appear at any moment, as soon as the player opens it
-constexpr std::chrono::seconds market_refresh{5};
-///\brief missions arrive rarely, and the query goes across both databases
-constexpr std::chrono::seconds supply_refresh{10};
-///\brief Status.json is rewritten whenever anything in it changes, so it is read often but cheaply
-constexpr std::chrono::milliseconds status_refresh{500};
 ///\brief the interfaces that take over the middle screen, from GuiFocus
 ///\detail 5 station services, 6 galaxy map, 7 system map, 8 orrery, 9 FSS, 10 surface scanner,
 /// 11 codex. The cockpit panels below 5 leave the middle of the screen alone, and so may we
 constexpr uint32_t first_fullscreen_interface{5u};
-constexpr size_t listed_sources{2u};
+
+// What used to be constants here now comes from the settings file, read afresh at every use so that a
+// saved change shows at the next refresh. Each accessor takes the snapshot in force at that moment
+auto colour_heading() -> uint32_t { return eht::settings()->overlay.colours.heading.rgb; }
+auto colour_plain() -> uint32_t { return eht::settings()->overlay.colours.plain.rgb; }
+auto colour_alert() -> uint32_t { return eht::settings()->overlay.colours.alert.rgb; }
+///\brief undiscovered by anyone - that is the case worth stopping for
+auto colour_first() -> uint32_t { return eht::settings()->overlay.colours.first.rgb; }
+auto colour_expiring() -> uint32_t { return eht::settings()->overlay.colours.expiring.rgb; }
+
+///\brief the blocks go out when the tool falls silent - better no text than text from an hour ago
+auto block_ttl_ms() -> uint32_t { return eht::settings()->overlay.refresh.block_ttl_ms; }
+///\brief an unchanged picture has to be repeated anyway, or it expires on a player standing still
+auto heartbeat() -> std::chrono::seconds { return std::chrono::seconds{eht::settings()->overlay.refresh.heartbeat_s}; }
+
+///\brief below this threshold going down to a body does not pay for the time it takes
+auto minimum_body_value() -> uint32_t { return eht::settings()->overlay.minimum_body_value; }
+///\brief the side band has its limits, and a long list will not be read in flight anyway
+auto listed_bodies() -> size_t { return eht::settings()->overlay.lists.bodies; }
+auto listed_factions() -> size_t { return eht::settings()->overlay.lists.factions; }
+auto listed_missions() -> size_t { return eht::settings()->overlay.lists.missions; }
+auto listed_cargo() -> size_t { return eht::settings()->overlay.lists.cargo; }
+auto listed_commodities() -> size_t { return eht::settings()->overlay.lists.commodities; }
+///\brief below this much time in hand a mission is a problem, not a plan
+auto expiry_warning() -> std::chrono::hours { return std::chrono::hours{eht::settings()->overlay.expiry_warning_h}; }
+///\brief smaller departures from the galactic average are not worth showing
+auto interesting_deviation() -> double { return eht::settings()->overlay.interesting_deviation; }
+///\brief a percentage without an amount lies - 93% off a commodity worth 20 Cr saves nothing that matters
+auto interesting_margin() -> uint32_t { return eht::settings()->overlay.interesting_margin; }
+///\brief influence updates once a day; asking more often serves nothing
+auto faction_refresh() -> std::chrono::seconds { return std::chrono::seconds{eht::settings()->overlay.refresh.factions_s}; }
+///\brief a market can appear at any moment, as soon as the player opens it
+auto market_refresh() -> std::chrono::seconds { return std::chrono::seconds{eht::settings()->overlay.refresh.market_s}; }
+///\brief missions arrive rarely, and the query goes across both databases
+auto supply_refresh() -> std::chrono::seconds { return std::chrono::seconds{eht::settings()->overlay.refresh.supply_s}; }
+///\brief Status.json is rewritten whenever anything in it changes, so it is read often but cheaply
+auto status_refresh() -> std::chrono::milliseconds
+  { return std::chrono::milliseconds{eht::settings()->overlay.refresh.status_ms}; }
+auto listed_sources() -> size_t { return eht::settings()->overlay.lists.sources; }
 ///\brief the band is not a mission log - beyond this the list stops being read at a glance
-constexpr size_t listed_settlement_work{4u};
-constexpr unsigned listed_trades{3u};
+auto listed_settlement_work() -> size_t { return eht::settings()->overlay.lists.settlement_work; }
+auto listed_trades() -> unsigned { return eht::settings()->overlay.lists.trades; }
 
 ///\brief how long a kill stays on the head-up display after it is made
-constexpr std::chrono::seconds kill_shown{10};
+auto kill_shown() -> std::chrono::seconds { return std::chrono::seconds{eht::settings()->overlay.kill_shown_s}; }
 
 ///\brief the rank ladder the game counts hired pilots on, the same one it counts the commander on
 [[nodiscard]]
@@ -89,10 +94,10 @@ auto combat_rank_name(uint32_t rank) -> std::string_view
 auto legal_colour(std::string_view status) -> uint32_t
   {
   if(status == "Wanted")
-    return colour_first;
+    return colour_first();
   if(status == "Clean")
-    return colour_expiring;
-  return colour_plain;
+    return colour_expiring();
+  return colour_plain();
   }
 
 ///\brief a port in space carries the most goods, a settlement the least - that is the order of worth
@@ -133,7 +138,7 @@ auto allegiance_colour(info::allegiance_e allegiance) -> uint32_t
     case federation: return 0xd9534fu;
     case empire:     return 0x4a90d9u;
     case alliance:   return 0x3cb371u;
-    default:         return colour_plain;
+    default:         return colour_plain();
     }
   }
 
@@ -173,43 +178,18 @@ auto shade(uint32_t rgb, size_t step) -> uint32_t
 [[nodiscard]]
 auto same_content(overlay::frame_t const & left, overlay::frame_t const & right) -> bool
   {
-  if(left.blocks.size() != right.blocks.size())
+  // The whole frame, not a chosen part of it: comparing only the text let a moved ring on the system
+  // picture, a new colour or a new layout wait for the keep-alive before reaching the game. A frame
+  // is a few kilobytes and is built a few times a second, so writing both out is nothing
+  std::string a;
+  std::string b;
+  overlay::frame_t l{left};
+  overlay::frame_t r{right};
+  l.seq = 0u;
+  r.seq = 0u;
+  if(glz::write_json(l, a) or glz::write_json(r, b)) [[unlikely]]
     return false;
-
-  for(size_t block{}; block != left.blocks.size(); ++block)
-    {
-    if(
-      left.blocks[block].corner != right.blocks[block].corner
-      or left.blocks[block].lines.size() != right.blocks[block].lines.size()
-    )
-      return false;
-
-    for(size_t line{}; line != left.blocks[block].lines.size(); ++line)
-      if(left.blocks[block].lines[line].text != right.blocks[block].lines[line].text)
-        return false;
-
-    // the chart carries no text, so without comparing it a tick could pass without the picture
-    // ever being resent - the lines would keep saying the same while the curves had moved
-    auto const & lc{left.blocks[block].charts};
-    auto const & rc{right.blocks[block].charts};
-    if(lc.size() != rc.size())
-      return false;
-
-    for(size_t chart{}; chart != lc.size(); ++chart)
-      {
-      if(lc[chart].caption != rc[chart].caption or lc[chart].series.size() != rc[chart].series.size())
-        return false;
-
-      for(size_t series{}; series != lc[chart].series.size(); ++series)
-        {
-        overlay::series_t const & ls{lc[chart].series[series]};
-        overlay::series_t const & rs{rc[chart].series[series]};
-        if(ls.name != rs.name or ls.points.size() != rs.points.size())
-          return false;
-        }
-      }
-    }
-  return true;
+  return a == b;
   }
 
 ///\brief the game repeats the system's name inside a body's name - in a side band that is pure waste of room
@@ -226,31 +206,20 @@ auto short_body_name(std::string const & system_name, std::string const & body_n
 auto worth_mapping(body_t const & body) -> bool
   {
   auto const * const planet{std::get_if<planet_details_t>(&body.details)};
-  return planet != nullptr and not planet->mapped and body.value >= minimum_body_value;
+  return planet != nullptr and not planet->mapped and body.value >= minimum_body_value();
   }
 
 namespace system_map
   {
+// The sizes and colours come from the settings; what stays here is the spacing of the grid.
 // Sizes keep an order, not a scale: a star twice a planet, a giant above a rocky world, a moon small.
 // Drawn to scale a system would be one disc and a scatter of dust
-constexpr float star_radius{10.f};
-constexpr float giant_radius{6.5f};
-constexpr float planet_radius{4.5f};
-constexpr float moon_radius{2.8f};
-constexpr float submoon_radius{2.f};
 constexpr float barycentre_radius{3.5f};
 constexpr float star_column{30.f};
 constexpr float column{19.f};
 constexpr float label_band{16.f};
 constexpr float moon_step{10.f};
 constexpr float row_gap{8.f};
-constexpr uint32_t line_colour{0x5a6470u};
-constexpr uint32_t label_colour{0xa8b0bau};
-constexpr uint32_t here_colour{0x40e0ffu};
-constexpr uint32_t bio_colour{0x3cb371u};
-constexpr uint32_t destination_colour{0xffd24au};
-constexpr uint32_t port_colour{0xc8d0dcu};
-constexpr float port_size{4.2f};
 constexpr float port_step{10.f};
 
 ///\brief the orbital ports, each with the outline the game's map gives it; the rest - surface ports,
@@ -372,7 +341,7 @@ auto has_bio(planet_details_t const & details) -> bool
 auto planet_colour(planet_details_t const & details) -> uint32_t
   {
   if(has_bio(details))
-    return bio_colour;
+    return eht::settings()->overlay.system_map.bio.rgb;
   std::string_view const pc{details.planet_class};
   if(pc.contains("water based life"))
     return 0x6fb6c8u;
@@ -426,6 +395,20 @@ auto build_system_diagram(
   {
   using namespace system_map;
   using events::body_id_t;
+
+  auto const cfg{eht::settings()};
+  eht::system_map_t const & sm{cfg->overlay.system_map};
+  float const star_radius{sm.star_radius};
+  float const giant_radius{sm.giant_radius};
+  float const planet_radius{sm.planet_radius};
+  float const moon_radius{sm.moon_radius};
+  float const submoon_radius{sm.submoon_radius};
+  float const port_size{sm.port_size};
+  uint32_t const line_colour{sm.line.rgb};
+  uint32_t const label_colour{sm.label.rgb};
+  uint32_t const here_colour{sm.here.rgb};
+  uint32_t const destination_colour{sm.destination.rgb};
+  uint32_t const port_colour{sm.port.rgb};
 
   std::map<body_id_t, body_t const *> by_id;
   for(body_t const & body: system.bodies)
@@ -550,7 +533,7 @@ auto build_system_diagram(
 
   auto const draw_port = [&](info::station_t const & station, float x, float y)
   {
-    constexpr float s{port_size};
+    float const s{port_size};
     // drawn relative to the port's centre, so the outline keeps its shape however far the band stretches
     auto const line = [&](float x0, float y0, float x1, float y1)
     {
@@ -762,7 +745,7 @@ auto build_system_diagram(
       continue;
     // measured from the discs rather than from the edge, so it stays against them when the band stretches
     constexpr float lead_x{star_column / 2.f};
-    constexpr float off{-star_radius - 4.f};
+    float const off{-star_radius - 4.f};
     diagram.segments.push_back(
       overlay::segment_t{
         .x0 = off, .y0 = 0.f, .x1 = off, .y1 = ys.back() - ys.front(), .color = label_colour, .relative = true,
@@ -782,9 +765,9 @@ auto build_system_diagram(
   diagram.height = top;
   // Artur's choice: as wide as the window above, twice the height of the rest - so a system of more stars is
   // simply taller, by the same amount for each row
-  diagram.zoom = 2.f;
+  diagram.zoom = sm.zoom;
   // about as wide as the window at the top of the band, which is half of it
-  diagram.share = 0.5f;
+  diagram.share = sm.share;
   return diagram;
   }
 
@@ -809,11 +792,11 @@ auto describe_exploration(star_system_t const & system) -> std::vector<overlay::
   lines.push_back(
     overlay::line_t{
       .text = std::format("worth mapping: {} bodies, {} Cr", candidates.size(), format_credits_value(uint32_t(total))),
-      .color = colour_heading
+      .color = colour_heading()
     }
   );
 
-  for(body_t const * body: candidates | std::views::take(listed_bodies))
+  for(body_t const * body: candidates | std::views::take(listed_bodies()))
     {
     auto const * const planet{std::get_if<planet_details_t>(&body->details)};
     lines.push_back(
@@ -826,14 +809,14 @@ auto describe_exploration(star_system_t const & system) -> std::vector<overlay::
           planet != nullptr and planet->landable ? "  landable" : ""
         ),
         // a first discovery is a bonus that cannot be had again later
-        .color = body->was_discovered ? colour_plain : colour_first
+        .color = body->was_discovered ? colour_plain() : colour_first()
       }
     );
     }
 
-  if(candidates.size() > listed_bodies)
+  if(candidates.size() > listed_bodies())
     lines.push_back(
-      overlay::line_t{.text = std::format("... and {} more", candidates.size() - listed_bodies), .color = colour_plain}
+      overlay::line_t{.text = std::format("... and {} more", candidates.size() - listed_bodies()), .color = colour_plain()}
     );
 
   return lines;
@@ -863,16 +846,16 @@ auto describe_cargo(events::cargo_file_t const & cargo) -> std::vector<overlay::
 
   if(cargo.Count == 0u)
     {
-    lines.push_back(overlay::line_t{.text = "cargo: empty", .color = colour_plain});
+    lines.push_back(overlay::line_t{.text = "cargo: empty", .color = colour_plain()});
     return lines;
     }
 
-  lines.push_back(overlay::line_t{.text = std::format("cargo: {} t", cargo.Count), .color = colour_alert});
+  lines.push_back(overlay::line_t{.text = std::format("cargo: {} t", cargo.Count), .color = colour_alert()});
 
   auto sorted{cargo.Inventory};
   std::ranges::sort(sorted, std::ranges::greater{}, &events::cargo_item_t::Count);
 
-  for(events::cargo_item_t const & item: sorted | std::views::take(listed_cargo))
+  for(events::cargo_item_t const & item: sorted | std::views::take(listed_cargo()))
     lines.push_back(
       overlay::line_t{
         .text = std::format(
@@ -881,13 +864,13 @@ auto describe_cargo(events::cargo_file_t const & cargo) -> std::vector<overlay::
           item.Count,
           item.Stolen != 0u ? std::format("  {} stolen", item.Stolen) : ""
         ),
-        .color = item.Stolen != 0u ? colour_expiring : colour_plain
+        .color = item.Stolen != 0u ? colour_expiring() : colour_plain()
       }
     );
 
-  if(sorted.size() > listed_cargo)
+  if(sorted.size() > listed_cargo())
     lines.push_back(
-      overlay::line_t{.text = std::format("... and {} more", sorted.size() - listed_cargo), .color = colour_plain}
+      overlay::line_t{.text = std::format("... and {} more", sorted.size() - listed_cargo()), .color = colour_plain()}
     );
 
   return lines;
@@ -1015,14 +998,14 @@ auto describe_missions(
     overlay::line_t{
       .text = ready == 0 ? std::format("missions: {} open", open.size())
                          : std::format("missions: {} open, {} to hand in", open.size(), ready),
-      .color = colour_heading
+      .color = colour_heading()
     }
   );
 
   size_t shown{};
   for(group_t const & group: groups)
     {
-    if(shown >= listed_missions)
+    if(shown >= listed_missions())
       break;
 
     // one stop in the system means the place belongs in the heading, not on every row under it
@@ -1036,13 +1019,13 @@ auto describe_missions(
       overlay::line_t{
         .text = single_place ? std::format("{}  -  {}", group.system, with_owner(*group.rows.front(), *places.begin()))
                              : group.system,
-        .color = colour_heading
+        .color = colour_heading()
       }
     );
 
     for(info::mission_t const * mission: group.rows)
       {
-      if(shown >= listed_missions)
+      if(shown >= listed_missions())
         break;
       ++shown;
 
@@ -1061,7 +1044,7 @@ auto describe_missions(
             mission_wording(*mission)
           ),
           // green is ready to hand in, red is about to be lost
-          .color = left < expiry_warning ? colour_expiring : (done ? colour_first : colour_plain)
+          .color = left < expiry_warning() ? colour_expiring() : (done ? colour_first() : colour_plain())
         }
       );
       }
@@ -1069,7 +1052,7 @@ auto describe_missions(
 
   if(open.size() > shown)
     lines.push_back(
-      overlay::line_t{.text = std::format("... and {} more", open.size() - shown), .color = colour_plain}
+      overlay::line_t{.text = std::format("... and {} more", open.size() - shown), .color = colour_plain()}
     );
 
   return lines;
@@ -1079,11 +1062,11 @@ auto describe_missions(
 auto describe_system(star_system_t const & system, bool with_controlling) -> std::vector<overlay::line_t>
   {
   std::vector<overlay::line_t> lines;
-  lines.push_back(overlay::line_t{.text = system.name, .color = colour_heading});
+  lines.push_back(overlay::line_t{.text = system.name, .color = colour_heading()});
 
   // with influence at hand the controlling faction is marked there with a star, so repeating it serves nothing
   if(with_controlling and not system.controlling_faction.empty())
-    lines.push_back(overlay::line_t{.text = system.controlling_faction, .color = colour_plain});
+    lines.push_back(overlay::line_t{.text = system.controlling_faction, .color = colour_plain()});
 
   if(not system.economy.empty() or not system.government.empty())
     lines.push_back(
@@ -1091,18 +1074,18 @@ auto describe_system(star_system_t const & system, bool with_controlling) -> std
         .text = std::format(
           "{} / {}", system.economy.empty() ? "?" : system.economy, system.government.empty() ? "?" : system.government
         ),
-        .color = colour_plain
+        .color = colour_plain()
       }
     );
 
   if(not system.security.empty())
-    lines.push_back(overlay::line_t{.text = std::format("security: {}", system.security), .color = colour_plain});
+    lines.push_back(overlay::line_t{.text = std::format("security: {}", system.security), .color = colour_plain()});
 
   // a system with the FSS unfinished is a reason to stay, not to fly on
   if(not system.fss_complete and not system.bodies.empty())
     lines.push_back(
       overlay::line_t{
-        .text = std::format("FSS incomplete, {} bodies known", system.bodies.size()), .color = colour_alert
+        .text = std::format("FSS incomplete, {} bodies known", system.bodies.size()), .color = colour_alert()
       }
     );
 
@@ -1112,9 +1095,9 @@ auto describe_system(star_system_t const & system, bool with_controlling) -> std
 ///\brief how far back the influence chart reaches
 ///\detail ten days left the days far apart in the band's width; twenty fit the same rectangle and
 /// carry more of the story - a faction's climb usually takes longer than a week to show as a climb
-constexpr std::chrono::days chart_window{20};
+auto chart_window() -> std::chrono::days { return std::chrono::days{eht::settings()->overlay.influence_chart.days}; }
 ///\brief the height of the plot itself, without the caption and the legend
-constexpr uint32_t chart_height{98u};
+auto chart_height() -> uint32_t { return eht::settings()->overlay.influence_chart.height; }
 ///\brief the shapes handed out in the order of the legend
 ///\detail three independent factions share one colour, so without distinct shapes their lines
 /// could not be told apart
@@ -1149,7 +1132,7 @@ auto build_influence_chart(
   {
   using std::chrono::sys_seconds;
 
-  sys_seconds const from{now - chart_window};
+  sys_seconds const from{now - chart_window()};
   double const span{static_cast<double>((now - from).count())};
   if(span <= 0.0)
     return {};
@@ -1217,7 +1200,7 @@ auto build_influence_chart(
   { return static_cast<float>((std::log10(std::clamp(percent, low, high)) - log_low) / log_span); };
 
   overlay::chart_t chart{
-    .caption = std::format("influence, {} days, log scale", chart_window.count()), .height = chart_height
+    .caption = std::format("influence, {} days, log scale", chart_window().count()), .height = chart_height()
   };
 
   for(double decade{low}; decade <= high * 1.0001; decade *= 10.0)
@@ -1250,10 +1233,10 @@ auto build_influence_chart(
   }
 
 ///\brief how far back the tick chart reaches
-constexpr std::chrono::days tick_chart_window{30};
-constexpr uint32_t tick_chart_height{90u};
-constexpr uint32_t colour_tick_influence{0xddddddu};
-constexpr uint32_t colour_tick_war{0xd9534fu};
+auto tick_chart_window() -> std::chrono::days { return std::chrono::days{eht::settings()->overlay.tick_chart.days}; }
+auto tick_chart_height() -> uint32_t { return eht::settings()->overlay.tick_chart.height; }
+auto colour_tick_influence() -> uint32_t { return eht::settings()->overlay.colours.tick_influence.rgb; }
+auto colour_tick_war() -> uint32_t { return eht::settings()->overlay.colours.tick_war.rgb; }
 
 ///\brief when the recalculation came, day by day, as the hour of the day it came at
 ///
@@ -1270,15 +1253,15 @@ auto build_tick_chart(
   {
   using std::chrono::sys_seconds;
 
-  sys_seconds const from{now - tick_chart_window};
+  sys_seconds const from{now - tick_chart_window()};
   double const span{static_cast<double>((now - from).count())};
   constexpr double day{86400.0};
   // a window read to the minute would be a dot too short to see, so every stroke gets at least this much
   constexpr float shortest{0.035f};
 
   overlay::chart_t chart{
-    .caption = std::format("ticks, {} days, UTC hour, red war", tick_chart_window.count()),
-    .height = tick_chart_height
+    .caption = std::format("ticks, {} days, UTC hour, red war", tick_chart_window().count()),
+    .height = tick_chart_height()
   };
   for(int hour{}; hour <= 24; hour += 6)
     chart.grid.push_back(
@@ -1333,9 +1316,9 @@ auto build_tick_chart(
   };
 
   for(info::tick_fact_t const & wave: influence)
-    add(wave.start_begin, wave.start_end, colour_tick_influence);
+    add(wave.start_begin, wave.start_end, colour_tick_influence());
   for(info::tick_fact_t const & wave: war)
-    add(wave.end_begin, wave.end_end, colour_tick_war);
+    add(wave.end_begin, wave.end_end, colour_tick_war());
 
   if(chart.series.empty())
     return std::nullopt;
@@ -1375,7 +1358,7 @@ auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
   bool const same_system{state.current_system_address_ == factions_system_};
 
   // influence moves once a day, so asking the database every frame would be a waste
-  if(same_system and now - factions_loaded_ < faction_refresh)
+  if(same_system and now - factions_loaded_ < faction_refresh())
     return;
 
   factions_system_ = state.current_system_address_;
@@ -1395,7 +1378,7 @@ auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
     tick_view_t const view{describe_tick(db_, factions_system_, kind, wall_clock)};
     return overlay::line_t{
       .text = std::format("{} {}{}", caption, view.here, view.awaiting ? "  (wave started, not here yet)" : ""),
-      .color = view.awaiting ? colour_alert : colour_plain
+      .color = view.awaiting ? colour_alert() : colour_plain()
     };
   };
 
@@ -1429,7 +1412,7 @@ auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
             conflict.won_days2,
             conflict.faction2
           ),
-          .color = colour_alert
+          .color = colour_alert()
         }
       );
 
@@ -1441,7 +1424,7 @@ auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
               conflict.stake1.empty() ? "-" : conflict.stake1,
               conflict.stake2.empty() ? "-" : conflict.stake2
             ),
-            .color = colour_plain
+            .color = colour_plain()
           }
         );
       }
@@ -1464,7 +1447,7 @@ auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
           overlay::line_t{
             .text = decides_now ? std::format("{}: decided at the next tick - have bonds ready", war.war_type)
                                 : std::format("{}: {} more war ticks", war.war_type, war.ticks_left),
-            .color = decides_now ? colour_alert : colour_plain
+            .color = decides_now ? colour_alert() : colour_plain()
           }
         );
         }
@@ -1579,7 +1562,7 @@ auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
   std::vector<charted_t> charted;
   std::map<uint32_t, size_t> shades_used;
   size_t marker_ix{};
-  for(presence_t const & item: presence | std::views::take(listed_factions))
+  for(presence_t const & item: presence | std::views::take(listed_factions()))
     {
     uint32_t const base{allegiance_colour(item.allegiance)};
     uint32_t const colour{shade(base, shades_used[base]++)};
@@ -1611,8 +1594,8 @@ auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
   faction_charts_ = build_influence_chart(*history, charted, wall_clock);
 
   // the ticks are the same for every system, but they belong under the chart whose steps they explain
-  auto influence_waves{db_.load_recent_ticks(info::tick_kind_e::influence, tick_chart_window.count())};
-  auto war_waves{db_.load_recent_ticks(info::tick_kind_e::war, tick_chart_window.count())};
+  auto influence_waves{db_.load_recent_ticks(info::tick_kind_e::influence, tick_chart_window().count())};
+  auto war_waves{db_.load_recent_ticks(info::tick_kind_e::war, tick_chart_window().count())};
   if(
     auto chart{build_tick_chart(
       influence_waves ? std::span<info::tick_fact_t const>{*influence_waves} : std::span<info::tick_fact_t const>{},
@@ -1632,7 +1615,7 @@ auto overlay_feed_t::refresh_market(
   // are known only once the player opens the market, so asking once on a change of place always found nothing
   auto const now{std::chrono::steady_clock::now()};
   // choosing a destination changes what is worth buying here, so it is part of the key - the answer comes at once
-  if(market_id == market_id_ and destination == market_destination_ and now - market_loaded_ < market_refresh)
+  if(market_id == market_id_ and destination == market_destination_ and now - market_loaded_ < market_refresh())
     return;
 
   market_id_ = market_id;
@@ -1665,10 +1648,10 @@ auto overlay_feed_t::refresh_market(
     {
     // the Market event appears only once the commodities screen is opened - silence here would look like
     // there being no opportunity, when it means nothing but that we had nothing to record
-    market_lines_.push_back(overlay::line_t{.text = std::format("{}: no market data", name), .color = colour_alert});
+    market_lines_.push_back(overlay::line_t{.text = std::format("{}: no market data", name), .color = colour_alert()});
     if(not owner.empty())
-      market_lines_.push_back(overlay::line_t{.text = std::format("  {}", owner), .color = colour_first});
-    market_lines_.push_back(overlay::line_t{.text = "  open the commodity market to record it", .color = colour_plain});
+      market_lines_.push_back(overlay::line_t{.text = std::format("  {}", owner), .color = colour_first()});
+    market_lines_.push_back(overlay::line_t{.text = "  open the commodity market to record it", .color = colour_plain()});
     return;
     }
 
@@ -1706,11 +1689,11 @@ auto overlay_feed_t::refresh_market(
     bool const sells_it{flags_known ? entry.producer : entry.stock > 0u};
 
     if(
-      buys_it and sell_gain(entry) >= interesting_deviation and entry.sell_price > entry.mean_price + interesting_margin
+      buys_it and sell_gain(entry) >= interesting_deviation() and entry.sell_price > entry.mean_price + interesting_margin()
     )
       sells.push_back(&entry);
     if(
-      sells_it and buy_gain(entry) >= interesting_deviation and entry.buy_price + interesting_margin < entry.mean_price
+      sells_it and buy_gain(entry) >= interesting_deviation() and entry.buy_price + interesting_margin() < entry.mean_price
     )
       buys.push_back(&entry);
     }
@@ -1733,10 +1716,10 @@ auto overlay_feed_t::refresh_market(
 
   // a port is either a supplier or a buyer - these two numbers say which at first glance
   market_lines_.push_back(
-    overlay::line_t{.text = std::format("{}: {} on sale, {} wanted", name, on_sale, wanted), .color = colour_heading}
+    overlay::line_t{.text = std::format("{}: {} on sale, {} wanted", name, on_sale, wanted), .color = colour_heading()}
   );
   if(not owner.empty())
-    market_lines_.push_back(overlay::line_t{.text = std::format("  {}", owner), .color = colour_first});
+    market_lines_.push_back(overlay::line_t{.text = std::format("  {}", owner), .color = colour_first()});
 
   // a trader will not bring in a raw material nobody sells - a station may pay splendidly for it and it
   // stays a dead end all the same, so it goes at the end and under a heading of its own
@@ -1747,8 +1730,8 @@ auto overlay_feed_t::refresh_market(
 
   if(not sells.empty())
     {
-    market_lines_.push_back(overlay::line_t{.text = "pays above average:", .color = colour_plain});
-    for(info::market_entry_t const * entry: sells | std::views::take(listed_commodities))
+    market_lines_.push_back(overlay::line_t{.text = "pays above average:", .color = colour_plain()});
+    for(info::market_entry_t const * entry: sells | std::views::take(listed_commodities()))
       market_lines_.push_back(
         overlay::line_t{
           .text = std::format(
@@ -1757,14 +1740,14 @@ auto overlay_feed_t::refresh_market(
             format_credits_value(entry->sell_price),
             format_credits_value(entry->sell_price - entry->mean_price)
           ),
-          .color = colour_first
+          .color = colour_first()
         }
       );
     }
 
   if(not dug_up.empty())
     {
-    market_lines_.push_back(overlay::line_t{.text = "pays well, but mining only:", .color = colour_plain});
+    market_lines_.push_back(overlay::line_t{.text = "pays well, but mining only:", .color = colour_plain()});
     for(info::market_entry_t const * entry: dug_up | std::views::take(2u))
       market_lines_.push_back(
         overlay::line_t{
@@ -1774,15 +1757,15 @@ auto overlay_feed_t::refresh_market(
             format_credits_value(entry->sell_price),
             format_credits_value(entry->sell_price - entry->mean_price)
           ),
-          .color = colour_plain
+          .color = colour_plain()
         }
       );
     }
 
   if(not buys.empty())
     {
-    market_lines_.push_back(overlay::line_t{.text = "sells below average:", .color = colour_plain});
-    for(info::market_entry_t const * entry: buys | std::views::take(listed_commodities))
+    market_lines_.push_back(overlay::line_t{.text = "sells below average:", .color = colour_plain()});
+    for(info::market_entry_t const * entry: buys | std::views::take(listed_commodities()))
       market_lines_.push_back(
         overlay::line_t{
           .text = std::format(
@@ -1791,7 +1774,7 @@ auto overlay_feed_t::refresh_market(
             format_credits_value(entry->buy_price),
             format_credits_value(entry->mean_price - entry->buy_price)
           ),
-          .color = colour_plain
+          .color = colour_plain()
         }
       );
     }
@@ -1800,11 +1783,11 @@ auto overlay_feed_t::refresh_market(
   auto const add_trades{
     [this, cargo_capacity](bool bring_here, std::string const & heading, uint64_t in_system) -> bool
     {
-      auto trades{db_.load_trade_options(market_id_, listed_trades, bring_here, in_system)};
+      auto trades{db_.load_trade_options(market_id_, listed_trades(), bring_here, in_system)};
       if(not trades or trades->empty())
         return false;
 
-      market_lines_.push_back(overlay::line_t{.text = heading, .color = colour_plain});
+      market_lines_.push_back(overlay::line_t{.text = heading, .color = colour_plain()});
 
       for(info::trade_option_t const & trade: *trades)
         {
@@ -1815,7 +1798,7 @@ auto overlay_feed_t::refresh_market(
 
         market_lines_.push_back(
           overlay::line_t{
-            .text = std::format("  {}  {} Cr/t", trade.commodity, format_credits_value(margin)), .color = colour_first
+            .text = std::format("  {}  {} Cr/t", trade.commodity, format_credits_value(margin)), .color = colour_first()
           }
         );
         market_lines_.push_back(
@@ -1830,7 +1813,7 @@ auto overlay_feed_t::refresh_market(
               trade.system.empty() or in_system != 0u ? "" : ", ",
               in_system != 0u ? std::string_view{} : std::string_view{trade.system}
             ),
-            .color = colour_plain
+            .color = colour_plain()
           }
         );
         }
@@ -1849,7 +1832,7 @@ auto overlay_feed_t::refresh_market(
       return;
     // silence would read as nothing being worth it, when mostly it means none of its markets were ever opened
     market_lines_.push_back(
-      overlay::line_t{.text = std::format("{}: no known market trades with here", destination_name), .color = colour_alert}
+      overlay::line_t{.text = std::format("{}: no known market trades with here", destination_name), .color = colour_alert()}
     );
     }
 
@@ -1860,7 +1843,7 @@ auto overlay_feed_t::refresh_market(
 auto overlay_feed_t::refresh_supply() -> void
   {
   auto const now{std::chrono::steady_clock::now()};
-  if(now - supply_loaded_ < supply_refresh)
+  if(now - supply_loaded_ < supply_refresh())
     return;
 
   supply_loaded_ = now;
@@ -1944,7 +1927,7 @@ auto overlay_feed_t::refresh_mission_places(current_state_t const & state) -> vo
 auto overlay_feed_t::refresh_status(current_state_t const & state) -> void
   {
   auto const now{std::chrono::steady_clock::now()};
-  if(now - status_read_ < status_refresh)
+  if(now - status_read_ < status_refresh())
     return;
 
   status_read_ = now;
@@ -1969,7 +1952,7 @@ auto overlay_feed_t::build_target_lines(current_state_t const & state) const -> 
   // call themselves UTC, and a few minutes of drift would either hide every kill or never let one go
   if(
     state.last_bounty.TotalReward != 0u and state.last_bounty_at != std::chrono::steady_clock::time_point{}
-    and std::chrono::steady_clock::now() - state.last_bounty_at < kill_shown
+    and std::chrono::steady_clock::now() - state.last_bounty_at < kill_shown()
   )
     {
     lines.push_back(
@@ -1980,7 +1963,7 @@ auto overlay_feed_t::build_target_lines(current_state_t const & state) const -> 
                                                         : state.last_bounty.PilotName_Localised,
           format_credits_value(uint32_t(std::min<uint64_t>(state.last_bounty.TotalReward, 0xffffffffull)))
         ),
-        .color = colour_first
+        .color = colour_first()
       }
     );
 
@@ -1988,7 +1971,7 @@ auto overlay_feed_t::build_target_lines(current_state_t const & state) const -> 
       lines.push_back(
         overlay::line_t{
           .text = std::format("  {}  {} Cr", reward.Faction, format_credits_value(uint32_t(reward.Reward))),
-          .color = colour_plain
+          .color = colour_plain()
         }
       );
     }
@@ -2005,15 +1988,15 @@ auto overlay_feed_t::build_target_lines(current_state_t const & state) const -> 
     lines.push_back(
       overlay::line_t{
         .text = target.PilotRank.empty() ? pilot : std::format("{}  {}", pilot, target.PilotRank),
-        .color = colour_heading
+        .color = colour_heading()
       }
     );
 
   if(not ship.empty())
-    lines.push_back(overlay::line_t{.text = ship, .color = colour_plain});
+    lines.push_back(overlay::line_t{.text = ship, .color = colour_plain()});
 
   if(not target.Faction.empty())
-    lines.push_back(overlay::line_t{.text = target.Faction, .color = colour_plain});
+    lines.push_back(overlay::line_t{.text = target.Faction, .color = colour_plain()});
 
   if(not target.LegalStatus.empty())
     {
@@ -2029,7 +2012,7 @@ auto overlay_feed_t::build_target_lines(current_state_t const & state) const -> 
     lines.push_back(
       overlay::line_t{
         .text = std::format("hull {:.0f}%   shield {:.0f}%", target.HullHealth, target.ShieldHealth),
-        .color = target.HullHealth < 25.0 ? colour_expiring : colour_plain
+        .color = target.HullHealth < 25.0 ? colour_expiring() : colour_plain()
       }
     );
 
@@ -2041,7 +2024,7 @@ auto overlay_feed_t::build_target_lines(current_state_t const & state) const -> 
           target.Subsystem_Localised.empty() ? target.Subsystem : target.Subsystem_Localised,
           target.SubsystemHealth
         ),
-        .color = colour_plain
+        .color = colour_plain()
       }
     );
 
@@ -2062,7 +2045,7 @@ auto overlay_feed_t::build_crew_lines(current_state_t const & state) const -> st
     lines.push_back(
       overlay::line_t{
         .text = std::format("{}  {}", state.crew_name, combat_rank_name(state.crew_combat_rank)),
-        .color = colour_heading
+        .color = colour_heading()
       }
     );
 
@@ -2072,17 +2055,17 @@ auto overlay_feed_t::build_crew_lines(current_state_t const & state) const -> st
       lines.push_back(
         overlay::line_t{
           .text = state.fighter_crewed ? "fighter out, crew flying" : "fighter out, you are flying",
-          .color = colour_first
+          .color = colour_first()
         }
       );
       break;
 
     case fighter_e::destroyed:
       // the hangar builds another one, so this says wait rather than mourn
-      lines.push_back(overlay::line_t{.text = "fighter destroyed", .color = colour_expiring});
+      lines.push_back(overlay::line_t{.text = "fighter destroyed", .color = colour_expiring()});
       break;
 
-    case fighter_e::stowed: lines.push_back(overlay::line_t{.text = "fighter in the bay", .color = colour_plain}); break;
+    case fighter_e::stowed: lines.push_back(overlay::line_t{.text = "fighter in the bay", .color = colour_plain()}); break;
     }
 
   return lines;
@@ -2131,17 +2114,17 @@ auto overlay_feed_t::build_settlement_lines(current_state_t const & state) const
   auto const now{std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())};
 
   std::vector<overlay::line_t> lines;
-  lines.push_back(overlay::line_t{.text = station_name_, .color = colour_heading});
+  lines.push_back(overlay::line_t{.text = station_name_, .color = colour_heading()});
   if(not station_faction_.empty())
-    lines.push_back(overlay::line_t{.text = std::format("  {}", station_faction_), .color = colour_plain});
+    lines.push_back(overlay::line_t{.text = std::format("  {}", station_faction_), .color = colour_plain()});
 
   auto const add = [&](std::vector<info::mission_t const *> const & group, char const * caption, uint32_t colour)
   {
     if(group.empty())
       return;
 
-    lines.push_back(overlay::line_t{.text = caption, .color = colour_heading});
-    for(info::mission_t const * mission: group | std::views::take(listed_settlement_work))
+    lines.push_back(overlay::line_t{.text = caption, .color = colour_heading()});
+    for(info::mission_t const * mission: group | std::views::take(listed_settlement_work()))
       {
       auto const left{std::chrono::duration_cast<std::chrono::seconds>(mission->expiry - now)};
       auto const count{mission->mission_count()};
@@ -2154,22 +2137,22 @@ auto overlay_feed_t::build_settlement_lines(current_state_t const & state) const
             count > 1u ? std::format("  x{}", count) : std::string{},
             format_remaining(left)
           ),
-          .color = left < expiry_warning ? colour_expiring : colour
+          .color = left < expiry_warning() ? colour_expiring() : colour
         }
       );
       }
 
-    if(group.size() > listed_settlement_work)
+    if(group.size() > listed_settlement_work())
       lines.push_back(
         overlay::line_t{
-          .text = std::format("  ... and {} more", group.size() - listed_settlement_work), .color = colour_plain
+          .text = std::format("  ... and {} more", group.size() - listed_settlement_work()), .color = colour_plain()
         }
       );
   };
 
-  add(hand_in, "hand in here:", colour_first);
-  add(here, "do here:", colour_plain);
-  add(fits, "any settlement of this faction:", colour_plain);
+  add(hand_in, "hand in here:", colour_first());
+  add(here, "do here:", colour_plain());
+  add(fits, "any settlement of this faction:", colour_plain());
 
   return lines;
   }
@@ -2209,7 +2192,7 @@ auto overlay_feed_t::build_supply_lines(events::cargo_file_t const & cargo) cons
   };
 
   std::vector<overlay::line_t> lines;
-  lines.push_back(overlay::line_t{.text = "mission cargo:", .color = colour_heading});
+  lines.push_back(overlay::line_t{.text = "mission cargo:", .color = colour_heading()});
 
   std::set<std::string> missing;
   for(info::cargo_need_t const & need: needs_)
@@ -2240,14 +2223,14 @@ auto overlay_feed_t::build_supply_lines(events::cargo_file_t const & cargo) cons
           : sold_somewhere            ? std::format("   {} sells it, out of stock", seller->station)
                                       : std::string{"   no source known"}
         ),
-        .color = have >= need.count ? colour_first : (known ? colour_plain : colour_alert)
+        .color = have >= need.count ? colour_first() : (known ? colour_plain() : colour_alert())
       }
     );
     }
 
   if(missing.empty())
     {
-    lines.push_back(overlay::line_t{.text = "all aboard", .color = colour_first});
+    lines.push_back(overlay::line_t{.text = "all aboard", .color = colour_first()});
     return lines;
     }
 
@@ -2291,16 +2274,16 @@ auto overlay_feed_t::build_supply_lines(events::cargo_file_t const & cargo) cons
     }
   );
 
-  for(place_t const * place: ranked | std::views::take(listed_sources))
+  for(place_t const * place: ranked | std::views::take(listed_sources()))
     {
     lines.push_back(
       overlay::line_t{
         .text = std::format("{}{}{}", place->station, place->system.empty() ? "" : "  ", place->system),
-        .color = colour_first
+        .color = colour_first()
       }
     );
 
-    for(info::supply_option_t const * item: place->items | std::views::take(listed_commodities))
+    for(info::supply_option_t const * item: place->items | std::views::take(listed_commodities()))
       lines.push_back(
         overlay::line_t{
           .text = std::format(
@@ -2309,7 +2292,7 @@ auto overlay_feed_t::build_supply_lines(events::cargo_file_t const & cargo) cons
             format_credits_value(item->stock),
             format_credits_value(item->buy_price)
           ),
-          .color = colour_plain
+          .color = colour_plain()
         }
       );
     }
@@ -2322,7 +2305,7 @@ auto overlay_feed_t::build_route_lines(current_state_t const & state, plotted_ro
   {
   // a route can run to forty jumps and the side band holds a dozen or so lines - the further ones change
   // nothing about what is being done right now
-  constexpr size_t listed_hops{10};
+  size_t const listed_hops{eht::settings()->overlay.lists.route_hops};
 
   ///\brief at which stars one can refuel
   ///\detail KGBFOAM; the class sometimes comes with a subtype, so what counts is the first letter
@@ -2340,7 +2323,7 @@ auto overlay_feed_t::build_route_lines(current_state_t const & state, plotted_ro
     lines.push_back(
       overlay::line_t{
         .text = std::format("plotted route: {} of {} stops left", left, plotted.waypoints.size()),
-        .color = colour_heading
+        .color = colour_heading()
       }
     );
 
@@ -2357,7 +2340,7 @@ auto overlay_feed_t::build_route_lines(current_state_t const & state, plotted_ro
             waypoint.neutron ? "N no fuel" : "?",
             waypoint.distance
           ),
-          .color = ix == plotted.reached ? colour_first : colour_plain
+          .color = ix == plotted.reached ? colour_first() : colour_plain()
         }
       );
       }
@@ -2368,7 +2351,7 @@ auto overlay_feed_t::build_route_lines(current_state_t const & state, plotted_ro
     {
     lines.push_back(
       overlay::line_t{
-        .text = std::format("game route: {} jumps", std::ranges::distance(pending)), .color = colour_heading
+        .text = std::format("game route: {} jumps", std::ranges::distance(pending)), .color = colour_heading()
       }
     );
 
@@ -2386,7 +2369,7 @@ auto overlay_feed_t::build_route_lines(current_state_t const & state, plotted_ro
             fuel ? " fuel" : "",
             item.distance
           ),
-          .color = fuel ? colour_first : colour_plain
+          .color = fuel ? colour_first() : colour_plain()
         }
       );
       }
@@ -2408,7 +2391,7 @@ auto overlay_feed_t::build_logistics_lines() const -> std::vector<overlay::line_
     lines.push_back(
       overlay::line_t{
         .text = std::format("last port: {}, {} ({})", (*port)->name, (*port)->system, (*port)->station_type),
-        .color = colour_plain
+        .color = colour_plain()
       }
     );
 
@@ -2416,7 +2399,7 @@ auto overlay_feed_t::build_logistics_lines() const -> std::vector<overlay::line_
   if(not pending or pending->empty())
     return lines;
 
-  lines.push_back(overlay::line_t{.text = "ships in transit:", .color = colour_heading});
+  lines.push_back(overlay::line_t{.text = "ships in transit:", .color = colour_heading()});
   for(info::ship_transfer_t const & transfer: *pending)
     {
     auto const left{std::chrono::duration_cast<std::chrono::minutes>(transfer.arrives - now)};
@@ -2432,7 +2415,7 @@ auto overlay_feed_t::build_logistics_lines() const -> std::vector<overlay::line_
           left.count() % 60
         ),
         // the last quarter of an hour is when it pays to be there
-        .color = left < std::chrono::minutes{15} ? colour_first : colour_plain
+        .color = left < std::chrono::minutes{15} ? colour_first() : colour_plain()
       }
     );
     }
@@ -2474,7 +2457,7 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
         // the chart goes under the text, because the names and the current values are what one
         // reads at a glance; the shape of the last ten days is what one studies when there is time
         .corner = overlay::corner_e::top_left,
-        .ttl_ms = block_ttl_ms,
+        .ttl_ms = block_ttl_ms(),
         .lines = std::move(lines),
         .charts = faction_charts_
       }
@@ -2484,7 +2467,7 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
   if(auto exploration{describe_exploration(state.system)}; not exploration.empty())
     frame.blocks.push_back(
       overlay::block_t{
-        .corner = overlay::corner_e::bottom_right, .ttl_ms = block_ttl_ms, .lines = std::move(exploration)
+        .corner = overlay::corner_e::bottom_right, .ttl_ms = block_ttl_ms(), .lines = std::move(exploration)
       }
     );
 
@@ -2502,7 +2485,7 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
     }
   if(auto map{build_system_diagram(state.system, stations_, status_body_, status_destination_)}; map)
     frame.blocks.push_back(
-      overlay::block_t{.corner = overlay::corner_e::bottom_right, .ttl_ms = block_ttl_ms, .diagrams = {std::move(*map)}}
+      overlay::block_t{.corner = overlay::corner_e::bottom_right, .ttl_ms = block_ttl_ms(), .diagrams = {std::move(*map)}}
     );
 
   // what can be done here comes first: it is the only thing on this side that asks nothing of the
@@ -2515,22 +2498,22 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
 
   if(auto aimed{interface_open ? std::vector<overlay::line_t>{} : build_target_lines(state)}; not aimed.empty())
     frame.blocks.push_back(
-      overlay::block_t{.corner = overlay::corner_e::centre_top_left, .ttl_ms = block_ttl_ms, .lines = std::move(aimed)}
+      overlay::block_t{.corner = overlay::corner_e::centre_top_left, .ttl_ms = block_ttl_ms(), .lines = std::move(aimed)}
     );
 
   if(auto crew{interface_open ? std::vector<overlay::line_t>{} : build_crew_lines(state)}; not crew.empty())
     frame.blocks.push_back(
-      overlay::block_t{.corner = overlay::corner_e::centre_top_right, .ttl_ms = block_ttl_ms, .lines = std::move(crew)}
+      overlay::block_t{.corner = overlay::corner_e::centre_top_right, .ttl_ms = block_ttl_ms(), .lines = std::move(crew)}
     );
 
   if(auto settlement{build_settlement_lines(state)}; not settlement.empty())
     frame.blocks.push_back(
-      overlay::block_t{.corner = overlay::corner_e::top_right, .ttl_ms = block_ttl_ms, .lines = std::move(settlement)}
+      overlay::block_t{.corner = overlay::corner_e::top_right, .ttl_ms = block_ttl_ms(), .lines = std::move(settlement)}
     );
 
   if(auto supply{build_supply_lines(state.cargo)}; not supply.empty())
     frame.blocks.push_back(
-      overlay::block_t{.corner = overlay::corner_e::top_right, .ttl_ms = block_ttl_ms, .lines = std::move(supply)}
+      overlay::block_t{.corner = overlay::corner_e::top_right, .ttl_ms = block_ttl_ms(), .lines = std::move(supply)}
     );
 
   // the market underneath, because it is longer and less urgent than what the missions still lack
@@ -2538,7 +2521,7 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
     frame.blocks.push_back(
       overlay::block_t{
         .corner = overlay::corner_e::top_right,
-        .ttl_ms = block_ttl_ms,
+        .ttl_ms = block_ttl_ms(),
         .lines = market_lines_,
         .charts = {},
         // the longest list of all, and every row of it a price
@@ -2548,25 +2531,25 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
 
   if(auto logistics{build_logistics_lines()}; not logistics.empty())
     frame.blocks.push_back(
-      overlay::block_t{.corner = overlay::corner_e::bottom_left, .ttl_ms = block_ttl_ms, .lines = std::move(logistics)}
+      overlay::block_t{.corner = overlay::corner_e::bottom_left, .ttl_ms = block_ttl_ms(), .lines = std::move(logistics)}
     );
 
   // the route on the left, above the hold - in flight it is the thing one looks at
   if(auto route{build_route_lines(state, plotted)}; not route.empty())
     frame.blocks.push_back(
-      overlay::block_t{.corner = overlay::corner_e::bottom_left, .ttl_ms = block_ttl_ms, .lines = std::move(route)}
+      overlay::block_t{.corner = overlay::corner_e::bottom_left, .ttl_ms = block_ttl_ms(), .lines = std::move(route)}
     );
 
   if(auto cargo{describe_cargo(state.cargo)}; not cargo.empty())
     frame.blocks.push_back(
-      overlay::block_t{.corner = overlay::corner_e::bottom_left, .ttl_ms = block_ttl_ms, .lines = std::move(cargo)}
+      overlay::block_t{.corner = overlay::corner_e::bottom_left, .ttl_ms = block_ttl_ms(), .lines = std::move(cargo)}
     );
 
   if(auto missions{describe_missions(state.active_missions, place_owner_)}; not missions.empty())
     frame.blocks.push_back(
       overlay::block_t{
         .corner = overlay::corner_e::bottom_left,
-        .ttl_ms = block_ttl_ms,
+        .ttl_ms = block_ttl_ms(),
         .lines = std::move(missions),
         .charts = {},
         // a list read line by line, not glanced at
@@ -2578,21 +2561,25 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
     frame.blocks.push_back(
       overlay::block_t{
         .corner = overlay::corner_e::bottom_left,
-        .ttl_ms = block_ttl_ms,
+        .ttl_ms = block_ttl_ms(),
         .lines = {overlay::line_t{
           .text = std::format(
             "next: {} ({})",
             state.next_target.Name,
             state.next_target.StarClass.empty() ? "?" : state.next_target.StarClass
           ),
-          .color = colour_plain
+          .color = colour_plain()
         }}
       }
     );
 
+  // the layout rides with every frame: the layer keeps nothing of its own, so a saved settings file shows
+  // in the game at the next frame
+  frame.layout = eht::settings()->overlay.layout;
+
   // the game gets a frame when it has changed or when the keep-alive time has passed - not on every journal event
   auto const now{std::chrono::steady_clock::now()};
-  if(same_content(frame, last_) and now - last_sent_ < heartbeat)
+  if(same_content(frame, last_) and now - last_sent_ < heartbeat())
     return;
 
   frame.seq = ++sequence_;

@@ -1,3 +1,4 @@
+#include <eht_settings.h>
 #include <faction_state_window.h>
 #include <qformat.h>
 #include <qboxlayout.h>
@@ -956,10 +957,10 @@ auto faction_state_window_t::update_conflicts(uint64_t system_address) -> void
     by_pair[{conflict.faction1, conflict.faction2}].push_back(&conflict);
 
   // a finished conflict stays in view only for a day from the moment we saw it end
-  constexpr auto keep_finished{std::chrono::hours{24}};
+  auto const keep_finished{std::chrono::hours{eht::settings()->windows.faction_keep_finished_h}};
   // a conflict lasts at most 7 days from the day it started; after that it is over
   // whether or not we managed to see it end
-  constexpr auto max_duration{std::chrono::days{7}};
+  auto const max_duration{std::chrono::days{eht::settings()->windows.faction_max_duration_d}};
   auto const now{std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())};
 
   std::vector<info::conflict_t> current;
@@ -1165,7 +1166,7 @@ auto faction_state_window_t::update_missions() -> void
 auto faction_state_window_t::update_tick_labels(uint64_t system_address) -> void
   {
   // the wave comes once a day, so asking more often will say nothing new
-  constexpr std::chrono::seconds tick_refresh{60};
+  std::chrono::seconds const tick_refresh{eht::settings()->windows.faction_tick_refresh_s};
 
   auto const checked{std::chrono::steady_clock::now()};
   if(ticks_system_ == system_address and checked - ticks_loaded_ < tick_refresh)
