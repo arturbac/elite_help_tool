@@ -97,11 +97,13 @@ it can take the game down: [overlay/README.md](overlay/README.md).
   the game no longer lists expire by themselves.
 - **What a death would cost**: unsold exobiology, cartography and bounties at risk, moved to the
   middle of the screen when the danger is immediate.
-- **Who probably holds a bounty on you**: the factions you committed a crime with a bounty against
-  since you last paid their bounties, within the last 7 days (`overlay.bounty_days`), with the date of
-  the last one. When the destination or the port you are docked at belongs to one of them, the overlay
-  warns you to pay first. The sums are not shown: the game writes them to no file, and a squadron's
-  Notoriety Decay lowers them without a trace in the journal.
+- **Who probably holds a bounty on you**: the factions you committed crimes with a bounty against
+  since you last paid their bounties, the last of them within 7 days (`overlay.bounty_days`), with its
+  date - and, for a squadron with Notoriety Decay, whose crimes add up to more than one step of it
+  (100k) or were within the last two hours. The notoriety the game wrote at your last login stands
+  beside it. When the destination or the port you are docked at belongs to one of them, the overlay
+  warns you to pay first. The sums are not shown: the game writes them to no file and counts them in
+  amounts the journal does not record.
 - **Your legal state here**: when you are anything but clean in the current system (Wanted, Hostile,
   Speeding...) - which is the controlling faction's jurisdiction only.
 

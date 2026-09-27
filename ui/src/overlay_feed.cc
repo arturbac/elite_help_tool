@@ -2287,11 +2287,9 @@ auto overlay_feed_t::refresh_unsold(current_state_t const & state) -> void
   unsold_bounty_at_ = state.last_bounty_at;
   unsold_read_ = now;
   at_risk_ = bio::at_risk(state.journal_dir_path_, state.owner_fid_);
-  bounty_holders_ = bounty_holders(
-    state.journal_dir_path_,
-    state.owner_fid_,
-    std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())
-      - std::chrono::days{eht::settings()->overlay.bounty_days}
+  auto const wall{std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())};
+  legal_ = legal_standing(
+    state.journal_dir_path_, state.owner_fid_, wall - std::chrono::days{eht::settings()->overlay.bounty_days}, wall
   );
   }
 
@@ -3282,12 +3280,16 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
 
   // Who probably holds a bounty on the commander - worth knowing before flying to their port, since the
   // legal state below is only the jurisdiction of this system's controlling faction
-  if(not bounty_holders_.empty())
+  if(not legal_.holders.empty() or legal_.notoriety != 0u)
     {
     std::vector<overlay::line_t> lines;
-    std::string text{"bounty probably with:"};
-    for(bounty_holder_t const & holder: bounty_holders_)
+    std::string text{legal_.holders.empty() ? "no bounty probably" : "bounty probably with:"};
+    for(bounty_holder_t const & holder: legal_.holders)
       text += std::format("  {} ({:%d.%m})", holder.faction, holder.last_crime);
+    // while notoriety lasts the squadron's decay goes on clearing bounties; once it runs out it stops -
+    // the game writes it only at login
+    if(legal_.notoriety != 0u)
+      text += std::format("   notoriety {} at {:%H:%M}", legal_.notoriety, legal_.notoriety_at);
     lines.push_back(overlay::line_t{.text = std::move(text), .color = colour_alert()});
 
     // a port of one of them as the destination or the place docked at - pay first
@@ -3297,7 +3299,7 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
       for(info::station_t const & station: stations_)
         if(station.name == status_destination_->Name)
           destination_owner = station.controlling_faction;
-    for(bounty_holder_t const & holder: bounty_holders_)
+    for(bounty_holder_t const & holder: legal_.holders)
       if(holder.faction == destination_owner or (state.settlement_market_id_ != 0u and holder.faction == here))
         lines.push_back(
           overlay::line_t{
