@@ -13,12 +13,11 @@ EHT is Artur's project. He wrote all of these himself:
 - the libraries it is built on: [simple_enum](https://github.com/arturbac/simple_enum),
   [small_vectors](https://github.com/arturbac/small_vectors) and
   [stralgo](https://github.com/arturbac/stralgo),
-- all of the first months of development, from the first commit on 25 December 2025 until late
-  September 2026.
+- all of the first months of development.
 
-## Claude (Anthropic) — co-developer since September 2026
+## Claude (Anthropic) — co-developer
 
-Claude joined the project on 25 September 2026. Since then it has developed the next stages
+Claude joined the project recently. Since then it has developed the next stages
 together with Artur, **within the existing architecture**: Artur sets the direction, decides what
 gets built and checks it in the game, and Claude writes and tests the code with him. Commits from
 this collaboration carry a `Co-Authored-By: Claude` line.
