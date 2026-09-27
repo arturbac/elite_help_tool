@@ -3307,6 +3307,24 @@ auto database_storage_t::load_carrier_cargo(uint64_t carrier_id) -> expected_ec<
   );
   }
 
+auto database_storage_t::load_commodity_categories() -> expected_ec<std::map<std::string, std::string>>
+  {
+  auto rows{sqlite::select_from<info::commodity_t>(db_->db, sql_iface::tables::commodity, "")};
+  if(not rows) [[unlikely]]
+    return cxx23::unexpected{rows.error()};
+  std::map<std::string, std::string> categories;
+  for(info::commodity_t const & c: *rows)
+    {
+    // the dictionary writes "Consumer items" - every word capitalised reads as the game shows it
+    std::string category{c.category};
+    for(size_t i{}; i != category.size(); ++i)
+      if((i == 0u or category[i - 1u] == ' ') and category[i] >= 'a' and category[i] <= 'z')
+        category[i] = char(category[i] - 'a' + 'A');
+    categories[info::commodity_key(c.name)] = std::move(category);
+    }
+  return categories;
+  }
+
 auto database_storage_t::load_carrier_cargo_totals() -> expected_ec<std::map<std::string, int64_t>>
   {
   auto rows{sqlite::select_from<info::carrier_cargo_t>(db_->db, sql_iface::tables::carrier_cargo, " WHERE count>0")};

@@ -1,5 +1,10 @@
 #include <construction_window.h>
 #include <qformat.h>
+#include <commodity_facts.h>
+
+#include <qicon.h>
+#include <qpainter.h>
+#include <qpixmap.h>
 
 #include <qboxlayout.h>
 #include <qheaderview.h>
@@ -7,6 +12,7 @@
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
+#include <tuple>
 
 construction_window_t::construction_window_t(current_state_t const & state, std::string db_path, QWidget * parent) :
     QMdiSubWindow(parent),
@@ -142,6 +148,73 @@ auto construction_window_t::refresh_ui(bool force) -> void
   show_site();
   }
 
+namespace
+  {
+///\brief the colour of an economy, as colonisation planners draw it
+[[nodiscard]]
+auto economy_colour(commodity_facts::economy_e e) -> QColor
+  {
+  using commodity_facts::economy_e;
+  switch(e)
+    {
+    case economy_e::agriculture: return QColor{0x7a, 0xcc, 0x00};
+    case economy_e::high_tech:   return QColor{0x00, 0xcc, 0xcc};
+    case economy_e::industrial:  return QColor{0x99, 0x99, 0x00};
+    case economy_e::military:    return QColor{0xbb, 0x00, 0xbb};
+    case economy_e::refinery:    return QColor{0xcc, 0x66, 0x00};
+    case economy_e::extraction:  return QColor{0xcc, 0x33, 0x33};
+    }
+  return Qt::gray;
+  }
+
+///\brief a square in the colours of the economies producing a commodity - one colour whole, several cut
+/// along the diagonal; a dot in the corner for what only ports on the ground produce
+[[nodiscard]]
+auto economy_icon(commodity_facts::fact_t const & fact) -> QIcon
+  {
+  using commodity_facts::economy_e;
+  std::vector<QColor> colours;
+  for(economy_e const e:
+      {economy_e::agriculture,
+       economy_e::high_tech,
+       economy_e::industrial,
+       economy_e::military,
+       economy_e::refinery,
+       economy_e::extraction})
+    if((uint8_t(fact.produced_by) & uint8_t(e)) != 0u)
+      colours.push_back(economy_colour(e));
+  constexpr int side{16};
+  QPixmap pixmap{side, side};
+  pixmap.fill(Qt::transparent);
+  QPainter painter{&pixmap};
+  painter.setPen(Qt::NoPen);
+  if(colours.size() <= 1u)
+    painter.fillRect(0, 0, side, side, colours.empty() ? QColor{Qt::gray} : colours.front());
+  else
+    {
+    // bands across the diagonal, one per economy
+    double const band{2.0 * side / double(colours.size())};
+    for(size_t i{}; i != colours.size(); ++i)
+      {
+      double const from{band * double(i)};
+      double const to{band * double(i + 1u)};
+      QPolygonF band_shape;
+      band_shape << QPointF{from, 0} << QPointF{to, 0} << QPointF{to - side, double(side)}
+                 << QPointF{from - side, double(side)};
+      painter.setBrush(colours[i]);
+      painter.setClipRect(0, 0, side, side);
+      painter.drawPolygon(band_shape);
+      }
+    }
+  if(fact.surface)
+    {
+    painter.setBrush(Qt::white);
+    painter.drawEllipse(QPointF{side - 4.0, side - 4.0}, 3.0, 3.0);
+    }
+  return QIcon{pixmap};
+  }
+  }  // namespace
+
 auto construction_window_t::show_site() -> void
   {
   table_->setRowCount(0);
@@ -175,36 +248,87 @@ auto construction_window_t::show_site() -> void
   if(auto totals{db_.load_carrier_cargo_totals()}; totals)
     carriers = std::move(*totals);
 
+  // by type, then by name - the way the game's own list reads; every type opens with a row of its own
+  std::map<std::string, std::string> categories;
+  if(auto known{db_.load_commodity_categories()}; known)
+    categories = std::move(*known);
+  auto const category_of = [&](info::construction_need_t const & need) -> std::string
+  {
+    if(auto const found{categories.find(need.key)}; found != categories.end())
+      return found->second;
+    if(auto const known{commodity_facts::category_of(need.key)}; known)
+      return std::string{*known};
+    return "Other";
+  };
+  std::vector<info::construction_need_t const *> wanted;
   uint64_t left_total{};
   uint64_t required_total{};
   int done{};
   for(info::construction_need_t const & need: it->needs)
     {
     required_total += need.required;
-    uint32_t const left{need.required > need.provided ? need.required - need.provided : 0u};
-    left_total += left;
-    if(left == 0u)
+    if(need.required <= need.provided)
       {
       ++done;
       continue;
       }
+    left_total += need.required - need.provided;
+    wanted.push_back(&need);
+    }
+  std::ranges::sort(
+    wanted,
+    [&](info::construction_need_t const * a, info::construction_need_t const * b)
+    { return std::tuple{category_of(*a), a->commodity} < std::tuple{category_of(*b), b->commodity}; }
+  );
+
+  auto const number = [](uint64_t v) { return QString::number(qulonglong(v)); };
+  QBrush const band{palette().color(QPalette::Highlight)};
+  QBrush const band_text{palette().color(QPalette::HighlightedText)};
+  std::string last_category;
+  for(info::construction_need_t const * need: wanted)
+    {
+    if(std::string const category{category_of(*need)}; category != last_category)
+      {
+      last_category = category;
+      int const row{table_->rowCount()};
+      table_->insertRow(row);
+      for(int column{}; column != table_->columnCount(); ++column)
+        {
+        auto * cell = new QTableWidgetItem(column == 0 ? QString::fromStdString(category) : QString{});
+        cell->setBackground(band);
+        cell->setForeground(band_text);
+        table_->setItem(row, column, cell);
+        }
+      }
     int const row{table_->rowCount()};
     table_->insertRow(row);
-    auto const number = [](uint64_t v) { return QString::number(qulonglong(v)); };
-    table_->setItem(row, 0, new QTableWidgetItem(QString::fromStdString(need.commodity)));
+    uint32_t const left{need->required - need->provided};
+    auto * name = new QTableWidgetItem(QString::fromStdString(need->commodity));
+    if(auto const fact{commodity_facts::find(need->key)}; fact)
+      name->setIcon(economy_icon(*fact));
+    table_->setItem(row, 0, name);
     table_->setItem(row, 1, new QTableWidgetItem(number(left)));
-    table_->setItem(row, 2, new QTableWidgetItem(number(need.required)));
-    table_->setItem(row, 3, new QTableWidgetItem(number(need.provided)));
-    auto const h{hold.find(need.key)};
+    table_->setItem(row, 2, new QTableWidgetItem(number(need->required)));
+    table_->setItem(row, 3, new QTableWidgetItem(number(need->provided)));
+    auto const h{hold.find(need->key)};
     table_->setItem(row, 4, new QTableWidgetItem(h == hold.end() ? QString{} : number(h->second)));
-    auto const c{carriers.find(need.key)};
+    auto const c{carriers.find(need->key)};
     table_->setItem(
       row, 5, new QTableWidgetItem(c == carriers.end() or c->second <= 0 ? QString{} : number(uint64_t(c->second)))
     );
-    auto const m{here.find(need.key)};
+    auto const m{here.find(need->key)};
     bool const sold{m != here.end() and m->second.stock > 0u and m->second.buy_price > 0u};
     table_->setItem(row, 6, new QTableWidgetItem(sold ? number(m->second.stock) : QString{}));
     table_->setItem(row, 7, new QTableWidgetItem(sold ? number(m->second.buy_price) : QString{}));
+    }
+  if(not wanted.empty())
+    {
+    int const row{table_->rowCount()};
+    table_->insertRow(row);
+    auto * total = new QTableWidgetItem("Sum total:");
+    total->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    table_->setItem(row, 0, total);
+    table_->setItem(row, 1, new QTableWidgetItem(number(left_total)));
     }
   header_->setText(qformat(
     "{} in {}: {:.1f}% built, {} t of {} t left, {} commodities complete. Updated {:%Y-%m-%d %H:%M} UTC.",

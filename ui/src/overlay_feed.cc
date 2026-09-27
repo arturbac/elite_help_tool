@@ -1,4 +1,5 @@
 #include <overlay_feed.h>
+#include <commodity_facts.h>
 #include <eht_settings.h>
 #include <qformat.h>
 
@@ -2026,6 +2027,8 @@ auto overlay_feed_t::refresh_construction(current_state_t const & state) -> void
     construction_read_ = now;
     auto loaded{db_.load_construction_sites()};
     construction_sites_ = loaded ? std::move(*loaded) : std::vector<info::construction_site_t>{};
+    if(auto categories{db_.load_commodity_categories()}; categories)
+      commodity_categories_ = std::move(*categories);
     }
   if(carrier_cargo_changes_ != state.carrier_changes_ or construction_read_ == now)
     {
@@ -2102,24 +2105,52 @@ auto overlay_feed_t::build_construction_lines(current_state_t const & state) con
   size_t const limit{
     eht::settings()->overlay.lists.construction == 0u ? site->needs.size() : eht::settings()->overlay.lists.construction
   };
-  size_t shown{};
+  // by type, then by name - the way the game's own list reads, each type under a line of its own
+  auto const category_of = [&](info::construction_need_t const & need) -> std::string
+  {
+    if(auto const found{commodity_categories_.find(need.key)}; found != commodity_categories_.end())
+      return found->second;
+    if(auto const known{commodity_facts::category_of(need.key)}; known)
+      return std::string{*known};
+    return "Other";
+  };
+  std::vector<info::construction_need_t const *> needed;
   for(info::construction_need_t const & need: site->needs)
+    if(need.required > need.provided)
+      needed.push_back(&need);
+  std::ranges::sort(
+    needed,
+    [&](info::construction_need_t const * a, info::construction_need_t const * b)
+    { return std::tuple{category_of(*a), a->commodity} < std::tuple{category_of(*b), b->commodity}; }
+  );
+
+  // the amounts stand in a column after the longest name
+  size_t name_width{};
+  for(info::construction_need_t const * need: needed)
+    name_width = std::max(name_width, need->commodity.size());
+
+  size_t shown{};
+  std::string last_category;
+  for(info::construction_need_t const * need: needed)
     {
-    if(need.required <= need.provided)
-      continue;
     if(shown == limit)
       break;
     ++shown;
-    uint32_t const left{need.required - need.provided};
-    std::string text{"  " + need.commodity};
-    text.resize(std::max<size_t>(text.size(), 24u), ' ');
+    if(std::string const category{category_of(*need)}; category != last_category)
+      {
+      last_category = category;
+      lines.push_back(overlay::line_t{.text = "  " + category, .color = colour_heading()});
+      }
+    uint32_t const left{need->required - need->provided};
+    std::string text{"    " + need->commodity};
+    text.resize(std::max<size_t>(text.size(), name_width + 4u), ' ');
     text += std::format("{:>6} t", left);
-    auto const h{hold.find(need.key)};
+    auto const h{hold.find(need->key)};
     if(h != hold.end())
       text += std::format("   hold {}", h->second);
-    if(auto const c{carrier_cargo_.find(need.key)}; c != carrier_cargo_.end() and c->second > 0)
+    if(auto const c{carrier_cargo_.find(need->key)}; c != carrier_cargo_.end() and c->second > 0)
       text += std::format("   carriers {}", c->second);
-    auto const m{here.find(need.key)};
+    auto const m{here.find(need->key)};
     if(m != here.end())
       text += std::format("   here {} @ {}", m->second->stock, m->second->buy_price);
     // what can be loaded right here stands out

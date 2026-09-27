@@ -398,6 +398,10 @@ struct database_storage_t
   [[nodiscard]]
   auto load_carrier_cargo(uint64_t carrier_id) -> expected_ec<std::vector<info::carrier_cargo_t>>;
 
+  ///\brief the type of every commodity the market dictionary knows, by commodity key - "Metals", "Consumer Items"
+  [[nodiscard]]
+  auto load_commodity_categories() -> expected_ec<std::map<std::string, std::string>>;
+
   ///\brief what is on all our carriers together, by commodity key
   [[nodiscard]]
   auto load_carrier_cargo_totals() -> expected_ec<std::map<std::string, int64_t>>;
