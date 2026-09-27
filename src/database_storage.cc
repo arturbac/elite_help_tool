@@ -3024,15 +3024,17 @@ auto database_storage_t::store(info::port_visit_t const & value) -> expected_ec<
 auto database_storage_t::load_last_port() -> expected_ec<std::optional<info::port_visit_t>>
   {
   auto res{sqlite::select_from<info::port_visit_t>(
-    db_->db, sql_iface::tables::port_visit, " ORDER BY visited DESC LIMIT 1"
+    db_->db, sql_iface::tables::port_visit, " ORDER BY visited DESC LIMIT 100"
   )};
   if(not res) [[unlikely]]
     return cxx23::unexpected{res.error()};
 
-  if(res->empty())
-    return std::optional<info::port_visit_t>{};
-
-  return std::optional<info::port_visit_t>{std::move((*res)[0])};
+  // visits stored before construction sites were known not to be safe ports are still here - so the rule
+  // is applied once more on the way out
+  for(info::port_visit_t & visit: *res)
+    if(info::is_escape_pod_port(visit.station_type, visit.name))
+      return std::optional<info::port_visit_t>{std::move(visit)};
+  return std::optional<info::port_visit_t>{};
   }
 
 auto database_storage_t::load_bgs_systems() -> expected_ec<std::vector<info::system_ref_t>>

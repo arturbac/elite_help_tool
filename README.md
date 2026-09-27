@@ -38,6 +38,8 @@ process carries no state of ours.
   middle of the screen. Both readouts stand where you look during a fight, clear of the crosshair.
 - **What stands where:** the system and its exploration work on the right, the station's market
   and mission cargo top right, the route, cargo, missions and what a death would cost on the left.
+- **Last port:** where an escape pod would take you, beside the ships in transit. Only ports count:
+  not on-foot settlements, fleet carriers, construction sites or the colonisation ship.
 - **System map:** the bodies and ports of the current system, drawn in the game's colours, with
   arrows at the places open missions send you to.
 - **Readable over anything.** The ground under each block darkens by how bright the game is

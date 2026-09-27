@@ -182,18 +182,6 @@ void process_factions(
     store_influence(db, timestamp, system_address, new_faction_data.oid, f, previously_seen, war_settled);
     }
   }
-///\brief whether one docks a ship at this place
-///
-/// An escape pod on a carrier sends you to the last PORT, not to the last place you stopped at.
-/// On-foot settlements are out, because they have no landing pad for a ship. A carrier is out despite its
-/// pads - checked on 26.09.2026: after a stop at W1V-NXM at 14:33 the pod sent us to Arkush City,
-/// where the stop had been at 14:16
-[[nodiscard]]
-auto is_port(std::string_view station_type) -> bool
-  {
-  return station_type != "OnFootSettlement" and station_type != "FleetCarrier" and not station_type.empty();
-  }
-
   }  // namespace
 
 void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events::event_holder_t && e)
@@ -669,7 +657,7 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
       else if constexpr(std::same_as<T, events::docked_t>)
         {
         // the escape pod sends the character home, and another account's ports mean nothing to it
-        if(state.personal and is_port(event.StationType))
+        if(state.personal and info::is_escape_pod_port(event.StationType, event.StationName))
           if(auto res{state.db_.store(info::port_visit_t{
                .market_id = event.MarketID,
                .name = event.StationName,

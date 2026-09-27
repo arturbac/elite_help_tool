@@ -954,6 +954,21 @@ struct port_visit_t
   std::chrono::sys_seconds visited;
   };
 
+///\brief whether the escape pod can send you back to this place
+///
+/// The pod returns you to the last PORT, not to the last place you stopped at. On-foot settlements are
+/// out, because they have no landing pad for a ship. A carrier is out despite its pads - checked on
+/// 26.09.2026: after a stop at W1V-NXM at 14:33 the pod sent us to Arkush City, where the stop had been at
+/// 14:16. Construction sites are not safe ports either, orbital and planetary alike, nor is the
+/// colonisation ship, which is a system's first site under another name
+[[nodiscard]]
+inline auto is_escape_pod_port(std::string_view station_type, std::string_view station_name) noexcept -> bool
+  {
+  return not station_type.empty() and station_type != "OnFootSettlement" and station_type != "FleetCarrier"
+         and station_type != "PlanetaryConstructionDepot" and station_type != "SpaceConstructionDepot"
+         and not station_name.starts_with("$EXT_PANEL_ColonisationShip");
+  }
+
 ///\brief how much of what has to be brought in total, once open missions are summed
 struct cargo_need_t
   {
