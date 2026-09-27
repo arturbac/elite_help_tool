@@ -1,4 +1,5 @@
 #pragma once
+#include <functional>
 #include <elite_events.h>
 #include <elite_data.h>
 #include <simple_enum/simple_enum.hpp>
@@ -148,6 +149,14 @@ struct current_state_t : public generic_state_t
   current_state_t(main_window_t * p, std::string db_path, std::string journal_path) : generic_state_t{journal_path}, parent{p}, db_{db_path} {}
 
   void handle(std::chrono::sys_seconds timestamp, events::event_holder_t && event) override;
+
+  ///\brief every journal line as written, with whether it is happening now or being replayed
+  std::function<void(std::string_view, bool)> raw_line_listener_;
+  auto raw_line(std::string_view line) -> void override
+    {
+    if(raw_line_listener_)
+      raw_line_listener_(line, not catching_up_);
+    }
   
   void route_system_visited(uint64_t system_address);
 

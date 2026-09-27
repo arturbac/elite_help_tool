@@ -7,6 +7,7 @@ target_sources(eht
   database_import_state.cc
   elite_data.cc
   eht_settings.cc
+  eddn_publisher.cc
   )
 
 target_sources(journal_tailer

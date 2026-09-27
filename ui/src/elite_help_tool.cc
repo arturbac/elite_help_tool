@@ -129,6 +129,15 @@ auto main_window_t::start_monitoring() -> void
   {
   monitoring_started_ = std::chrono::steady_clock::now();
   // the thread touches db_, so it starts only once that is open
+  // EDDN hears every line the journal thread reads; the held scans wait in the tool's own directory
+  eddn_sender_ = std::make_unique<eddn::sender_t>();
+  eddn_publisher_ = std::make_unique<eddn::publisher_t>(
+    std::filesystem::path{state_.journal_dir_path_},
+    std::filesystem::path{"eddn_held.jsonl"},
+    [this](eddn::message_t && message) { eddn_sender_->enqueue(std::move(message)); }
+  );
+  state_.raw_line_listener_ = [this](std::string_view line, bool live) { eddn_publisher_->feed(line, live); };
+
   worker_thread_ = std::jthread([this](std::stop_token stoken) { background_worker(stoken); });
   }
 

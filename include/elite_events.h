@@ -1556,6 +1556,8 @@ struct generic_state_t
 
   auto discovery(std::string_view input) -> void;
   virtual auto handle(std::chrono::sys_seconds timestamp, events::event_holder_t && event) -> void = 0;
+  ///\brief every line as the game wrote it, before any of it is read - for what needs the event whole
+  virtual auto raw_line(std::string_view) -> void {}
   };
 
 ///\brief copies the system description over from a Location/FSDJump event

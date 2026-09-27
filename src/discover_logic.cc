@@ -752,6 +752,7 @@ auto load_cargo(std::string journal_dir_path) -> cxx23::expected<events::cargo_f
 
 auto generic_state_t::discovery(std::string_view input) -> void
   {
+  raw_line(input);
   std::string buffer{input};
   events::generic_event_t gevt;
   auto parse_res{glz::read<glz::opts{.error_on_unknown_keys = false, .error_on_missing_keys = false}>(gevt, buffer)};

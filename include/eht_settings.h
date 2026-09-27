@@ -197,6 +197,21 @@ struct journal_settings_t
   uint32_t progress_write_s{60u};
   };
 
+///\brief what goes to the Elite Dangerous Data Network, and from whom
+///\detail Nothing goes unless enabled and the commander's FID is on a list. What an account on the
+/// exploration list sends is the scans of systems nobody discovered before and nobody lives in - never a
+/// populated system, where the data draws griefers to the influence work. What an account on the
+/// bartender list sends is a carrier bar's stock, at the moment the game writes it
+struct eddn_settings_t
+  {
+  bool enabled{false};
+  ///\brief the test schemas: the gateway checks the messages, but they reach no one listening
+  bool test{true};
+  std::vector<std::string> exploration_commanders{};
+  std::vector<std::string> bartender_commanders{};
+  std::string upload_url{"https://eddn.edcd.io:4430/upload/"};
+  };
+
 struct windows_settings_t
   {
   ///\brief a move of influence smaller than this, in points, is not shown in the BGS window
@@ -245,6 +260,7 @@ struct settings_t
   tick_settings_t ticks;
   journal_settings_t journal;
   windows_settings_t windows;
+  eddn_settings_t eddn;
   };
 
 ///\brief the name of the file, looked for in the directory the tool runs in

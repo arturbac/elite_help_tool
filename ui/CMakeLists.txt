@@ -1,4 +1,7 @@
 find_package(Qt6 REQUIRED COMPONENTS Widgets Charts #[[Sql]])
+# EDDN: HTTPS through Boost.Beast, the messages gzipped
+find_package(OpenSSL REQUIRED)
+find_package(ZLIB REQUIRED)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
@@ -10,6 +13,9 @@ target_link_libraries(elite_help_tool PRIVATE
   eht_overlay_ipc
   Qt6::Widgets 
   Qt6::Charts
+  OpenSSL::SSL
+  OpenSSL::Crypto
+  ZLIB::ZLIB
   # Qt6::Sql
   )
 target_sources(elite_help_tool

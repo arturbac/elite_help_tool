@@ -16,4 +16,5 @@ target_sources(elite_help_tool
   overlay_exploration.cc
   codex.cc
   scanner_sheet.cc
+  eddn_sender.cc
   )

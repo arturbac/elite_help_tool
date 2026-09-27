@@ -10,6 +10,7 @@
 #include <micro_resource_window.h>
 #include <bgs_window.h>
 #include <overlay_feed.h>
+#include <eddn_sender.h>
 
 #include <simple_enum/simple_enum.hpp>
 #include <chrono>
@@ -48,6 +49,9 @@ class main_window_t : public QMainWindow
 
 public:
   journal_log_window_t * jlw_{};
+  ///\brief what goes to EDDN - declared before the journal's thread, so they outlive what feeds them
+  std::unique_ptr<eddn::sender_t> eddn_sender_;
+  std::unique_ptr<eddn::publisher_t> eddn_publisher_;
   current_state_t state_;
   std::jthread worker_thread_;
   QPointer<system_window_t> system_view_;
