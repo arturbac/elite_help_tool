@@ -2108,8 +2108,9 @@ auto overlay_feed_t::build_settlement_owners() const -> std::vector<overlay::lin
     "SpaceConstructionDepot"sv,
     "PlanetaryConstructionDepot"sv
   };
-  // the faction, then its settlements, both in alphabetical order - std::map and std::set keep it so
-  std::map<std::string, std::set<std::string>> by_owner;
+  // the faction, then its settlements, both in alphabetical order - std::map keeps it so; the economy
+  // rides along, since it says what the settlement's missions and its market are about
+  std::map<std::string, std::map<std::string, std::string>> by_owner;
   size_t count{};
   for(info::station_t const & station: stations_)
     {
@@ -2118,7 +2119,7 @@ auto overlay_feed_t::build_settlement_owners() const -> std::vector<overlay::lin
        or station.name.starts_with("$EXT_PANEL_ColonisationShip"))
       continue;
     by_owner[station.controlling_faction.empty() ? std::string{"owner unknown"} : station.controlling_faction]
-      .insert(station.name);
+      .emplace(station.name, station.economy);
     ++count;
     }
   if(by_owner.empty())
@@ -2135,14 +2136,28 @@ auto overlay_feed_t::build_settlement_owners() const -> std::vector<overlay::lin
     };
 
   constexpr std::string_view continued{" (cont.)"};
+  // the economies stand in a column of their own, after the longest name
+  size_t longest_name{};
+  for(auto const & [owner, names]: by_owner)
+    for(auto const & [name, economy]: names)
+      longest_name = std::max(longest_name, name.size());
+
   std::vector<entry_t> entries;
   size_t widest{};
   for(auto const & [owner, names]: by_owner)
     {
     entries.push_back(entry_t{.text = owner, .owner = &owner, .faction = true});
     widest = std::max(widest, owner.size() + continued.size());
-    for(std::string const & name: names)
-      entries.push_back(entry_t{.text = (name == here ? "> " : "  ") + name, .owner = &owner, .faction = false});
+    for(auto const & [name, economy]: names)
+      {
+      std::string text{(name == here ? "> " : "  ") + name};
+      if(not economy.empty())
+        {
+        text.resize(2u + longest_name + 2u, ' ');
+        text += economy;
+        }
+      entries.push_back(entry_t{.text = std::move(text), .owner = &owner, .faction = false});
+      }
     }
   for(entry_t const & entry: entries)
     widest = std::max(widest, entry.text.size());

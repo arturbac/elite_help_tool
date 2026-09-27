@@ -61,7 +61,7 @@ struct overlay_lists_t
   uint32_t settlement_rows{16u};
   ///\brief how many characters of the small text a line of that list may take, all its columns
   /// together; lower it on a narrow side band, and the list keeps to fewer columns
-  uint32_t settlement_line_chars{90u};
+  uint32_t settlement_line_chars{110u};
   uint32_t trades{3u};
   uint32_t route_hops{10u};
   };
