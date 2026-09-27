@@ -151,8 +151,8 @@ on:
   system's cartographic data. Until then nobody else learns what you found.
 - **Fleet carrier bar stock** (`fcmaterials_journal/1`) is the only other thing sent, and only for
   the commanders listed for it.
-- **No markets, missions, BGS, cargo or location** are ever sent. Localised text is stripped as
-  EDDN asks. The message header carries your commander name as `uploaderID`, as with every EDDN
+- **No markets, missions, BGS or cargo** are ever sent, and where you are shows only through the
+  exploration messages above, after the sale. Localised text is stripped as EDDN asks. The message header carries your commander name as `uploaderID`, as with every EDDN
   sender.
 
 ## Three databases
