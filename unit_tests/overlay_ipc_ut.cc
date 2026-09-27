@@ -43,6 +43,14 @@ auto sample_frame(uint64_t sequence) -> overlay::frame_t
       .ttl_ms = 2500u,
       .lines = {
         overlay::line_t{.text = "Bleia Eohn QT-O d7-43", .color = 0x3cb371u},
+        overlay::line_t{.text = "left diff", .color = 0x55aaffu, .swatch_space = true},
+        overlay::line_t{
+          .text = "Steel    578  +142",
+          .color = 0xccccccu,
+          .swatch = {0xcc6600u, 0x00ccccu},
+          .swatch_dot = true,
+          .spans = {overlay::span_t{.from = 12u, .length = 7u, .color = 0x66dd66u}}
+        },
         overlay::line_t{.text = "Camorra of Purui 6.3%", .color = 0xd9534fu}
       }
     }}
@@ -77,9 +85,24 @@ auto main() -> int
       expect(received->frame.blocks.size() == 1_ul);
       expect(received->frame.blocks.front().corner == overlay::corner_e::top_right);
       expect(received->frame.blocks.front().ttl_ms == 2500_u);
-      expect(received->frame.blocks.front().lines.size() == 2_ul);
-      expect(received->frame.blocks.front().lines.front().text == std::string{"Bleia Eohn QT-O d7-43"});
-      expect(received->frame.blocks.front().lines.back().color == 0xd9534fu);
+      auto const & lines{received->frame.blocks.front().lines};
+      expect(lines.size() == 4_ul);
+      expect(lines.front().text == std::string{"Bleia Eohn QT-O d7-43"});
+      expect(lines.back().color == 0xd9534fu);
+      if(lines.size() == 4u)
+        {
+        expect(lines[1].swatch_space);
+        expect(lines[1].swatch.empty());
+        expect(lines[2].swatch.size() == 2_ul);
+        expect(lines[2].swatch_dot);
+        expect(lines[2].spans.size() == 1_ul);
+        if(not lines[2].spans.empty())
+          {
+          expect(lines[2].spans.front().from == 12_u);
+          expect(lines[2].spans.front().length == 7_u);
+          expect(lines[2].spans.front().color == 0x66dd66u);
+          }
+        }
       }
   };
 
