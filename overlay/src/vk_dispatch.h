@@ -16,6 +16,7 @@
 #include <format>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <shared_mutex>
 #include <string_view>
 #include <unordered_map>
@@ -155,6 +156,12 @@ struct swapchain_data_t
   ///\brief a picture that failed once is not tried again; the overlay goes on regardless
   bool capture_broken{};
   capture_buffer_t capture;
+  ///\brief a picture asked for and waiting for its moment, with the frame shown to the player meanwhile
+  std::optional<overlay::capture_t> armed_capture;
+  double capture_due{};
+  ///\brief when the last picture was taken and how large, for the flash and the word that it was
+  double shutter_at{-1.0};
+  float shutter_size{};
 
   VkRenderPass render_pass{};
   VkDescriptorPool descriptor_pool{};

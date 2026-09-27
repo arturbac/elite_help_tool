@@ -41,9 +41,10 @@ public:
   ///\brief asks the layer for a picture of the scan just seen; the request rides in every frame after
   auto ask_for_picture(current_state_t::organic_scan_seen_t const & scan) -> void;
 
-  ///\brief what goes into the frame - the newest request once its moment has come, or none
+  ///\brief what goes into the frame - the newest request, or none
   [[nodiscard]]
-  auto capture_request() -> overlay::capture_t const &;
+  auto capture_request() const -> overlay::capture_t const &
+    { return request_; }
 
   ///\brief files the pictures the layer has finished
   ///\returns true when one was added, and the page is worth writing again
@@ -65,9 +66,6 @@ private:
     };
 
   overlay::capture_t request_;
-  ///\brief a request waiting for the sampler's rings to fade, and when it may go
-  overlay::capture_t delayed_;
-  std::chrono::steady_clock::time_point due_;
   std::vector<pending_t> pending_;
   std::vector<picture_t> pictures_;
   bool pictures_loaded_{};

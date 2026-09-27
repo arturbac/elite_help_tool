@@ -11,6 +11,8 @@
 #include <cmath>
 #include <chrono>
 #include <cstdlib>
+#include <optional>
+#include <string>
 #include <vector>
 
 namespace eht_overlay
@@ -650,6 +652,59 @@ namespace
            and (block.ttl_ms == 0u or age_ms <= block.ttl_ms);
     }
 
+  ///\brief shows where the picture will be and when, then that it was taken
+  ///\detail The picture is copied out before anything of ours is drawn, so the frame never gets into it.
+  /// It stands a little outside the square, so what it marks is the edge and not a strip of the picture
+  auto draw_capture_guide(swapchain_data_t & data, ImVec2 display) -> void
+    {
+    constexpr double snap_s{0.15};
+    constexpr double taken_s{0.5};
+    double const now{now_seconds()};
+    bool const waiting{data.armed_capture.has_value()};
+    bool const taken{not waiting and data.shutter_at >= 0.0 and now - data.shutter_at < taken_s};
+    if(not waiting and not taken)
+      return;
+
+    float const scale{ImGui::GetFontSize() / 13.f};
+    float const size{std::clamp(waiting ? data.armed_capture->size : data.shutter_size, 0.05f, 1.f)};
+    float const side{std::min(std::round(display.y * size), display.x)};
+    ImVec2 const a{(display.x - side) / 2.f, (display.y - side) / 2.f};
+    ImVec2 const b{a.x + side, a.y + side};
+    ImDrawList * const draw{ImGui::GetForegroundDrawList()};
+
+    // corners of a viewfinder rather than a box - the plant stays in view between them. The shutter is
+    // the corners snapping onto the edge and easing back, never a flash: Artur finds bright flashes tiring
+    float margin{side * 0.02f};
+    if(taken and now - data.shutter_at < snap_s)
+      margin *= float((now - data.shutter_at) / snap_s);
+    ImVec2 const fa{a.x - margin, a.y - margin};
+    ImVec2 const fb{b.x + margin, b.y + margin};
+    float const arm{side * 0.12f};
+    float const thick{2.f * scale};
+    ImU32 const frame_colour{taken ? IM_COL32(134, 217, 134, 230) : IM_COL32(255, 255, 255, 190)};
+    for(auto const [x, y, dx, dy]: {std::array{fa.x, fa.y, 1.f, 1.f},
+                                    std::array{fb.x, fa.y, -1.f, 1.f},
+                                    std::array{fa.x, fb.y, 1.f, -1.f},
+                                    std::array{fb.x, fb.y, -1.f, -1.f}})
+      {
+      draw->AddLine(ImVec2{x, y}, ImVec2{x + dx * arm, y}, frame_colour, thick);
+      draw->AddLine(ImVec2{x, y}, ImVec2{x, y + dy * arm}, frame_colour, thick);
+      }
+
+    std::string const text{
+      waiting ? std::format("hold still for the picture  {:.1f} s", std::max(0.0, data.capture_due - now))
+              : std::string{"picture taken"}
+    };
+    ImVec2 const text_size{ImGui::CalcTextSize(text.c_str())};
+    ImVec2 const at{(display.x - text_size.x) / 2.f, fa.y - text_size.y - 8.f * scale};
+    draw->AddRectFilled(
+      ImVec2{at.x - 6.f * scale, at.y - 3.f * scale},
+      ImVec2{at.x + text_size.x + 6.f * scale, at.y + text_size.y + 3.f * scale},
+      IM_COL32(0, 0, 0, 150)
+    );
+    draw->AddText(at, frame_colour, text.c_str());
+    }
+
   auto build_ui(swapchain_data_t & data) -> void
     {
     auto const snapshot{ipc_client().snapshot()};
@@ -756,6 +811,8 @@ namespace
         }
       ImGui::End();
       }
+
+    draw_capture_guide(data, display);
     }
 
   auto destroy_frame(device_data_t & device, frame_resources_t & frame) -> void
@@ -1163,6 +1220,14 @@ auto draw_overlay(
     io.DisplaySize = ImVec2{static_cast<float>(data.extent.width), static_cast<float>(data.extent.height)};
     io.DeltaTime = static_cast<float>(delta);
 
+    // a new request waits for its moment first, and the frame is shown meanwhile
+    // without the copy usage on the images there will be no picture, and a frame promising one would lie
+    if(auto fresh{take_capture_request()}; fresh and data.capturable and not data.capture_broken)
+      {
+      data.capture_due = now + double(fresh->delay_ms) / 1000.0;
+      data.armed_capture = std::move(fresh);
+      }
+
     follow_font_layout(data);
     ImGui_ImplVulkan_NewFrame();
     ImGui::NewFrame();
@@ -1170,7 +1235,12 @@ auto draw_overlay(
     ImGui::Render();
 
     ImDrawData * const draw_data{ImGui::GetDrawData()};
-    auto const request{take_capture_request()};
+    std::optional<overlay::capture_t> request;
+    if(data.armed_capture and now >= data.capture_due)
+      {
+      request = std::move(data.armed_capture);
+      data.armed_capture.reset();
+      }
     bool const nothing_drawn{draw_data == nullptr or draw_data->CmdListsCount == 0};
     if(nothing_drawn and not request)
       return VK_NULL_HANDLE;
@@ -1200,6 +1270,11 @@ auto draw_overlay(
     };
     // the picture comes before the overlay is drawn over the image - it is of the game, not of us
     bool const capturing{request and record_capture(data, frame, image_index, *request)};
+    if(capturing)
+      {
+      data.shutter_at = now;
+      data.shutter_size = request->size;
+      }
 
     device.CmdBeginRenderPass(frame.command_buffer, &pass_info, VK_SUBPASS_CONTENTS_INLINE);
     if(not nothing_drawn)

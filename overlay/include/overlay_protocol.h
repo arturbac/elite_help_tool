@@ -268,6 +268,9 @@ struct capture_t
   std::string path;
   ///\brief the side of the square, as a share of the screen's height
   float size{0.6f};
+  ///\brief how long the layer holds the picture back, showing the player the frame meanwhile - the scan's
+  /// own rings and the sampler sealing the sample are on the screen right after it
+  uint32_t delay_ms{};
   };
 
 ///\brief the full image to draw - replaces the previous one entirely, only the newest counts

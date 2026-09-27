@@ -257,13 +257,15 @@ auto codex_t::ask_for_picture(current_state_t::organic_scan_seen_t const & scan)
     std::format("{:%Y%m%d-%H%M%S}_{}_{}", scan.timestamp, file_safe(scan.scan.Species_Localised), id % 1000u)
   };
 
-  delayed_ = overlay::capture_t{
-    .id = id, .path = (spool_dir() / (stem + ".ppm")).string(), .size = cfg->exploration.capture_size
+  request_ = overlay::capture_t{
+    .id = id,
+    .path = (spool_dir() / (stem + ".ppm")).string(),
+    .size = cfg->exploration.capture_size,
+    .delay_ms = cfg->exploration.capture_delay_ms
   };
-  due_ = std::chrono::steady_clock::now() + std::chrono::milliseconds{cfg->exploration.capture_delay_ms};
   pending_.push_back(
     pending_t{
-      .spool = delayed_.path,
+      .spool = request_.path,
       .picture = picture_t{
         .file = "pictures/" + stem + ".jpg",
         .taken = taken,
@@ -278,20 +280,11 @@ auto codex_t::ask_for_picture(current_state_t::organic_scan_seen_t const & scan)
         .latitude = scan.point ? scan.point->latitude : 0.0,
         .longitude = scan.point ? scan.point->longitude : 0.0
       },
-      .asked = due_
+      // the layer waits before it takes it, and the wait is no sign of a missing layer
+      .asked = std::chrono::steady_clock::now() + std::chrono::milliseconds{cfg->exploration.capture_delay_ms}
     }
   );
   spdlog::info("codex: picture of {} asked for", scan.scan.Species_Localised);
-  }
-
-auto codex_t::capture_request() -> overlay::capture_t const &
-  {
-  if(delayed_.id != 0u and std::chrono::steady_clock::now() >= due_)
-    {
-    request_ = std::move(delayed_);
-    delayed_ = {};
-    }
-  return request_;
   }
 
 auto codex_t::collect() -> bool
