@@ -2173,7 +2173,7 @@ auto overlay_feed_t::build_construction_lines(current_state_t const & state) con
   size_t name_width{};
   for(info::construction_need_t const * need: needed)
     name_width = std::max(name_width, need->commodity.size());
-  size_t const carrier_width{std::max<size_t>(7u, carrier_heading.size() + 1u)};
+  size_t const carrier_width{std::max<size_t>(7u, carrier_heading.size() + 3u)};
   {
   std::string heading(name_width, ' ');
   heading += std::format("{:>7}{:>7}{:>{}}   here", "left", "hold", carrier_heading, carrier_width);
