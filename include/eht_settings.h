@@ -62,6 +62,9 @@ struct overlay_lists_t
   ///\brief how many characters of the small text a line of that list may take, all its columns
   /// together; lower it on a narrow side band, and the list keeps to fewer columns
   uint32_t settlement_line_chars{110u};
+  ///\brief a settlement's name longer than this is cut and ends in "..." - one in nine is, the longest
+  /// run to 40 characters, and the economy after it is what matters when choosing work
+  uint32_t settlement_name_chars{28u};
   uint32_t trades{3u};
   uint32_t route_hops{10u};
   };

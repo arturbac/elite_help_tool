@@ -2114,9 +2114,11 @@ auto overlay_feed_t::build_settlement_owners() const -> std::vector<overlay::lin
   size_t count{};
   for(info::station_t const & station: stations_)
     {
-    // the colonisation ship calls itself a surface station, under a name the game never localised
+    // An approach records a place with no type, so building sites come in by their names too. A name the
+    // game never localised - the colonisation ship, a megaship's operations - is no settlement either
     if(std::ranges::contains(not_settlements, std::string_view{station.station_type})
-       or station.name.starts_with("$EXT_PANEL_ColonisationShip"))
+       or station.name.starts_with('$') or station.name.starts_with("Planetary Construction Site:")
+       or station.name.starts_with("Orbital Construction Site:"))
       continue;
     by_owner[station.controlling_faction.empty() ? std::string{"owner unknown"} : station.controlling_faction]
       .emplace(station.name, station.economy);
@@ -2136,11 +2138,26 @@ auto overlay_feed_t::build_settlement_owners() const -> std::vector<overlay::lin
     };
 
   constexpr std::string_view continued{" (cont.)"};
+  // a long name is cut, the economy after it being what matters; the cut keeps whole UTF-8 characters
+  constexpr std::string_view cut_mark{"..."};
+  size_t const name_chars{std::max<size_t>(eht::settings()->overlay.lists.settlement_name_chars, cut_mark.size() + 4u)};
+  auto const shortened = [&](std::string const & name) -> std::string
+  {
+    if(name.size() <= name_chars)
+      return name;
+    size_t end{name_chars - cut_mark.size()};
+    while(end != 0u and (static_cast<unsigned char>(name[end]) & 0xc0u) == 0x80u)
+      --end;
+    std::string result{name.substr(0u, end)};
+    while(not result.empty() and result.back() == ' ')
+      result.pop_back();
+    return result + std::string{cut_mark};
+  };
   // the economies stand in a column of their own, after the longest name
   size_t longest_name{};
   for(auto const & [owner, names]: by_owner)
     for(auto const & [name, economy]: names)
-      longest_name = std::max(longest_name, name.size());
+      longest_name = std::max(longest_name, shortened(name).size());
 
   std::vector<entry_t> entries;
   size_t widest{};
@@ -2150,7 +2167,7 @@ auto overlay_feed_t::build_settlement_owners() const -> std::vector<overlay::lin
     widest = std::max(widest, owner.size() + continued.size());
     for(auto const & [name, economy]: names)
       {
-      std::string text{(name == here ? "> " : "  ") + name};
+      std::string text{(name == here ? "> " : "  ") + shortened(name)};
       if(not economy.empty())
         {
         text.resize(2u + longest_name + 2u, ' ');
