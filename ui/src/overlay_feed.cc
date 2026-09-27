@@ -2064,6 +2064,7 @@ auto overlay_feed_t::refresh_status(current_state_t const & state) -> void
     {
     gui_focus_ = status->GuiFocus;
     status_flags_ = status->Flags;
+    status_flags2_ = status->Flags2;
     surface_ = overlay_exploration::surface_view_t{
       .body_name = status->BodyName,
       .here = status->Latitude and status->Longitude
@@ -2075,6 +2076,117 @@ auto overlay_feed_t::refresh_status(current_state_t const & state) -> void
     status_body_ = std::move(status->BodyName);
     status_destination_ = std::move(status->Destination);
     }
+  }
+
+auto overlay_feed_t::build_settlement_owners() const -> std::vector<overlay::line_t>
+  {
+  // On foot, and at a place with a market - a port's concourse or a settlement, where the mission boards
+  // are. A taxi is not a place to take work from
+  constexpr uint64_t on_foot_flag{1u << 0u};
+  constexpr uint64_t taxi_flag{1u << 1u};
+  if((status_flags2_ & on_foot_flag) == 0u or (status_flags2_ & taxi_flag) != 0u or market_id_ == 0u)
+    return {};
+
+  // ports in space are not what a job "at a settlement" means, nor are building sites and carriers
+  using namespace std::string_view_literals;
+  static constexpr std::array not_settlements{
+    "Coriolis"sv,
+    "Orbis"sv,
+    "Ocellus"sv,
+    "Outpost"sv,
+    "Bernal"sv,
+    "Dodec"sv,
+    "AsteroidBase"sv,
+    "MegaShip"sv,
+    "FleetCarrier"sv,
+    "SpaceConstructionDepot"sv,
+    "PlanetaryConstructionDepot"sv
+  };
+  // the faction, then its settlements, both in alphabetical order - std::map and std::set keep it so
+  std::map<std::string, std::set<std::string>> by_owner;
+  size_t count{};
+  for(info::station_t const & station: stations_)
+    {
+    if(std::ranges::contains(not_settlements, std::string_view{station.station_type}))
+      continue;
+    by_owner[station.controlling_faction.empty() ? std::string{"owner unknown"} : station.controlling_faction]
+      .insert(station.name);
+    ++count;
+    }
+  if(by_owner.empty())
+    return {};
+
+  // The tree read top to bottom - a faction, then its settlements indented, where we stand marked in the
+  // indent - flows down a column and on into the next one when it reaches the floor
+  struct entry_t
+    {
+    std::string text;
+    ///\brief the faction a settlement belongs to - repeated at the top of a column it spills into
+    std::string const * owner;
+    bool faction;
+    };
+
+  constexpr std::string_view continued{" (cont.)"};
+  std::vector<entry_t> entries;
+  size_t widest{};
+  for(auto const & [owner, names]: by_owner)
+    {
+    entries.push_back(entry_t{.text = owner, .owner = &owner, .faction = true});
+    widest = std::max(widest, owner.size() + continued.size());
+    for(std::string const & name: names)
+      entries.push_back(
+        entry_t{.text = (name == station_name_ ? "> " : "  ") + name, .owner = &owner, .faction = false}
+      );
+    }
+  for(entry_t const & entry: entries)
+    widest = std::max(widest, entry.text.size());
+
+  auto const cfg{eht::settings()};
+  size_t const rows{std::max<size_t>(cfg->overlay.lists.settlement_rows, 2u)};
+  // the text is monospaced, so a column is its widest line and two spaces; three at most
+  size_t const pitch{widest + 2u};
+  size_t const most_columns{std::clamp<size_t>(cfg->overlay.lists.settlement_line_chars / pitch, 1u, 3u)};
+
+  std::vector<std::vector<std::string>> columns(1u);
+  size_t shown{};
+  for(entry_t const & entry: entries)
+    {
+    // a faction never stands alone at the foot of a column, away from its settlements
+    bool const full{columns.back().size() >= rows or (entry.faction and columns.back().size() + 1u >= rows)};
+    if(full and not columns.back().empty())
+      {
+      if(columns.size() == most_columns)
+        break;
+      columns.emplace_back();
+      // a faction's list going on in the new column says whose it still is
+      if(not entry.faction)
+        columns.back().push_back(*entry.owner + std::string{continued});
+      }
+    columns.back().push_back(entry.text);
+    shown += entry.faction ? 0u : 1u;
+    }
+
+  std::vector<overlay::line_t> lines;
+  // only the places visited or flown close to are known - the game lists no others, and nothing is downloaded
+  lines.push_back(
+    overlay::line_t{.text = std::format("settlements known here: {}", count), .color = colour_heading()}
+  );
+  size_t const height{std::ranges::max(columns, {}, &std::vector<std::string>::size).size()};
+  for(size_t row{}; row != height; ++row)
+    {
+    std::string text;
+    for(size_t column{}; column != columns.size(); ++column)
+      {
+      if(row >= columns[column].size())
+        continue;
+      text.resize(column * pitch, ' ');
+      text += columns[column][row];
+      }
+    lines.push_back(overlay::line_t{.text = std::move(text), .color = colour_plain()});
+    }
+  if(shown != count)
+    lines.push_back(overlay::line_t{.text = std::format("... and {} more", count - shown), .color = colour_plain()});
+  return lines;
   }
 
 /// head. Nothing here is remembered - the moment the target is let go there is nothing to show.
@@ -2789,6 +2901,18 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
         .lines = std::move(missions),
         .charts = {},
         // a list read line by line, not glanced at
+        .text = overlay::text_e::small
+      }
+    );
+
+  if(auto owners{build_settlement_owners()}; not owners.empty())
+    frame.blocks.push_back(
+      overlay::block_t{
+        .corner = overlay::corner_e::bottom_left,
+        .ttl_ms = block_ttl_ms(),
+        .lines = std::move(owners),
+        .charts = {},
+        // looked up before taking a job, not glanced at in flight
         .text = overlay::text_e::small
       }
     );

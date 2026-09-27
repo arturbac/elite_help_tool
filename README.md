@@ -76,6 +76,11 @@ it can take the game down: [overlay/README.md](overlay/README.md) (in Polish).
 - **Where to go**: arrows on the system map at the bodies and ports missions send you to. At a
   settlement, what to hand in here, what to do here, and the faction-wide jobs that count at any
   settlement of that faction.
+- **Who holds which settlement**: on foot in a port or at a settlement, where the mission boards
+  are, a small list in the left band shows the system's settlements under the factions holding
+  them, both in alphabetical order, flowing into a second and third column when long. The board
+  never says whose a settlement is, and a job there moves that faction's influence. Only
+  settlements you have visited or flown close to are known.
 - **Mission cargo**: the goods delivery missions still need against what is in the hold, and the
   known markets and producers that supply them.
 - **What is really paid**: the reward is taken from the hand-in, not from the offer, and missions

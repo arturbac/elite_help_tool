@@ -64,6 +64,10 @@ private:
   ///\brief what the open missions can be advanced with without flying anywhere
   [[nodiscard]]
   auto build_settlement_lines(current_state_t const & state) const -> std::vector<overlay::line_t>;
+  ///\brief the system's settlements under the factions holding them - on foot at a mission board, before
+  /// taking a job that sends one to a settlement, the board never says whose it is
+  [[nodiscard]]
+  auto build_settlement_owners() const -> std::vector<overlay::line_t>;
 
   ///\brief who holds the places the open missions point at - the journal does not say
   auto refresh_mission_places(current_state_t const & state) -> void;
@@ -126,6 +130,8 @@ private:
   uint32_t gui_focus_{};
   ///\brief the ship's flags from Status.json
   uint64_t status_flags_{};
+  ///\brief the commander's own flags from Status.json - on foot, in a taxi, in a hangar
+  uint64_t status_flags2_{};
   ///\brief the body the game says we are at, empty away from any
   std::string status_body_;
   ///\brief where on the body we stand, and what we hold - for the samples

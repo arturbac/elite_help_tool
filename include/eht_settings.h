@@ -56,6 +56,12 @@ struct overlay_lists_t
   uint32_t commodities{3u};
   uint32_t sources{2u};
   uint32_t settlement_work{4u};
+  ///\brief how tall a column of the settlements-by-owner list shown on foot grows, in lines - the list
+  /// goes on in the next column, as in a newspaper, up to three
+  uint32_t settlement_rows{16u};
+  ///\brief how many characters of the small text a line of that list may take, all its columns
+  /// together; lower it on a narrow side band, and the list keeps to fewer columns
+  uint32_t settlement_line_chars{90u};
   uint32_t trades{3u};
   uint32_t route_hops{10u};
   };
