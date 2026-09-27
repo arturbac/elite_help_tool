@@ -1,7 +1,7 @@
 # elite_help_tool
-Elite Dangerous exploration planet visiting optimisation tool
+Elite Dangerous companion: journal tracking and in-game overlay for exploration, exobiology and BGS
 
-This is a realtime tool that helps explore a system, map valuable planets and optimise the visiting route. I wrote it in a few hours in C++23, for my own pleasure of exploration in Elite Dangerous.
+EHT (Elite Help Tool) is a companion for Elite Dangerous that follows the game's journal as you play and draws what matters straight into the game through a Vulkan overlay. It started as a way to plan exploration, deciding which planets are worth mapping and in what order. Since then it has grown to cover exobiology with species prediction and a codex, BGS work with tick tracking and influence history, missions, trade and in-game screenshots. Written in C++23, out of my own love of exploring the galaxy.
 
 ![at_work](at_work.png)
 
