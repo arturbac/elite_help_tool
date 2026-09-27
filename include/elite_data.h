@@ -2,6 +2,8 @@
 #include <elite_events.h>
 #include <algorithm>
 #include <array>
+#include <format>
+#include <string>
 #include <string_view>
 
 namespace info
@@ -370,6 +372,19 @@ struct construction_site_t
   std::vector<construction_need_t> needs;
   bool abandoned{};
   };
+
+///\brief a site's name as shown - without the "Planetary/Orbital Construction Site: " the game puts before
+/// it, which tells the builder nothing; the stored name keeps it, as the game's destination does
+[[nodiscard]]
+inline auto shown_name(construction_site_t const & site) -> std::string
+  {
+  std::string_view name{site.name};
+  for(std::string_view const prefix: {std::string_view{"Planetary Construction Site: "},
+                                      std::string_view{"Orbital Construction Site: "}})
+    if(name.starts_with(prefix))
+      name.remove_prefix(prefix.size());
+  return name.empty() ? std::format("site {}", site.depot.market_id) : std::string{name};
+  }
 
 ///\brief one move of a carrier as the journal tells it: a jump ordered or cancelled, a position, a jump seen aboard
 struct carrier_movement_t

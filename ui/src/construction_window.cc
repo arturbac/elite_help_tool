@@ -136,7 +136,7 @@ auto construction_window_t::refresh_ui(bool force) -> void
     site_combo_->addItem(
       qformat(
         "{}  -  {}  ({:.0f}%, seen {:%Y-%m-%d}){}",
-        site.name.empty() ? std::format("site {}", site.depot.market_id) : site.name,
+        info::shown_name(site),
         site.system,
         site.depot.progress * 100.0,
         site.depot.updated,
@@ -361,7 +361,7 @@ auto construction_window_t::show_site() -> void
     }
   header_->setText(qformat(
     "{} in {}: {:.1f}% built, {} t of {} t left, {} commodities complete. Updated {:%Y-%m-%d %H:%M} UTC.",
-    it->name,
+    info::shown_name(*it),
     it->system,
     it->depot.progress * 100.0,
     left_total,
