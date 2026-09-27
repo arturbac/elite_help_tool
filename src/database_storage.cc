@@ -2658,15 +2658,25 @@ auto database_storage_t::last_local_tick(uint64_t system_address, info::tick_kin
   -> expected_ec<std::optional<std::chrono::sys_seconds>>
   {
   // influence changes at the influence tick, days won at the war tick - so each clock has a table
-  // of its own and a last change of its own
+  // of its own and a last change of its own. A row of influence is written for a changed state too, and the
+  // game names a faction's state differently on FSDJump and on Location (Retreat, then None, with the same
+  // influence) - so only a row whose influence differs from the one before is a sign of the tick
   auto res{sqlite::select_signle_from<std::chrono::sys_seconds>(
     db_->db,
-    std::format(
-      "SELECT timestamp FROM {} WHERE system_address={} ORDER BY timestamp DESC LIMIT 1",
-      kind == info::tick_kind_e::influence ? sql_iface::tables::faction_influence
-                                           : sql_iface::tables::system_conflict,
-      system_address
-    )
+    kind == info::tick_kind_e::influence
+      ? std::format(
+          "SELECT timestamp FROM (SELECT timestamp, influence,"
+          " LAG(influence) OVER (PARTITION BY faction_oid ORDER BY timestamp) AS previous"
+          " FROM {} WHERE system_address={})"
+          " WHERE previous IS NULL OR abs(influence - previous) > 1e-9 ORDER BY timestamp DESC LIMIT 1",
+          sql_iface::tables::faction_influence,
+          system_address
+        )
+      : std::format(
+          "SELECT timestamp FROM {} WHERE system_address={} ORDER BY timestamp DESC LIMIT 1",
+          sql_iface::tables::system_conflict,
+          system_address
+        )
   )};
   if(not res) [[unlikely]]
     return cxx23::unexpected{res.error()};

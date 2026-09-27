@@ -291,6 +291,37 @@ int main()
   };
 
 
+  "the last tick in a system is the last change of influence, not of a state"_test = [&]
+  {
+    using namespace std::chrono;
+    constexpr uint64_t flicker{4242424243ull};
+
+    expect(bool(dbs.update_faction_info(info::faction_info_t{.name = "Flickerers"})));
+    auto oid{dbs.faction_oid("Flickerers")};
+    expect(oid and *oid);
+
+    sys_seconds const tick{sys_days{2026y / 9 / 26} + 14h};
+    // FSDJump says Retreat, Location says None - the same influence each time
+    expect(bool(dbs.store(info::faction_influence_t{
+      .faction_oid = int64_t(**oid), .system_address = flicker, .timestamp = tick - 24h, .influence = 0.12
+    })));
+    expect(bool(dbs.store(info::faction_influence_t{
+      .faction_oid = int64_t(**oid), .system_address = flicker, .timestamp = tick, .influence = 0.105
+    })));
+    for(auto const [offset, state]: {std::pair{4h, "Retreat"}, std::pair{5h, "None"}, std::pair{6h, "Retreat"}})
+      expect(bool(dbs.store(info::faction_influence_t{
+        .faction_oid = int64_t(**oid),
+        .system_address = flicker,
+        .timestamp = tick + offset,
+        .influence = 0.105,
+        .faction_state = state
+      })));
+
+    auto last{dbs.last_local_tick(flicker, info::tick_kind_e::influence)};
+    expect(last and last->has_value());
+    expect(last and last->has_value() and **last == tick) << "a state named anew was taken for the tick";
+  };
+
   "a galaxy rebuild loses no progress"_test = [&]
   {
     dbs.close();

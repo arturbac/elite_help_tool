@@ -74,6 +74,9 @@ For a given system, `describe_tick` (`ui/src/current_state.cc`) shows two things
 
 - **"changed dd.mm HH:MM"**: when you last saw influence change in this very system. Read it as
   "the tick was here no later than this". It is delayed by your own visit, so it is not a window.
+  A reading that brings only a different faction state does not count: the game names the same state
+  differently on `FSDJump` and on `Location` (a faction in retreat shows `Retreat`, then `None`, with
+  the same influence), so each jump would otherwise read as a tick just now.
 - **galaxy `start–end UTC (N sys)`**: the window of the newest wave across the galaxy. The tick of
   your system lies within it, usually well inside, since systems are at most a few hours apart.
 
