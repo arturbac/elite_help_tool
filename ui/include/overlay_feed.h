@@ -144,6 +144,8 @@ private:
   uint32_t gui_focus_{};
   ///\brief the ship's flags from Status.json
   uint64_t status_flags_{};
+  ///\brief the standing with the law in this system, from Status.json
+  std::string legal_state_;
   ///\brief the commander's own flags from Status.json - on foot, in a taxi, in a hangar
   uint64_t status_flags2_{};
   ///\brief the body the game says we are at, empty away from any

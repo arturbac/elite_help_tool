@@ -1249,6 +1249,10 @@ struct status_file_t
   std::optional<double> PlanetRadius;
   ///\brief what the commander holds on foot - the genetic sampler says a sample is being taken
   std::string SelectedWeapon;
+  ///\brief the commander's standing with the law in this system - Clean, Wanted, Hostile, Speeding,
+  /// IllegalCargo, PassengerWanted, Warrant. The only word of bounties the game gives: their sums are
+  /// in no file, and a squadron's Notoriety Decay changes them without a trace
+  std::string LegalState;
   };
 
 struct market_file_t

@@ -2326,6 +2326,7 @@ auto overlay_feed_t::refresh_status(current_state_t const & state) -> void
     {
     gui_focus_ = status->GuiFocus;
     status_flags_ = status->Flags;
+    legal_state_ = status->LegalState;
     status_flags2_ = status->Flags2;
     surface_ = overlay_exploration::surface_view_t{
       .body_name = status->BodyName,
@@ -3272,6 +3273,17 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
         }
       );
     }
+
+  // Wanted here, or worse - the game's own word, and the only one: the sums of bounties are in no file,
+  // and a squadron's Notoriety Decay changes them without a trace in the journal
+  if(not legal_state_.empty() and legal_state_ != "Clean")
+    frame.blocks.push_back(
+      overlay::block_t{
+        .corner = overlay::corner_e::bottom_left,
+        .ttl_ms = block_ttl_ms(),
+        .lines = {overlay::line_t{.text = std::format("legal state here: {}", legal_state_), .color = colour_alert()}}
+      }
+    );
 
   if(auto cargo{describe_cargo(state.cargo)}; not cargo.empty())
     frame.blocks.push_back(
