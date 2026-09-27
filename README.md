@@ -16,7 +16,80 @@ EHT (Elite Help Tool) is a companion for Elite Dangerous that follows the game's
 - [How the BGS tick window is worked out](doc/bgs_tick.md)
 - [Contributors](doc/contributors.md)
 
-## Exploration
+## In-game overlay
+
+A Vulkan layer loaded into the game's process draws EHT's information straight into the frame. It
+works in fullscreen, and under Wayland, where no other window may sit on top of the game. The
+layer only draws what the tool sends it. The database and the logic stay in EHT, so the game
+process carries no state of ours.
+
+- **Side bands.** On a wide or triple screen the middle belongs to the game, so the blocks stay in
+  the side bands and long text wraps instead of growing towards the centre.
+- **Head-up readouts** flank the centre of the middle screen: the target in a fight, crew, and the
+  sample in progress on foot. They give way to any interface that takes over that screen, such as
+  the galaxy map.
+- **What stands where:** the system and its exploration work on the right, the station's market
+  and mission cargo top right, the route, cargo, missions and what a death would cost on the left.
+- **System map:** the bodies and ports of the current system, drawn in the game's colours, with
+  arrows at the places open missions send you to.
+- **Readable over anything.** The ground under each block darkens by how bright the game is
+  beneath it, so the text stays legible over an ice planet as over black space.
+- **F11** saves a screenshot of the whole screen, overlay included.
+
+The layout (text size, band widths, where the readouts stand, opacity) comes from
+`eht_settings.json` and changes live. The Steam launch option is one variable:
+[doc/building_and_running.md](doc/building_and_running.md). How the layer works and why nothing in
+it can take the game down: [overlay/README.md](overlay/README.md) (in Polish).
+
+## BGS
+
+- **Influence at a glance.** In a system, the overlay shows the factions with their influence and
+  states, a chart of the last 20 days of influence, and the last tick.
+- **Tick tracking.** The daily tick is reconstructed from your own journals as galaxy-wide waves,
+  even though systems are visited rarely. The start of the wave is the deadline for handing in
+  missions, and the influence tick and the war tick are kept apart:
+  [doc/bgs_tick.md](doc/bgs_tick.md).
+- **Effort against result.** The BGS window lists, per system, day and faction, the missions
+  handed in, the pluses of influence pushed up or down, the influence before and after the tick,
+  and the pluses it took per percentage point. That cost depends on the system's population, so it
+  is never averaged across systems.
+- **Wars.** The overlay counts the war ticks left until a conflict is settled, and says when the
+  next one decides it. The BGS window lists the days won on both sides.
+- `journal_tailer --ticks`, `--bgs` and `--wars` print the same analyses in the terminal.
+
+## Mission tracking
+
+- **Missions window**: every open mission with its status, type, description, faction, count,
+  reward and destination, ready ones in their own colour. A *Massacre Stacking* tab sums the kills
+  wanted and done per target system and faction.
+- **On the overlay**: open missions grouped by the place they are owed to, with the time left, the
+  giving faction and the owner of the destination. Missions ready to hand in are marked green, and
+  those with less than 3 hours left turn red.
+- **Where to go**: arrows on the system map at the bodies and ports missions send you to. At a
+  settlement, what to hand in here, what to do here, and the faction-wide jobs that count at any
+  settlement of that faction.
+- **Mission cargo**: the goods delivery missions still need against what is in the hold, and the
+  known markets and producers that supply them.
+- **What is really paid**: the reward is taken from the hand-in, not from the offer, and missions
+  the game no longer lists expire by themselves.
+- **What a death would cost**: unsold exobiology, cartography and bounties at risk, moved to the
+  middle of the screen when the danger is immediate.
+
+## Trade
+
+- **The station's market on the overlay**: what it pays above and sells below the galactic
+  average, beyond 25% and 500 Cr/t, with minerals that pay well only from mining listed apart.
+- **Best known trades**: what to bring here and what to take from here, against every market you
+  have ever opened. Each line gives the margin per tonne, the tonnes (capped by your hold, the stock
+  and the demand), the profit of the run and the station. With a route plotted, it looks for what to
+  take to its end and what to bring back.
+- **Fleet carrier bars**: the bartender's shelf of every carrier visited, with prices and sold-out
+  items, filterable to your own carriers. Where each material came from is tracked too, collected
+  or from missions, over 30 days, 90 days or all time.
+- Market data is recorded when you open the commodity market, and kept in `live.sqlite`, the one
+  database that cannot be rebuilt from journals.
+
+## Exploration and exobiology
 
 The bottom right corner of the overlay follows the order of work in a new system:
 
@@ -37,7 +110,7 @@ species, price, 1/3–3/3 and the distance from the nearest earlier sample again
 counted live from `Status.json` — a green "sample" when you may take the next one. Below it, what else
 grows on this body.
 
-## Codex
+### Codex
 
 With every sample the layer takes a picture of the centre of the screen (see `overlay/README.md`), and
 the tool puts it in `codex/pictures/` next to itself, described in `codex/pictures.json`.
@@ -49,11 +122,6 @@ rebuilt from the journals, the pictures cannot.
 
 Settings are in the `exploration` section of `eht_settings.json`: `bio_worth`, `bio_bodies`,
 `candidates`, `capture`, `capture_size`, `codex_dir`, `jpeg_quality`.
-
-## BGS tick
-
-How EHT works out from the journals when the daily influence and war ticks happened, even though
-systems are visited rarely: [doc/bgs_tick.md](doc/bgs_tick.md).
 
 ## Three databases
 
