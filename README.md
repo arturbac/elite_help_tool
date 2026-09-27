@@ -142,8 +142,9 @@ it can take the game down: [overlay/README.md](overlay/README.md).
   departure, as the journals show, and the time is marked with a tilde.
 - **What is on each carrier.** The game does not say what a squadron's carrier holds, so EHT keeps it:
   on docking at one of our carriers it notes the hold, and on leaving what the hold has less of is added
-  to the carrier and what it has more of is taken off. Leaving by escape pod leaves the whole load
-  there. The *Carrier cargo* tab of the Data window shows it and lets you correct any count by hand.
+  to the carrier and what it has more of is taken off. A ship changed there - a small one taken so as
+  not to run far across the pad - stays with its whole hold, and leaving by escape pod leaves the load
+  too; taking the big ship back and flying off with its hold takes it off the carrier again. The *Carrier cargo* tab of the Data window shows it and lets you correct any count by hand.
   It is kept in `live.sqlite`, as it cannot be rebuilt from journals, and it counts only while EHT runs.
 - **In the colony's service**: the Construction window and the site on the overlay show, beside each
   commodity still needed, how much of it our carriers hold.

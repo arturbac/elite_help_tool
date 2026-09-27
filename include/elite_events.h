@@ -1065,6 +1065,19 @@ struct carrier_jump_t
   uint64_t MarketID{};
   };
 
+///\brief changing ships at a shipyard - the ship left behind keeps its hold
+struct shipyard_swap_t
+  {
+  std::string ShipType;
+  uint64_t MarketID{};
+  };
+
+///\brief waking up again - after a death, or leaving by escape pod ("escape"), which leaves no death behind
+struct resurrect_t
+  {
+  std::string Option;
+  };
+
 ///\brief a system claimed for colonisation - by the commander of the session
 struct colonisation_system_claim_t
   {
@@ -1445,7 +1458,9 @@ using event_holder_t = std::variant<
   carrier_jump_request_t,
   carrier_location_t,
   carrier_jump_cancelled_t,
-  carrier_jump_t>;
+  carrier_jump_t,
+  shipyard_swap_t,
+  resurrect_t>;
 
   }  // namespace events
 

@@ -163,7 +163,7 @@ struct current_state_t : public generic_state_t
   std::optional<carrier_visit_t> carrier_visit_;
   ///\brief applies the balance of a visit to the carrier - the hold at docking against the hold now, or,
   /// leaving by escape pod, the whole hold as it was at docking
-  auto close_carrier_visit(std::chrono::sys_seconds when, bool escaped) -> void;
+  auto close_carrier_visit(std::chrono::sys_seconds when, bool escaped, std::string_view source) -> void;
   bool personal_{true};
 
   current_state_t(main_window_t * p, std::string db_path, std::string journal_path) : generic_state_t{journal_path}, parent{p}, db_{db_path} {}

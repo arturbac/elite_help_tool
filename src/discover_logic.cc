@@ -885,6 +885,9 @@ auto generic_state_t::discovery(std::string_view input) -> void
     case CarrierLocation:      parse_and_handle.template operator()<events::carrier_location_t>(); break;
     case CarrierJumpCancelled: parse_and_handle.template operator()<events::carrier_jump_cancelled_t>(); break;
     case CarrierJump:          parse_and_handle.template operator()<events::carrier_jump_t>(); break;
+    // what is left on a carrier: the ship changed there keeps its hold, and so does one left by escape pod
+    case ShipyardSwap:         parse_and_handle.template operator()<events::shipyard_swap_t>(); break;
+    case Resurrect:            parse_and_handle.template operator()<events::resurrect_t>(); break;
     case CarrierStats:      parse_and_handle.template operator()<events::carrier_stats_t>(); break;
     case FCMaterials:
         {

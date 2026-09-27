@@ -714,7 +714,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           {
           settlement_market_id_ = 0;
           if(not catching_up_)
-            close_carrier_visit(timestamp, false);
+            close_carrier_visit(timestamp, false, "docking");
           }
         else if constexpr(std::same_as<T, events::backpack_change_t>)
           {
@@ -821,11 +821,24 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
         else if constexpr(std::same_as<T, events::embark_t>)
           ground_cz_.embark();
         else if constexpr(std::same_as<T, events::died_t>)
-          {
           ground_cz_.died();
-          // leaving a carrier by escape pod leaves the whole load on it
+        else if constexpr(std::same_as<T, events::shipyard_swap_t>)
+          {
+          // A smaller ship taken at the carrier, so as not to run far across the pad: the big one stays there
+          // with its whole hold. The ship taken brings its own hold off the carrier - what it carries on
+          // leaving is taken off, as if it had docked empty
+          if(not catching_up_ and carrier_visit_ and carrier_visit_->carrier_id == event.MarketID)
+            {
+            uint64_t const carrier{carrier_visit_->carrier_id};
+            close_carrier_visit(timestamp, true, "ship left on carrier");
+            carrier_visit_ = carrier_visit_t{.carrier_id = carrier, .hold = {}};
+            }
+          }
+        else if constexpr(std::same_as<T, events::resurrect_t>)
+          {
+          // leaving a carrier by escape pod leaves the load on it - the journal writes no death for it
           if(not catching_up_)
-            close_carrier_visit(timestamp, true);
+            close_carrier_visit(timestamp, true, "escape pod");
           }
         // colonisation: whose systems, what a site needs, what came to it
         else if constexpr(std::same_as<T, events::colonisation_system_claim_t>)
@@ -1709,7 +1722,7 @@ auto describe_tick(
   return view;
   }
 
-auto current_state_t::close_carrier_visit(std::chrono::sys_seconds when, bool escaped) -> void
+auto current_state_t::close_carrier_visit(std::chrono::sys_seconds when, bool escaped, std::string_view source) -> void
   {
   if(not carrier_visit_)
     return;
@@ -1742,7 +1755,7 @@ auto current_state_t::close_carrier_visit(std::chrono::sys_seconds when, bool es
     if(auto res{db_.change_carrier_cargo(
          info::carrier_cargo_change_t{
            .timestamp = when, .carrier_id = visit.carrier_id, .key = key, .commodity = name, .delta = had - has,
-           .source = escaped ? "escape pod" : "docking"
+           .source = std::string{source}
          }
        )};
        not res)
