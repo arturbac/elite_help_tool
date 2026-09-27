@@ -62,7 +62,7 @@ auto construction_window_t::setup_ui() -> void
   supply->addWidget(new QLabel("Supplied from:", central));
   carrier_combo_ = new QComboBox(central);
   carrier_combo_->setToolTip("The carrier this site is supplied from - the Diff column compares its cargo with what is left");
-  carrier_combo_->addItem("no carrier", QVariant::fromValue(qulonglong{0}));
+  carrier_combo_->addItem("all our carriers", QVariant::fromValue(qulonglong{0}));
   if(auto carriers{db_.load_carriers()}; carriers)
     for(info::carrier_t const & c: *carriers)
       if(c.tracked or c.carrier_type == "SquadronCarrier")
@@ -85,7 +85,7 @@ auto construction_window_t::setup_ui() -> void
   QStringList const tips{
     "Commodity",
     "Still to deliver",
-    "The chosen carrier's cargo and the ship's hold, less what is still to deliver - below zero is what is "
+    "The chosen carrier's cargo (or all our carriers') and the ship's hold, less what is still to deliver - below zero is what is "
     "still to be brought, above what is to spare",
     "Required in all",
     "Provided so far",
@@ -336,7 +336,8 @@ auto construction_window_t::show_site() -> void
     carriers = std::move(*totals);
   // and the one this site is supplied from, alone
   uint64_t const supplier{carrier_combo_->currentData().toULongLong()};
-  std::map<std::string, int64_t> supplier_cargo;
+  // with none chosen, all our carriers together - as on the overlay
+  std::map<std::string, int64_t> supplier_cargo{supplier == 0u ? carriers : std::map<std::string, int64_t>{}};
   if(supplier != 0u)
     if(auto cargo{db_.load_carrier_cargo(supplier)}; cargo)
       for(info::carrier_cargo_t const & item: *cargo)
@@ -345,7 +346,7 @@ auto construction_window_t::show_site() -> void
   // carrier, its cargo is booked only on leaving, so until then the hold as it was on docking stands in
   // for the hold now, or what was moved across would be counted twice
   std::map<std::string, int64_t> on_board;
-  if(state_.carrier_visit_ and state_.carrier_visit_->carrier_id == supplier)
+  if(state_.carrier_visit_ and (supplier == 0u or state_.carrier_visit_->carrier_id == supplier))
     for(auto const & [key, item]: state_.carrier_visit_->hold)
       on_board[key] += item.second;
   else
@@ -424,7 +425,6 @@ auto construction_window_t::show_site() -> void
       }
     table_->setItem(row, 0, name);
     table_->setItem(row, 1, new QTableWidgetItem(number(left)));
-    if(supplier != 0u)
       {
       auto const s{supplier_cargo.find(need->key)};
       auto const b{on_board.find(need->key)};
@@ -456,7 +456,6 @@ auto construction_window_t::show_site() -> void
     table_->setItem(row, 0, total);
     table_->setItem(row, 1, new QTableWidgetItem(number(left_total)));
     // what the carrier still lacks in all - a surplus of one commodity makes up for nothing of another
-    if(supplier != 0u)
       {
       auto * cell = diff_cell(lacking_total);
       cell->setToolTip("What is still to be brought, in all");

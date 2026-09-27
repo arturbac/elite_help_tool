@@ -2168,6 +2168,15 @@ auto overlay_feed_t::build_construction_lines(current_state_t const & state) con
     one_carrier ? (supplier_cargo != cargo_by_carrier_.end() ? supplier_cargo->second : nothing) : carrier_cargo_
   };
   std::string const carrier_heading{one_carrier ? callsign->second : std::string{"carriers"}};
+  // what is on its way counts towards the carrier as well; docked at that carrier its cargo is booked only
+  // on leaving, so the hold as it was on docking stands in for the hold now, or it would count twice
+  std::map<std::string, int64_t> on_board;
+  if(state.carrier_visit_ and (one_carrier ? state.carrier_visit_->carrier_id == supplier : true))
+    for(auto const & [key, item]: state.carrier_visit_->hold)
+      on_board[key] += item.second;
+  else
+    for(auto const & [key, count]: hold)
+      on_board[key] += count;
 
   // the amounts stand in columns after the longest name, under a heading of their own
   size_t name_width{};
@@ -2176,11 +2185,12 @@ auto overlay_feed_t::build_construction_lines(current_state_t const & state) con
   size_t const carrier_width{std::max<size_t>(7u, carrier_heading.size() + 3u)};
   {
   std::string heading(name_width, ' ');
-  heading += std::format("{:>7}{:>7}{:>{}}   here", "left", "hold", carrier_heading, carrier_width);
+  heading += std::format("{:>7}{:>7}{:>7}{:>{}}   here", "left", "diff", "hold", carrier_heading, carrier_width);
   lines.push_back(overlay::line_t{.text = std::move(heading), .color = colour_heading(), .swatch_space = true});
   }
 
   size_t shown{};
+  int64_t to_bring{};
   std::string last_category;
   for(info::construction_need_t const * need: needed)
     {
@@ -2196,6 +2206,14 @@ auto overlay_feed_t::build_construction_lines(current_state_t const & state) con
     std::string text{need->commodity};
     text.resize(std::max<size_t>(text.size(), name_width), ' ');
     text += std::format("{:>7}", left);
+    // the carrier and the hold against what is left: below zero is still to be brought, above is to spare
+    int64_t diff{-int64_t(left)};
+    if(auto const c{on_carrier.find(need->key)}; c != on_carrier.end())
+      diff += c->second;
+    if(auto const b{on_board.find(need->key)}; b != on_board.end())
+      diff += b->second;
+    to_bring += std::max<int64_t>(-diff, 0);
+    text += diff > 0 ? std::format("{:>7}", std::format("+{}", diff)) : std::format("{:>7}", diff);
     auto const h{hold.find(need->key)};
     text += h != hold.end() ? std::format("{:>7}", h->second) : std::string(7u, ' ');
     auto const c{on_carrier.find(need->key)};
@@ -2221,6 +2239,10 @@ auto overlay_feed_t::build_construction_lines(current_state_t const & state) con
     }
   if(wanted > shown)
     lines.push_back(overlay::line_t{.text = std::format("  ... and {} more", wanted - shown), .color = colour_plain()});
+  if(to_bring > 0)
+    lines.push_back(
+      overlay::line_t{.text = std::format("still to bring: {} t", to_bring), .color = colour_heading(), .swatch_space = true}
+    );
   return lines;
   }
 
