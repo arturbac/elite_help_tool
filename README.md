@@ -59,3 +59,8 @@ wiedzę o galaktyce i cenach, a zachowując własne misje, reputację i postęp 
 
 `journal_tailer` kasuje i odtwarza `ehtdb.sqlite` oraz `galaxy.sqlite`; `live.sqlite` zostawia
 nietknięty, bo jego zawartości nie da się odtworzyć z journali.
+
+## Tick BGS
+
+Jak EHT ustala z journali, kiedy przeszedł dzienny tick wpływów i wojen, mimo rzadkich wizyt w
+systemach: [doc/bgs_tick.md](doc/bgs_tick.md) (po angielsku).
