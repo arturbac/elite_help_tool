@@ -652,7 +652,8 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
         }
       else if constexpr(std::same_as<T, events::docked_t>)
         {
-        if(is_port(event.StationType))
+        // the escape pod sends the character home, and another account's ports mean nothing to it
+        if(state.personal and is_port(event.StationType))
           if(auto res{state.db_.store(info::port_visit_t{
                .market_id = event.MarketID,
                .name = event.StationName,
