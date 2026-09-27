@@ -59,8 +59,9 @@ struct overlay_lists_t
   ///\brief how tall a column of the settlements-by-owner list shown on foot grows, in lines - the list
   /// goes on in the next column, as in a newspaper, up to three
   uint32_t settlement_rows{16u};
-  ///\brief commodities listed for a construction site on the overlay, the most wanted first
-  uint32_t construction{10u};
+  ///\brief commodities listed for a construction site on the overlay, the most wanted first; 0 lists them
+  /// all - what the port sells may well be at the end of the list
+  uint32_t construction{0u};
   ///\brief how many characters of the small text a line of that list may take, all its columns
   /// together; lower it on a narrow side band, and the list keeps to fewer columns
   uint32_t settlement_line_chars{110u};

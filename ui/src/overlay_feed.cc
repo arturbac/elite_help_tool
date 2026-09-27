@@ -2099,7 +2099,9 @@ auto overlay_feed_t::build_construction_lines(current_state_t const & state) con
     }
   );
 
-  size_t const limit{eht::settings()->overlay.lists.construction};
+  size_t const limit{
+    eht::settings()->overlay.lists.construction == 0u ? site->needs.size() : eht::settings()->overlay.lists.construction
+  };
   size_t shown{};
   for(info::construction_need_t const & need: site->needs)
     {
