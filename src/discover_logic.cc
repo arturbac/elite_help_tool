@@ -380,6 +380,9 @@ auto distance_ls(body_location_t const a, body_location_t const b) noexcept -> d
 
 auto body_short_name(std::string_view system, std::string_view name) -> std::string_view
   {
+  // a port or a named body carries no system prefix - on foot Status.json names the station
+  if(not name.starts_with(system))
+    return stralgo::trim(name);
   return stralgo::trim(name.substr(system.size()));
   }
 

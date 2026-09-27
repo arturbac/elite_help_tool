@@ -23,6 +23,7 @@ endfunction()
 add_ut_test(value_calculation_ut.cc)
 add_ut_test(db_ut.cc)
 add_ut_test(biology_ut.cc)
+add_ut_test(names_ut.cc)
 
 # ipc overlaya nie zalezy od eht, wiec ma wlasny cel zamiast add_ut_test
 add_executable(overlay_ipc_ut overlay_ipc_ut.cc)
