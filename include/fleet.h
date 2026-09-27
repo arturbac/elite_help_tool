@@ -58,6 +58,10 @@ auto apply(
   events::shipyard_transfer_t const & event,
   here_t const & here
 ) -> void;
+///\brief an escape pod leaves the ship flown where the commander was docked - a carrier, as a rule
+auto apply(
+  std::vector<info::ship_t> & ships, std::chrono::sys_seconds when, events::resurrect_t const & event, here_t const & here
+) -> void;
 auto apply(std::vector<info::ship_t> & ships, events::shipyard_sell_t const & event) -> void;
 auto apply(std::vector<info::ship_t> & ships, events::sell_ship_on_rebuy_t const & event) -> void;
 auto apply(std::vector<info::ship_t> & ships, events::set_user_ship_name_t const & event) -> void;
@@ -69,7 +73,7 @@ constexpr bool changes_fleet{
   or std::same_as<event_t, events::shipyard_swap_t> or std::same_as<event_t, events::shipyard_buy_t>
   or std::same_as<event_t, events::shipyard_new_t> or std::same_as<event_t, events::shipyard_transfer_t>
   or std::same_as<event_t, events::shipyard_sell_t> or std::same_as<event_t, events::sell_ship_on_rebuy_t>
-  or std::same_as<event_t, events::set_user_ship_name_t>
+  or std::same_as<event_t, events::set_user_ship_name_t> or std::same_as<event_t, events::resurrect_t>
 };
 
 ///\brief applies one event to the fleet in the database - the same for the import and for the live state

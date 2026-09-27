@@ -136,6 +136,48 @@ auto main() -> int
     expect(by_id(ships, 40u)->current);
   };
 
+  "an escape pod leaves the ship on the carrier, and a swap far away does not move it"_test = []
+  {
+    std::vector<info::ship_t> ships{info::ship_t{.ship_id = 54u, .ship_type = "explorer_nx", .current = true}};
+    fleet::apply(
+      ships,
+      morning,
+      ::events::resurrect_t{.Option = "escape"},
+      fleet::here_t{.system = "Kusauts", .station = "W1V-NXM", .market_id = 3706381824u}
+    );
+    expect(not by_id(ships, 54u)->current and by_id(ships, 54u)->market_id == 3706381824u);
+
+    // the game writes the ship left on the carrier as stored at the port the pod brought us to
+    fleet::apply(
+      ships,
+      morning + 2min,
+      ::events::shipyard_swap_t{
+        .ShipType = "sidewinder",
+        .ShipType_Localised = {},
+        .ShipID = 68u,
+        .StoreOldShip = "Explorer_NX",
+        .StoreShipID = 54u,
+        .SellShipID = std::nullopt,
+        .MarketID = 4391602179u
+      },
+      fleet::here_t{.system = "Bleia Eohn PW-D b32-1", .station = "Arkush City", .market_id = 4391602179u}
+    );
+    expect(by_id(ships, 54u)->system == std::string{"Kusauts"} and by_id(ships, 54u)->market_id == 3706381824u);
+    expect(by_id(ships, 68u)->current and by_id(ships, 68u)->market_id == 4391602179u);
+  };
+
+  "a rebuy leaves the ship flown as it was"_test = []
+  {
+    std::vector<info::ship_t> ships{info::ship_t{.ship_id = 54u, .ship_type = "explorer_nx", .current = true}};
+    fleet::apply(
+      ships,
+      morning,
+      ::events::resurrect_t{.Option = "rebuy"},
+      fleet::here_t{.system = "Kusauts", .station = "W1V-NXM", .market_id = 3706381824u}
+    );
+    expect(by_id(ships, 54u)->current and by_id(ships, 54u)->market_id == 0u);
+  };
+
   "a purchase stores the old ship, the new one is flown, a sale removes one"_test = []
   {
     std::vector<info::ship_t> ships{info::ship_t{.ship_id = 54u, .ship_type = "explorer_nx", .current = true}};

@@ -71,6 +71,11 @@ namespace
     return ship;
     }
 
+  // the game names the ship given up at a shipyard as stored there, even one an escape pod left on a carrier
+  // far away - only the one the commander came in, or one never placed, really stands here
+  auto stays_with_commander(info::ship_t const & ship) noexcept -> bool
+    { return ship.current or ship.system.empty(); }
+
   auto remove(std::vector<info::ship_t> & ships, uint64_t ship_id) -> void
     {
     std::erase_if(ships, [ship_id](info::ship_t const & ship) { return ship.ship_id == ship_id; });
@@ -173,7 +178,8 @@ auto apply(
     {
     info::ship_t & left{obtain(ships, *event.StoreShipID)};
     set_type(left, event.StoreOldShip, {});
-    put(left, when, here, event.MarketID);
+    if(stays_with_commander(left))
+      put(left, when, here, event.MarketID);
     }
   info::ship_t & taken{fly(ships, event.ShipID)};
   set_type(taken, event.ShipType, event.ShipType_Localised);
@@ -192,8 +198,9 @@ auto apply(
   if(event.StoreShipID)
     {
     info::ship_t & left{obtain(ships, *event.StoreShipID)};
+    if(stays_with_commander(left))
+      put(left, when, here, event.MarketID);
     left.current = false;
-    put(left, when, here, event.MarketID);
     }
   }
 
@@ -220,8 +227,26 @@ auto apply(
   info::ship_t & ship{obtain(ships, event.ShipID)};
   set_type(ship, event.ShipType, event.ShipType_Localised);
   put(ship, when, here, event.MarketID);
+  // one left behind by an escape pod may still count as flown - but a ship on its way is flown by nobody
+  ship.current = false;
   ship.in_transit = true;
   ship.arrives = when + std::chrono::seconds{event.TransferTime};
+  }
+
+auto apply(
+  std::vector<info::ship_t> & ships, std::chrono::sys_seconds when, events::resurrect_t const & event, here_t const & here
+) -> void
+  {
+  // the pod leaves the ship at the pad - the game still calls it the active one, but it no longer goes where
+  // the commander goes; a rebuy gives the ship back where the commander wakes, and its Loadout says so
+  if(event.Option != "escape" or here.market_id == 0u)
+    return;
+  for(info::ship_t & ship: ships)
+    if(ship.current)
+      {
+      ship.current = false;
+      put(ship, when, here, here.market_id);
+      }
   }
 
 auto apply(std::vector<info::ship_t> & ships, events::shipyard_sell_t const & event) -> void
@@ -298,6 +323,9 @@ template auto record(
 template auto record(
   database_storage_t &, std::chrono::sys_seconds, events::set_user_ship_name_t const &, std::string_view, uint64_t
 ) -> void;
+template auto
+  record(database_storage_t &, std::chrono::sys_seconds, events::resurrect_t const &, std::string_view, uint64_t)
+    -> void;
 
 auto distance_ly(std::array<double, 3> const & a, std::array<double, 3> const & b) noexcept -> double
   {

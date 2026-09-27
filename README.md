@@ -189,6 +189,9 @@ it can take the game down: [overlay/README.md](overlay/README.md).
 - A distance is known only for systems whose position is in `galaxy.sqlite`, that is ones you or the
   other account have been to. The rest stay at the bottom with a question mark.
 - The ship you fly is taken to be where you are, even when you have taken a taxi away from it.
+- Leaving by escape pod leaves the ship at the pad it was docked at, as a rule a carrier, and the list
+  keeps it there. The game still calls it the active ship and, at the next shipyard, writes it as
+  stored at that shipyard; EHT ignores that and keeps it where the pod left it.
 
 ## Exploration and exobiology
 
