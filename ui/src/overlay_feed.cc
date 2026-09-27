@@ -2112,16 +2112,23 @@ auto overlay_feed_t::build_construction_lines(current_state_t const & state) con
       left_total += need.required - need.provided;
       ++wanted;
       }
+  // two short lines - one long one would widen the whole block into the middle of the screen
+  using namespace std::string_view_literals;
+  std::string_view name{site->name};
+  for(std::string_view prefix: {"Planetary Construction Site: "sv, "Orbital Construction Site: "sv})
+    if(name.starts_with(prefix))
+      name.remove_prefix(prefix.size());
   lines.push_back(
     overlay::line_t{
-      .text = std::format(
-        "construction: {}  {:.0f}%  {} t left  ({})",
-        site->name.empty() ? std::format("site {}", site->depot.market_id) : site->name,
-        site->depot.progress * 100.0,
-        left_total,
-        site->system
-      ),
+      .text = name.empty() ? std::format("construction: site {}", site->depot.market_id)
+                           : std::format("construction: {}", name),
       .color = colour_heading()
+    }
+  );
+  lines.push_back(
+    overlay::line_t{
+      .text = std::format("{:.0f}%  {} t left  {}", site->depot.progress * 100.0, left_total, site->system),
+      .color = colour_plain()
     }
   );
 
