@@ -2107,11 +2107,19 @@ auto overlay_feed_t::build_war_blocks() const -> std::vector<std::vector<overlay
           .color = colour_plain()
         }
       );
+    // A hand-in pays about 3.3 times what the kills did - the median over 386 hand-ins of two accounts,
+    // the same at every mercenary rank; the zones won make the rest of the spread (1.5 - 6.4)
+    constexpr double typical_payout{3.3};
     auto const bonds_of = [&](std::string const & faction) -> std::string
     {
       auto const it{unsold_bonds_.find(faction)};
-      return it == unsold_bonds_.end() or it->second == 0u ? std::string{"-"}
-                                                           : overlay_exploration::short_credits(it->second);
+      if(it == unsold_bonds_.end() or it->second == 0u)
+        return "-";
+      return std::format(
+        "{} (~{})",
+        overlay_exploration::short_credits(it->second),
+        overlay_exploration::short_credits(uint64_t(double(it->second) * typical_payout))
+      );
     };
     // Only what the kills themselves paid. A hand-in pays some 2.25 times that plus a sum for every zone
     // won (about 3M for a high one), and the game writes neither down until the hand-in - so the line says

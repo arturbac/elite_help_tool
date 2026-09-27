@@ -65,8 +65,8 @@ it can take the game down: [overlay/README.md](overlay/README.md).
   next one decides it. The BGS window lists the days won on both sides.
 - **Settlements in a war.** On entering a system at war, the overlay shows each war's official
   state (sides, days won, status, what each side has at stake), the combat bonds not yet handed in
-  for both sides (what the kills paid - a hand-in pays more, with a sum for every zone won that the
-  journal does not record), and every settlement of both sides with its owner when the war began and the
+  for both sides (what the kills paid, and in brackets the likely payout: a hand-in pays about 3.3
+  times that, the median of 386 hand-ins, since it adds sums the journal does not record), and every settlement of both sides with its owner when the war began and the
   intensity of its conflict zone on foot: `unknown`, `Low?` (seen in an earlier war; it never falls
   from one war to the next) or `Low` (confirmed in this one). The intensity is read from what a
   kill pays: the game pays kills on foot from fixed tables, low 1.9k–4.6k, medium 7.2k–33.8k,
