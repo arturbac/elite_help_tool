@@ -1,6 +1,7 @@
 #pragma once
 
 #include "logic.h"
+#include "overlay_exploration.h"
 
 #include <overlay_ipc.h>
 
@@ -66,6 +67,9 @@ private:
   [[nodiscard]]
   auto build_crew_lines(current_state_t const & state) const -> std::vector<overlay::line_t>;
 
+  ///\brief the species found before, read when a scan could have added to them
+  auto refresh_species_history(current_state_t const & state) -> void;
+
   ///\brief which interface the game has open, which only Status.json says
   auto refresh_status(current_state_t const & state) -> void;
 
@@ -110,6 +114,12 @@ private:
   uint32_t gui_focus_{};
   ///\brief the body the game says we are at, empty away from any
   std::string status_body_;
+  ///\brief where on the body we stand, and what we hold - for the samples
+  overlay_exploration::surface_view_t surface_;
+  ///\brief every species sampled with its world, what the genera are guessed from - read again when a
+  /// sample was analysed, since that is when the history grows
+  std::vector<bio::species_record_t> species_history_;
+  uint64_t history_scans_{~uint64_t{}};
   ///\brief where the ship is set to go, as Status.json has it
   std::optional<events::status_file_t::destination_t> status_destination_;
   ///\brief the ports of the system we are in, for the picture - read again only on a change of system

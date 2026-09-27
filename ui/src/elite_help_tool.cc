@@ -60,8 +60,22 @@ main_window_t::main_window_t(std::string db_path, std::string journal_path, QWid
   overlay_feed_ = std::make_unique<overlay_feed_t>(overlay::default_socket_path(), db_path);
 
   overlay_timer_ = new QTimer(this);
-  overlay_timer_->setInterval(2000);
-  connect(overlay_timer_, &QTimer::timeout, this, [this] { publish_overlay(); });
+  overlay_timer_->setInterval(static_cast<int>(eht::settings()->overlay.refresh.publish_ms));
+  connect(
+    overlay_timer_,
+    &QTimer::timeout,
+    this,
+    [this]
+    {
+      // the pace follows the settings file, which can change while the tool runs
+      if(
+        int const pace{static_cast<int>(std::max(100u, eht::settings()->overlay.refresh.publish_ms))};
+        overlay_timer_->interval() != pace
+      )
+        overlay_timer_->setInterval(pace);
+      publish_overlay();
+    }
+  );
   overlay_timer_->start();
   }
 

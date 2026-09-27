@@ -66,6 +66,9 @@ struct overlay_refresh_t
   uint32_t market_s{5u};
   uint32_t supply_s{10u};
   uint32_t status_ms{500u};
+  ///\brief how often the tool looks whether the picture changed - on foot the distances to the samples
+  /// move with every step, and a readout that lags behind the walk is no help
+  uint32_t publish_ms{500u};
   ///\brief a frame is sent at least this often even when nothing changed, so the layer knows we live
   uint32_t heartbeat_s{3u};
   ///\brief a block fades this long after its last refresh
@@ -123,6 +126,26 @@ struct overlay_settings_t
   overlay_chart_t influence_chart{.days = 20u, .height = 98u};
   overlay_chart_t tick_chart{.days = 30u, .height = 90u};
   system_map_t system_map;
+  };
+
+///\brief exploration - what is worth a landing and where the pictures of what was sampled go
+struct exploration_settings_t
+  {
+  ///\brief a species paying less than this is not worth sampling - the base value, before any bonus
+  uint32_t bio_worth{5'000'000u};
+  ///\brief how many bodies with life the overlay lists
+  uint32_t bio_bodies{4u};
+  ///\brief how many guesses at a genus' species are shown beside it
+  uint32_t candidates{2u};
+  ///\brief what a species below the worth is written in - still there, but not asking for attention
+  colour_t below_worth{0x8a8a8au};
+  ///\brief a picture of the middle of the screen is taken at every sample - the plant is right there
+  bool capture{true};
+  ///\brief the side of the square taken, as a share of the screen's height
+  float capture_size{0.4f};
+  ///\brief where the pictures and the codex page are kept, relative to where the tool runs
+  std::string codex_dir{"codex"};
+  uint32_t jpeg_quality{90u};
   };
 
 struct trade_settings_t
@@ -195,6 +218,7 @@ struct gui_settings_t
 struct settings_t
   {
   overlay_settings_t overlay;
+  exploration_settings_t exploration;
   gui_settings_t gui;
   trade_settings_t trade;
   tick_settings_t ticks;

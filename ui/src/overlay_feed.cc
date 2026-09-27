@@ -201,14 +201,6 @@ auto short_body_name(std::string const & system_name, std::string const & body_n
   return body_name;
   }
 
-///\brief worth going down to only what we have not mapped yet and what pays something
-[[nodiscard]]
-auto worth_mapping(body_t const & body) -> bool
-  {
-  auto const * const planet{std::get_if<planet_details_t>(&body.details)};
-  return planet != nullptr and not planet->mapped and body.value >= minimum_body_value();
-  }
-
 namespace system_map
   {
 // The sizes and colours come from the settings; what stays here is the spacing of the grid.
@@ -769,57 +761,6 @@ auto build_system_diagram(
   // about as wide as the window at the top of the band, which is half of it
   diagram.share = sm.share;
   return diagram;
-  }
-
-[[nodiscard]]
-auto describe_exploration(star_system_t const & system) -> std::vector<overlay::line_t>
-  {
-  std::vector<body_t const *> candidates;
-  for(body_t const & body: system.bodies)
-    if(worth_mapping(body))
-      candidates.push_back(&body);
-
-  if(candidates.empty())
-    return {};
-
-  std::ranges::sort(candidates, std::ranges::greater{}, [](body_t const * body) { return body->value; });
-
-  uint64_t total{};
-  for(body_t const * body: candidates)
-    total += body->value;
-
-  std::vector<overlay::line_t> lines;
-  lines.push_back(
-    overlay::line_t{
-      .text = std::format("worth mapping: {} bodies, {} Cr", candidates.size(), format_credits_value(uint32_t(total))),
-      .color = colour_heading()
-    }
-  );
-
-  for(body_t const * body: candidates | std::views::take(listed_bodies()))
-    {
-    auto const * const planet{std::get_if<planet_details_t>(&body->details)};
-    lines.push_back(
-      overlay::line_t{
-        .text = std::format(
-          "{}  {} Cr  {:.0f} ls{}",
-          short_body_name(system.name, body->name),
-          format_credits_value(body->value),
-          body->distance_from_arrival_ls,
-          planet != nullptr and planet->landable ? "  landable" : ""
-        ),
-        // a first discovery is a bonus that cannot be had again later
-        .color = body->was_discovered ? colour_plain() : colour_first()
-      }
-    );
-    }
-
-  if(candidates.size() > listed_bodies())
-    lines.push_back(
-      overlay::line_t{.text = std::format("... and {} more", candidates.size() - listed_bodies()), .color = colour_plain()}
-    );
-
-  return lines;
   }
 
 ///\brief the internal name is readable but ugly - a capital letter is enough where there is no translation
@@ -1924,6 +1865,18 @@ auto overlay_feed_t::refresh_mission_places(current_state_t const & state) -> vo
 /// game's frame path and reading pixels back off the card means waiting for the card. It does not
 /// have to: the game writes what it is showing into Status.json beside the journals, and rewrites it
 /// whenever it changes.
+auto overlay_feed_t::refresh_species_history(current_state_t const & state) -> void
+  {
+  // the history grows only when a sample is taken, so it is read at the start and after each scan seen
+  if(history_scans_ == state.organic_scans_seen_)
+    return;
+  history_scans_ = state.organic_scans_seen_;
+  if(auto history{db_.load_species_history()}; history)
+    species_history_ = std::move(*history);
+  else
+    spdlog::error("failed to read the species found before");
+  }
+
 auto overlay_feed_t::refresh_status(current_state_t const & state) -> void
   {
   auto const now{std::chrono::steady_clock::now()};
@@ -1934,6 +1887,14 @@ auto overlay_feed_t::refresh_status(current_state_t const & state) -> void
   if(auto status{load_status(state.journal_dir_path_)}; status)
     {
     gui_focus_ = status->GuiFocus;
+    surface_ = overlay_exploration::surface_view_t{
+      .body_name = status->BodyName,
+      .here = status->Latitude and status->Longitude
+                ? std::optional{bio::surface_point_t{*status->Latitude, *status->Longitude}}
+                : std::nullopt,
+      .planet_radius = status->PlanetRadius.value_or(0.0),
+      .sampler_in_hand = status->SelectedWeapon.contains("sampletool")
+    };
     status_body_ = std::move(status->BodyName);
     status_destination_ = std::move(status->Destination);
     }
@@ -2464,10 +2425,25 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
     );
     }
 
-  if(auto exploration{describe_exploration(state.system)}; not exploration.empty())
+  // exploration in the order the work goes: is the system new, what to map, where to land
+  refresh_species_history(state);
+  if(auto arrival{overlay_exploration::describe_arrival(state.system)}; not arrival.empty())
+    frame.blocks.push_back(
+      overlay::block_t{.corner = overlay::corner_e::bottom_right, .ttl_ms = block_ttl_ms(), .lines = std::move(arrival)}
+    );
+  if(auto mapping{overlay_exploration::describe_mapping(state.system)}; not mapping.empty())
+    frame.blocks.push_back(
+      overlay::block_t{.corner = overlay::corner_e::bottom_right, .ttl_ms = block_ttl_ms(), .lines = std::move(mapping)}
+    );
+  if(auto life{overlay_exploration::describe_life(state.system, species_history_)}; not life.empty())
     frame.blocks.push_back(
       overlay::block_t{
-        .corner = overlay::corner_e::bottom_right, .ttl_ms = block_ttl_ms(), .lines = std::move(exploration)
+        .corner = overlay::corner_e::bottom_right,
+        .ttl_ms = block_ttl_ms(),
+        .lines = std::move(life),
+        .charts = {},
+        // a genus a line, read one by one when deciding where to go down
+        .text = overlay::text_e::small
       }
     );
 
@@ -2499,6 +2475,20 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
   if(auto aimed{interface_open ? std::vector<overlay::line_t>{} : build_target_lines(state)}; not aimed.empty())
     frame.blocks.push_back(
       overlay::block_t{.corner = overlay::corner_e::centre_top_left, .ttl_ms = block_ttl_ms(), .lines = std::move(aimed)}
+    );
+  // on the ground there is rarely a target, and the same place serves the sampling: the distance to the
+  // last sample is read while walking, eyes on the ground ahead
+  else if(
+    auto sampling{
+      interface_open ? std::vector<overlay::line_t>{}
+                     : overlay_exploration::describe_sampling(state.system, state.sampling, surface_, species_history_)
+    };
+    not sampling.empty()
+  )
+    frame.blocks.push_back(
+      overlay::block_t{
+        .corner = overlay::corner_e::centre_top_left, .ttl_ms = block_ttl_ms(), .lines = std::move(sampling)
+      }
     );
 
   if(auto crew{interface_open ? std::vector<overlay::line_t>{} : build_crew_lines(state)}; not crew.empty())

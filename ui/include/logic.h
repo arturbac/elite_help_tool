@@ -3,6 +3,7 @@
 #include <elite_data.h>
 #include <simple_enum/simple_enum.hpp>
 #include <databse_storage.h>
+#include <biology.h>
 #include <mutex>
 
 class main_window_t;
@@ -71,6 +72,40 @@ struct current_state_t : public generic_state_t
   ///\brief the hired pilot on duty, and how good they have become
   std::string crew_name;
   uint32_t crew_combat_rank{};
+
+  ///\brief the organism being sampled - the game keeps one at a time and drops it the moment another is begun
+  struct organic_sampling_t
+    {
+    uint64_t system_address{};
+    events::body_id_t body{};
+    std::string genus;
+    std::string species;
+    std::string variant;
+    ///\brief 1 after the Log, 2 and 3 after each Sample; the Analyse that follows the third closes it
+    uint32_t samples{};
+    bool analysed{};
+    ///\brief the codex had this species already - no first-logged bonus on the way
+    bool was_logged{};
+    ///\brief where each sample was taken, when we saw it happen - the next one must be a colony's range
+    /// from all of them. Missing for samples replayed from the journal, whose places nobody wrote down
+    std::vector<bio::surface_point_t> points;
+    };
+
+  organic_sampling_t sampling;
+
+  ///\brief a scan that happened while we watched, with the moment's surroundings - for a picture of it
+  struct organic_scan_seen_t
+    {
+    events::scan_organic_t scan;
+    std::chrono::sys_seconds timestamp;
+    std::string system_name;
+    std::string body_name;
+    std::optional<bio::surface_point_t> point;
+    };
+
+  ///\brief counts the scans seen live, so whoever is interested can tell a new one came
+  uint64_t organic_scans_seen_{};
+  organic_scan_seen_t last_organic_scan_;
 
   events::fsd_jump_t jump_info;
   events::fsd_target_t next_target;

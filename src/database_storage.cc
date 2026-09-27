@@ -1967,6 +1967,38 @@ auto database_storage_t::store_genus_species(
   if(auto res{sqlite::execute_query_no_result(db_->db, query)}; not res) [[unlikely]]
     return res;
 
+  // landed without mapping first, the genus never reached the table - and without its row the species
+  // would be lost to the history the next guess is made from
+  if(not species.empty())
+    {
+    auto known{sqlite::select_signle_from<uint64_t>(
+      db_->db,
+      std::format(
+        "SELECT count(*) FROM {} WHERE ref_body_oid={} AND genus='{}'",
+        sql_iface::tables::genus,
+        **body_oid,
+        sqlite::escape_sql_quotes(genus)
+      )
+    )};
+    if(not known) [[unlikely]]
+      return cxx23::unexpected{known.error()};
+    if(not *known or **known == 0u)
+      if(
+        auto res{sqlite::execute_query_no_result(
+          db_->db,
+          std::format(
+            "INSERT INTO {} (ref_body_oid, genus, species) VALUES ({}, '{}', '{}')",
+            sql_iface::tables::genus,
+            **body_oid,
+            sqlite::escape_sql_quotes(genus),
+            sqlite::escape_sql_quotes(species)
+          )
+        )};
+        not res
+      ) [[unlikely]]
+        return res;
+    }
+
   if(not sampled)
     return {};
 

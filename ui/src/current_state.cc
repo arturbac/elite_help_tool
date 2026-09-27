@@ -238,6 +238,9 @@ constexpr bool rebuilds_present_state{
   or std::same_as<event_t, events::cargo_t> or std::same_as<event_t, events::missions_t>
   or std::same_as<event_t, events::commander_t> or std::same_as<event_t, events::nav_route_t>
   or std::same_as<event_t, events::nav_route_clear_t>
+  // a sample half taken when the tool was closed is still half taken - and the handler only repeats the
+  // species already written, in the same order
+  or std::same_as<event_t, events::scan_organic_t>
 };
 
 ///\brief how often the mark is moved on disk while playing
@@ -563,6 +566,48 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
                 genus->Sampled = genus->Sampled or analysed;
                 }
               }
+
+          // the one in progress - a Log of anything begins anew, as the game drops the unfinished one
+          if(
+            event.ScanType == events::scan_type_e::Log or sampling.species != event.Species_Localised
+            or sampling.body != event.Body or sampling.system_address != event.SystemAddress
+          )
+            sampling = organic_sampling_t{
+              .system_address = event.SystemAddress,
+              .body = event.Body,
+              .genus = event.Genus_Localised,
+              .species = event.Species_Localised,
+              .variant = event.Variant_Localised,
+              .samples = 0u,
+              .analysed = false,
+              .was_logged = event.WasLogged,
+              .points = {}
+            };
+          if(analysed)
+            sampling.analysed = true;
+          else
+            sampling.samples = std::min(3u, sampling.samples + 1u);
+
+          // only now is the commander standing where the sample was taken - a replayed scan has no place
+          if(not catching_up_ and not analysed)
+            {
+            std::optional<bio::surface_point_t> point;
+            std::string body_name;
+            if(auto status{load_status(journal_dir_path_)}; status and status->Latitude and status->Longitude)
+              {
+              point = bio::surface_point_t{*status->Latitude, *status->Longitude};
+              body_name = status->BodyName;
+              sampling.points.push_back(*point);
+              }
+            last_organic_scan_ = organic_scan_seen_t{
+              .scan = event,
+              .timestamp = timestamp,
+              .system_name = system.name,
+              .body_name = std::move(body_name),
+              .point = point
+            };
+            ++organic_scans_seen_;
+            }
 
           if(
             auto res{db_.store_genus_species(
