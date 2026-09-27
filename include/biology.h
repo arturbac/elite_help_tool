@@ -50,12 +50,21 @@ struct unsold_t
   uint32_t value{};
   };
 
-///\brief the samples analysed since the last sale at Vista Genomics or the last death
-///\detail read back from the journals, the newest first, until a sale or a death ends the search - so it
-/// holds across restarts of the tool without the database having to know. A sale is taken as selling all,
-/// which is what the game's one button does
+///\brief what goes down with the commander at death: samples analysed and not sold, bounties not handed in.
+/// Combat bonds survive a death, so they are not here
+struct at_risk_t
+  {
+  std::vector<unsold_t> samples;
+  uint64_t bounties{};
+  };
+
+///\brief read back from the journals, the newest first, until a death - so it holds across restarts of the
+/// tool without the database having to know
+///\detail A sale at Vista Genomics ends the samples, as the game's one button sells all. A bounty counts
+/// until its faction's vouchers are handed in; an empty faction in the hand-in is taken as all of them.
+/// The journals may hold another account's sessions - only those of commander_fid count, all when empty
 [[nodiscard]]
-auto unsold_samples(std::filesystem::path const & journal_dir) -> std::vector<unsold_t>;
+auto at_risk(std::filesystem::path const & journal_dir, std::string_view commander_fid) -> at_risk_t;
 
 ///\brief a species this commander sampled, together with the world it grew on
 ///\detail the field names are the columns of the query that reads them

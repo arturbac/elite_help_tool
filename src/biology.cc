@@ -24,6 +24,34 @@ namespace detail
     std::string Species_Localised;
     std::string ScanType;
     };
+
+  struct commander_line_t
+    {
+    std::string FID;
+    };
+
+  struct faction_reward_t
+    {
+    std::string Faction;
+    uint64_t Reward{};
+    };
+
+  struct bounty_line_t
+    {
+    std::vector<faction_reward_t> Rewards;
+    };
+
+  struct faction_amount_t
+    {
+    std::string Faction;
+    uint64_t Amount{};
+    };
+
+  struct redeem_line_t
+    {
+    std::string Type;
+    std::vector<faction_amount_t> Factions;
+    };
   }  // namespace detail
 
 namespace
@@ -245,7 +273,7 @@ auto predict(std::string_view genus, conditions_t const & world, std::span<speci
   return result;
   }
 
-auto unsold_samples(std::filesystem::path const & journal_dir) -> std::vector<unsold_t>
+auto at_risk(std::filesystem::path const & journal_dir, std::string_view commander_fid) -> at_risk_t
   {
   std::vector<std::filesystem::path> journals;
   std::error_code ec;
@@ -255,28 +283,75 @@ auto unsold_samples(std::filesystem::path const & journal_dir) -> std::vector<un
   // the names carry the date, so the order of the names is the order of the sessions
   std::ranges::sort(journals, std::ranges::greater{});
 
-  std::vector<unsold_t> result;
-  // a sale is rarely further back than a few weeks of play; the bound only keeps a commander who never
-  // sold anything from reading the whole archive twice a minute
+  constexpr auto opts{glz::opts{.error_on_unknown_keys = false}};
+  at_risk_t result;
+  bool samples_sold{};
+  bool all_handed_in{};
+  // the factions whose vouchers were handed in later than the line being read
+  std::set<std::string> handed_in;
+
+  // a death is rarely further back than a few weeks of play; the bound only keeps a commander who never
+  // died from reading the whole archive twice a minute
   for(std::filesystem::path const & path: journals | std::views::take(300))
     {
     std::ifstream in{path, std::ios::binary};
     std::vector<std::string> lines;
+    bool ours{commander_fid.empty()};
     for(std::string line; std::getline(in, line);)
-      if(line.contains("\"ScanOrganic\"") or line.contains("\"SellOrganicData\"") or line.contains("\"Died\""))
+      {
+      if(line.contains("\"event\":\"Commander\""))
+        {
+        detail::commander_line_t commander{};
+        if(not glz::read<opts>(commander, line))
+          ours = commander_fid.empty() or commander.FID == commander_fid;
+        continue;
+        }
+      if(
+        line.contains("\"ScanOrganic\"") or line.contains("\"SellOrganicData\"") or line.contains("\"Died\"")
+        or line.contains("\"event\":\"Bounty\"") or line.contains("\"RedeemVoucher\"")
+      )
         lines.push_back(std::move(line));
+      }
+    // another account's session - its deaths and sales are not this commander's
+    if(not ours)
+      continue;
 
     for(std::string const & line: lines | std::views::reverse)
       {
-      if(line.contains("\"event\":\"SellOrganicData\"") or line.contains("\"event\":\"Died\""))
+      if(line.contains("\"event\":\"Died\""))
         return result;
-      detail::analysed_t scan{};
-      if(auto const err{glz::read<glz::opts{.error_on_unknown_keys = false}>(scan, line)}; err)
-        continue;
-      if(scan.ScanType == "Analyse")
-        result.push_back(
-          unsold_t{.species = scan.Species_Localised, .value = species_value(scan.Species_Localised).value_or(0u)}
-        );
+      if(line.contains("\"event\":\"SellOrganicData\""))
+        samples_sold = true;
+      else if(line.contains("\"event\":\"RedeemVoucher\""))
+        {
+        detail::redeem_line_t redeem{};
+        if(glz::read<opts>(redeem, line) or redeem.Type != "bounty")
+          continue;
+        for(detail::faction_amount_t const & faction: redeem.Factions)
+          if(faction.Faction.empty())
+            all_handed_in = true;
+          else
+            handed_in.insert(faction.Faction);
+        }
+      else if(line.contains("\"event\":\"Bounty\""))
+        {
+        detail::bounty_line_t bounty{};
+        if(all_handed_in or glz::read<opts>(bounty, line))
+          continue;
+        for(detail::faction_reward_t const & reward: bounty.Rewards)
+          if(not handed_in.contains(reward.Faction))
+            result.bounties += reward.Reward;
+        }
+      else if(not samples_sold)
+        {
+        detail::analysed_t scan{};
+        if(glz::read<opts>(scan, line))
+          continue;
+        if(scan.ScanType == "Analyse")
+          result.samples.push_back(
+            unsold_t{.species = scan.Species_Localised, .value = species_value(scan.Species_Localised).value_or(0u)}
+          );
+        }
       }
     }
   return result;

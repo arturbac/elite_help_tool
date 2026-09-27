@@ -1,6 +1,8 @@
 #include <boost/ut.hpp>
 #include <biology.h>
 #include <array>
+#include <filesystem>
+#include <fstream>
 
 auto main() -> int
   {
@@ -27,6 +29,57 @@ auto main() -> int
       expect(std::abs(bio::bearing_deg({0.0, 0.0}, {1.0, 0.0}) - 0.0) < 0.01);
       expect(std::abs(bio::bearing_deg({0.0, 0.0}, {-1.0, 0.0}) - 180.0) < 0.01);
     };
+  };
+
+  "at risk"_test = []
+  {
+    // a directory of journals, oldest first by name, as the game writes them
+    std::filesystem::path const dir{std::filesystem::temp_directory_path() / "eht_at_risk_ut"};
+    std::filesystem::create_directories(dir);
+    auto const write = [&](char const * name, std::initializer_list<char const *> lines)
+    {
+      std::ofstream out{dir / name, std::ios::trunc};
+      for(char const * line: lines)
+        out << line << '\n';
+    };
+    write(
+      "Journal.2026-09-01T100000.01.log",
+      {R"({ "event":"Commander", "FID":"F1", "Name":"ME" })",
+       R"({ "event":"Died" })",
+       R"({ "event":"ScanOrganic", "ScanType":"Analyse", "Species_Localised":"Bacterium Aurasus" })"}
+    );
+    write(
+      "Journal.2026-09-02T100000.01.log",
+      {R"({ "event":"Commander", "FID":"F2", "Name":"OTHER" })",
+       R"({ "event":"SellOrganicData" })",
+       R"({ "event":"Died" })"}
+    );
+    write(
+      "Journal.2026-09-03T100000.01.log",
+      {R"({ "event":"Commander", "FID":"F1", "Name":"ME" })",
+       R"({ "event":"Bounty", "Rewards":[ { "Faction":"A", "Reward":100 }, { "Faction":"B", "Reward":10 } ] })",
+       R"({ "event":"RedeemVoucher", "Type":"bounty", "Factions":[ { "Faction":"A", "Amount":100 } ] })",
+       R"({ "event":"RedeemVoucher", "Type":"CombatBond", "Factions":[ { "Faction":"B", "Amount":5 } ] })",
+       R"({ "event":"Bounty", "Rewards":[ { "Faction":"A", "Reward":1000 } ] })",
+       R"({ "event":"ScanOrganic", "ScanType":"Log", "Species_Localised":"Frutexa Acus" })",
+       R"({ "event":"ScanOrganic", "ScanType":"Analyse", "Species_Localised":"Frutexa Acus" })"}
+    );
+
+    bio::at_risk_t const mine{bio::at_risk(dir, "F1")};
+    // the other account's sale and death are not mine; my own death two sessions back ends the count, after
+    // the sample analysed later in that session
+    expect(mine.samples.size() == 2_u) << mine.samples.size();
+    // A's first bounty was handed in, B's never was, A's second came after the hand-in
+    expect(mine.bounties == 1010_u) << mine.bounties;
+
+    bio::at_risk_t const anyone{bio::at_risk(dir, "")};
+    // with no account named, the other one's death ends it at once
+    expect(anyone.samples.size() == 1_u) << anyone.samples.size();
+
+    for(char const * name:
+        {"Journal.2026-09-01T100000.01.log", "Journal.2026-09-02T100000.01.log", "Journal.2026-09-03T100000.01.log"})
+      std::filesystem::remove(dir / name);
+    std::filesystem::remove(dir);
   };
 
   "colony"_test = []

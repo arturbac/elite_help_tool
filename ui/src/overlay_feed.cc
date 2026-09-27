@@ -1943,11 +1943,16 @@ auto overlay_feed_t::refresh_mission_places(current_state_t const & state) -> vo
 auto overlay_feed_t::refresh_unsold(current_state_t const & state) -> void
   {
   auto const now{std::chrono::steady_clock::now()};
-  if(unsold_scans_ == state.organic_scans_seen_ and now - unsold_read_ < std::chrono::seconds{60})
+  // a sample analysed or a bounty earned changes it at once; a sale or a hand-in is caught within the minute
+  if(
+    unsold_scans_ == state.organic_scans_seen_ and unsold_bounty_at_ == state.last_bounty_at
+    and now - unsold_read_ < std::chrono::seconds{60}
+  )
     return;
   unsold_scans_ = state.organic_scans_seen_;
+  unsold_bounty_at_ = state.last_bounty_at;
   unsold_read_ = now;
-  unsold_ = bio::unsold_samples(state.journal_dir_path_);
+  at_risk_ = bio::at_risk(state.journal_dir_path_, state.owner_fid_);
   }
 
 auto overlay_feed_t::refresh_species_history(current_state_t const & state) -> void
@@ -2649,26 +2654,53 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
     );
 
   refresh_unsold(state);
-  if(not unsold_.empty())
+  if(not at_risk_.samples.empty() or at_risk_.bounties != 0u)
     {
-    uint64_t total{};
-    for(bio::unsold_t const & sample: unsold_)
-      total += sample.value;
-    // what a death would cost - worth knowing before a hard landing or a fight
+    uint64_t bio_total{};
+    for(bio::unsold_t const & sample: at_risk_.samples)
+      bio_total += sample.value;
+    // what a death would cost - worth knowing before a hard landing or a fight. Combat bonds survive it
+    std::vector<std::string> parts;
+    if(not at_risk_.samples.empty())
+      parts.push_back(std::format(
+        "bio {} ({} samples, + first-logged bonuses)",
+        overlay_exploration::short_credits(bio_total),
+        at_risk_.samples.size()
+      ));
+    if(at_risk_.bounties != 0u)
+      parts.push_back(std::format("bounties {}", overlay_exploration::short_credits(at_risk_.bounties)));
+    std::string text{"lost on death:"};
+    for(auto const & [index, part]: parts | std::views::enumerate)
+      text += std::format("{}{}", index == 0 ? " " : " + ", part);
     frame.blocks.push_back(
       overlay::block_t{
         .corner = overlay::corner_e::bottom_left,
         .ttl_ms = block_ttl_ms(),
-        .lines = {overlay::line_t{
-          .text = std::format(
-            "bio unsold: {} samples, {} + first-logged bonuses",
-            unsold_.size(),
-            overlay_exploration::short_credits(total)
-          ),
-          .color = colour_alert()
-        }}
+        .lines = {overlay::line_t{.text = std::move(text), .color = colour_alert()}}
       }
     );
+
+    // when the danger is now, the same sum goes where the eyes are - heat, an interdiction, the game's own
+    // warning of danger
+    constexpr uint64_t overheating_flag{1u << 20u};
+    constexpr uint64_t in_danger_flag{1u << 22u};
+    constexpr uint64_t interdicted_flag{1u << 23u};
+    if(
+      not interface_open and (status_flags_ & (overheating_flag | in_danger_flag | interdicted_flag)) != 0u
+    )
+      frame.blocks.push_back(
+        overlay::block_t{
+          .corner = overlay::corner_e::centre_top_right,
+          .ttl_ms = block_ttl_ms(),
+          .lines = {overlay::line_t{
+            .text = std::format(
+              "at stake: {}",
+              overlay_exploration::short_credits(bio_total + at_risk_.bounties)
+            ),
+            .color = colour_alert()
+          }}
+        }
+      );
     }
 
   if(auto cargo{describe_cargo(state.cargo)}; not cargo.empty())
