@@ -169,7 +169,9 @@ it can take the game down: [overlay/README.md](overlay/README.md).
   need that correction too.
   It is kept in `live.sqlite`, as it cannot be rebuilt from journals, and it counts only while EHT runs.
 - **In the colony's service**: the Construction window and the site on the overlay show, beside each
-  commodity still needed, how much of it our carriers hold.
+  commodity still needed, how much of it our carriers hold. On the overlay the column is headed by
+  the callsign of the carrier the site is supplied from, when one is chosen in the Construction
+  window; otherwise it is all our carriers together.
   A cancelled jump is dropped.
 
 ## Exploration and exobiology

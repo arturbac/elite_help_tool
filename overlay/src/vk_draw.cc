@@ -552,14 +552,15 @@ namespace
 
     // the economies' square stands before everything else on the line, in a slot of its own, set in by
     // half its width so the commodities read as a list under their type's heading
-    if(not line.swatch.empty())
+    if(not line.swatch.empty() or line.swatch_space)
       {
       ImVec2 const at{ImGui::GetCursorScreenPos()};
       float const side{box * 0.7f};
       float const indent{side * 0.5f};
-      draw_swatch(
-        ImGui::GetWindowDrawList(), ImVec2{at.x + indent, at.y + (box - side) * 0.5f}, side, line.swatch, line.swatch_dot
-      );
+      if(not line.swatch.empty())
+        draw_swatch(
+          ImGui::GetWindowDrawList(), ImVec2{at.x + indent, at.y + (box - side) * 0.5f}, side, line.swatch, line.swatch_dot
+        );
       ImGui::Dummy(ImVec2{indent + side, box});
       ImGui::SameLine(0.f, ImGui::GetStyle().ItemSpacing.x * 0.5f);
       }

@@ -12,6 +12,10 @@
 #include <string>
 #include <vector>
 
+///\brief the carrier a site is supplied from, as chosen in the Construction window; 0 for none
+[[nodiscard]]
+auto construction_supplier(uint64_t site_market) -> uint64_t;
+
 ///\brief the construction sites under way in our commanders' systems, and what each still needs
 ///
 /// What a site needs comes from the game itself - it writes the site's whole state on every docking

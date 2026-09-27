@@ -16,6 +16,20 @@
 #include <array>
 #include <tuple>
 
+namespace
+  {
+[[nodiscard]]
+auto supplier_setting(uint64_t site_market) -> QString
+  { return QString::fromStdString(std::format("construction/carrier/{}", site_market)); }
+  }  // namespace
+
+auto construction_supplier(uint64_t site_market) -> uint64_t
+  {
+  if(site_market == 0u)
+    return 0u;
+  return QSettings{"ebasoft", "EliteHelpTool"}.value(supplier_setting(site_market)).toULongLong();
+  }
+
 construction_window_t::construction_window_t(current_state_t const & state, std::string db_path, QWidget * parent) :
     QMdiSubWindow(parent),
     state_{state},
@@ -114,9 +128,7 @@ auto construction_window_t::setup_ui() -> void
     [this](int)
     {
       if(uint64_t const market{selected_market()}; market != 0u)
-        QSettings{"ebasoft", "EliteHelpTool"}.setValue(
-          QString::fromStdString(std::format("construction/carrier/{}", market)), carrier_combo_->currentData()
-        );
+        QSettings{"ebasoft", "EliteHelpTool"}.setValue(supplier_setting(market), carrier_combo_->currentData());
       show_site();
     }
   );
@@ -148,14 +160,8 @@ auto construction_window_t::setup_ui() -> void
 
 auto construction_window_t::restore_carrier() -> void
   {
-  uint64_t const market{selected_market()};
-  QVariant const saved{
-    market == 0u ? QVariant{}
-                 : QSettings{"ebasoft", "EliteHelpTool"}.value(
-                     QString::fromStdString(std::format("construction/carrier/{}", market))
-                   )
-  };
-  int const index{saved.isValid() ? carrier_combo_->findData(saved) : 0};
+  uint64_t const supplier{construction_supplier(selected_market())};
+  int const index{carrier_combo_->findData(QVariant::fromValue(qulonglong{supplier}))};
   QSignalBlocker const block{carrier_combo_};
   carrier_combo_->setCurrentIndex(index < 0 ? 0 : index);
   }

@@ -109,12 +109,13 @@ auto main_window_t::publish_overlay() -> void
       .waypoints = route_view_->neutron_route_, .reached = route_view_->reached_, .name = route_view_->neutron_name_
     };
 
-  // the site chosen in the Construction window goes to the overlay while that window is the active one
+  // the site chosen in the Construction window goes to the overlay while that window is the current one -
+  // not the active one, which there is none of while the game has the focus
   uint64_t construction_focus{};
   if(construction_view_)
     {
     construction_view_->refresh_ui();
-    if(mdi_area_->activeSubWindow() == construction_view_ and not construction_view_->isMinimized())
+    if(mdi_area_->currentSubWindow() == construction_view_ and not construction_view_->isMinimized())
       construction_focus = construction_view_->selected_market();
     }
   overlay_feed_->set_construction_focus(construction_focus);

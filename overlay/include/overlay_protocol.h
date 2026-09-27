@@ -107,6 +107,9 @@ struct line_t
   std::vector<uint32_t> swatch;
   ///\brief a dot in the square's corner - produced only at ports on the ground
   bool swatch_dot{};
+  ///\brief keeps the square's room without drawing one, so that a heading of columns stands above the
+  /// text of lines that have squares. A field an older layer skips
+  bool swatch_space{};
   };
 
 ///\brief one point of a series, both coordinates already scaled to 0..1 by the tool

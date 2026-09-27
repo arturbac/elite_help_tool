@@ -1,5 +1,6 @@
 #include <overlay_feed.h>
 #include <commodity_facts.h>
+#include <construction_window.h>
 #include <eht_settings.h>
 #include <qformat.h>
 
@@ -2035,6 +2036,17 @@ auto overlay_feed_t::refresh_construction(current_state_t const & state) -> void
     carrier_cargo_changes_ = state.carrier_changes_;
     auto totals{db_.load_carrier_cargo_totals()};
     carrier_cargo_ = totals ? std::move(*totals) : std::map<std::string, int64_t>{};
+    cargo_by_carrier_.clear();
+    carrier_callsigns_.clear();
+    if(auto carriers{db_.load_carriers()}; carriers)
+      for(info::carrier_t const & carrier: *carriers)
+        if(carrier.tracked or carrier.carrier_type == "SquadronCarrier")
+          {
+          carrier_callsigns_[carrier.market_id] = carrier.carrier_id;
+          if(auto cargo{db_.load_carrier_cargo(carrier.market_id)}; cargo)
+            for(info::carrier_cargo_t const & item: *cargo)
+              cargo_by_carrier_[carrier.market_id][item.key] += item.count;
+          }
     }
   // the port's market is read again when the port changes, or with the sites
   uint64_t const port{state.settlement_market_id_};
@@ -2145,10 +2157,28 @@ auto overlay_feed_t::build_construction_lines(current_state_t const & state) con
     { return std::tuple{category_of(*a), a->commodity} < std::tuple{category_of(*b), b->commodity}; }
   );
 
-  // the amounts stand in a column after the longest name
+  // the carrier the site is supplied from, when one was chosen in the Construction window - its callsign
+  // heads its column; without one the column is all our carriers together
+  uint64_t const supplier{construction_supplier(site->depot.market_id)};
+  static std::map<std::string, int64_t> const nothing;
+  auto const callsign{carrier_callsigns_.find(supplier)};
+  bool const one_carrier{supplier != 0u and callsign != carrier_callsigns_.end()};
+  auto const supplier_cargo{cargo_by_carrier_.find(supplier)};
+  std::map<std::string, int64_t> const & on_carrier{
+    one_carrier ? (supplier_cargo != cargo_by_carrier_.end() ? supplier_cargo->second : nothing) : carrier_cargo_
+  };
+  std::string const carrier_heading{one_carrier ? callsign->second : std::string{"carriers"}};
+
+  // the amounts stand in columns after the longest name, under a heading of their own
   size_t name_width{};
   for(info::construction_need_t const * need: needed)
     name_width = std::max(name_width, need->commodity.size());
+  size_t const carrier_width{std::max<size_t>(7u, carrier_heading.size() + 1u)};
+  {
+  std::string heading(name_width, ' ');
+  heading += std::format("{:>7}{:>7}{:>{}}   here", "left", "hold", carrier_heading, carrier_width);
+  lines.push_back(overlay::line_t{.text = std::move(heading), .color = colour_heading(), .swatch_space = true});
+  }
 
   size_t shown{};
   std::string last_category;
@@ -2165,15 +2195,18 @@ auto overlay_feed_t::build_construction_lines(current_state_t const & state) con
     uint32_t const left{need->required - need->provided};
     std::string text{need->commodity};
     text.resize(std::max<size_t>(text.size(), name_width), ' ');
-    text += std::format("{:>6} t", left);
+    text += std::format("{:>7}", left);
     auto const h{hold.find(need->key)};
-    if(h != hold.end())
-      text += std::format("   hold {}", h->second);
-    if(auto const c{carrier_cargo_.find(need->key)}; c != carrier_cargo_.end() and c->second > 0)
-      text += std::format("   carriers {}", c->second);
+    text += h != hold.end() ? std::format("{:>7}", h->second) : std::string(7u, ' ');
+    auto const c{on_carrier.find(need->key)};
+    text += c != on_carrier.end() and c->second > 0 ? std::format("{:>{}}", c->second, carrier_width)
+                                                     : std::string(carrier_width, ' ');
     auto const m{here.find(need->key)};
     if(m != here.end())
-      text += std::format("   here {} @ {}", m->second->stock, m->second->buy_price);
+      text += std::format("   {} @ {}", m->second->stock, m->second->buy_price);
+    // blanks left at the end by empty columns would only widen the block
+    while(not text.empty() and text.back() == ' ')
+      text.pop_back();
     // what can be loaded right here stands out; the square says which economies produce it - grey when
     // the table of facts does not know, so that the names still stand in a column
     overlay::line_t line{.text = std::move(text), .color = m != here.end() ? colour_first() : colour_plain()};

@@ -183,6 +183,9 @@ private:
   uint64_t construction_port_{};
   std::vector<info::market_entry_t> construction_port_market_;
   std::map<std::string, int64_t> carrier_cargo_;
+  ///\brief each of our carriers' cargo alone, and its callsign - for the site supplied from one of them
+  std::map<uint64_t, std::map<std::string, int64_t>> cargo_by_carrier_;
+  std::map<uint64_t, std::string> carrier_callsigns_;
   ///\brief every commodity's type by key, for listing a site's needs by type
   std::map<std::string, std::string> commodity_categories_;
   uint64_t carrier_cargo_changes_{~uint64_t{}};
