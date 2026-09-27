@@ -187,6 +187,9 @@ struct diagram_t
   float height{};
   ///\brief how much larger than the rest of the overlay the picture is drawn upright
   float zoom{1.f};
+  ///\brief what part of the band's width the picture takes, 0..1 - the tool decides, so the
+  /// proportions can be changed without installing the layer again
+  float share{1.f};
   std::vector<segment_t> segments;
   std::vector<disc_t> discs;
   std::vector<label_t> labels;

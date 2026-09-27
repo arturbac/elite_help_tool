@@ -780,9 +780,11 @@ auto build_system_diagram(
 
   diagram.width = std::max(widest, star_column);
   diagram.height = top;
-  // Artur's choice: as wide as the band, twice the height of the rest - so a system of more stars is
+  // Artur's choice: as wide as the window above, twice the height of the rest - so a system of more stars is
   // simply taller, by the same amount for each row
   diagram.zoom = 2.f;
+  // about as wide as the window at the top of the band, which is half of it
+  diagram.share = 0.5f;
   return diagram;
   }
 

@@ -589,6 +589,7 @@ namespace
     float const scale{ImGui::GetFontSize() / 13.f};
     // across: the whole band; upright: the zoom asked for, but never so much taller than wide that
     // neighbouring discs run into each other
+    available *= std::clamp(diagram.share, 0.1f, 1.f);
     float const kx{available / diagram.width};
     float const k{std::min(scale * std::max(diagram.zoom, 0.1f), kx * 1.3f)};
 
