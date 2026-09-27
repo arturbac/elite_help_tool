@@ -3295,49 +3295,60 @@ auto database_storage_t::load_carrier_states(std::chrono::sys_seconds now, std::
   if(not moves) [[unlikely]]
     return cxx23::unexpected{moves.error()};
 
+  // a jump takes about a minute - the position comes that long after the departure
+  constexpr std::chrono::minutes jump_takes{1};
+
+  struct order_t
+    {
+    info::carrier_movement_t request;
+    std::string from;
+    ///\brief the position read after the departure - the arrival - once there is one
+    std::optional<std::chrono::sys_seconds> arrived;
+    };
   std::map<uint64_t, info::carrier_state_t> states;
-  // the jump last ordered, until it is cancelled or its destination reached
-  std::map<uint64_t, std::optional<info::carrier_movement_t>> ordered;
+  std::map<uint64_t, std::optional<order_t>> orders;
   for(info::carrier_movement_t const & move: *moves)
     {
     info::carrier_state_t & state{states[move.carrier_id]};
     state.carrier_id = move.carrier_id;
     if(not move.carrier_type.empty())
       state.carrier_type = move.carrier_type;
-    auto & order{ordered[move.carrier_id]};
+    auto & order{orders[move.carrier_id]};
     if(move.kind == "request")
-      order = move;
+      order = order_t{.request = move, .from = state.system, .arrived = std::nullopt};
     else if(move.kind == "cancel")
       order.reset();
     else
       {
+      // a position read after the departure is the arrival - where the carrier went, and when
+      if(order and move.timestamp >= order->request.departure and not order->arrived)
+        order->arrived = move.timestamp;
       state.system = move.system;
       state.since = move.timestamp;
-      // a position read after the jump left ends the order - it is where the carrier went
-      if(order and move.timestamp >= order->departure)
-        order.reset();
       }
     }
 
   std::vector<info::carrier_state_t> result;
   for(auto & [id, state]: states)
     {
-    if(auto const & order{ordered[id]}; order)
+    if(auto const & order{orders[id]}; order)
       {
-      // the jump leaves at its time; not in the game then, no position comes, so past the cooldown the
-      // carrier is taken to be where it was sent
-      if(now >= order->departure + cooldown)
-        {
-        state.system = order->system;
-        state.since = order->departure;
-        }
-      else
+      auto const arrival{order->arrived.value_or(order->request.departure + jump_takes)};
+      if(now < arrival + cooldown)
         {
         state.jumping = true;
-        state.from = state.system;
-        state.to = order->system;
-        state.to_body = order->body;
-        state.departure = order->departure;
+        state.from = order->from;
+        state.to = order->request.system;
+        state.to_body = order->request.body;
+        state.departure = order->request.departure;
+        state.arrival = arrival;
+        state.arrived = order->arrived.has_value();
+        }
+      else if(not order->arrived)
+        {
+        // not in the game at the arrival, so no position came - it went where it was sent
+        state.system = order->request.system;
+        state.since = arrival;
         }
       }
     // the name and callsign come from the carrier's own statistics, when we have seen them

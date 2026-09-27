@@ -2937,11 +2937,12 @@ auto describe_carrier(info::carrier_state_t const & c, std::chrono::sys_seconds 
     return overlay::line_t{.text = std::format("  {}: {}", who, c.system.empty() ? "?" : c.system), .color = colour_plain()};
 
   auto const minutes = [](auto d) { return std::chrono::duration_cast<std::chrono::minutes>(d).count(); };
-  auto const ready{c.departure + carrier_cooldown};
+  // five minutes after the arrival the next jump can be ordered; before it the arrival is reckoned
+  auto const ready{c.arrival + carrier_cooldown};
   if(now < c.departure)
     return overlay::line_t{
       .text = std::format(
-        "  {}: {} -> {}, leaves {:%H:%M} UTC (in {} min), ready {:%H:%M}",
+        "  {}: {} -> {}, leaves {:%H:%M} UTC (in {} min), ready ~{:%H:%M}",
         who,
         c.from.empty() ? "?" : c.from,
         c.to_body.empty() ? c.to : c.to_body,
@@ -2953,11 +2954,12 @@ auto describe_carrier(info::carrier_state_t const & c, std::chrono::sys_seconds 
     };
   return overlay::line_t{
     .text = std::format(
-      "  {}: jumped {} -> {} at {:%H:%M} UTC, ready {:%H:%M} (in {} min)",
+      "  {}: {} {} -> {} at {:%H:%M} UTC, ready {:%H:%M} (in {} min)",
       who,
+      c.arrived ? "arrived" : "jumping",
       c.from.empty() ? "?" : c.from,
       c.to_body.empty() ? c.to : c.to_body,
-      c.departure,
+      c.arrived ? c.arrival : c.departure,
       ready,
       minutes(ready - now) + 1
     ),

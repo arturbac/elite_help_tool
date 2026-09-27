@@ -485,7 +485,9 @@ auto micro_resource_window_t::show_carriers() -> void
         row, 3, new QTableWidgetItem(QString::fromStdString(c.to_body.empty() ? c.to : c.to_body))
       );
       carriers_view_->setItem(row, 4, new QTableWidgetItem(qformat("{:%H:%M}", c.departure)));
-      carriers_view_->setItem(row, 5, new QTableWidgetItem(qformat("{:%H:%M}", c.departure + cooldown)));
+      carriers_view_->setItem(
+        row, 5, new QTableWidgetItem(qformat("{}{:%H:%M}", c.arrived ? "" : "~", c.arrival + cooldown))
+      );
       }
     }
   }

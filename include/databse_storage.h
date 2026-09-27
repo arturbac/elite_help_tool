@@ -395,7 +395,7 @@ struct database_storage_t
   auto store(info::carrier_movement_t const & value) -> expected_ec<void>;
 
   ///\brief every carrier whose moves the journals tell - one's own and the squadron's - where each is and
-  /// the jump it is on: ordered, not cancelled, and within the cooldown after it left
+  /// the jump it is on: ordered, not cancelled, and within the cooldown after its arrival
   [[nodiscard]]
   auto load_carrier_states(std::chrono::sys_seconds now, std::chrono::minutes cooldown)
     -> expected_ec<std::vector<info::carrier_state_t>>;

@@ -136,9 +136,10 @@ it can take the game down: [overlay/README.md](overlay/README.md).
 - **Where each carrier is, and where it goes.** For your own carrier and your squadron's, the overlay
   (with the logistics, bottom left) and the *Carriers* tab of the Data window show where it stands, or,
   once a jump is ordered: from where to where, when it leaves (UTC, with a countdown) and when it can
-  jump again, five minutes after it left.
+  be sent on again, five minutes after it arrives.
 - The game writes a carrier's position at login and about a minute after a jump while you are in the
-  game; when you are not, the carrier is taken to have arrived once the jump's cooldown has run out.
+  game, which is taken as the arrival; when you are not, the arrival is reckoned a minute after the
+  departure, as the journals show, and the time is marked with a tilde.
   A cancelled jump is dropped.
 
 ## Exploration and exobiology

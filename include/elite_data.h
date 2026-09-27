@@ -403,6 +403,10 @@ struct carrier_state_t
   std::string to;
   std::string to_body;
   std::chrono::sys_seconds departure;
+  ///\brief when it arrived, or is expected to - the next jump can be ordered five minutes after it
+  std::chrono::sys_seconds arrival;
+  ///\brief whether the arrival was seen in the journal rather than reckoned
+  bool arrived{};
   };
 
 ///\brief when we last read this station's market
