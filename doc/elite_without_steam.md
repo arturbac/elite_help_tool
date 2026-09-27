@@ -77,6 +77,8 @@ Notes:
 - `HOME` stays your real home, so the Vulkan loader inside the container finds the layer manifest
   in `~/.local/share/vulkan/implicit_layer.d` by itself. No `VK_ADD_IMPLICIT_LAYER_PATH` and no bind
   mounts are needed.
+- For several monitors, give this prefix a Wine virtual desktop too, and a KWin rule matching
+  the class `steam_proton`: [wine_virtual_desktop.md](wine_virtual_desktop.md).
 - Keep the game on X11 (XWayland), the Proton default. The F11 screenshot key does not work with
   `PROTON_ENABLE_WAYLAND=1`.
 

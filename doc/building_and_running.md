@@ -233,3 +233,6 @@ EHT_OVERLAY_SOCKET=$HOME/.local/share/elite_help_tool/overlay-alt.sock ENABLE_EH
 commander.
 
 To run the second account without Steam, see [elite_without_steam.md](elite_without_steam.md).
+
+To spread the game over several monitors, borderless from the start under KWin, see
+[wine_virtual_desktop.md](wine_virtual_desktop.md).

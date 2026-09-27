@@ -13,6 +13,7 @@ EHT (Elite Help Tool) is a companion for Elite Dangerous that follows the game's
 - [Building, installing and running](doc/building_and_running.md): build, overlay install, first
   journal scan, starting EHT, Steam launch options, F11 screenshots
 - [Running Elite Dangerous on Linux without Steam, with EHT](doc/elite_without_steam.md)
+- [Elite on several monitors: the Wine virtual desktop, borderless under KWin](doc/wine_virtual_desktop.md)
 - [How the BGS tick window is worked out](doc/bgs_tick.md)
 - [Contributors](doc/contributors.md)
 
