@@ -17,6 +17,8 @@
 #include <qboxlayout.h>
 #include <qwidget.h>
 #include <qlabel.h>
+#include <qdesktopservices.h>
+#include <qurl.h>
 #include <string_view>
 #include <vector>
 #include <qprogressbar.h>
@@ -242,6 +244,16 @@ auto main_window_t::setup_toolbox() -> void
 
     connect(btn, &QPushButton::clicked, this, [this, type = tool.type]() { activate_window(type); });
     }
+
+  // not a window of the tool but a page beside it - what was sampled, where, and what it looked like
+  auto * codex = new QPushButton("Codex", this);
+  toolbox_dock->addWidget(codex);
+  connect(
+    codex,
+    &QPushButton::clicked,
+    this,
+    []() { QDesktopServices::openUrl(QUrl::fromLocalFile(QString::fromStdString(codex_t::page_path().string()))); }
+  );
   }
 
 auto main_window_t::save_settings() -> void

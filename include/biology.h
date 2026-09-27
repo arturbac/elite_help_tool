@@ -60,6 +60,31 @@ struct species_record_t
   std::string star_type;
   };
 
+///\brief one find of a species and the place it was made - a row of the codex
+///\detail the field names are the columns of the query that reads them
+struct find_t
+  {
+  std::string genus;
+  std::string species;
+  std::string system_name;
+  std::string body_name;
+  uint64_t system_address;
+  uint32_t body_id;
+  std::string planet_class;
+  std::string atmosphere_type;
+  std::string volcanism;
+  double surface_temperature;
+  double surface_gravity;
+  double surface_pressure;
+  std::string star_type;
+  double distance_from_arrival_ls;
+  double loc_x;
+  double loc_y;
+  double loc_z;
+  ///\brief this commander finished the sample - not merely saw the species someone else took
+  bool sampled;
+  };
+
 ///\brief the same description for a world not sampled yet
 struct conditions_t
   {

@@ -242,6 +242,10 @@ struct database_storage_t
   [[nodiscard]]
   auto load_species_history() -> expected_ec<std::vector<bio::species_record_t>>;
 
+  ///\brief every find of a species with its system, body and world - what the codex page is written from
+  [[nodiscard]]
+  auto load_codex_finds() -> expected_ec<std::vector<bio::find_t>>;
+
   ///\brief what the discovery scan counted - a fact of the system, not of who honked
   [[nodiscard]]
   auto store_body_count(uint64_t system_address, uint32_t body_count) -> expected_ec<void>;

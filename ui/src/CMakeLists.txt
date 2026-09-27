@@ -14,4 +14,5 @@ target_sources(elite_help_tool
   bgs_window.cc
   overlay_feed.cc
   overlay_exploration.cc
+  codex.cc
   )

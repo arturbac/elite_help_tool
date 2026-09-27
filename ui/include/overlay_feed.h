@@ -2,6 +2,7 @@
 
 #include "logic.h"
 #include "overlay_exploration.h"
+#include "codex.h"
 
 #include <overlay_ipc.h>
 
@@ -120,6 +121,10 @@ private:
   /// sample was analysed, since that is when the history grows
   std::vector<bio::species_record_t> species_history_;
   uint64_t history_scans_{~uint64_t{}};
+  ///\brief the pictures of the samples and the page they go on
+  codex_t codex_;
+  ///\brief the scans already asked a picture of
+  uint64_t pictured_scans_{};
   ///\brief where the ship is set to go, as Status.json has it
   std::optional<events::status_file_t::destination_t> status_destination_;
   ///\brief the ports of the system we are in, for the picture - read again only on a change of system

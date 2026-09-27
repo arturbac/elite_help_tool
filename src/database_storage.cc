@@ -1806,6 +1806,36 @@ auto database_storage_t::load_species_history() -> expected_ec<std::vector<bio::
   );
   }
 
+auto database_storage_t::load_codex_finds() -> expected_ec<std::vector<bio::find_t>>
+  {
+  return sqlite::select_from<bio::find_t>(
+    db_->db,
+    std::format(
+      "(SELECT g.genus AS genus, g.species AS species, s.name AS system_name, b.name AS body_name,"
+      " b.ref_system_address AS system_address, b.body_id AS body_id, pd.planet_class AS planet_class,"
+      " pd.atmosphere_type AS atmosphere_type, pd.volcanism AS volcanism,"
+      " pd.surface_temperature AS surface_temperature, pd.surface_gravity AS surface_gravity,"
+      " pd.surface_pressure AS surface_pressure, sd.star_type AS star_type,"
+      " b.distance_from_arrival_ls AS distance_from_arrival_ls, s.loc_x AS loc_x, s.loc_y AS loc_y,"
+      " s.loc_z AS loc_z, coalesce(gp.sampled, 0) AS sampled"
+      " FROM {0} g JOIN {1} b ON b.oid = g.ref_body_oid JOIN {2} pd ON pd.ref_body_oid = b.oid"
+      " JOIN {4} s ON s.system_address = b.ref_system_address"
+      " LEFT JOIN {1} bs ON bs.ref_system_address = b.ref_system_address AND bs.body_id = pd.parent_star"
+      " LEFT JOIN {3} sd ON sd.ref_body_oid = bs.oid"
+      " LEFT JOIN {5} gp ON gp.system_address = b.ref_system_address AND gp.body_id = b.body_id"
+      " AND gp.genus = g.genus"
+      " WHERE g.species <> '') AS finds",
+      sql_iface::tables::genus,
+      sql_iface::tables::body,
+      sql_iface::tables::planet_details,
+      sql_iface::tables::star_details,
+      sql_iface::tables::star_system,
+      sql_iface::tables::genus_progress
+    ),
+    " ORDER BY genus, species, system_name, body_name"
+  );
+  }
+
 auto database_storage_t::store_body_count(uint64_t system_address, uint32_t body_count) -> expected_ec<void>
   {
   return sqlite::execute_query_no_result(

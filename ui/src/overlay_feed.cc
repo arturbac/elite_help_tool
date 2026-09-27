@@ -1875,6 +1875,8 @@ auto overlay_feed_t::refresh_species_history(current_state_t const & state) -> v
     species_history_ = std::move(*history);
   else
     spdlog::error("failed to read the species found before");
+  // the codex is written from the same finds, so it follows them
+  codex_.write_page(db_);
   }
 
 auto overlay_feed_t::refresh_status(current_state_t const & state) -> void
@@ -2386,6 +2388,16 @@ auto overlay_feed_t::build_logistics_lines() const -> std::vector<overlay::line_
 
 auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t const & plotted) -> void
   {
+  // the codex does not need the game - its page is written whether anyone is drawing or not
+  if(state.organic_scans_seen_ != pictured_scans_)
+    {
+    pictured_scans_ = state.organic_scans_seen_;
+    codex_.ask_for_picture(state.last_organic_scan_);
+    }
+  if(codex_.collect())
+    codex_.write_page(db_);
+  refresh_species_history(state);
+
   if(not server_->listening())
     return;
 
@@ -2426,7 +2438,6 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
     }
 
   // exploration in the order the work goes: is the system new, what to map, where to land
-  refresh_species_history(state);
   if(auto arrival{overlay_exploration::describe_arrival(state.system)}; not arrival.empty())
     frame.blocks.push_back(
       overlay::block_t{.corner = overlay::corner_e::bottom_right, .ttl_ms = block_ttl_ms(), .lines = std::move(arrival)}
@@ -2566,6 +2577,7 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
   // the layout rides with every frame: the layer keeps nothing of its own, so a saved settings file shows
   // in the game at the next frame
   frame.layout = eht::settings()->overlay.layout;
+  frame.capture = codex_.capture_request();
 
   // the game gets a frame when it has changed or when the keep-alive time has passed - not on every journal event
   auto const now{std::chrono::steady_clock::now()};
