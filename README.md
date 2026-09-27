@@ -14,6 +14,7 @@ This is a realtime tool that helps explore a system, map valuable planets and op
   journal scan, starting EHT, Steam launch options, F11 screenshots
 - [Running Elite Dangerous on Linux without Steam, with EHT](doc/elite_without_steam.md)
 - [How the BGS tick window is worked out](doc/bgs_tick.md)
+- [Contributors](doc/contributors.md)
 
 ## Exploration
 
