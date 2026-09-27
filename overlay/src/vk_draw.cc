@@ -1,5 +1,6 @@
 #include "vk_draw.h"
 #include "vk_capture.h"
+#include "overlay_font.h"
 
 #include <backends/imgui_impl_vulkan.h>
 #include <imgui.h>
@@ -735,6 +736,31 @@ namespace
       }
     }
 
+  ///\brief the characters the overlay writes: Latin with its extended letters for names, and the few
+  /// typographic ones the lines use
+  constexpr std::array<ImWchar, 9> glyph_ranges{
+    0x0020, 0x00ff,  // Latin-1
+    0x0100, 0x017f,  // Latin Extended-A - Polish and the rest of Central Europe
+    0x2013, 0x2026,  // dashes, quotes, bullet, ellipsis
+    0x2190, 0x2193,  // arrows
+    0
+  };
+
+  ///\brief adds the built-in face at a size - antialiased TrueType rasterised at that size, where the
+  /// default bitmap face of imgui only grew its pixels
+  auto add_overlay_font(ImFontConfig & config) -> ImFont *
+    {
+    // the data is ours and static - the atlas must neither free it nor write into it
+    config.FontDataOwnedByAtlas = false;
+    return ImGui::GetIO().Fonts->AddFontFromMemoryTTF(
+      const_cast<unsigned char *>(overlay_font_data),
+      static_cast<int>(overlay_font_size),
+      config.SizePixels,
+      &config,
+      glyph_ranges.data()
+    );
+    }
+
   ///\brief rasterises the text at the size the layout asks for, the emblems with it, and sizes the style
   ///\detail the font is rasterised at the target size, because stretching a finished bitmap turns to mush
   auto build_fonts(swapchain_data_t & data, overlay::layout_t const & layout) -> void
@@ -746,13 +772,13 @@ namespace
     io.Fonts->Clear();
     ImFontConfig font_config{};
     font_config.SizePixels = std::round(13.f * scale);
-    io.Fonts->AddFontDefault(&font_config);
+    add_overlay_font(font_config);
 
     // the same face rasterised a second time rather than one bitmap stretched: a list of missions is
     // read line by line, not glanced at, and at the size that suits a glance it eats the band
     ImFontConfig small_config{};
     small_config.SizePixels = std::max(8.f, std::round(font_config.SizePixels * small));
-    data.small_font = io.Fonts->AddFontDefault(&small_config);
+    data.small_font = add_overlay_font(small_config);
 
     // the emblems take their place in the atlas before it is built, and are written into it right after
     data.emblem_rects = {-1, -1, -1, -1};

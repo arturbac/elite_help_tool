@@ -53,12 +53,33 @@ set_target_properties(eht_overlay_ipc PROPERTIES
   VISIBILITY_INLINES_HIDDEN ON)
 
 # ----------------------------------------------------------------
+# czcionka wkompilowana w warstwe - w kontenerze gry czcionek systemu nie widac
+# (Noto Sans Mono, SIL OFL 1.1, fonts/OFL.txt)
+# ----------------------------------------------------------------
+set(EHT_OVERLAY_FONT_FILE ${CMAKE_CURRENT_SOURCE_DIR}/fonts/NotoSansMono-Regular.ttf)
+set(EHT_OVERLAY_FONT_SOURCE ${CMAKE_CURRENT_BINARY_DIR}/overlay_font.cc)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${EHT_OVERLAY_FONT_FILE})
+file(READ ${EHT_OVERLAY_FONT_FILE} eht_font_hex HEX)
+string(LENGTH "${eht_font_hex}" eht_font_hex_length)
+math(EXPR eht_font_size "${eht_font_hex_length} / 2")
+string(REGEX REPLACE "([0-9a-f][0-9a-f])" "0x\\1," eht_font_bytes "${eht_font_hex}")
+file(WRITE ${EHT_OVERLAY_FONT_SOURCE}
+  "// generated from fonts/NotoSansMono-Regular.ttf by overlay/CMakeLists.txt\n"
+  "#include \"overlay_font.h\"\n"
+  "namespace eht_overlay\n  {\n"
+  "alignas(4) unsigned char const overlay_font_data[] = {${eht_font_bytes}};\n"
+  "std::size_t const overlay_font_size = ${eht_font_size}u;\n"
+  "  }\n")
+
+# ----------------------------------------------------------------
 # sama warstwa
 # ----------------------------------------------------------------
 add_library(eht_overlay SHARED
   src/vk_layer.cc
   src/vk_draw.cc
-  src/vk_capture.cc)
+  src/vk_capture.cc
+  ${EHT_OVERLAY_FONT_SOURCE})
+target_include_directories(eht_overlay PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(eht_overlay PRIVATE
   eht_overlay_ipc
   eht_imgui
