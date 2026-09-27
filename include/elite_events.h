@@ -177,6 +177,8 @@ enum struct event_e : uint16_t
   DropshipDeploy,
   ColonisationSystemClaim,
   ColonisationSystemClaimRelease,
+  CarrierJumpCancelled,
+  CarrierJump,
   
   NavRoute,
   NavRouteClear
@@ -1027,6 +1029,42 @@ struct colonisation_contribution_t
   std::vector<construction_contribution_t> Contributions;
   };
 
+///\brief a carrier's jump ordered - where to and when it leaves; one's own carrier or the squadron's
+struct carrier_jump_request_t
+  {
+  std::string CarrierType;
+  uint64_t CarrierID{};
+  std::string SystemName;
+  std::string Body;
+  uint64_t SystemAddress{};
+  std::chrono::sys_seconds DepartureTime;
+  };
+
+///\brief where a carrier is - written at login, and a minute after a jump when in the game
+struct carrier_location_t
+  {
+  std::string CarrierType;
+  uint64_t CarrierID{};
+  std::string StarSystem;
+  uint64_t SystemAddress{};
+  };
+
+struct carrier_jump_cancelled_t
+  {
+  std::string CarrierType;
+  uint64_t CarrierID{};
+  };
+
+///\brief a carrier's jump seen from aboard it - the carrier is the station docked at
+struct carrier_jump_t
+  {
+  std::string StarSystem;
+  uint64_t SystemAddress{};
+  std::string Body;
+  std::string StationType;
+  uint64_t MarketID{};
+  };
+
 ///\brief a system claimed for colonisation - by the commander of the session
 struct colonisation_system_claim_t
   {
@@ -1403,7 +1441,11 @@ using event_holder_t = std::variant<
   colonisation_construction_depot_t,
   colonisation_contribution_t,
   colonisation_system_claim_t,
-  colonisation_system_claim_release_t>;
+  colonisation_system_claim_release_t,
+  carrier_jump_request_t,
+  carrier_location_t,
+  carrier_jump_cancelled_t,
+  carrier_jump_t>;
 
   }  // namespace events
 

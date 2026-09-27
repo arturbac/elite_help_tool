@@ -2920,6 +2920,52 @@ auto overlay_feed_t::build_route_lines(current_state_t const & state, plotted_ro
   return lines;
   }
 
+namespace
+  {
+///\brief after a jump a carrier cannot jump again for five minutes
+constexpr std::chrono::minutes carrier_cooldown{5};
+
+///\brief a carrier in one line: where it is, or where it goes, when it leaves and when it is ready again
+[[nodiscard]]
+auto describe_carrier(info::carrier_state_t const & c, std::chrono::sys_seconds now) -> overlay::line_t
+  {
+  std::string const who{
+    c.name.empty() ? std::format("carrier {}", c.carrier_id)
+                   : (c.callsign.empty() ? c.name : std::format("{} ({})", c.name, c.callsign))
+  };
+  if(not c.jumping)
+    return overlay::line_t{.text = std::format("  {}: {}", who, c.system.empty() ? "?" : c.system), .color = colour_plain()};
+
+  auto const minutes = [](auto d) { return std::chrono::duration_cast<std::chrono::minutes>(d).count(); };
+  auto const ready{c.departure + carrier_cooldown};
+  if(now < c.departure)
+    return overlay::line_t{
+      .text = std::format(
+        "  {}: {} -> {}, leaves {:%H:%M} UTC (in {} min), ready {:%H:%M}",
+        who,
+        c.from.empty() ? "?" : c.from,
+        c.to_body.empty() ? c.to : c.to_body,
+        c.departure,
+        minutes(c.departure - now) + 1,
+        ready
+      ),
+      .color = colour_first()
+    };
+  return overlay::line_t{
+    .text = std::format(
+      "  {}: jumped {} -> {} at {:%H:%M} UTC, ready {:%H:%M} (in {} min)",
+      who,
+      c.from.empty() ? "?" : c.from,
+      c.to_body.empty() ? c.to : c.to_body,
+      c.departure,
+      ready,
+      minutes(ready - now) + 1
+    ),
+    .color = colour_first()
+  };
+  }
+  }  // namespace
+
 auto overlay_feed_t::build_logistics_lines() const -> std::vector<overlay::line_t>
   {
   auto & db{const_cast<database_storage_t &>(db_)};
@@ -2936,6 +2982,14 @@ auto overlay_feed_t::build_logistics_lines() const -> std::vector<overlay::line_
         .color = colour_plain()
       }
     );
+
+  // one's own carrier and the squadron's: where each is, or where it goes and when it can jump again
+  if(auto carriers{db.load_carrier_states(now, carrier_cooldown)}; carriers and not carriers->empty())
+    {
+    lines.push_back(overlay::line_t{.text = "carriers:", .color = colour_heading()});
+    for(info::carrier_state_t const & c: *carriers)
+      lines.push_back(describe_carrier(c, now));
+    }
 
   auto pending{db.load_transfers_in_flight(now)};
   if(not pending or pending->empty())

@@ -880,6 +880,11 @@ auto generic_state_t::discovery(std::string_view input) -> void
     case ColonisationSystemClaimRelease:
       parse_and_handle.template operator()<events::colonisation_system_claim_release_t>();
       break;
+    // carriers - one's own and the squadron's: where each is, and where it goes and when
+    case CarrierJumpRequest:   parse_and_handle.template operator()<events::carrier_jump_request_t>(); break;
+    case CarrierLocation:      parse_and_handle.template operator()<events::carrier_location_t>(); break;
+    case CarrierJumpCancelled: parse_and_handle.template operator()<events::carrier_jump_cancelled_t>(); break;
+    case CarrierJump:          parse_and_handle.template operator()<events::carrier_jump_t>(); break;
     case CarrierStats:      parse_and_handle.template operator()<events::carrier_stats_t>(); break;
     case FCMaterials:
         {

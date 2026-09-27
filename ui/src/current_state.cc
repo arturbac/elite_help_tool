@@ -855,6 +855,50 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
             spdlog::error("failed to store a delivery to {}", event.MarketID);
         ++construction_changes_;
         }
+        // carriers: every move, so that where each is and where it goes can be read back
+        else if constexpr(std::same_as<T, events::carrier_jump_request_t>)
+        {
+        if(auto res{db_.store(info::carrier_movement_t{
+             .timestamp = timestamp, .carrier_id = event.CarrierID, .carrier_type = event.CarrierType, .kind = "request",
+             .system = event.SystemName, .system_address = event.SystemAddress, .body = event.Body,
+             .departure = event.DepartureTime
+           })};
+           not res)
+          spdlog::error("failed to store the jump of carrier {}", event.CarrierID);
+        ++carrier_changes_;
+        }
+        else if constexpr(std::same_as<T, events::carrier_location_t>)
+        {
+        if(auto res{db_.store(info::carrier_movement_t{
+             .timestamp = timestamp, .carrier_id = event.CarrierID, .carrier_type = event.CarrierType, .kind = "location",
+             .system = event.StarSystem, .system_address = event.SystemAddress, .body = {}, .departure = {}
+           })};
+           not res)
+          spdlog::error("failed to store the position of carrier {}", event.CarrierID);
+        ++carrier_changes_;
+        }
+        else if constexpr(std::same_as<T, events::carrier_jump_cancelled_t>)
+        {
+        if(auto res{db_.store(info::carrier_movement_t{
+             .timestamp = timestamp, .carrier_id = event.CarrierID, .carrier_type = event.CarrierType, .kind = "cancel",
+             .system = {}, .system_address = 0u, .body = {}, .departure = {}
+           })};
+           not res)
+          spdlog::error("failed to store the cancelled jump of carrier {}", event.CarrierID);
+        ++carrier_changes_;
+        }
+        else if constexpr(std::same_as<T, events::carrier_jump_t>)
+        {
+        // aboard a carrier as it jumps - the carrier is the station, by its market
+        if(event.StationType == "FleetCarrier" and event.MarketID != 0u)
+          if(auto res{db_.store(info::carrier_movement_t{
+               .timestamp = timestamp, .carrier_id = event.MarketID, .carrier_type = {}, .kind = "jump",
+               .system = event.StarSystem, .system_address = event.SystemAddress, .body = event.Body, .departure = {}
+             })};
+             not res)
+            spdlog::error("failed to store the jump of carrier {}", event.MarketID);
+        ++carrier_changes_;
+        }
         else if constexpr(std::same_as<T, events::market_t>)
           {
           info::station_t station{

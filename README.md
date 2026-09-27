@@ -131,6 +131,16 @@ it can take the game down: [overlay/README.md](overlay/README.md).
   abandoned in the window, which hides it; "Show abandoned" brings it back. The mark is kept in
   `live.sqlite`, since no journal records it.
 
+## Fleet carriers
+
+- **Where each carrier is, and where it goes.** For your own carrier and your squadron's, the overlay
+  (with the logistics, bottom left) and the *Carriers* tab of the Data window show where it stands, or,
+  once a jump is ordered: from where to where, when it leaves (UTC, with a countdown) and when it can
+  jump again, five minutes after it left.
+- The game writes a carrier's position at login and about a minute after a jump while you are in the
+  game; when you are not, the carrier is taken to have arrived once the jump's cooldown has run out.
+  A cancelled jump is dropped.
+
 ## Exploration and exobiology
 
 The bottom right corner of the overlay follows the order of work in a new system:

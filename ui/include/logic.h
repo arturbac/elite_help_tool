@@ -149,6 +149,8 @@ struct current_state_t : public generic_state_t
   std::string commander_name_;
   ///\brief counts changes of construction sites, so the overlay reads them again at once
   uint64_t construction_changes_{};
+  ///\brief counts carriers' moves, so the overlay and the window read them again at once
+  uint64_t carrier_changes_{};
   bool personal_{true};
 
   current_state_t(main_window_t * p, std::string db_path, std::string journal_path) : generic_state_t{journal_path}, parent{p}, db_{db_path} {}

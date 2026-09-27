@@ -84,12 +84,15 @@ public:
   };
 
 ///\brief managing micro resources - what sits on the carrier and where it comes from
+class QTableWidget;
+
 class micro_resource_window_t final : public QMdiSubWindow
   {
   Q_OBJECT
 public:
   /// a connection of its own; the state's db_ belongs to the journal following thread
   database_storage_t db_;
+  QTableWidget * carriers_view_{};
 
   QComboBox * carrier_combo_{};
   ///\brief the list narrowed to one's own - a stranger's bartender shows at every docking, and after a
@@ -109,6 +112,8 @@ public:
 
   ///\brief called when the game state has changed
   auto refresh_ui() -> void;
+  ///\brief the carriers' positions and jumps - read again every few seconds while the countdown runs
+  auto show_carriers() -> void;
 
   auto setup_ui() -> void;
 

@@ -6,6 +6,8 @@
 #include <qbrush.h>
 #include <qheaderview.h>
 #include <qsortfilterproxymodel.h>
+#include <qtablewidget.h>
+#include <qtimer.h>
 #include <spdlog/spdlog.h>
 #include <algorithm>
 
@@ -257,6 +259,21 @@ auto micro_resource_window_t::setup_ui() -> void
   acquisition_layout->addWidget(acquisition_view_, 1);
   tabs->addTab(acquisition_page, "Acquisition");
 
+  // --- where the carriers are, and where they go ---
+  carriers_view_ = new QTableWidget(tabs);
+  carriers_view_->setColumnCount(6);
+  carriers_view_->setHorizontalHeaderLabels({"Carrier", "Type", "Where", "Jumping to", "Leaves (UTC)", "Ready (UTC)"});
+  carriers_view_->verticalHeader()->setVisible(false);
+  carriers_view_->setEditTriggers(QAbstractItemView::NoEditTriggers);
+  carriers_view_->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
+  carriers_view_->horizontalHeader()->setStretchLastSection(true);
+  tabs->addTab(carriers_view_, "Carriers");
+  // a countdown is in minutes; a few seconds keep it current without reading the database too often
+  auto * carriers_timer = new QTimer(this);
+  connect(carriers_timer, &QTimer::timeout, this, [this] { show_carriers(); });
+  carriers_timer->start(5000);
+  show_carriers();
+
   layout->addWidget(tabs, 1);
 
   connect(
@@ -435,4 +452,40 @@ auto micro_resource_window_t::show_acquisitions() -> void
 
   acquisition_model_->update_data(std::move(*res));
   acquisition_view_->resizeColumnsToContents();
+  }
+
+auto micro_resource_window_t::show_carriers() -> void
+  {
+  if(not carriers_view_ or not isVisible())
+    return;
+  // after a jump a carrier cannot jump again for five minutes
+  constexpr std::chrono::minutes cooldown{5};
+  auto const now{std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())};
+  auto carriers{db_.load_carrier_states(now, cooldown)};
+  if(not carriers)
+    {
+    spdlog::error("data window: failed to load the carriers");
+    return;
+    }
+  carriers_view_->setRowCount(0);
+  for(info::carrier_state_t const & c: *carriers)
+    {
+    int const row{carriers_view_->rowCount()};
+    carriers_view_->insertRow(row);
+    QString const who{
+      c.name.empty() ? qformat("{}", c.carrier_id)
+                     : (c.callsign.empty() ? QString::fromStdString(c.name) : qformat("{} ({})", c.name, c.callsign))
+    };
+    carriers_view_->setItem(row, 0, new QTableWidgetItem(who));
+    carriers_view_->setItem(row, 1, new QTableWidgetItem(QString::fromStdString(c.carrier_type)));
+    carriers_view_->setItem(row, 2, new QTableWidgetItem(QString::fromStdString(c.jumping ? c.from : c.system)));
+    if(c.jumping)
+      {
+      carriers_view_->setItem(
+        row, 3, new QTableWidgetItem(QString::fromStdString(c.to_body.empty() ? c.to : c.to_body))
+      );
+      carriers_view_->setItem(row, 4, new QTableWidgetItem(qformat("{:%H:%M}", c.departure)));
+      carriers_view_->setItem(row, 5, new QTableWidgetItem(qformat("{:%H:%M}", c.departure + cooldown)));
+      }
+    }
   }

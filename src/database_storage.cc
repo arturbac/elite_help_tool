@@ -486,6 +486,8 @@ namespace tables
   inline constexpr std::string_view ground_bond{"galaxy.ground_bond"};
   // colonisation: our claims, the construction sites in them and what they need - rebuilt from journals
   inline constexpr std::string_view colony_claim{"galaxy.colony_claim"};
+  // carriers' jumps and positions - rebuilt from journals
+  inline constexpr std::string_view carrier_movement{"galaxy.carrier_movement"};
   inline constexpr std::string_view construction_depot{"galaxy.construction_depot"};
   inline constexpr std::string_view construction_need{"galaxy.construction_need"};
   inline constexpr std::string_view construction_delivery{"galaxy.construction_delivery"};
@@ -1274,6 +1276,9 @@ auto database_storage_t::create_database() -> expected_ec<void>
     return res;
 
   if(auto res{sqlite::create_table<info::colony_claim_t>(db_->db, "system_address"sv, sql_iface::tables::colony_claim)};
+     not res) [[unlikely]]
+    return res;
+  if(auto res{sqlite::create_table<info::carrier_movement_t>(db_->db, "oid"sv, sql_iface::tables::carrier_movement)};
      not res) [[unlikely]]
     return res;
   if(auto res{
@@ -3261,6 +3266,92 @@ auto database_storage_t::store(info::colony_claim_t const & value) -> expected_e
   else
     row = value;
   return sqlite::update_pk(db_->db, "system_address"sv, sql_iface::tables::colony_claim, row, row.system_address);
+  }
+
+auto database_storage_t::store(info::carrier_movement_t const & value) -> expected_ec<void>
+  {
+  // the same move read twice - a journal read again - is kept once
+  auto known{sqlite::select_signle_from<uint64_t>(
+    db_->db,
+    std::format(
+      "SELECT count(*) FROM {} WHERE carrier_id={} AND kind='{}' AND timestamp='{:%Y-%m-%dT%H:%M:%SZ}'",
+      sql_iface::tables::carrier_movement,
+      value.carrier_id,
+      value.kind,
+      value.timestamp
+    )
+  )};
+  if(known and *known and **known != 0u)
+    return {};
+  return sqlite::insert_into(db_->db, "oid"sv, sql_iface::tables::carrier_movement, value);
+  }
+
+auto database_storage_t::load_carrier_states(std::chrono::sys_seconds now, std::chrono::minutes cooldown)
+  -> expected_ec<std::vector<info::carrier_state_t>>
+  {
+  auto moves{sqlite::select_from<info::carrier_movement_t>(
+    db_->db, sql_iface::tables::carrier_movement, " ORDER BY carrier_id, timestamp"
+  )};
+  if(not moves) [[unlikely]]
+    return cxx23::unexpected{moves.error()};
+
+  std::map<uint64_t, info::carrier_state_t> states;
+  // the jump last ordered, until it is cancelled or its destination reached
+  std::map<uint64_t, std::optional<info::carrier_movement_t>> ordered;
+  for(info::carrier_movement_t const & move: *moves)
+    {
+    info::carrier_state_t & state{states[move.carrier_id]};
+    state.carrier_id = move.carrier_id;
+    if(not move.carrier_type.empty())
+      state.carrier_type = move.carrier_type;
+    auto & order{ordered[move.carrier_id]};
+    if(move.kind == "request")
+      order = move;
+    else if(move.kind == "cancel")
+      order.reset();
+    else
+      {
+      state.system = move.system;
+      state.since = move.timestamp;
+      // a position read after the jump left ends the order - it is where the carrier went
+      if(order and move.timestamp >= order->departure)
+        order.reset();
+      }
+    }
+
+  std::vector<info::carrier_state_t> result;
+  for(auto & [id, state]: states)
+    {
+    if(auto const & order{ordered[id]}; order)
+      {
+      // the jump leaves at its time; not in the game then, no position comes, so past the cooldown the
+      // carrier is taken to be where it was sent
+      if(now >= order->departure + cooldown)
+        {
+        state.system = order->system;
+        state.since = order->departure;
+        }
+      else
+        {
+        state.jumping = true;
+        state.from = state.system;
+        state.to = order->system;
+        state.to_body = order->body;
+        state.departure = order->departure;
+        }
+      }
+    // the name and callsign come from the carrier's own statistics, when we have seen them
+    if(auto row{sqlite::select_from<info::carrier_t>(
+         db_->db, sql_iface::tables::carrier, std::format(" WHERE market_id={} LIMIT 1", id)
+       )};
+       row and not row->empty())
+      {
+      state.name = row->front().carrier_name;
+      state.callsign = row->front().carrier_id;
+      }
+    result.push_back(std::move(state));
+    }
+  return result;
   }
 
 auto database_storage_t::store_construction(

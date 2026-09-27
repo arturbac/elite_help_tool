@@ -371,6 +371,40 @@ struct construction_site_t
   bool abandoned{};
   };
 
+///\brief one move of a carrier as the journal tells it: a jump ordered or cancelled, a position, a jump seen aboard
+struct carrier_movement_t
+  {
+  int64_t oid{-1};
+  std::chrono::sys_seconds timestamp;
+  uint64_t carrier_id;
+  std::string carrier_type;
+  ///\brief request, cancel, location or jump
+  std::string kind;
+  std::string system;
+  uint64_t system_address;
+  std::string body;
+  ///\brief when an ordered jump leaves; empty for the other kinds
+  std::chrono::sys_seconds departure;
+  };
+
+///\brief where a carrier is, and the jump it is on or waits for
+struct carrier_state_t
+  {
+  uint64_t carrier_id;
+  std::string carrier_type;
+  std::string name;
+  std::string callsign;
+  std::string system;
+  ///\brief when it was last known there
+  std::chrono::sys_seconds since;
+  ///\brief a jump ordered and not cancelled, whose cooldown has not run out
+  bool jumping{};
+  std::string from;
+  std::string to;
+  std::string to_body;
+  std::chrono::sys_seconds departure;
+  };
+
 ///\brief when we last read this station's market
 ///\detail the contents themselves come from Market.json, which cannot be rebuilt, so the time of
 /// the reading belongs to the database gathered live
