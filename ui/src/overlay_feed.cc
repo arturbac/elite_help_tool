@@ -2287,6 +2287,12 @@ auto overlay_feed_t::refresh_unsold(current_state_t const & state) -> void
   unsold_bounty_at_ = state.last_bounty_at;
   unsold_read_ = now;
   at_risk_ = bio::at_risk(state.journal_dir_path_, state.owner_fid_);
+  bounty_holders_ = bounty_holders(
+    state.journal_dir_path_,
+    state.owner_fid_,
+    std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())
+      - std::chrono::days{eht::settings()->overlay.bounty_days}
+  );
   }
 
 auto overlay_feed_t::refresh_species_history(current_state_t const & state) -> void
@@ -3272,6 +3278,34 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
           }}
         }
       );
+    }
+
+  // Who probably holds a bounty on the commander - worth knowing before flying to their port, since the
+  // legal state below is only the jurisdiction of this system's controlling faction
+  if(not bounty_holders_.empty())
+    {
+    std::vector<overlay::line_t> lines;
+    std::string text{"bounty probably with:"};
+    for(bounty_holder_t const & holder: bounty_holders_)
+      text += std::format("  {} ({:%d.%m})", holder.faction, holder.last_crime);
+    lines.push_back(overlay::line_t{.text = std::move(text), .color = colour_alert()});
+
+    // a port of one of them as the destination or the place docked at - pay first
+    std::string const & here{station_faction_};
+    std::string destination_owner;
+    if(status_destination_ and status_destination_->System == state.current_system_address_)
+      for(info::station_t const & station: stations_)
+        if(station.name == status_destination_->Name)
+          destination_owner = station.controlling_faction;
+    for(bounty_holder_t const & holder: bounty_holders_)
+      if(holder.faction == destination_owner or (state.settlement_market_id_ != 0u and holder.faction == here))
+        lines.push_back(
+          overlay::line_t{
+            .text = std::format("  {} holds a bounty on you here - pay it before docking", holder.faction),
+            .color = colour_expiring()
+          }
+        );
+    frame.blocks.push_back(overlay::block_t{.corner = overlay::corner_e::bottom_left, .ttl_ms = block_ttl_ms(), .lines = std::move(lines)});
     }
 
   // Wanted here, or worse - the game's own word, and the only one: the sums of bounties are in no file,

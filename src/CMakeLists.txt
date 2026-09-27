@@ -4,6 +4,7 @@ target_sources(eht
   discover_logic.cc
   biology.cc
   ground_cz.cc
+  legal.cc
   database_storage.cc
   database_import_state.cc
   elite_data.cc

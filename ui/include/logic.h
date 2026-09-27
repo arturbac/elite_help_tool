@@ -186,7 +186,8 @@ struct current_state_t : public generic_state_t
     if(
       not catching_up_
       and (line.contains("\"SellOrganicData\"") or line.contains("SellExplorationData\"")
-           or line.contains("\"RedeemVoucher\"") or line.contains("\"event\":\"Died\""))
+           or line.contains("\"RedeemVoucher\"") or line.contains("\"event\":\"Died\"")
+           or line.contains("\"event\":\"CommitCrime\"") or line.contains("\"event\":\"PayBounties\""))
     )
       ++at_risk_changes_;
     if(not catching_up_ and (line.contains("\"FactionKillBond\"") or line.contains("\"CombatBond\"")))

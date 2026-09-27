@@ -2,6 +2,7 @@
 
 #include "logic.h"
 #include "overlay_exploration.h"
+#include <legal.h>
 #include "codex.h"
 #include "scanner_sheet.h"
 #include "screenshots.h"
@@ -173,6 +174,8 @@ private:
   uint64_t scanner_capture_id_{};
   ///\brief the samples carried and not sold, read back from the journals
   bio::at_risk_t at_risk_;
+  ///\brief the factions that probably hold a bounty on the commander - read back with what a death would cost
+  std::vector<bounty_holder_t> bounty_holders_;
   std::vector<info::construction_site_t> construction_sites_;
   uint64_t construction_changes_{~uint64_t{}};
   std::chrono::steady_clock::time_point construction_read_{};

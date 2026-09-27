@@ -133,6 +133,9 @@ struct overlay_settings_t
   uint32_t minimum_body_value{300000u};
   ///\brief a mission with less than this left is shown as about to run out
   uint32_t expiry_warning_h{3u};
+  ///\brief how far back a crime with a bounty counts as probably still held against the commander - the
+  /// squadron's Notoriety Decay clears older ones unseen
+  uint32_t bounty_days{7u};
   ///\brief how far from the galactic average a price has to be to be worth a line
   double interesting_deviation{0.25};
   ///\brief and by how many credits a tonne at the least
