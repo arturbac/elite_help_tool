@@ -614,6 +614,9 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
       // leaving the pad ends our presence at the place just as supercruise does
       else if constexpr(std::same_as<T, events::undocked_t>)
         {
+        // the market is still ours to name here, the fleet takes the moment for the ship flown
+        if(state.personal)
+          fleet::record(state.db_, timestamp, event, state.system.name, state.settlement_market_id);
         state.settlement_market_id = 0;
         // a name given while docked - a construction site's, chosen from the game's rolls - shows first here
         if(event.MarketID != 0u and not event.StationName.empty())

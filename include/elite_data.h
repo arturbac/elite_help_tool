@@ -974,7 +974,7 @@ struct ship_t
   std::chrono::sys_seconds arrives;
   ///\brief when this place was last told
   std::chrono::sys_seconds seen;
-  ///\brief when the commander last sat in it - boarded, left or still in it; empty when never seen flown
+  ///\brief when the commander last left a pad in it; empty when never seen undocking
   std::chrono::sys_seconds flown;
   };
 

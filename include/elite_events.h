@@ -1259,6 +1259,10 @@ struct undocked_t
   {
   uint64_t MarketID;
   std::string StationName;
+  ///\brief left in a taxi or a dropship, not in a ship of one's own
+  bool Taxi;
+  ///\brief left in someone else's ship, as crew
+  bool Multicrew;
   };
 
 ///\brief the Market event from the journal - it carries only a header, the contents go to Market.json

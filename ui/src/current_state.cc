@@ -711,6 +711,11 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
         // leaving the pad ends our presence at the place just as entering supercruise does
         else if constexpr(std::same_as<T, events::undocked_t>)
           {
+          if(personal_)
+            {
+            fleet::record(db_, timestamp, event, system.name, settlement_market_id_);
+            ++fleet_changes_;
+            }
           settlement_market_id_ = 0;
           // a name given while docked - a construction site's, chosen from the game's rolls - shows first here
           if(event.MarketID != 0u and not event.StationName.empty())

@@ -61,19 +61,13 @@ namespace
     ship.seen = when;
     }
 
-  auto fly(std::vector<info::ship_t> & ships, uint64_t ship_id, std::chrono::sys_seconds when) -> info::ship_t &
+  auto fly(std::vector<info::ship_t> & ships, uint64_t ship_id) -> info::ship_t &
     {
-    // the one left now was flown until this moment
     for(info::ship_t & other: ships)
-      {
-      if(other.current)
-        other.flown = when;
       other.current = false;
-      }
     info::ship_t & ship{obtain(ships, ship_id)};
     ship.current = true;
     ship.in_transit = false;
-    ship.flown = when;
     return ship;
     }
 
@@ -162,7 +156,7 @@ auto apply(
   std::vector<info::ship_t> & ships, std::chrono::sys_seconds when, events::loadout_t const & event, here_t const & here
 ) -> void
   {
-  info::ship_t & ship{fly(ships, event.ShipID, when)};
+  info::ship_t & ship{fly(ships, event.ShipID)};
   set_type(ship, event.Ship, {});
   ship.name = event.ShipName;
   ship.ident = event.ShipIdent;
@@ -187,7 +181,7 @@ auto apply(
     if(stays_with_commander(left))
       put(left, when, here, event.MarketID);
     }
-  info::ship_t & taken{fly(ships, event.ShipID, when)};
+  info::ship_t & taken{fly(ships, event.ShipID)};
   set_type(taken, event.ShipType, event.ShipType_Localised);
   put(taken, when, here, event.MarketID);
   }
@@ -217,7 +211,7 @@ auto apply(
   here_t const & here
 ) -> void
   {
-  info::ship_t & ship{fly(ships, event.NewShipID, when)};
+  info::ship_t & ship{fly(ships, event.NewShipID)};
   set_type(ship, event.ShipType, event.ShipType_Localised);
   put(ship, when, here, here.market_id);
   }
@@ -251,9 +245,19 @@ auto apply(
     if(ship.current)
       {
       ship.current = false;
-      ship.flown = when;
       put(ship, when, here, here.market_id);
       }
+  }
+
+auto apply(std::vector<info::ship_t> & ships, std::chrono::sys_seconds when, events::undocked_t const & event) -> void
+  {
+  // a ship counts as flown once it has left a pad with us at the controls - boarding it at a shipyard
+  // to take it somewhere is not yet flying it
+  if(event.Taxi or event.Multicrew)
+    return;
+  for(info::ship_t & ship: ships)
+    if(ship.current)
+      ship.flown = when;
   }
 
 auto apply(std::vector<info::ship_t> & ships, events::shipyard_sell_t const & event) -> void
@@ -332,6 +336,9 @@ template auto record(
 ) -> void;
 template auto
   record(database_storage_t &, std::chrono::sys_seconds, events::resurrect_t const &, std::string_view, uint64_t)
+    -> void;
+template auto
+  record(database_storage_t &, std::chrono::sys_seconds, events::undocked_t const &, std::string_view, uint64_t)
     -> void;
 
 auto distance_ly(std::array<double, 3> const & a, std::array<double, 3> const & b) noexcept -> double

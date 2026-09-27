@@ -62,6 +62,10 @@ auto apply(
 auto apply(
   std::vector<info::ship_t> & ships, std::chrono::sys_seconds when, events::resurrect_t const & event, here_t const & here
 ) -> void;
+///\brief leaving a pad in the ship flown makes it flown - not in a taxi or as crew
+///\detail not among changes_fleet: an undocking says much more than that, and in a stranger's journal it
+/// still names the port, so the handlers of Undocked call record themselves for our own
+auto apply(std::vector<info::ship_t> & ships, std::chrono::sys_seconds when, events::undocked_t const & event) -> void;
 auto apply(std::vector<info::ship_t> & ships, events::shipyard_sell_t const & event) -> void;
 auto apply(std::vector<info::ship_t> & ships, events::sell_ship_on_rebuy_t const & event) -> void;
 auto apply(std::vector<info::ship_t> & ships, events::set_user_ship_name_t const & event) -> void;
