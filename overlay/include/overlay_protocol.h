@@ -255,6 +255,21 @@ struct layout_t
   bool stats{true};
   };
 
+///\brief a picture of the middle of the screen, asked of the layer
+///\detail the tool asks when a sample of a plant is taken - the commander is looking straight at it then.
+/// The request rides with every frame until the next one replaces it, so it is the change of the number
+/// that asks, never its presence. A layer that joins late takes the number it first sees as already
+/// served - otherwise a restarted game would photograph whatever it shows the moment it connects
+struct capture_t
+  {
+  ///\brief 0 asks for nothing; every new number asks for one picture
+  uint64_t id{};
+  ///\brief where to write it - a binary PPM, put under this name only once complete
+  std::string path;
+  ///\brief the side of the square, as a share of the screen's height
+  float size{0.4f};
+  };
+
 ///\brief the full image to draw - replaces the previous one entirely, only the newest counts
 struct frame_t
   {
@@ -262,6 +277,8 @@ struct frame_t
   std::vector<block_t> blocks;
   ///\brief a field an older layer skips; a frame without it leaves the layer on its defaults
   layout_t layout;
+  ///\brief a field an older layer skips, and simply takes no pictures
+  capture_t capture;
   };
 
 ///\brief the socket lives under $HOME, the only place visible on both sides of the pressure-vessel container

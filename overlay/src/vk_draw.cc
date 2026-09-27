@@ -1,4 +1,5 @@
 #include "vk_draw.h"
+#include "vk_capture.h"
 
 #include <backends/imgui_impl_vulkan.h>
 #include <imgui.h>
@@ -794,6 +795,7 @@ auto destroy_resources(swapchain_data_t & data) -> void
   for(frame_resources_t & frame: data.frames)
     destroy_frame(device, frame);
   data.frames.clear();
+  destroy_capture(data);
 
   if(data.command_pool != VK_NULL_HANDLE)
     {
@@ -1124,6 +1126,8 @@ auto draw_overlay(
       device.ResetFences(device.device, 1u, &frame.fence);
       frame.submitted = false;
       }
+    // the fence is behind us, so a picture copied out by this frame's last submission is complete
+    collect_capture(data, frame);
 
     auto const now{now_seconds()};
     auto const delta{std::max(1.0 / 10000.0, now - data.last_draw_seconds)};
@@ -1143,7 +1147,9 @@ auto draw_overlay(
     ImGui::Render();
 
     ImDrawData * const draw_data{ImGui::GetDrawData()};
-    if(draw_data == nullptr or draw_data->CmdListsCount == 0)
+    auto const request{take_capture_request()};
+    bool const nothing_drawn{draw_data == nullptr or draw_data->CmdListsCount == 0};
+    if(nothing_drawn and not request)
       return VK_NULL_HANDLE;
 
     device.ResetCommandBuffer(frame.command_buffer, 0u);
@@ -1169,8 +1175,12 @@ auto draw_overlay(
       .clearValueCount = 0u,
       .pClearValues = nullptr
     };
+    // the picture comes before the overlay is drawn over the image - it is of the game, not of us
+    bool const capturing{request and record_capture(data, frame, image_index, *request)};
+
     device.CmdBeginRenderPass(frame.command_buffer, &pass_info, VK_SUBPASS_CONTENTS_INLINE);
-    ImGui_ImplVulkan_RenderDrawData(draw_data, frame.command_buffer);
+    if(not nothing_drawn)
+      ImGui_ImplVulkan_RenderDrawData(draw_data, frame.command_buffer);
     device.CmdEndRenderPass(frame.command_buffer);
 
     if(device.EndCommandBuffer(frame.command_buffer) != VK_SUCCESS)
@@ -1180,7 +1190,11 @@ auto draw_overlay(
       }
 
     std::array<VkPipelineStageFlags, max_wait_semaphores> stages{};
-    stages.fill(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT);
+    // the copy reads the game's image too, so it waits for the game like the drawing does
+    stages.fill(
+      capturing ? VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT
+                : VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+    );
 
     VkSubmitInfo const submit{
       .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,

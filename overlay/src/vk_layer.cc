@@ -129,6 +129,9 @@ namespace
     data->GetPhysicalDeviceQueueFamilyProperties = reinterpret_cast<PFN_vkGetPhysicalDeviceQueueFamilyProperties>(
       next_gipa(*instance, "vkGetPhysicalDeviceQueueFamilyProperties")
     );
+    data->GetPhysicalDeviceMemoryProperties = reinterpret_cast<PFN_vkGetPhysicalDeviceMemoryProperties>(
+      next_gipa(*instance, "vkGetPhysicalDeviceMemoryProperties")
+    );
     data->api_version = create_info->pApplicationInfo != nullptr and create_info->pApplicationInfo->apiVersion != 0u
                           ? create_info->pApplicationInfo->apiVersion
                           : VK_API_VERSION_1_0;
@@ -234,6 +237,17 @@ namespace
     EHT_LOAD(DestroyDescriptorPool);
     EHT_LOAD(CmdBeginRenderPass);
     EHT_LOAD(CmdEndRenderPass);
+    EHT_LOAD(CmdPipelineBarrier);
+    EHT_LOAD(CmdCopyImageToBuffer);
+    EHT_LOAD(CreateBuffer);
+    EHT_LOAD(DestroyBuffer);
+    EHT_LOAD(GetBufferMemoryRequirements);
+    EHT_LOAD(AllocateMemory);
+    EHT_LOAD(FreeMemory);
+    EHT_LOAD(BindBufferMemory);
+    EHT_LOAD(MapMemory);
+    EHT_LOAD(UnmapMemory);
+    EHT_LOAD(InvalidateMappedMemoryRanges);
 #undef EHT_LOAD
 
     if(instance->GetPhysicalDeviceQueueFamilyProperties != nullptr)
@@ -338,11 +352,19 @@ namespace
     if(data == nullptr or data->CreateSwapchainKHR == nullptr)
       return VK_ERROR_INITIALIZATION_FAILED;
 
-    // we draw into the swapchain images, so they must be usable as an attachment
+    // we draw into the swapchain images, so they must be usable as an attachment - and copied from, for
+    // the picture of the middle of the screen
     VkSwapchainCreateInfoKHR patched{*create_info};
-    patched.imageUsage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+    patched.imageUsage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 
     VkResult result{data->CreateSwapchainKHR(device, &patched, allocator, swapchain)};
+    if(result != VK_SUCCESS and (create_info->imageUsage & VK_IMAGE_USAGE_TRANSFER_SRC_BIT) == 0u)
+      {
+      // the pictures are the least of it - without the copy we still draw
+      log("swapchain rejected the transfer usage, trying without pictures");
+      patched.imageUsage = create_info->imageUsage | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+      result = data->CreateSwapchainKHR(device, &patched, allocator, swapchain);
+      }
     if(result != VK_SUCCESS and patched.imageUsage != create_info->imageUsage)
       {
       // the game matters more than the overlay - if the driver refuses the added usage, we fall back to the original
@@ -357,6 +379,7 @@ namespace
     entry->swapchain = *swapchain;
     entry->format = create_info->imageFormat;
     entry->extent = create_info->imageExtent;
+    entry->capturable = (patched.imageUsage & VK_IMAGE_USAGE_TRANSFER_SRC_BIT) != 0u;
 
     if(data->GetSwapchainImagesKHR != nullptr)
       {

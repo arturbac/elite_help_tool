@@ -57,7 +57,8 @@ set_target_properties(eht_overlay_ipc PROPERTIES
 # ----------------------------------------------------------------
 add_library(eht_overlay SHARED
   src/vk_layer.cc
-  src/vk_draw.cc)
+  src/vk_draw.cc
+  src/vk_capture.cc)
 target_link_libraries(eht_overlay PRIVATE
   eht_overlay_ipc
   eht_imgui

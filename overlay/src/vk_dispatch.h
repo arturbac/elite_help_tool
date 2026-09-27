@@ -49,6 +49,7 @@ struct instance_data_t
   PFN_vkGetInstanceProcAddr next_gipa{};
   PFN_vkDestroyInstance DestroyInstance{};
   PFN_vkGetPhysicalDeviceQueueFamilyProperties GetPhysicalDeviceQueueFamilyProperties{};
+  PFN_vkGetPhysicalDeviceMemoryProperties GetPhysicalDeviceMemoryProperties{};
   uint32_t api_version{VK_API_VERSION_1_0};
   };
 
@@ -92,6 +93,18 @@ struct device_data_t
   PFN_vkDestroyDescriptorPool DestroyDescriptorPool{};
   PFN_vkCmdBeginRenderPass CmdBeginRenderPass{};
   PFN_vkCmdEndRenderPass CmdEndRenderPass{};
+  // for the picture of the middle of the screen
+  PFN_vkCmdPipelineBarrier CmdPipelineBarrier{};
+  PFN_vkCmdCopyImageToBuffer CmdCopyImageToBuffer{};
+  PFN_vkCreateBuffer CreateBuffer{};
+  PFN_vkDestroyBuffer DestroyBuffer{};
+  PFN_vkGetBufferMemoryRequirements GetBufferMemoryRequirements{};
+  PFN_vkAllocateMemory AllocateMemory{};
+  PFN_vkFreeMemory FreeMemory{};
+  PFN_vkBindBufferMemory BindBufferMemory{};
+  PFN_vkMapMemory MapMemory{};
+  PFN_vkUnmapMemory UnmapMemory{};
+  PFN_vkInvalidateMappedMemoryRanges InvalidateMappedMemoryRanges{};
 
   std::vector<VkQueueFamilyProperties> queue_families;
 
@@ -112,6 +125,21 @@ struct frame_resources_t
   VkImageView view{};
   VkFramebuffer framebuffer{};
   bool submitted{};
+  ///\brief this frame's submission copies the middle of the image out - read it once the fence says done
+  bool capture_pending{};
+  uint32_t capture_width{};
+  uint32_t capture_height{};
+  std::string capture_path;
+  };
+
+///\brief the buffer the middle of the screen is copied into, made at the first picture and kept
+struct capture_buffer_t
+  {
+  VkBuffer buffer{};
+  VkDeviceMemory memory{};
+  VkDeviceSize size{};
+  void * mapped{};
+  bool coherent{};
   };
 
 struct swapchain_data_t
@@ -121,6 +149,11 @@ struct swapchain_data_t
   VkFormat format{VK_FORMAT_UNDEFINED};
   VkExtent2D extent{};
   uint32_t queue_family{VK_QUEUE_FAMILY_IGNORED};
+  ///\brief the images can be copied from - the driver took the transfer usage we asked for
+  bool capturable{};
+  ///\brief a picture that failed once is not tried again; the overlay goes on regardless
+  bool capture_broken{};
+  capture_buffer_t capture;
 
   VkRenderPass render_pass{};
   VkDescriptorPool descriptor_pool{};
