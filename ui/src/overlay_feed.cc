@@ -1348,10 +1348,15 @@ auto build_tick_chart(
     .caption = std::format("ticks, {} days, UTC hour, red war", tick_chart_window().count()),
     .height = tick_chart_height()
   };
+  // a line every six hours, but a label only as often as one fits above the next - in a low chart the
+  // labels would stand one on another. A label wants the height of a line of text, 13 pixels at scale 1
+  constexpr uint32_t label_room{20u};
+  int const label_every{chart.height / 4u >= label_room ? 6 : chart.height / 2u >= label_room ? 12 : 24};
   for(int hour{}; hour <= 24; hour += 6)
     chart.grid.push_back(
       overlay::grid_line_t{
-        .y = static_cast<float>(hour) / 24.f, .label = hour == 0 or hour == 24 ? std::string{} : std::format("{:02}h", hour)
+        .y = static_cast<float>(hour) / 24.f,
+        .label = hour == 0 or hour == 24 or hour % label_every != 0 ? std::string{} : std::format("{:02}h", hour)
       }
     );
 
