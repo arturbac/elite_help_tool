@@ -124,6 +124,9 @@ struct current_state_t : public generic_state_t
 
   events::fsd_jump_t jump_info;
   events::fsd_target_t next_target;
+  ///\brief between StartJump to another system and the arrival - in the tunnel, where the game has already
+  /// named the next system of the route as the target
+  bool in_witchspace_{};
   
   std::vector<events::event_holder_t> event_buffer_;
   std::mutex buffer_mtx_;

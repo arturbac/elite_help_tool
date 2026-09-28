@@ -2829,7 +2829,7 @@ auto state_at(sqlite3 * db, uint64_t system_address, std::string_view faction, s
   auto res{sqlite::select_signle_from<std::string>(
     db,
     std::format(
-      "SELECT fi.faction_state FROM {0} fi JOIN {1} f ON f.oid = fi.faction_oid"
+      "SELECT fi.active_states || char(31) || fi.faction_state FROM {0} fi JOIN {1} f ON f.oid = fi.faction_oid"
       " WHERE fi.system_address={2} AND f.name='{3}' AND fi.timestamp <= '{4:%Y-%m-%dT%H:%M:%SZ}'"
       " ORDER BY fi.timestamp DESC LIMIT 1",
       sql_iface::tables::faction_influence,
@@ -2842,8 +2842,11 @@ auto state_at(sqlite3 * db, uint64_t system_address, std::string_view faction, s
   if(not res or not *res)
     return {};
 
-  // "None" means no state at all, not a state called None - the table is to stay empty there
-  return **res == "None" ? std::string{} : **res;
+  // both columns in one, as a single value is what the query returns
+  std::string_view const both{**res};
+  auto const unit{both.find('\x1f')};
+  return unit == std::string_view::npos ? std::string{both}
+                                        : info::shown_states(both.substr(0u, unit), both.substr(unit + 1u));
   }
 
 ///\brief the first change of influence in the system after the given moment, of any faction

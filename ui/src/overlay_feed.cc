@@ -1639,9 +1639,7 @@ auto overlay_feed_t::refresh_factions(
       .name = {},
       .allegiance = info::allegiance_e::unknown,
       .government = info::government_e::unknown,
-      .active = not entry->active_states.empty() ? entry->active_states
-                : entry->faction_state == "None" ? std::string{}
-                                                 : entry->faction_state,
+      .active = info::shown_states(entry->active_states, entry->faction_state),
       .influence = entry->influence
     };
 
@@ -3735,10 +3733,15 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
 
   // The panel of a jump being charged stands in the middle of the screen while the hyperdrive charges - a
   // state of Flags2 alone: StartJump is written only when the charge is done and the countdown begins,
-  // and by the charging the target is the system chosen, as FSDTarget named it
+  // and by the charging the target is the system chosen, as FSDTarget named it. In the tunnel the flag
+  // may still stand while the game already names the next system of the route, and there is no panel
   constexpr uint64_t hyperdrive_charging_flag{1u << 19u};
+  constexpr uint64_t fsd_jump_flag{1u << 30u};
   uint64_t const target{state.next_target.SystemAddress};
-  if((status_flags2_ & hyperdrive_charging_flag) != 0u and target != 0u and target != state.current_system_address_)
+  if(
+    (status_flags2_ & hyperdrive_charging_flag) != 0u and (status_flags_ & fsd_jump_flag) == 0u
+    and not state.in_witchspace_ and target != 0u and target != state.current_system_address_
+  )
     {
     if(target != jump_system_)
       {

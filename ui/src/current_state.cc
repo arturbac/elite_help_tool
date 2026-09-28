@@ -333,6 +333,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
         }
       else if constexpr(std::same_as<T, events::start_jump_t>)
           {
+          in_witchspace_ = event.JumpType == events::jump_type_e::Hyperspace;
           if(event.JumpType == events::jump_type_e::Hyperspace)
             {
             auto res{db_.load_system(*event.SystemAddress)};
@@ -358,6 +359,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
         else if constexpr(std::same_as<T, events::location_t>)
           {
           // after reloading game start at this system
+          in_witchspace_ = false;
           buffered_signals.clear();
           ground_cz_.location(event);
 
@@ -431,6 +433,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           }
         else if constexpr(std::same_as<T, events::fsd_jump_t>)
           {
+          in_witchspace_ = false;
           ground_cz_.jumped(event.SystemAddress);
           if(system.system_address != event.SystemAddress)
             {

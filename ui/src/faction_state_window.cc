@@ -970,10 +970,7 @@ auto faction_state_window_t::show_system(uint64_t system_address) -> void
       .government = info::government_e::unknown,
       .allegiance = info::allegiance_e::unknown,
       .pending = entry->pending_states,
-      // ActiveStates is the full list, FactionState only a single state
-      .active = not entry->active_states.empty() ? entry->active_states
-                : entry->faction_state == "None" ? std::string{}
-                                                 : entry->faction_state,
+      .active = info::shown_states(entry->active_states, entry->faction_state),
       .recovering = entry->recovering_states,
       .influence = entry->influence,
       .effort = {}
