@@ -3,8 +3,6 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
-#include <format>
-#include <ranges>
 #include <string_view>
 #include <span>
 #include <simple_enum/enum_cast.hpp>
@@ -107,21 +105,6 @@ auto join_states(std::span<events::faction_state_entry_t const> states) -> std::
     result.append(state.State);
     }
   return result;
-  }
-
-auto shown_states(std::string_view active_states, std::string_view faction_state) -> std::string
-  {
-  std::string result{active_states};
-  if(faction_state.empty() or faction_state == "None")
-    return result;
-
-  for(auto const part: std::views::split(active_states, std::string_view{", "}))
-    if(std::string_view{part.begin(), part.end()} == faction_state)
-      return result;
-
-  if(not result.empty())
-    result.push_back(' ');
-  return std::format("{}[{}]", result, faction_state);
   }
 
 auto conflict_t::operator==(conflict_t const & rh) const noexcept -> bool

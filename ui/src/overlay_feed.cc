@@ -1639,7 +1639,10 @@ auto overlay_feed_t::refresh_factions(
       .name = {},
       .allegiance = info::allegiance_e::unknown,
       .government = info::government_e::unknown,
-      .active = info::shown_states(entry->active_states, entry->faction_state),
+      // the states of this system only. FactionState is a state of the faction taken from one of its
+      // systems - a retreat from where it is weak shows in every system it is in, at 20% as well - and the one
+      // state the game does give every system of the faction, Expansion, is in ActiveStates already
+      .active = entry->active_states,
       .influence = entry->influence
     };
 

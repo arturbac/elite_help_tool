@@ -6,16 +6,6 @@ auto main() -> int
   {
   using namespace boost::ut;
 
-  "the faction's own state stands apart from the system's"_test = []
-  {
-    expect(info::shown_states("Expansion", "Retreat") == std::string{"Expansion [Retreat]"});
-    expect(info::shown_states("", "Retreat") == std::string{"[Retreat]"}) << "a retreat from another system";
-    expect(info::shown_states("Boom, Expansion", "Expansion") == std::string{"Boom, Expansion"});
-    expect(info::shown_states("Boom", "None") == std::string{"Boom"});
-    expect(info::shown_states("", "") == std::string{});
-    expect(info::shown_states("Civil Unrest", "Civil") == std::string{"Civil Unrest [Civil]"}) << "whole names only";
-  };
-
   "body short name"_test = []
   {
     expect(body_short_name("Bleia Eohn QT-O d7-43", "Bleia Eohn QT-O d7-43 A 2") == "A 2");

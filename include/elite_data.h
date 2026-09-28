@@ -186,13 +186,6 @@ auto format_population(uint64_t value) -> std::string;
 [[nodiscard]]
 auto join_states(std::span<events::faction_state_entry_t const> states) -> std::string;
 
-///\brief a faction's states in the system, then its own state in brackets - "Expansion, Boom [Retreat]"
-///\detail FactionState is one state of the faction as a whole, often won somewhere else: a retreat from a
-/// system where it is weak shows in every system it is in. Beside the states of the system it would read
-/// as one of them, so it stands apart - and not at all when it is None or one of them already
-[[nodiscard]]
-auto shown_states(std::string_view active_states, std::string_view faction_state) -> std::string;
-
 ///\brief a station's identity, one row per MarketID
 ///\detail rebuildable from journals - the Docked and Market events - so it lives in the main database
 struct station_t

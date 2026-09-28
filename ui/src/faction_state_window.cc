@@ -970,7 +970,10 @@ auto faction_state_window_t::show_system(uint64_t system_address) -> void
       .government = info::government_e::unknown,
       .allegiance = info::allegiance_e::unknown,
       .pending = entry->pending_states,
-      .active = info::shown_states(entry->active_states, entry->faction_state),
+      // the states of this system only. FactionState is a state of the faction taken from one of its
+      // systems - a retreat from where it is weak shows in every system it is in, at 20% as well - and the one
+      // state the game does give every system of the faction, Expansion, is in ActiveStates already
+      .active = entry->active_states,
       .recovering = entry->recovering_states,
       .influence = entry->influence,
       .effort = {}

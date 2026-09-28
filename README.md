@@ -60,9 +60,9 @@ it can take the game down: [overlay/README.md](overlay/README.md).
 ## BGS
 
 - **Influence at a glance.** In a system, the overlay shows the factions with their influence and
-  states, a chart of the last 20 days of influence, and the last tick. The states are the system's;
-  the faction's own state, which the journal gives for every system it is in and which is often won
-  elsewhere (a retreat from a system where it is weak), follows in brackets: `Expansion [Retreat]`.
+  states, a chart of the last 20 days of influence, and the last tick. The states are the system's own:
+  the journal's FactionState is a state of the faction taken from one of its systems, so a retreat
+  from where it is weak would show in every system it is in.
 - **Economy and security pushes.** The game shows each faction's economy and security as a bar
   with a trend, but writes neither to the journal. It does write which way each handed-in mission
   pushed them, so after a faction's states the overlay shows your own pushes since the last tick,
