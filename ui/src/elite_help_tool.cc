@@ -152,6 +152,8 @@ auto main_window_t::start_monitoring() -> void
     [this](eddn::message_t && message) { eddn_sender_->enqueue(std::move(message)); }
   );
   extension_ = eht::extension::make_extension(std::filesystem::path{state_.journal_dir_path_});
+  if(extension_ and extension_->sets_destination() and route_view_)
+    route_view_->set_destination_handler([this](std::string const & system) { extension_->set_destination(system); });
   state_.raw_line_listener_ = [this](std::string_view line, bool live)
   {
     eddn_publisher_->feed(line, live);

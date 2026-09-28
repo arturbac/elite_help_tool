@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <memory>
 #include <span>
+#include <string>
 #include <string_view>
 
 ///\brief an optional extension, built in from outside this repository
@@ -36,6 +37,14 @@ public:
 
   ///\brief now and then, from the GUI thread, with the route as it stands
   virtual auto tick(route_view_t const & route) -> void = 0;
+
+  ///\brief whether the extension takes a destination the commander asks for in the Route window; without
+  /// it the window puts the system on the clipboard
+  [[nodiscard]]
+  virtual auto sets_destination() const -> bool { return false; }
+
+  ///\brief the commander asked for this system as the destination, from the GUI thread
+  virtual auto set_destination(std::string const & system) -> void { (void)system; }
   };
 
 ///\brief the extension built in, or nullptr when there is none

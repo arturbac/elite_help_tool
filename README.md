@@ -123,6 +123,17 @@ it can take the game down: [overlay/README.md](overlay/README.md).
 - Market data is recorded when you open the commodity market, and kept in `live.sqlite`, the one
   database that cannot be rebuilt from journals.
 
+## Neutron routes
+
+- **The Route window** loads a neutron route plotted by [Spansh](https://spansh.co.uk) (its JSON file)
+  and follows it: which waypoint is next, how many are left, and the next one put on the clipboard at
+  every arrival, for the galaxy map's search. *Copy next destination* puts it there again.
+- **Reversed** flies the file from its end. It can be set before loading or changed on a loaded
+  route; the distances are counted anew from the coordinates.
+- Progress moves at an arrival only, and only forward: the game's own course between two waypoints
+  may pass systems off the list, and a route there and back passes the same system more than once.
+  A double click on a row makes that waypoint the next one.
+
 ## Colonisation
 
 - **What a construction site still needs**: the game writes a site's whole state on every docking

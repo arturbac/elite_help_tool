@@ -1,4 +1,6 @@
 #pragma once
+
+#include <functional>
 #include "logic.h"
 #include <qwidget.h>
 #include <qmdiarea.h>
@@ -65,7 +67,10 @@ public:
   QPushButton * load_button_{};
   QPushButton * remember_button_{};
   QPushButton * forget_button_{};
-  ///\brief the spansh file describes the way back, so by default we fly it in reverse
+  ///\brief the next waypoint as the destination - to the clipboard, or to whatever set_destination_ does
+  QPushButton * destination_button_{};
+  std::function<void(std::string const &)> set_destination_;
+  ///\brief a spansh file can be read either way; chosen before loading or changed after
   QCheckBox * reversed_box_{};
 
   ///\brief the externally plotted route in flight order; empty means "show the game's route"
@@ -83,10 +88,16 @@ public:
   /// time would then reset progress to zero and the clipboard would get the first waypoint instead of
   /// the next one
   size_t reached_{};
+  ///\brief the system progress was last taken from - a route can pass the same system more than once,
+  /// so progress moves at an arrival only, and to the first match of the system from the next waypoint on
+  uint64_t progress_system_{};
 
   explicit route_window_t(current_state_t const & state, std::string db_path, QWidget * parent = nullptr);
 
   auto refresh_ui() -> void;
+
+  ///\brief what the destination button does instead of copying the next waypoint to the clipboard
+  auto set_destination_handler(std::function<void(std::string const &)> handler) -> void;
 
 private:
   ///\brief loads a route plotted by spansh; it stores it nowhere

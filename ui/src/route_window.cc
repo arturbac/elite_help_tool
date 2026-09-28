@@ -220,6 +220,7 @@ auto route_window_t::apply_direction(std::vector<info::neutron_waypoint_t> route
   neutron_route_ = std::move(route);
   clipboard_target_.clear();
   reached_ = 0u;
+  progress_system_ = 0u;
   show_route();
   }
 
@@ -232,14 +233,16 @@ auto route_window_t::setup_ui() -> void
   auto * controls = new QHBoxLayout();
   load_button_ = new QPushButton("Load route...", central_widget);
   reversed_box_ = new QCheckBox("Reversed", central_widget);
-  // the file from spansh is the way back, so reversing it is the ordinary case, not the exception
-  reversed_box_->setChecked(true);
+  reversed_box_->setToolTip("Fly the route from its end - set before loading, or change it on a loaded route");
   remember_button_ = new QPushButton("Remember", central_widget);
   forget_button_ = new QPushButton("Forget", central_widget);
+  destination_button_ = new QPushButton("Copy next destination", central_widget);
+  destination_button_->setToolTip("Put the next waypoint on the clipboard, for the galaxy map's search");
   controls->addWidget(load_button_);
   controls->addWidget(reversed_box_);
   controls->addWidget(remember_button_);
   controls->addWidget(forget_button_);
+  controls->addWidget(destination_button_);
   controls->addStretch(1);
 
   info_label_ = new QLabel(central_widget);
@@ -273,6 +276,15 @@ auto route_window_t::setup_ui() -> void
     if(not neutron_route_.empty())
       apply_direction(std::move(neutron_route_));
   });
+  connect(destination_button_, &QPushButton::clicked, this, [this] {
+    if(reached_ >= neutron_route_.size())
+      return;
+    std::string const & next{neutron_route_[reached_].system};
+    if(set_destination_)
+      set_destination_(next);
+    else
+      QGuiApplication::clipboard()->setText(QString::fromStdString(next));
+  });
   connect(remember_button_, &QPushButton::clicked, this, [this] {
     if(auto res{db_.store_neutron_route(neutron_route_)}; not res)
       spdlog::error("route window: failed to remember route");
@@ -287,6 +299,7 @@ auto route_window_t::setup_ui() -> void
     neutron_name_.clear();
     clipboard_target_.clear();
     reached_ = 0u;
+    progress_system_ = 0u;
     remembered_ = false;
     show_route();
   });
@@ -296,12 +309,21 @@ auto route_window_t::setup_ui() -> void
 
 auto route_window_t::refresh_ui() -> void { show_route(); }
 
+auto route_window_t::set_destination_handler(std::function<void(std::string const &)> handler) -> void
+  {
+  set_destination_ = std::move(handler);
+  destination_button_->setText(set_destination_ ? "Set next destination" : "Copy next destination");
+  destination_button_->setToolTip(
+    set_destination_ ? "Make the next waypoint the destination" : "Put the next waypoint on the clipboard, for the galaxy map's search"
+  );
+  }
+
 auto route_window_t::show_route() -> void
   {
   bool const loaded{not neutron_route_.empty()};
   remember_button_->setEnabled(loaded and not remembered_);
   forget_button_->setEnabled(loaded and remembered_);
-  reversed_box_->setEnabled(loaded);
+  destination_button_->setEnabled(loaded and reached_ < neutron_route_.size());
 
   if(not loaded)
     {
@@ -320,17 +342,24 @@ auto route_window_t::show_route() -> void
     }
 
   // Where we are on the route. We look by the system address rather than by name - names are sometimes
-  // identical for different places, addresses are not
-  auto const here{std::ranges::find(
-    neutron_route_,
-    state_.current_system_address_,
-    [](info::neutron_waypoint_t const & waypoint) -> uint64_t { return waypoint.system_address; }
-  )};
+  // identical for different places, addresses are not. Only at an arrival, and only from the next waypoint
+  // on: a route there and back passes the same system again, and its earlier place is behind us
+  if(state_.current_system_address_ != progress_system_)
+    {
+    progress_system_ = state_.current_system_address_;
+    auto const ahead{neutron_route_ | std::views::drop(reached_)};
+    auto const here{std::ranges::find(
+      ahead,
+      state_.current_system_address_,
+      [](info::neutron_waypoint_t const & waypoint) -> uint64_t { return waypoint.system_address; }
+    )};
 
-  // Progress only moves forward: a system outside the list means "somewhere along the way", not "back to
-  // the start". The game plots its own course to the next waypoint and sometimes leads through systems in between
-  if(here != neutron_route_.end())
-    reached_ = std::max(reached_, size_t(std::distance(neutron_route_.begin(), here)) + 1u);
+    // Progress only moves forward: a system outside the list means "somewhere along the way", not "back to
+    // the start". The game plots its own course to the next waypoint and sometimes leads through systems in
+    // between
+    if(here != ahead.end())
+      reached_ += size_t(std::ranges::distance(ahead.begin(), here)) + 1u;
+    }
 
   size_t const reached{reached_};
 
@@ -386,8 +415,10 @@ auto route_window_t::jump_to_waypoint(int row) -> void
   if(neutron_route_.empty() or row < 0 or size_t(row) >= neutron_route_.size())
     return;
 
-  // the waypoint clicked becomes the one being flown to - so every one before it is behind us
+  // the waypoint clicked becomes the one being flown to - so every one before it is behind us, and the
+  // system we are in does not move it on until we leave
   reached_ = size_t(row);
+  progress_system_ = state_.current_system_address_;
   clipboard_target_.clear();
   show_route();
   }
