@@ -746,11 +746,13 @@ struct state_shift_t
 [[nodiscard]]
 auto state_shift(events::faction_effect_t const & effect, size_t influence_ix) -> state_shift_t;
 
-///\brief the missions' pushes on one faction's economy and security bars in one system since a moment
+///\brief the missions' pushes on one faction's influence, economy and security in one system since the tick
 ///\detail up and down apart: two up and two down is work on both sides, not no work
 struct state_effort_t
   {
   std::string faction;
+  int32_t influence_up;
+  int32_t influence_down;
   int32_t economy_up;
   int32_t economy_down;
   int32_t security_up;

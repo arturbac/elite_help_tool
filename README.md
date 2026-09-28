@@ -59,7 +59,8 @@ it can take the game down: [overlay/README.md](overlay/README.md).
   with a trend, but writes neither to the journal. It does write which way each handed-in mission
   pushed them, so after a faction's states the overlay shows your own pushes since the last tick,
   up and down apart: `EP +5/-1  SP +2`. Security is left out for anarchies, whose security bar
-  stays in the middle. Other commanders' work is not in it.
+  stays in the middle. Other commanders' work is not in it. The System info window has the same as
+  columns, together with the influence pluses pushed since the tick.
 - **Tick tracking.** The daily tick is reconstructed from your own journals as galaxy-wide waves,
   even though systems are visited rarely. The start of the wave is the deadline for handing in
   missions, and the influence tick and the war tick are kept apart:

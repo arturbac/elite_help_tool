@@ -61,6 +61,19 @@ auto conflict_deadline(std::vector<info::conflict_t const *> const & rows) -> st
 
 faction_presence_model_t::faction_presence_model_t(QObject * parent) : QAbstractTableModel(parent) {}
 
+namespace
+  {
+  ///\brief up and down apart - two up and two down is work on both sides, not no work
+  auto pushes(int32_t up, int32_t down) -> QString
+    {
+    if(up == 0 and down == 0)
+      return {};
+    if(up != 0 and down != 0)
+      return qformat("+{}/-{}", up, down);
+    return up != 0 ? qformat("+{}", up) : qformat("-{}", down);
+    }
+  }  // namespace
+
 [[nodiscard]]
 auto faction_presence_model_t::rowCount(QModelIndex const &) const -> int
   { return static_cast<int>(factions_.size()); }
@@ -95,6 +108,14 @@ auto faction_presence_model_t::data(QModelIndex const & index, int role) const -
       case column_e::recovering:
         return item.recovering.empty() ? QString::fromUtf8(no_data.data()) : QString::fromStdString(item.recovering);
       case column_e::influence: return qformat("{:.1f}%", item.influence * 100.);
+      case column_e::pushed_influence:
+        return pushes(item.effort.influence_up, item.effort.influence_down);
+      case column_e::pushed_economy: return pushes(item.effort.economy_up, item.effort.economy_down);
+      case column_e::pushed_security:
+        // an anarchy's security stays in the middle whatever is done to it
+        return item.government == info::government_e::anarchy
+                 ? QString::fromUtf8(no_data.data())
+                 : pushes(item.effort.security_up, item.effort.security_down);
       default:                  break;
       }
 
@@ -108,10 +129,27 @@ auto faction_presence_model_t::data(QModelIndex const & index, int role) const -
       case column_e::active:     return QString::fromStdString(item.active);
       case column_e::recovering: return QString::fromStdString(item.recovering);
       case column_e::influence:  return item.influence;
+      case column_e::pushed_influence: return item.effort.influence_up - item.effort.influence_down;
+      case column_e::pushed_economy:   return item.effort.economy_up - item.effort.economy_down;
+      case column_e::pushed_security:  return item.effort.security_up - item.effort.security_down;
       default:                   break;
       }
 
-  if(role == Qt::TextAlignmentRole and column == column_e::influence)
+  if(role == Qt::ToolTipRole)
+    switch(column)
+      {
+      case column_e::pushed_influence:
+        return "Influence pluses your missions handed in here since the last tick - up / down";
+      case column_e::pushed_economy:
+        return "How many of your missions since the last tick pushed the faction's economy up / down.\n"
+               "The game shows the bar itself and writes it nowhere, nor anyone else's work";
+      case column_e::pushed_security:
+        return "How many of your missions since the last tick pushed the faction's security up / down.\n"
+               "An anarchy's security stays in the middle";
+      default: break;
+      }
+
+  if(role == Qt::TextAlignmentRole and column >= column_e::influence)
     return int(Qt::AlignRight | Qt::AlignVCenter);
 
   return {};
@@ -131,6 +169,9 @@ auto faction_presence_model_t::headerData(int s, Qt::Orientation o, int r) const
     case column_e::active:     return "Active";
     case column_e::recovering: return "Recovering";
     case column_e::influence:  return "Inf";
+    case column_e::pushed_influence: return "Inf pushed";
+    case column_e::pushed_economy:   return "EP pushed";
+    case column_e::pushed_security:  return "SP pushed";
     default:                   return {};
     }
   }
@@ -913,6 +954,13 @@ auto faction_state_window_t::show_system(uint64_t system_address) -> void
     latest[entry.faction_oid] = &entry;
     }
 
+  std::map<std::string, info::state_effort_t> effort;
+  if(auto rows{db_.load_state_effort(system_address)}; rows)
+    for(info::state_effort_t & row: *rows)
+      effort.emplace(row.faction, std::move(row));
+  else
+    spdlog::error("failed to load mission effort for {}", system_address);
+
   std::vector<faction_presence_t> presence;
   presence.reserve(latest.size());
   for(auto const & [oid, entry]: latest)
@@ -927,8 +975,11 @@ auto faction_state_window_t::show_system(uint64_t system_address) -> void
                 : entry->faction_state == "None" ? std::string{}
                                                  : entry->faction_state,
       .recovering = entry->recovering_states,
-      .influence = entry->influence
+      .influence = entry->influence,
+      .effort = {}
     };
+    if(auto it{effort.find(item.name)}; it != effort.end())
+      item.effort = it->second;
 
     if(
       auto it{std::ranges::find(state_.known_factions, oid, &info::faction_info_t::oid)};

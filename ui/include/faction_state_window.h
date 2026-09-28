@@ -24,6 +24,8 @@ struct faction_presence_t
   std::string active;      // ActiveStates, or FactionState when that is empty
   std::string recovering;  // RecoveringStates - the states the faction is coming out of
   double influence;
+  ///\brief one's own missions' pushes since the last tick - on influence in pluses, on the bars in effects
+  info::state_effort_t effort;
   };
 
 class faction_presence_model_t final : public QAbstractTableModel
@@ -39,6 +41,9 @@ class faction_presence_model_t final : public QAbstractTableModel
     active,
     recovering,
     influence,
+    pushed_influence,
+    pushed_economy,
+    pushed_security,
     column_max
     };
 

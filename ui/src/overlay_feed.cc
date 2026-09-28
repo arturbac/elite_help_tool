@@ -1672,10 +1672,9 @@ auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
   // journal. What it does write is which way each handed-in mission pushed them - counted from the last
   // wave, that is the direction of one's own work on the bar the next tick moves. Others' work is not in it
   std::map<std::string, info::state_effort_t> state_effort;
-  if(auto waves{db_.load_recent_ticks(info::tick_kind_e::influence, 30u)}; waves and not waves->empty())
-    if(auto effort{db_.load_state_effort(factions_system_, waves->front().start_end)}; effort)
-      for(info::state_effort_t & row: *effort)
-        state_effort.emplace(row.faction, std::move(row));
+  if(auto effort{db_.load_state_effort(factions_system_)}; effort)
+    for(info::state_effort_t & row: *effort)
+      state_effort.emplace(row.faction, std::move(row));
   auto const pushes = [](int32_t up, int32_t down) -> std::string
   {
     if(up != 0 and down != 0)

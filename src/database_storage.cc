@@ -3130,19 +3130,29 @@ auto database_storage_t::load_last_port() -> expected_ec<std::optional<info::por
   return std::optional<info::port_visit_t>{};
   }
 
-auto database_storage_t::load_state_effort(uint64_t system_address, std::chrono::sys_seconds since)
-  -> expected_ec<std::vector<info::state_effort_t>>
+auto database_storage_t::load_state_effort(uint64_t system_address) -> expected_ec<std::vector<info::state_effort_t>>
   {
+  // a mission handed in after a wave's start window counts towards the next day - the same boundary the
+  // BGS window puts between days
+  auto waves{load_recent_ticks(info::tick_kind_e::influence, 30u)};
+  if(not waves) [[unlikely]]
+    return cxx23::unexpected{waves.error()};
+  // with no wave detected yet there is no day to count within - the whole history would say nothing
+  if(waves->empty())
+    return std::vector<info::state_effort_t>{};
+  std::chrono::sys_seconds const since{waves->front().start_end};
+
   return sqlite::select_from<info::state_effort_t>(
     db_->db,
     std::format(
       "(SELECT faction,"
+      " sum(CASE WHEN pluses > 0 THEN pluses ELSE 0 END) AS influence_up,"
+      " sum(CASE WHEN pluses < 0 THEN -pluses ELSE 0 END) AS influence_down,"
       " sum(CASE WHEN economy > 0 THEN economy ELSE 0 END) AS economy_up,"
       " sum(CASE WHEN economy < 0 THEN -economy ELSE 0 END) AS economy_down,"
       " sum(CASE WHEN security > 0 THEN security ELSE 0 END) AS security_up,"
       " sum(CASE WHEN security < 0 THEN -security ELSE 0 END) AS security_down"
-      " FROM {0} WHERE system_address = {1} AND timestamp >= '{2:%Y-%m-%dT%H:%M:%SZ}'"
-      " AND (economy != 0 OR security != 0) GROUP BY faction)",
+      " FROM {0} WHERE system_address = {1} AND timestamp >= '{2:%Y-%m-%dT%H:%M:%SZ}' GROUP BY faction)",
       sql_iface::tables::mission_influence,
       system_address,
       since
