@@ -131,7 +131,8 @@ auto registry() -> registry_t &
 
 auto ipc_client() -> overlay::client_t &
   {
-  // as above, and we also do not want to join the io thread once the game is already shutting down
+  // as above, and we also do not want to join the io thread once the game is already shutting down. the
+  // thread outlives vkDestroyInstance and the loader's dlclose - the layer is linked with -z nodelete for that
   static overlay::client_t * const client{new overlay::client_t{overlay::default_socket_path()}};
   return *client;
   }

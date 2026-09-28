@@ -89,7 +89,10 @@ set_target_properties(eht_overlay PROPERTIES
   OUTPUT_NAME eht_overlay
   CXX_VISIBILITY_PRESET hidden
   VISIBILITY_INLINES_HIDDEN ON)
+# loader Vulkana robi dlclose przy vkDestroyInstance, a watki warstwy (klient IPC, klawiatura, zapis
+# zrzutow) celowo nie sa nigdy zatrzymywane - bez nodelete wykonywalyby kod zwolnionej biblioteki
 target_link_options(eht_overlay PRIVATE
+  -Wl,-z,nodelete
   -static-libstdc++
   -static-libgcc
   -Wl,--exclude-libs,ALL
