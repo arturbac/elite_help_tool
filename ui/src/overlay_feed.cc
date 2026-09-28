@@ -3391,12 +3391,13 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
   bool const interface_open{gui_focus_ >= first_fullscreen_interface};
 
   // the sampling from the ship only in the analysis mode - in the combat one the ship is flown for something
-  // else. On foot and in an SRV there is no such mode
+  // else. On foot the sampler in hand plays that part, a weapon in hand means a fight. An SRV has no such mode
   constexpr uint64_t in_srv_flag{1u << 26u};
   constexpr uint64_t analysis_mode_flag{1u << 27u};
   constexpr uint64_t on_foot_flag{1u << 0u};
   bool const exobio_mode{
-    (status_flags2_ & on_foot_flag) != 0u or (status_flags_ & (in_srv_flag | analysis_mode_flag)) != 0u
+    (status_flags2_ & on_foot_flag) != 0u ? surface_.sampler_in_hand
+                                         : (status_flags_ & (in_srv_flag | analysis_mode_flag)) != 0u
   };
 
   if(auto aimed{interface_open ? std::vector<overlay::line_t>{} : build_target_lines(state)}; not aimed.empty())

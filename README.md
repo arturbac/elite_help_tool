@@ -231,7 +231,8 @@ two in 349. The more samples, the narrower the guess.
 On the surface, in the place of the target panel left of centre, the sample in progress is shown:
 species, price, 1/3–3/3 and the distance from the nearest earlier sample against the colony range,
 counted live from `Status.json` — a green "sample" when you may take the next one. Below it, what else
-grows on this body. In a ship it shows only with the HUD in analysis mode; on foot and in an SRV always.
+grows on this body. In a ship it shows only with the HUD in analysis mode, on foot only with the sampler in hand, in an SRV
+always.
 
 ### Codex
 
