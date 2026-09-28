@@ -2625,24 +2625,48 @@ auto overlay_feed_t::build_settlement_owners() const -> std::vector<overlay::lin
   size_t const pitch{widest + 2u};
   size_t const most_columns{std::clamp<size_t>(cfg->overlay.lists.settlement_line_chars / pitch, 1u, 3u)};
 
-  std::vector<std::vector<std::string>> columns(1u);
-  size_t shown{};
-  for(entry_t const & entry: entries)
+  struct layout_t
     {
-    // a faction never stands alone at the foot of a column, away from its settlements
-    bool const full{columns.back().size() >= rows or (entry.faction and columns.back().size() + 1u >= rows)};
-    if(full and not columns.back().empty())
+    std::vector<std::vector<std::string>> columns;
+    size_t shown;
+    };
+  auto const lay_out = [&](size_t column_rows) -> layout_t
+  {
+    layout_t layout{.columns = std::vector<std::vector<std::string>>(1u), .shown = 0u};
+    for(entry_t const & entry: entries)
       {
-      if(columns.size() == most_columns)
-        break;
-      columns.emplace_back();
-      // a faction's list going on in the new column says whose it still is
-      if(not entry.faction)
-        columns.back().push_back(*entry.owner + std::string{continued});
+      auto & column{layout.columns.back()};
+      // a faction never stands alone at the foot of a column, away from its settlements
+      bool const full{column.size() >= column_rows or (entry.faction and column.size() + 1u >= column_rows)};
+      if(full and not column.empty())
+        {
+        if(layout.columns.size() == most_columns)
+          break;
+        layout.columns.emplace_back();
+        // a faction's list going on in the new column says whose it still is
+        if(not entry.faction)
+          layout.columns.back().push_back(*entry.owner + std::string{continued});
+        }
+      layout.columns.back().push_back(entry.text);
+      layout.shown += entry.faction ? 0u : 1u;
       }
-    columns.back().push_back(entry.text);
-    shown += entry.faction ? 0u : 1u;
-    }
+    return layout;
+  };
+
+  // Filled to the full height, a list a few rows too long spills one settlement into a column of its own
+  // and stands as tall as it can, over whatever is above it. So the columns it takes at the full height
+  // are levelled instead: the lowest height that still fits in as many
+  layout_t layout{lay_out(rows)};
+  size_t const needed{layout.columns.size()};
+  if(layout.shown == count)
+    for(size_t lower{(entries.size() + needed - 1u) / needed}; lower < rows; ++lower)
+      if(layout_t levelled{lay_out(lower)}; levelled.shown == count and levelled.columns.size() <= needed)
+        {
+        layout = std::move(levelled);
+        break;
+        }
+  auto const & columns{layout.columns};
+  size_t const shown{layout.shown};
 
   std::vector<overlay::line_t> lines;
   // only the places visited or flown close to are known - the game lists no others, and nothing is downloaded
