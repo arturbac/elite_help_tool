@@ -237,6 +237,23 @@ auto describe_arrival(star_system_t const & system) -> std::vector<overlay::line
             .text = std::format("{}: {} UNDISCOVERED", system.name, details.star_type), .color = colour_first()
           }
     );
+    // the game says nothing of where its exclusion zone ends, and the distance to the star is only on the
+    // HUD - the star's own size, in the HUD's unit, is the scale to read that distance against
+    if(star->radius > 0.0)
+      {
+      constexpr double metres_per_ls{299'792'458.0};
+      lines.push_back(
+        overlay::line_t{
+          .text = std::format(
+            "  star radius {:.0f} km = {} Ls",
+            star->radius / 1'000.0,
+            star->radius / metres_per_ls < 0.1 ? std::format("{:.3f}", star->radius / metres_per_ls)
+                                               : std::format("{:.2f}", star->radius / metres_per_ls)
+          ),
+          .color = colour_plain()
+        }
+      );
+      }
     }
 
   size_t scanned{};

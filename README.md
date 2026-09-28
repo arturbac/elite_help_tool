@@ -277,7 +277,10 @@ it can take the game down: [overlay/README.md](overlay/README.md).
 The bottom right corner of the overlay follows the order of work in a new system:
 
 1. **arrival** — whether the arrival star was discovered before ("discovered before - jump on") or is
-   `UNDISCOVERED`, and how many bodies from the honk have been scanned already,
+   `UNDISCOVERED`, the star's radius in km and in light seconds, and how many bodies from the honk
+   have been scanned already. The game writes neither where its exclusion zone ends nor how far the
+   ship is from the star - that is only on the HUD - so the radius is the scale to read the HUD's
+   distance against, which matters at a white dwarf or a neutron star, a few thousand km across,
 2. **to map** — bodies worth the probes, most valuable first, green when it is a first discovery,
 3. **life** — bodies with biological signals and, for each genus, the species it most likely is on
    this world, with its price; green when it is worth landing for (`bio_worth`, 5M).
