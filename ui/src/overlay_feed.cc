@@ -2616,6 +2616,8 @@ auto overlay_feed_t::build_settlement_owners() const -> std::vector<overlay::lin
     ///\brief the faction a settlement belongs to - repeated at the top of a column it spills into
     std::string const * owner;
     bool faction;
+    ///\brief the settlement we stand at - painted green as well as marked, so the eye finds it at once
+    bool here{};
     };
 
   constexpr std::string_view continued{" (cont.)"};
@@ -2654,7 +2656,7 @@ auto overlay_feed_t::build_settlement_owners() const -> std::vector<overlay::lin
         text.resize(2u + longest_name + 2u, ' ');
         text += economy;
         }
-      entries.push_back(entry_t{.text = std::move(text), .owner = &owner, .faction = false});
+      entries.push_back(entry_t{.text = std::move(text), .owner = &owner, .faction = false, .here = name == here});
       }
     }
   for(entry_t const & entry: entries)
@@ -2666,14 +2668,19 @@ auto overlay_feed_t::build_settlement_owners() const -> std::vector<overlay::lin
   size_t const pitch{widest + 2u};
   size_t const most_columns{std::clamp<size_t>(cfg->overlay.lists.settlement_line_chars / pitch, 1u, 3u)};
 
+  struct cell_t
+    {
+    std::string text;
+    bool here;
+    };
   struct layout_t
     {
-    std::vector<std::vector<std::string>> columns;
+    std::vector<std::vector<cell_t>> columns;
     size_t shown;
     };
   auto const lay_out = [&](size_t column_rows) -> layout_t
   {
-    layout_t layout{.columns = std::vector<std::vector<std::string>>(1u), .shown = 0u};
+    layout_t layout{.columns = std::vector<std::vector<cell_t>>(1u), .shown = 0u};
     for(entry_t const & entry: entries)
       {
       auto & column{layout.columns.back()};
@@ -2686,9 +2693,9 @@ auto overlay_feed_t::build_settlement_owners() const -> std::vector<overlay::lin
         layout.columns.emplace_back();
         // a faction's list going on in the new column says whose it still is
         if(not entry.faction)
-          layout.columns.back().push_back(*entry.owner + std::string{continued});
+          layout.columns.back().push_back(cell_t{.text = *entry.owner + std::string{continued}, .here = false});
         }
-      layout.columns.back().push_back(entry.text);
+      layout.columns.back().push_back(cell_t{.text = entry.text, .here = entry.here});
       layout.shown += entry.faction ? 0u : 1u;
       }
     return layout;
@@ -2714,18 +2721,25 @@ auto overlay_feed_t::build_settlement_owners() const -> std::vector<overlay::lin
   lines.push_back(
     overlay::line_t{.text = std::format("settlements known here: {}", count), .color = colour_heading()}
   );
-  size_t const height{std::ranges::max(columns, {}, &std::vector<std::string>::size).size()};
+  size_t const height{std::ranges::max(columns, {}, &std::vector<cell_t>::size).size()};
   for(size_t row{}; row != height; ++row)
     {
-    std::string text;
+    overlay::line_t line{.color = colour_plain()};
     for(size_t column{}; column != columns.size(); ++column)
       {
       if(row >= columns[column].size())
         continue;
-      text.resize(column * pitch, ' ');
-      text += columns[column][row];
+      cell_t const & cell{columns[column][row]};
+      line.text.resize(column * pitch, ' ');
+      if(cell.here)
+        line.spans.push_back(
+          overlay::span_t{
+            .from = uint32_t(line.text.size()), .length = uint32_t(cell.text.size()), .color = colour_first()
+          }
+        );
+      line.text += cell.text;
       }
-    lines.push_back(overlay::line_t{.text = std::move(text), .color = colour_plain()});
+    lines.push_back(std::move(line));
     }
   if(shown != count)
     lines.push_back(overlay::line_t{.text = std::format("... and {} more", count - shown), .color = colour_plain()});

@@ -105,7 +105,7 @@ it can take the game down: [overlay/README.md](overlay/README.md).
 - **Who holds which settlement**: on foot in a port or at a settlement, where the mission boards
   are, a small list in the left band shows the system's settlements under the factions holding
   them, both in alphabetical order, each with its economy, flowing into a second and third column
-  when long. The board
+  when long. The settlement you stand at is marked with an arrow and painted green. The board
   never says whose a settlement is, and a job there moves that faction's influence. Only
   settlements you have visited or flown close to are known.
 - **Mission cargo**: the goods delivery missions still need against what is in the hold, and the
