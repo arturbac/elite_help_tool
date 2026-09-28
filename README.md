@@ -33,8 +33,9 @@ process carries no state of ours.
   and combat rank, then hull and shield in per cent, then faction, legal status, bounty and the
   targeted subsystem with its health. On the right stand your hired pilot with their rank and the
   fighter's state: out and who flies it, in the bay, or destroyed and being rebuilt. A kill stays on
-  screen for a few seconds with the credits it paid and the factions that paid them. When the danger
-  is now (heat, an interdiction, the game's own danger warning), what a death would cost moves to the
+  screen for a few seconds with the victim's faction, the credits it paid and, marked "paid by", the
+  factions that paid them - other factions than the victim's, the ones that had the bounty on it.
+  When the danger is now (heat, an interdiction, the game's own danger warning), what a death would cost moves to the
   middle of the screen. Both readouts stand where you look during a fight, clear of the crosshair.
 - **What stands where:** the system and its exploration work on the right, the station's market
   and mission cargo top right, the route, cargo, missions and what a death would cost on the left.

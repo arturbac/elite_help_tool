@@ -2748,22 +2748,26 @@ auto overlay_feed_t::build_target_lines(current_state_t const & state) const -> 
     and std::chrono::steady_clock::now() - state.last_bounty_at < kill_shown()
   )
     {
+    // the faction the victim served and the ones paying for it are different ones, and a bare faction
+    // name under the kill reads as the victim's - so both are named for what they are
+    auto const & bounty{state.last_bounty};
+    std::string victim{bounty.PilotName_Localised.empty() ? bounty.VictimFaction : bounty.PilotName_Localised};
+    if(not bounty.PilotName_Localised.empty() and not bounty.VictimFaction.empty())
+      victim += std::format(" ({})", bounty.VictimFaction);
     lines.push_back(
       overlay::line_t{
         .text = std::format(
-          "killed {}  +{} Cr",
-          state.last_bounty.PilotName_Localised.empty() ? state.last_bounty.VictimFaction
-                                                        : state.last_bounty.PilotName_Localised,
-          format_credits_value(uint32_t(std::min<uint64_t>(state.last_bounty.TotalReward, 0xffffffffull)))
+          "killed {}  +{} Cr", victim,
+          format_credits_value(uint32_t(std::min<uint64_t>(bounty.TotalReward, 0xffffffffull)))
         ),
         .color = colour_first()
       }
     );
 
-    for(events::bounty_reward_t const & reward: state.last_bounty.Rewards)
+    for(events::bounty_reward_t const & reward: bounty.Rewards)
       lines.push_back(
         overlay::line_t{
-          .text = std::format("  {}  {} Cr", reward.Faction, format_credits_value(uint32_t(reward.Reward))),
+          .text = std::format("  paid by {}  {} Cr", reward.Faction, format_credits_value(uint32_t(reward.Reward))),
           .color = colour_plain()
         }
       );
