@@ -3,6 +3,7 @@
 #include <array>
 #include <filesystem>
 #include <fstream>
+#include <vector>
 
 auto main() -> int
   {
@@ -147,6 +148,52 @@ auto main() -> int
       expect(other.size() == 3_u);
       expect(other[0].fit == bio::fit_e::unlike);
     };
+  };
+
+  "knowledge"_test = []
+  {
+    using bio::species_record_t;
+    using enum bio::novelty_e;
+    std::vector<species_record_t> history;
+    // ten bacteria on the same kind of world under a K star
+    for(int i{}; i != 10; ++i)
+      history.push_back(
+        species_record_t{"Bacterium", "Bacterium Aurasus", "Rocky body", "CarbonDioxide", "", 170.0 + i, 3.0, 1000.0, "K"}
+      );
+    history.push_back(species_record_t{"Stratum", "Stratum Tectonicas", "Rocky body", "CarbonDioxide", "", 175.0, 3.0, 1000.0, "K"});
+
+    bio::conditions_t world{
+      .planet_class = "Rocky body",
+      .atmosphere_type = "CarbonDioxide",
+      .surface_temperature = 175.0,
+      .surface_gravity = 3.0,
+      .star_type = "K"
+    };
+    auto const often{bio::knowledge("Bacterium", world, history, 3u)};
+    expect(often.novelty == known);
+    expect(often.alike == 10_u);
+    expect(bio::knowledge("Stratum", world, history, 3u).novelty == few) << "one find alone";
+    expect(bio::knowledge("Tussock", world, history, 3u).novelty == never);
+
+    auto warm{world};
+    warm.surface_temperature = 191.0;
+    auto const warmer_one{bio::knowledge("Bacterium", warm, history, 3u)};
+    expect(warmer_one.novelty == warmer);
+    expect(std::abs(warmer_one.beyond - 12.0) < 1e-9);
+
+    auto heavy{world};
+    heavy.surface_gravity = 3.6;
+    auto const heavier_one{bio::knowledge("Bacterium", heavy, history, 3u)};
+    expect(heavier_one.novelty == heavier);
+    expect(std::abs(heavier_one.beyond - 0.2) < 1e-9);
+
+    auto neon{world};
+    neon.atmosphere_type = "Neon";
+    expect(bio::knowledge("Bacterium", neon, history, 3u).novelty == atmosphere);
+
+    auto f_star{world};
+    f_star.star_type = "F";
+    expect(bio::knowledge("Bacterium", f_star, history, 3u).novelty == star);
   };
 
   "merge"_test = []

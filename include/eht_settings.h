@@ -188,6 +188,10 @@ struct exploration_settings_t
   uint32_t candidates{2u};
   ///\brief what a species below the worth is written in - still there, but not asking for attention
   colour_t below_worth{0x8a8a8au};
+  ///\brief a genus whose one scan here would widen what is known of where it grows - worth it whatever it pays
+  colour_t new_knowledge{0x7fb8ffu};
+  ///\brief below this many finds of a genus on worlds like this one, the world counts as little known
+  uint32_t little_known{3u};
   ///\brief a picture of the middle of the screen is taken at every sample - the plant is right there
   bool capture{true};
   ///\brief the side of the square taken, as a share of the screen's height

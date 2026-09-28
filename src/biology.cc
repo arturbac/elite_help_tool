@@ -321,6 +321,59 @@ auto predict(std::string_view genus, conditions_t const & world, std::span<speci
   return result;
   }
 
+auto knowledge(std::string_view genus, conditions_t const & world, std::span<species_record_t const> history, uint32_t few)
+  -> knowledge_t
+  {
+  bool any{};
+  uint32_t under_atmosphere{};
+  uint32_t same_star{};
+  uint32_t alike{};
+  double t_min{1e9};
+  double t_max{-1e9};
+  double g_min{1e9};
+  double g_max{-1e9};
+  for(species_record_t const & record: history)
+    {
+    if(record.genus != genus or record.species.empty())
+      continue;
+    any = true;
+    if(not same_atmosphere(record.atmosphere_type, world.atmosphere_type))
+      continue;
+    ++under_atmosphere;
+    t_min = std::min(t_min, record.surface_temperature);
+    t_max = std::max(t_max, record.surface_temperature);
+    g_min = std::min(g_min, record.surface_gravity);
+    g_max = std::max(g_max, record.surface_gravity);
+    if(not world.star_type.empty() and star_family(record.star_type) == star_family(world.star_type))
+      ++same_star;
+    if(std::abs(record.surface_temperature - world.surface_temperature) <= 5.0
+       and std::abs(record.surface_gravity - world.surface_gravity) <= 0.1 * world.surface_gravity)
+      ++alike;
+    }
+
+  if(not any)
+    return knowledge_t{.novelty = novelty_e::never};
+  if(under_atmosphere == 0u)
+    return knowledge_t{.novelty = novelty_e::atmosphere};
+
+  // a kelvin or two of the scanner's rounding is no new ground, nor a few hundredths of the gravity
+  constexpr double kelvin_margin{1.0};
+  constexpr double gravity_margin{0.02};
+  if(world.surface_temperature > t_max + kelvin_margin)
+    return knowledge_t{.novelty = novelty_e::warmer, .alike = alike, .beyond = world.surface_temperature - t_max};
+  if(world.surface_temperature < t_min - kelvin_margin)
+    return knowledge_t{.novelty = novelty_e::colder, .alike = alike, .beyond = t_min - world.surface_temperature};
+  if(world.surface_gravity > g_max * (1.0 + gravity_margin))
+    return knowledge_t{.novelty = novelty_e::heavier, .alike = alike, .beyond = world.surface_gravity / g_max - 1.0};
+  if(world.surface_gravity < g_min * (1.0 - gravity_margin) and world.surface_gravity > 0.0)
+    return knowledge_t{.novelty = novelty_e::lighter, .alike = alike, .beyond = 1.0 - world.surface_gravity / g_min};
+  if(not world.star_type.empty() and same_star == 0u)
+    return knowledge_t{.novelty = novelty_e::star, .alike = alike};
+  if(alike < few)
+    return knowledge_t{.novelty = novelty_e::few, .alike = alike};
+  return knowledge_t{.novelty = novelty_e::known, .alike = alike};
+  }
+
 auto at_risk(std::filesystem::path const & journal_dir, std::string_view commander_fid) -> at_risk_t
   {
   std::vector<std::filesystem::path> journals;

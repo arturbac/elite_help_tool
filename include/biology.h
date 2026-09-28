@@ -181,4 +181,47 @@ struct candidate_t
 [[nodiscard]]
 auto predict(std::string_view genus, conditions_t const & world, std::span<species_record_t const> history)
   -> std::vector<candidate_t>;
+
+///\brief what one scan of a genus on a world would add to what the finds so far say of where it grows
+///\detail the first scan names the species and puts the world into the history, so a cheap species is still
+/// worth it once where the history knows little - and not at all where it has seen the same many times
+enum struct novelty_e : uint8_t
+  {
+  ///\brief the genus was never sampled anywhere
+  never,
+  ///\brief never under this atmosphere
+  atmosphere,
+  ///\brief under this atmosphere, but never on a world as warm, as cold, as heavy or as light
+  warmer,
+  colder,
+  heavier,
+  lighter,
+  ///\brief within what was seen, but never under the light of this kind of star - the variant may be new
+  star,
+  ///\brief within what was seen, but seldom on a world like this
+  few,
+  ///\brief seen often enough on worlds like this that one scan more tells nothing
+  known
+  };
+
+consteval auto adl_enum_bounds(novelty_e)
+  {
+  using enum novelty_e;
+  return simple_enum::adl_info{never, known};
+  }
+
+struct knowledge_t
+  {
+  novelty_e novelty{novelty_e::known};
+  ///\brief finds of the genus under this atmosphere within 5 K and a tenth of the gravity of this world
+  uint32_t alike{};
+  ///\brief how far past the finds - kelvin when warmer or colder, a share of the gravity when heavier or lighter
+  double beyond{};
+  };
+
+///\brief how much the history knows of the genus on a world like this
+///\param few below this many alike finds, a world counts as seldom seen
+[[nodiscard]]
+auto knowledge(std::string_view genus, conditions_t const & world, std::span<species_record_t const> history, uint32_t few)
+  -> knowledge_t;
   }  // namespace bio

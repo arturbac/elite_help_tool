@@ -288,6 +288,15 @@ is compared with what has already been found under the same atmosphere. On 374 s
 archive, guessing each one from the rest, the first answer is right in 302 cases and one of the first
 two in 349. The more samples, the narrower the guess.
 
+Beside the guess stands what one scan would teach, in its own colour whatever the species pays: the
+history of both accounts is asked what it knows of the genus on a world like this one. `new: genus`,
+`new: atmosphere`, `new: 12 K warmer` (colder, heavier, lighter: past every find under this
+atmosphere), `new: F star` (never under this kind of star - the variant may be a new one), or
+`few like it (2)` (fewer than `exploration.little_known`, 3, finds within 5 K and a tenth of the
+gravity). A genus seen often on such worlds gets no note, and a cheap one stays grey: nothing is left
+to learn from it. A body with such a genus is listed in the same colour (`exploration.new_knowledge`).
+The first scan is enough: it names the species and puts the world into the history.
+
 On the surface, in the place of the target panel left of centre, the sample in progress is shown:
 species, price, 1/3–3/3 and the distance from the nearest earlier sample against the colony range,
 counted live from `Status.json` — a green "sample" when you may take the next one. Below it, what else

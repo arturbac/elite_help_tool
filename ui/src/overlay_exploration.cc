@@ -19,6 +19,27 @@ namespace
   auto colour_first() -> uint32_t { return eht::settings()->overlay.colours.first.rgb; }
 
   auto colour_below() -> uint32_t { return eht::settings()->exploration.below_worth.rgb; }
+  auto colour_knowledge() -> uint32_t { return eht::settings()->exploration.new_knowledge.rgb; }
+
+  ///\brief why one scan here is worth it - empty when the history has seen enough worlds like this one
+  [[nodiscard]]
+  auto knowledge_note(bio::knowledge_t const & knowledge, std::string_view star_type) -> std::string
+    {
+    using enum bio::novelty_e;
+    switch(knowledge.novelty)
+      {
+      case never:      return "new: genus";
+      case atmosphere: return "new: atmosphere";
+      case warmer:     return std::format("new: {:.0f} K warmer", knowledge.beyond);
+      case colder:     return std::format("new: {:.0f} K colder", knowledge.beyond);
+      case heavier:    return std::format("new: {:.0f}% heavier", knowledge.beyond * 100.0);
+      case lighter:    return std::format("new: {:.0f}% lighter", knowledge.beyond * 100.0);
+      case star:       return std::format("new: {} star", star_type.substr(0, 1));
+      case few:        return std::format("few like it ({})", knowledge.alike);
+      case known:      break;
+      }
+    return {};
+    }
 
   auto bio_worth() -> uint32_t { return eht::settings()->exploration.bio_worth; }
 
@@ -70,6 +91,8 @@ namespace
     ///\brief the most it is likely to pay - known, guessed or the top of the family's prices
     uint32_t potential{};
     bool done{};
+    ///\brief one scan would widen what is known of where the genus grows
+    bool novel{};
     };
 
   [[nodiscard]]
@@ -100,15 +123,33 @@ namespace
       }
 
     std::vector<bio::candidate_t> guesses;
-    if(auto const world{bio::conditions_of(system, body)}; world)
+    std::string note;
+    auto const world{bio::conditions_of(system, body)};
+    if(world)
+      {
       guesses = bio::predict(genus.Genus_Localised, *world, history);
+      note = knowledge_note(
+        bio::knowledge(genus.Genus_Localised, *world, history, eht::settings()->exploration.little_known), world->star_type
+      );
+      }
+    // what the history does not know yet is worth a scan whatever it pays; it stands after the price, in its own colour
+    auto const with_note = [&](genus_view_t view) -> genus_view_t
+    {
+      if(note.empty())
+        return view;
+      view.text += "  " + note;
+      view.novel = true;
+      if(view.colour != colour_first())
+        view.colour = colour_knowledge();
+      return view;
+    };
 
     if(guesses.empty() or guesses.front().fit == bio::fit_e::unlike)
       {
       // never sampled under this sky - the family's whole price span is all there is to go by
       auto const range{organic_value_range(genus.Genus_Localised)};
       uint32_t const top{range ? range->second : 0u};
-      return genus_view_t{
+      return with_note(genus_view_t{
         .text = range
                   ? std::format(
                       "{} ?  {}-{}", genus.Genus_Localised, short_credits(range->first), short_credits(range->second)
@@ -117,7 +158,7 @@ namespace
         .colour = top >= worth ? colour_alert() : colour_below(),
         .potential = top,
         .done = false
-      };
+      });
       }
 
     std::string text{std::format("{} ?", genus.Genus_Localised)};
@@ -148,7 +189,7 @@ namespace
     uint32_t potential{};
     for(bio::candidate_t const & guess: guesses)
       potential = std::max(potential, guess.value);
-    return genus_view_t{.text = std::move(text), .colour = colour, .potential = potential, .done = false};
+    return with_note(genus_view_t{.text = std::move(text), .colour = colour, .potential = potential, .done = false});
     }
 
   ///\brief the most a body's life is likely to pay, to put the best landing first
@@ -346,7 +387,10 @@ auto describe_life(star_system_t const & system, std::span<bio::species_record_t
             : std::format("  {}", planet->atmosphere_type),
           all_done ? "  all sampled" : ""
         ),
-        .color = all_done ? colour_below() : (entry.potential >= worth ? colour_first() : colour_plain())
+        .color = all_done                    ? colour_below()
+                 : entry.potential >= worth    ? colour_first()
+                 : std::ranges::any_of(genera, &genus_view_t::novel) ? colour_knowledge()
+                                               : colour_plain()
       }
     );
 
