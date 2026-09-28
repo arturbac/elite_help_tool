@@ -3245,14 +3245,17 @@ constexpr std::chrono::minutes carrier_cooldown{5};
 
 ///\brief a carrier in one line: where it is, or where it goes, when it leaves and when it is ready again
 [[nodiscard]]
-auto describe_carrier(info::carrier_state_t const & c, std::chrono::sys_seconds now) -> overlay::line_t
+auto describe_carrier(info::carrier_state_t const & c, std::chrono::sys_seconds now, std::string const & away)
+  -> overlay::line_t
   {
   std::string const who{
     c.name.empty() ? std::format("carrier {}", c.carrier_id)
                    : (c.callsign.empty() ? c.name : std::format("{} ({})", c.name, c.callsign))
   };
   if(not c.jumping)
-    return overlay::line_t{.text = std::format("  {}: {}", who, c.system.empty() ? "?" : c.system), .color = colour_plain()};
+    return overlay::line_t{
+      .text = std::format("  {}: {}{}", who, c.system.empty() ? "?" : c.system, away), .color = colour_plain()
+    };
 
   auto const minutes = [](auto d) { return std::chrono::duration_cast<std::chrono::minutes>(d).count(); };
   // five minutes after the arrival the next jump can be ordered; before it the arrival is reckoned
@@ -3260,10 +3263,11 @@ auto describe_carrier(info::carrier_state_t const & c, std::chrono::sys_seconds 
   if(now < c.departure)
     return overlay::line_t{
       .text = std::format(
-        "  {}: {} -> {}, leaves {:%H:%M} UTC (in {} min), ready ~{:%H:%M}",
+        "  {}: {} -> {}{}, leaves {:%H:%M} UTC (in {} min), ready ~{:%H:%M}",
         who,
         c.from.empty() ? "?" : c.from,
         c.to_body.empty() ? c.to : c.to_body,
+        away,
         c.departure,
         minutes(c.departure - now) + 1,
         ready
@@ -3272,11 +3276,12 @@ auto describe_carrier(info::carrier_state_t const & c, std::chrono::sys_seconds 
     };
   return overlay::line_t{
     .text = std::format(
-      "  {}: {} {} -> {} at {:%H:%M} UTC, ready {:%H:%M} (in {} min)",
+      "  {}: {} {} -> {}{} at {:%H:%M} UTC, ready {:%H:%M} (in {} min)",
       who,
       c.arrived ? "arrived" : "jumping",
       c.from.empty() ? "?" : c.from,
       c.to_body.empty() ? c.to : c.to_body,
+      away,
       c.arrived ? c.arrival : c.departure,
       ready,
       minutes(ready - now) + 1
@@ -3286,7 +3291,7 @@ auto describe_carrier(info::carrier_state_t const & c, std::chrono::sys_seconds 
   }
   }  // namespace
 
-auto overlay_feed_t::build_logistics_lines() const -> std::vector<overlay::line_t>
+auto overlay_feed_t::build_logistics_lines(std::array<double, 3> const & here) const -> std::vector<overlay::line_t>
   {
   auto & db{const_cast<database_storage_t &>(db_)};
   auto const now{std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())};
@@ -3307,8 +3312,26 @@ auto overlay_feed_t::build_logistics_lines() const -> std::vector<overlay::line_
   if(auto carriers{db.load_carrier_states(now, carrier_cooldown)}; carriers and not carriers->empty())
     {
     lines.push_back(overlay::line_t{.text = "carriers:", .color = colour_heading()});
+    // how far the carrier is, or will be once its jump is done - out in deep space it is the way home
+    bool const here_known{here[0] != 0.0 or here[1] != 0.0 or here[2] != 0.0};
+    std::vector<std::string> names;
     for(info::carrier_state_t const & c: *carriers)
-      lines.push_back(describe_carrier(c, now));
+      names.push_back(c.jumping ? c.to : c.system);
+    auto const positions{here_known ? db.load_system_positions(names) : decltype(db.load_system_positions(names)){}};
+    for(size_t ix{}; ix != carriers->size(); ++ix)
+      {
+      std::string away;
+      if(positions)
+        if(auto const it{positions->find(names[ix])}; it != positions->end())
+          {
+          double const dx{it->second[0] - here[0]};
+          double const dy{it->second[1] - here[1]};
+          double const dz{it->second[2] - here[2]};
+          double const ly{std::sqrt(dx * dx + dy * dy + dz * dz)};
+          away = ly < 0.05 ? std::string{", here"} : std::format(", {:.1f} ly", ly);
+          }
+      lines.push_back(describe_carrier((*carriers)[ix], now, away));
+      }
     }
 
   auto pending{db.load_transfers_in_flight(now)};
@@ -3710,7 +3733,7 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
       }
     );
 
-  if(auto logistics{build_logistics_lines()}; not logistics.empty())
+  if(auto logistics{build_logistics_lines(state.system.system_location)}; not logistics.empty())
     frame.blocks.push_back(
       overlay::block_t{.corner = overlay::corner_e::bottom_left, .ttl_ms = block_ttl_ms(), .lines = std::move(logistics)}
     );

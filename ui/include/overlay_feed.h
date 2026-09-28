@@ -135,7 +135,7 @@ private:
   ///\brief ships in transit and the last port - both are easy to lose track of, and both can
   /// decide where one ends up and what one flies on in
   [[nodiscard]]
-  auto build_logistics_lines() const -> std::vector<overlay::line_t>;
+  auto build_logistics_lines(std::array<double, 3> const & here) const -> std::vector<overlay::line_t>;
 
   ///\brief the fleet placed, read again when it changed, on a change of system, or every half minute
   auto refresh_fleet(current_state_t const & state) -> void;

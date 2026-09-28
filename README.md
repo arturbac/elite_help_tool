@@ -215,7 +215,9 @@ it can take the game down: [overlay/README.md](overlay/README.md).
 - **Where each carrier is, and where it goes.** For your own carrier and your squadron's, the overlay
   (with the logistics, bottom left) and the *Carriers* tab of the Data window show where it stands, or,
   once a jump is ordered: from where to where, when it leaves (UTC, with a countdown) and when it can
-  be sent on again, five minutes after it arrives.
+  be sent on again, five minutes after it arrives. The overlay adds how far it is from you in light
+  years, or from where it is going once a jump is ordered - out in deep space, how far the way back is.
+  It needs both systems' positions, known once you have been to them.
 - The game writes a carrier's position at login and about a minute after a jump while you are in the
   game, which is taken as the arrival; when you are not, the arrival is reckoned a minute after the
   departure, as the journals show, and the time is marked with a tilde.
