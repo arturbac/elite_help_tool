@@ -24,6 +24,7 @@
 #include <qprogressbar.h>
 #include <qscrollarea.h>
 #include <qgroupbox.h>
+#include <qicon.h>
 
 namespace
   {
@@ -588,6 +589,7 @@ volatile std::sig_atomic_t asked_to_stop{};
 auto main(int argc, char * argv[]) -> int
   {
   QApplication app(argc, argv);
+  QApplication::setWindowIcon(QIcon{":/icons/eht.png"});
   apply_dark_theme();
 
   // a look at the queries without a rebuild - SPDLOG_LEVEL=debug

@@ -184,6 +184,10 @@ The file is reloaded live whenever you save it.
 EHT and the game can be started in either order. The overlay connects whenever both are up, and
 reconnects after either one restarts.
 
+For a launcher or a desktop entry, the tool's icon is `ui/icons/eht.svg` (a 256 px `eht.png` beside
+it). The desktop entry has to start EHT in its working directory: `Path=` set to it, or a user
+service with `WorkingDirectory=`.
+
 ## 6. Steam launch options
 
 In Steam: *Elite Dangerous → Properties → General → Launch Options*:

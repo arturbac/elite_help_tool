@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Elite Help Tool: a planet in the HUD's orange, its orbit with a ship on it, inside the HUD's corner brackets -->
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <defs>
+    <radialGradient id="space" cx="50%" cy="42%" r="70%">
+      <stop offset="0" stop-color="#1a2338"/>
+      <stop offset="1" stop-color="#05070d"/>
+    </radialGradient>
+    <radialGradient id="planet" cx="38%" cy="34%" r="72%">
+      <stop offset="0" stop-color="#ffc27a"/>
+      <stop offset="0.45" stop-color="#ff7a00"/>
+      <stop offset="1" stop-color="#6a2200"/>
+    </radialGradient>
+    <linearGradient id="night" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0.45" stop-color="#000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.55"/>
+    </linearGradient>
+    <clipPath id="disc"><circle cx="128" cy="132" r="54"/></clipPath>
+  </defs>
+
+  <rect x="8" y="8" width="240" height="240" rx="44" fill="url(#space)"/>
+  <rect x="8.5" y="8.5" width="239" height="239" rx="43.5" fill="none" stroke="#ff7a00" stroke-opacity="0.35"/>
+
+  <!-- stars -->
+  <g fill="#cfe3ff">
+    <circle cx="52" cy="62" r="1.6"/><circle cx="196" cy="54" r="1.3"/><circle cx="210" cy="176" r="1.5"/>
+    <circle cx="70" cy="200" r="1.2"/><circle cx="168" cy="36" r="1"/><circle cx="36" cy="140" r="1.1"/>
+    <circle cx="222" cy="112" r="1"/><circle cx="104" cy="44" r="0.9"/>
+  </g>
+
+  <!-- the back half of the orbit, behind the planet -->
+  <ellipse cx="128" cy="132" rx="98" ry="30" transform="rotate(-18 128 132)" fill="none"
+           stroke="#4fc3ff" stroke-width="3" stroke-opacity="0.45"/>
+
+  <!-- the planet with bands and its night side -->
+  <circle cx="128" cy="132" r="54" fill="url(#planet)"/>
+  <g clip-path="url(#disc)" fill="none" stroke="#8a2d00" stroke-opacity="0.45" stroke-width="5">
+    <path d="M70 112 Q128 98 188 116"/>
+    <path d="M70 140 Q128 128 188 146"/>
+    <path d="M74 162 Q128 152 184 168" stroke-width="3"/>
+  </g>
+  <circle cx="128" cy="132" r="54" fill="url(#night)"/>
+
+  <!-- the front half of the orbit, over the planet -->
+  <path d="M 33.6 159.3 A 98 30 -18 0 0 222.4 104.7" transform="rotate(0)" fill="none"
+        stroke="#4fc3ff" stroke-width="4" stroke-linecap="round"/>
+
+  <!-- the ship on the orbit: the HUD's own chevron -->
+  <g transform="translate(206 124) rotate(-40)">
+    <path d="M0 -13 L10 9 L0 4 L-10 9 Z" fill="#ffffff" stroke="#4fc3ff" stroke-width="2" stroke-linejoin="round"/>
+  </g>
+
+  <!-- HUD corner brackets -->
+  <g fill="none" stroke="#ff7a00" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M34 70 V34 H70"/>
+    <path d="M186 34 H222 V70"/>
+    <path d="M222 186 V222 H186"/>
+    <path d="M70 222 H34 V186"/>
+  </g>
+</svg>
