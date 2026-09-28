@@ -348,6 +348,23 @@ if a menu opens or the ship leaves supercruise first, the picture is called off.
 star's class, mass, temperature and radius or the planet's class, atmosphere, gravity and temperature,
 and whether it was a first discovery. The *Sky* button opens it; `sky_pictures` turns it off.
 
+## Backup
+
+EHT keeps a copy of what cannot be rebuilt - the journals and the codex with its pictures - in
+`~/.backups/eht/<commander>/`, in the background, once a month (`backup.every_days`, 30) or once 100
+new pictures came into the codex and the sky album (`backup.every_pictures`), whichever comes first.
+The databases are left out: they are rebuilt from the journals, and what the pictures show is
+described again out of them.
+
+- The journals go one `journals-2026-09.tar.zst` a month, some seventy times smaller than the text
+  (zstd level `backup.level`, 9). A month is packed again only when a journal of it changed, so a
+  month gone by is packed once. `tar -xaf journals-2026-09.tar.zst` unpacks it.
+- The `codex/` directory is copied as it is - JPGs do not pack - file by file, when missing or newer.
+  Nothing is ever deleted from the backup.
+- `last_backup.json` beside them says when the last one was and how many pictures there were then.
+- `backup.dir` moves it, `backup.enabled` turns it off. Copying `~/.backups/eht` to another disk
+  is then the whole backup.
+
 ## Privacy and your own galaxy
 
 EHT is cut off from the public databases **in both directions**, on purpose.

@@ -95,6 +95,61 @@ main_window_t::main_window_t(std::string db_path, std::string journal_path, QWid
     }
   );
   picture_timer->start();
+
+  // the backup looks whether it is due every ten minutes, the first time a minute after the start - once the
+  // journal has told whose it is
+  auto * const backup_timer{new QTimer(this)};
+  backup_timer->setInterval(std::chrono::minutes{10});
+  connect(backup_timer, &QTimer::timeout, this, [this] { follow_backup(); });
+  backup_timer->start();
+  QTimer::singleShot(std::chrono::minutes{1}, this, [this] { follow_backup(); });
+  }
+
+auto main_window_t::follow_backup() -> void
+  {
+  if(backup_.valid())
+    {
+    if(backup_.wait_for(std::chrono::seconds{0}) != std::future_status::ready)
+      return;
+    backup::summary_t const summary{backup_.get()};
+    for(std::string const & error: summary.errors)
+      spdlog::error("backup: {}", error);
+    if(summary.errors.empty())
+      backup::write_mark(
+        backup_destination_,
+        backup::mark_t{.at = std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now()), .pictures = backup_pictures_}
+      );
+    spdlog::info(
+      "backup: {} month(s) of journals packed{}, {} file(s) of the codex copied, in {}",
+      summary.months.size(),
+      summary.months.empty() ? std::string{} : std::format(" ({})", summary.months.back()),
+      summary.pictures_copied,
+      backup_destination_.string()
+    );
+    return;
+    }
+
+  auto const cfg{eht::settings()};
+  if(not cfg->backup.enabled or state_.commander_name_.empty())
+    return;
+  // a directory for each commander - two accounts on one machine keep their journals apart
+  std::filesystem::path const destination{
+    backup::expand_home(cfg->backup.dir) / codex_files::file_safe(state_.commander_name_)
+  };
+  uint64_t const pictures{backup::count_pictures(codex_files::codex_dir())};
+  auto const now{std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())};
+  if(not backup::due(backup::read_mark(destination), now, pictures, cfg->backup.every_days, cfg->backup.every_pictures))
+    return;
+
+  backup_destination_ = destination;
+  backup_pictures_ = pictures;
+  spdlog::info("backup: due, writing to {}", destination.string());
+  backup_ = std::async(
+    std::launch::async,
+    [destination, journals = std::filesystem::path{state_.journal_dir_path_}, codex = codex_files::codex_dir(),
+     level = cfg->backup.level]
+    { return backup::run(destination, journals, codex, level); }
+  );
   }
 
 auto main_window_t::publish_overlay() -> void
@@ -127,6 +182,9 @@ auto main_window_t::publish_overlay() -> void
     overlay_feed_->set_surface_target(surface_view_->target());
     }
   overlay_feed_->publish(state_, plotted);
+  // a backup running is looked at with every frame, so its end is written down when it comes
+  if(backup_.valid())
+    follow_backup();
 
   if(extension_)
     extension_->tick(eht::extension::route_view_t{.waypoints = plotted.waypoints, .reached = plotted.reached});

@@ -329,6 +329,20 @@ struct gui_settings_t
   double module_damaged_below{0.4};
   };
 
+///\brief the copy of the journals and the codex's pictures, made in the background
+struct backup_settings_t
+  {
+  bool enabled{true};
+  ///\brief a directory of its own for each commander goes under it
+  std::string dir{"~/.backups/eht"};
+  ///\brief a backup once this many days have passed since the last - 0 never for the time alone
+  uint32_t every_days{30u};
+  ///\brief and once this many new pictures came into the codex and the sky album - 0 never for the pictures
+  uint32_t every_pictures{100u};
+  ///\brief zstd's level for the journals - 9 packs them some seventy times smaller in seconds
+  int32_t level{9};
+  };
+
 struct settings_t
   {
   overlay_settings_t overlay;
@@ -340,6 +354,7 @@ struct settings_t
   journal_settings_t journal;
   windows_settings_t windows;
   eddn_settings_t eddn;
+  backup_settings_t backup;
   };
 
 ///\brief switches read from the file when someone put them there, and never written into a file of

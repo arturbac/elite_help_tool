@@ -25,6 +25,8 @@
 #include <qpointer.h>
 #include <file_io.h>
 #include <qtimer.h>
+#include <backup.h>
+#include <future>
 
 enum struct window_type_e
   {
@@ -79,6 +81,13 @@ public:
   std::unique_ptr<overlay_feed_t> overlay_feed_;
   ///\brief keeps the image alive when nothing arrives from the journal, while docked for instance
   QTimer * overlay_timer_{};
+  ///\brief the backup running in the background, if one is
+  std::future<backup::summary_t> backup_;
+  ///\brief what the running backup is to be marked with once it is done
+  std::filesystem::path backup_destination_;
+  uint64_t backup_pictures_{};
+  ///\brief starts a backup when one is due, and takes its result when it is done
+  auto follow_backup() -> void;
 
   fs::path file_to_monitor{};
 

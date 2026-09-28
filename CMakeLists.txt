@@ -141,6 +141,9 @@ find_package(
 
 # find_package(Qt6 REQUIRED COMPONENTS Sql)
 find_package(SQLite3 REQUIRED)
+# the backup packs the journals with it
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(ZSTD REQUIRED IMPORTED_TARGET libzstd)
 
 set(PROJECT_CXX_FLAGS
   "-fPIC"
@@ -205,6 +208,7 @@ target_link_libraries(eht PUBLIC
   stralgo::stralgo
   glaze::glaze
   SQLite3::SQLite3
+  PkgConfig::ZSTD
   )
 
 add_executable(journal_tailer)
