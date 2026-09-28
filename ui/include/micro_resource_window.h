@@ -119,6 +119,17 @@ public:
   acquisition_model_t * acquisition_model_{};
   QTableView * acquisition_view_{};
 
+  ///\brief what went through the counters - sold to a bartender, bought, bartered
+  QComboBox * bartender_period_{};
+  QLabel * bartender_totals_{};
+  QTableWidget * bartender_view_{};
+
+  ///\brief the consumables used up and the kills made on foot
+  QComboBox * on_foot_period_{};
+  QLabel * on_foot_totals_{};
+  QTableWidget * consumables_view_{};
+  QTableWidget * kills_view_{};
+
   explicit micro_resource_window_t(std::string db_path, QWidget * parent = nullptr);
 
   ///\brief called when the game state has changed
@@ -139,4 +150,6 @@ private:
   [[nodiscard]]
   auto carrier_stats_line(std::string_view carrier_id) -> std::string;
   auto show_acquisitions() -> void;
+  auto show_bartender() -> void;
+  auto show_on_foot() -> void;
   };

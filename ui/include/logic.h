@@ -2,7 +2,9 @@
 #include <map>
 #include <optional>
 #include <ground_cz.h>
+#include <on_foot.h>
 #include <functional>
+#include <thread>
 #include <elite_events.h>
 #include <elite_data.h>
 #include <simple_enum/simple_enum.hpp>
@@ -172,7 +174,13 @@ struct current_state_t : public generic_state_t
   auto close_carrier_visit(std::chrono::sys_seconds when, bool escaped, std::string_view source) -> void;
   bool personal_{true};
 
-  current_state_t(main_window_t * p, std::string db_path, std::string journal_path) : generic_state_t{journal_path}, parent{p}, db_{db_path} {}
+  current_state_t(main_window_t * p, std::string db_path, std::string journal_path) :
+      generic_state_t{journal_path},
+      parent{p},
+      db_{db_path}
+    {
+    start_weapon_watch();
+    }
 
   void handle(std::chrono::sys_seconds timestamp, events::event_holder_t && event) override;
 
@@ -185,6 +193,12 @@ struct current_state_t : public generic_state_t
   uint64_t bond_changes_{};
   ///\brief which settlement a kill on foot is made at
   ground_cz_tracker_t ground_cz_;
+  ///\brief the consumables and the kills on foot, and which kills a grenade made
+  on_foot_tracker_t on_foot_;
+  ///\brief the weapon changes seen in Status.json, looked at a few times a second
+  weapon_log_t weapons_;
+  ///\brief what the commander held at a kill just made - a kill read long after it was made gets nothing
+  auto weapon_in_hand(std::chrono::sys_seconds when) const -> std::string { return weapons_.at(when); }
   auto raw_line(std::string_view line) -> void override
     {
     if(raw_line_listener_)
@@ -217,4 +231,7 @@ struct current_state_t : public generic_state_t
 
 private:
   void load_missions();
+  auto start_weapon_watch() -> void;
+  ///\brief looks at Status.json for the weapon in hand; the last member, so it stops before the rest goes
+  std::jthread weapon_watch_;
   };

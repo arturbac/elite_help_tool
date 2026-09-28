@@ -126,6 +126,15 @@ it can take the game down: [overlay/README.md](overlay/README.md).
 - **Fleet carrier bars**: the bartender's shelf of every carrier visited, with prices and sold-out
   items, filterable to your own carriers. Where each material came from is tracked too, collected
   or from missions, over 30 days, 90 days or all time.
+- **Bartender**: what you sold to bartenders, bought and bartered, item by item and summed by
+  category (goods, assets, data), with the credits of sales and purchases. The game's own
+  `Statistics` already count Horizons material traders, so they are not repeated here.
+- **On foot**: the consumables used up (grenades by type, medkits, energy cells, e-breaches), and
+  the kills on foot, conflict zones apart from settlements. The game does not say what made a kill,
+  so a kill 2 to 4 seconds after a frag grenade was thrown counts as the grenade's - the delay at
+  which kills stand out from the rest in the journals. The weapon in hand is read from
+  `Status.json` five times a second and is known only for kills seen live; a weapon changed in the
+  kill's own second leaves it unknown, since the file's time goes to the second only.
 - Market data is recorded when you open the commodity market, and kept in `live.sqlite`, the one
   database that cannot be rebuilt from journals.
 

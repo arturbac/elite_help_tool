@@ -306,6 +306,8 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
         or std::same_as<T, events::mission_abandoned_t> or std::same_as<T, events::mission_failed_t>
         or std::same_as<T, events::mission_redirected_t> or std::same_as<T, events::missions_t>
         or std::same_as<T, events::sell_micro_resources_t> or std::same_as<T, events::backpack_change_t>
+        or std::same_as<T, events::buy_micro_resources_t> or std::same_as<T, events::trade_micro_resources_t>
+        or std::same_as<T, events::commit_crime_t>
         or std::same_as<T, events::shipyard_transfer_t> or fleet::changes_fleet<T>
       )
         if(not personal_)
@@ -759,6 +761,30 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
                not res)
               spdlog::error("failed to store acquisition {}", item.Name);
             }
+          for(events::backpack_item_t const & item: event.Removed)
+            if(auto used{on_foot_.removed(timestamp, item)}; used)
+              {
+              if(auto res{db_.store(info::micro_resource_t{
+                   .name = micro_resource_key(item.Name), .id = {}, .localised = item.Name_Localised, .category = item.Type
+                 })};
+                 not res)
+                spdlog::error("failed to store micro resource {}", item.Name);
+              if(auto res{db_.store(*used)}; not res)
+                spdlog::error("failed to store the use of {}", item.Name);
+              }
+          }
+        else if constexpr(std::same_as<T, events::buy_micro_resources_t> or std::same_as<T, events::trade_micro_resources_t>)
+          {
+          store_counter_trade(db_, timestamp, event);
+          update_micro_resources = true;
+          }
+        // a murder on foot is the only trace of that kill; a bounty on a suit is a wanted one's
+        else if constexpr(std::same_as<T, events::commit_crime_t>)
+          {
+          if(event.CrimeType == "onFoot_murder")
+            if(auto res{db_.store(on_foot_.kill(timestamp, info::foot_kill_e::murder, weapon_in_hand(timestamp)))};
+               not res)
+              spdlog::error("failed to store a kill on foot");
           }
         else if constexpr(std::same_as<T, events::shipyard_transfer_t>)
           {
@@ -831,6 +857,12 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           if(auto bond{ground_cz_.bond(timestamp, event)}; bond)
             if(auto res{db_.store(*bond)}; not res)
               spdlog::error("failed to store a kill on foot at {}", bond->market_id);
+          if(personal_ and ground_cz_.on_foot())
+            if(
+              auto res{db_.store(on_foot_.kill(timestamp, info::foot_kill_e::conflict_zone, weapon_in_hand(timestamp)))};
+              not res
+            )
+              spdlog::error("failed to store a kill on foot");
           }
         else if constexpr(std::same_as<T, events::book_dropship_t>)
           ground_cz_.book_dropship(event);
@@ -1428,6 +1460,9 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
         {
         last_bounty = event;
         last_bounty_at = std::chrono::steady_clock::now();
+        if(personal_ and is_foot_target(event.Target))
+          if(auto res{db_.store(on_foot_.kill(timestamp, info::foot_kill_e::bounty, weapon_in_hand(timestamp)))}; not res)
+            spdlog::error("failed to store a kill on foot");
         }
       else if constexpr(std::same_as<T, events::launch_fighter_t>)
         {
@@ -1788,4 +1823,24 @@ auto current_state_t::close_carrier_visit(std::chrono::sys_seconds when, bool es
       spdlog::error("failed to change the cargo of carrier {}", visit.carrier_id);
     }
   ++carrier_changes_;
+  }
+
+auto current_state_t::start_weapon_watch() -> void
+  {
+  // Three weapons in two seconds is an ordinary fight, so the file is looked at five times a second -
+  // it is small, and a read costs less than the frame it would take to notice the change otherwise
+  static constexpr std::chrono::milliseconds every{200};
+  weapon_watch_ = std::jthread{[this](std::stop_token stoken)
+                               {
+                                 while(not stoken.stop_requested())
+                                   {
+                                   if(auto status{load_status(journal_dir_path_)}; status)
+                                     weapons_.observe(
+                                       status->timestamp,
+                                       status->SelectedWeapon_Localised.empty() ? status->SelectedWeapon
+                                                                                : status->SelectedWeapon_Localised
+                                     );
+                                   std::this_thread::sleep_for(every);
+                                   }
+                               }};
   }

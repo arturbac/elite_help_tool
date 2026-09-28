@@ -516,6 +516,8 @@ namespace tables
   // selling micro resources is a journal event, so it is rebuildable
   inline constexpr std::string_view micro_sale{"micro_sale"};
   inline constexpr std::string_view micro_sale_item{"micro_sale_item"};
+  inline constexpr std::string_view consumable_use{"consumable_use"};
+  inline constexpr std::string_view foot_kill{"foot_kill"};
   inline constexpr std::string_view micro_acquisition{"micro_acquisition"};
   // a route plotted outside the game is in no journal at all, so a rebuild would wipe it
   inline constexpr std::string_view neutron_route{"live.neutron_route"};
@@ -1183,7 +1185,10 @@ auto database_storage_t::migrate_live_schema() -> expected_ec<void>
        addition_t{sql_iface::tables::ship, "flown"sv, "TEXT DEFAULT ''"sv},
        // missions handed in before the bars were kept say 0 until filled in from the journals
        addition_t{sql_iface::tables::mission_influence, "economy"sv, "INTEGER DEFAULT 0"sv},
-       addition_t{sql_iface::tables::mission_influence, "security"sv, "INTEGER DEFAULT 0"sv}})
+       addition_t{sql_iface::tables::mission_influence, "security"sv, "INTEGER DEFAULT 0"sv},
+       // before purchases and barters were kept every transaction was a sale, and every item went away
+       addition_t{sql_iface::tables::micro_sale, "kind"sv, "TEXT DEFAULT 'sold'"sv},
+       addition_t{sql_iface::tables::micro_sale_item, "received"sv, "INTEGER DEFAULT 0"sv}})
     {
     auto known{sqlite::table_columns(db_->db, add.table)};
     if(not known) [[unlikely]]
@@ -1358,6 +1363,14 @@ auto database_storage_t::create_database() -> expected_ec<void>
 
   if(auto res{sqlite::create_table<info::micro_sale_item_t>(db_->db, "oid"sv, sql_iface::tables::micro_sale_item)};
      not res) [[unlikely]]
+    return res;
+
+  if(auto res{sqlite::create_table<info::consumable_use_t>(db_->db, "oid"sv, sql_iface::tables::consumable_use)};
+     not res) [[unlikely]]
+    return res;
+
+  if(auto res{sqlite::create_table<info::foot_kill_t>(db_->db, "oid"sv, sql_iface::tables::foot_kill)}; not res)
+    [[unlikely]]
     return res;
 
   if(auto res{sqlite::create_table<info::micro_acquisition_t>(db_->db, "oid"sv, sql_iface::tables::micro_acquisition)};
@@ -4276,15 +4289,122 @@ auto database_storage_t::store(info::micro_resource_t const & value) -> expected
   return sqlite::execute_query_no_result(db_->db, query);
   }
 
+auto database_storage_t::store(info::consumable_use_t const & value) -> expected_ec<void>
+  {
+  // replaying the journal repeats the uses; time and the place in that second tell them apart
+  auto known{sqlite::select_signle_from<uint64_t>(
+    db_->db,
+    std::format(
+      "SELECT count(*) FROM {} WHERE timestamp='{:%Y-%m-%dT%H:%M:%SZ}' AND seq={}",
+      sql_iface::tables::consumable_use,
+      value.timestamp,
+      value.seq
+    )
+  )};
+  if(not known) [[unlikely]]
+    return cxx23::unexpected{known.error()};
+  if(*known and **known != 0)
+    return {};
+  return sqlite::insert_into(db_->db, "oid"sv, sql_iface::tables::consumable_use, value);
+  }
+
+auto database_storage_t::store(info::foot_kill_t const & value) -> expected_ec<void>
+  {
+  auto known{sqlite::select_signle_from<uint64_t>(
+    db_->db,
+    std::format(
+      "SELECT count(*) FROM {} WHERE timestamp='{:%Y-%m-%dT%H:%M:%SZ}' AND seq={}",
+      sql_iface::tables::foot_kill,
+      value.timestamp,
+      value.seq
+    )
+  )};
+  if(not known) [[unlikely]]
+    return cxx23::unexpected{known.error()};
+  if(*known and **known != 0)
+    return {};
+  return sqlite::insert_into(db_->db, "oid"sv, sql_iface::tables::foot_kill, value);
+  }
+
+auto database_storage_t::load_bartender_summary(std::chrono::sys_seconds since)
+  -> expected_ec<std::vector<info::bartender_summary_t>>
+  {
+  return sqlite::select_from<info::bartender_summary_t>(
+    db_->db,
+    std::format(
+      "(SELECT i.name AS name, coalesce(r.localised, '') AS localised, coalesce(r.category, '') AS category,"
+      " sum(CASE WHEN s.kind = 'sold' THEN i.count ELSE 0 END) AS sold,"
+      " sum(CASE WHEN s.kind = 'bought' THEN i.count ELSE 0 END) AS bought,"
+      " sum(CASE WHEN s.kind = 'bartered' AND i.received = 0 THEN i.count ELSE 0 END) AS bartered_away,"
+      " sum(CASE WHEN s.kind = 'bartered' AND i.received != 0 THEN i.count ELSE 0 END) AS bartered_for"
+      " FROM {0} i JOIN {1} s ON s.oid = i.sale_oid LEFT JOIN {2} r ON r.name = i.name"
+      " WHERE s.timestamp >= '{3:%Y-%m-%dT%H:%M:%SZ}' GROUP BY i.name)",
+      sql_iface::tables::micro_sale_item,
+      sql_iface::tables::micro_sale,
+      sql_iface::tables::micro_resource,
+      since
+    ),
+    ""
+  );
+  }
+
+auto database_storage_t::load_bartender_totals(std::chrono::sys_seconds since)
+  -> expected_ec<std::vector<info::bartender_total_t>>
+  {
+  return sqlite::select_from<info::bartender_total_t>(
+    db_->db,
+    std::format(
+      "(SELECT kind, count(*) AS transactions, sum(price) AS credits FROM {} WHERE timestamp >= "
+      "'{:%Y-%m-%dT%H:%M:%SZ}' GROUP BY kind)",
+      sql_iface::tables::micro_sale,
+      since
+    ),
+    ""
+  );
+  }
+
+auto database_storage_t::load_consumable_summary(std::chrono::sys_seconds since)
+  -> expected_ec<std::vector<info::consumable_summary_t>>
+  {
+  return sqlite::select_from<info::consumable_summary_t>(
+    db_->db,
+    std::format(
+      "(SELECT u.name AS name, coalesce(r.localised, '') AS localised, sum(u.count) AS used"
+      " FROM {0} u LEFT JOIN {1} r ON r.name = u.name WHERE u.timestamp >= '{2:%Y-%m-%dT%H:%M:%SZ}'"
+      " GROUP BY u.name ORDER BY used DESC)",
+      sql_iface::tables::consumable_use,
+      sql_iface::tables::micro_resource,
+      since
+    ),
+    ""
+  );
+  }
+
+auto database_storage_t::load_foot_kills(std::chrono::sys_seconds since)
+  -> expected_ec<std::vector<info::foot_kill_summary_t>>
+  {
+  return sqlite::select_from<info::foot_kill_summary_t>(
+    db_->db,
+    std::format(
+      "(SELECT kind, grenade, weapon, count(*) AS kills FROM {} WHERE timestamp >= '{:%Y-%m-%dT%H:%M:%SZ}'"
+      " GROUP BY kind, grenade, weapon ORDER BY kills DESC)",
+      sql_iface::tables::foot_kill,
+      since
+    ),
+    ""
+  );
+  }
+
 auto database_storage_t::store(info::micro_sale_t const & sale, std::span<info::micro_sale_item_t const> items)
   -> expected_ec<void>
   {
-  // replaying the journal repeats the same transactions; the pair of time and market tells them apart
+  // replaying the journal repeats the same transactions; time, market and kind tell them apart
   std::string known_query{std::format(
-    "SELECT count(*) FROM {} WHERE market_id={} AND timestamp='{:%Y-%m-%dT%H:%M:%SZ}'",
+    "SELECT count(*) FROM {} WHERE market_id={} AND timestamp='{:%Y-%m-%dT%H:%M:%SZ}' AND kind='{}'",
     sql_iface::tables::micro_sale,
     sale.market_id,
-    sale.timestamp
+    sale.timestamp,
+    simple_enum::enum_name(sale.kind)
   )};
   auto known{sqlite::select_signle_from<uint64_t>(db_->db, known_query)};
   if(not known) [[unlikely]]

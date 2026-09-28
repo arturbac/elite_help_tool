@@ -1207,6 +1207,9 @@ struct backpack_item_t
 struct backpack_change_t
   {
   std::vector<backpack_item_t> Added;
+  ///\brief a consumable here was used up - a grenade thrown, a medkit or a cell spent. UseConsumable
+  /// comes more often than the things go, so it is not the count
+  std::vector<backpack_item_t> Removed;
   };
 
 ///\brief a micro resource sale row
@@ -1225,6 +1228,40 @@ struct sell_micro_resources_t
   uint64_t Price;
   uint32_t TotalCount;
   std::vector<sold_micro_resource_t> MicroResources;
+  };
+
+///\brief buying micro resources - consumables at Pioneer Supplies one kind at a time, or goods at a bar
+///\detail an older form names the one kind in the event itself, a newer one lists them; Price is for all
+struct buy_micro_resources_t
+  {
+  uint64_t MarketID;
+  uint64_t Price;
+  uint32_t TotalCount{};
+  std::string Name;
+  std::string Name_Localised;
+  std::string Category;
+  uint32_t Count{};
+  std::vector<sold_micro_resource_t> MicroResources;
+  };
+
+///\brief a barter at a bartender - several kinds given away for one received
+struct trade_micro_resources_t
+  {
+  uint64_t MarketID;
+  std::vector<sold_micro_resource_t> Offered;
+  uint32_t TotalCount{};
+  std::string Received;
+  std::string Received_Localised;
+  std::string Category;
+  uint32_t Count{};
+  };
+
+///\brief a crime - on foot a murder of a clean victim is the only trace of that kill
+struct commit_crime_t
+  {
+  std::string CrimeType;
+  std::string Faction;
+  std::string Victim;
   };
 
 ///\brief docking - this is where a station's identity comes from, its type included
@@ -1358,6 +1395,7 @@ struct status_file_t
   std::optional<double> PlanetRadius;
   ///\brief what the commander holds on foot - the genetic sampler says a sample is being taken
   std::string SelectedWeapon;
+  std::string SelectedWeapon_Localised;
   ///\brief the commander's standing with the law in this system - Clean, Wanted, Hostile, Speeding,
   /// IllegalCargo, PassengerWanted, Warrant. The only word of bounties the game gives: their sums are
   /// in no file, and a squadron's Notoriety Decay changes them without a trace
@@ -1526,6 +1564,9 @@ using event_holder_t = std::variant<
   docked_t,
   shipyard_transfer_t,
   sell_micro_resources_t,
+  buy_micro_resources_t,
+  trade_micro_resources_t,
+  commit_crime_t,
   approach_settlement_t,
   disembark_t,
   supercruise_entry_t,
@@ -2131,4 +2172,4 @@ constexpr auto get_planet_icon(std::string_view planet_class) -> std::string_vie
   }  // namespace exploration
 
 [[nodiscard]]
-auto format_credits_value(uint32_t value) -> std::string;
+auto format_credits_value(uint64_t value) -> std::string;

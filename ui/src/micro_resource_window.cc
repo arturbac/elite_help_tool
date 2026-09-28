@@ -265,6 +265,69 @@ auto micro_resource_window_t::setup_ui() -> void
   acquisition_layout->addWidget(acquisition_view_, 1);
   tabs->addTab(acquisition_page, "Acquisition");
 
+  auto const period_choice = [](QWidget * parent) -> QComboBox *
+  {
+    auto * combo = new QComboBox(parent);
+    combo->addItem("Last 30 days", 30);
+    combo->addItem("Last 90 days", 90);
+    combo->addItem("All", 0);
+    return combo;
+  };
+  auto const numbers_table = [](QWidget * parent, QStringList const & headers) -> QTableWidget *
+  {
+    auto * table = new QTableWidget(parent);
+    table->setColumnCount(int(headers.size()));
+    table->setHorizontalHeaderLabels(headers);
+    table->verticalHeader()->setVisible(false);
+    table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    table->setSelectionBehavior(QAbstractItemView::SelectRows);
+    table->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
+    table->horizontalHeader()->setStretchLastSection(true);
+    return table;
+  };
+
+  // --- what went through the counters ---
+  auto * bartender_page = new QWidget(tabs);
+  auto * bartender_layout = new QVBoxLayout(bartender_page);
+  auto * bartender_row = new QHBoxLayout();
+  bartender_row->addWidget(new QLabel("Period:", bartender_page));
+  bartender_period_ = period_choice(bartender_page);
+  bartender_row->addWidget(bartender_period_);
+  bartender_row->addStretch(1);
+  bartender_layout->addLayout(bartender_row);
+  bartender_totals_ = new QLabel(bartender_page);
+  bartender_totals_->setWordWrap(true);
+  bartender_layout->addWidget(bartender_totals_);
+  bartender_view_ = numbers_table(
+    bartender_page, {"Name", "Category", "Sold", "Bought", "Bartered away", "Bartered for"}
+  );
+  bartender_layout->addWidget(bartender_view_, 1);
+  tabs->addTab(bartender_page, "Bartender");
+
+  // --- on foot: what was used up, and what was killed with what ---
+  auto * on_foot_page = new QWidget(tabs);
+  auto * on_foot_layout = new QVBoxLayout(on_foot_page);
+  auto * on_foot_row = new QHBoxLayout();
+  on_foot_row->addWidget(new QLabel("Period:", on_foot_page));
+  on_foot_period_ = period_choice(on_foot_page);
+  on_foot_row->addWidget(on_foot_period_);
+  on_foot_row->addStretch(1);
+  on_foot_layout->addLayout(on_foot_row);
+  on_foot_totals_ = new QLabel(on_foot_page);
+  on_foot_totals_->setWordWrap(true);
+  on_foot_layout->addWidget(on_foot_totals_);
+  auto * on_foot_tables = new QHBoxLayout();
+  consumables_view_ = numbers_table(on_foot_page, {"Consumable", "Used"});
+  kills_view_ = numbers_table(on_foot_page, {"Where", "With", "Weapon in hand", "Kills"});
+  kills_view_->setToolTip(
+    "A kill 2-4 s after a frag grenade was thrown counts as the grenade's - the game does not say what killed.\n"
+    "The weapon in hand comes from Status.json, so it is known only for kills seen live"
+  );
+  on_foot_tables->addWidget(consumables_view_, 1);
+  on_foot_tables->addWidget(kills_view_, 2);
+  on_foot_layout->addLayout(on_foot_tables, 1);
+  tabs->addTab(on_foot_page, "On foot");
+
   // --- where the carriers are, and where they go ---
   carriers_view_ = new QTableWidget(tabs);
   carriers_view_->setColumnCount(6);
@@ -418,6 +481,8 @@ auto micro_resource_window_t::setup_ui() -> void
   connect(only_mine_, &QCheckBox::toggled, this, [this](bool) { reload_carriers(); });
 
   connect(period_combo_, &QComboBox::activated, this, [this](int) { show_acquisitions(); });
+  connect(bartender_period_, &QComboBox::activated, this, [this](int) { show_bartender(); });
+  connect(on_foot_period_, &QComboBox::activated, this, [this](int) { show_on_foot(); });
 
   setWidget(central_widget);
   refresh_ui();
@@ -509,6 +574,148 @@ auto micro_resource_window_t::refresh_ui() -> void
     show_stock(carrier_combo_->currentData().toString().toStdString());
 
   show_acquisitions();
+  show_bartender();
+  show_on_foot();
+  }
+
+namespace
+  {
+  auto period_start(QComboBox const * combo) -> std::chrono::sys_seconds
+    {
+    auto const days{combo->currentData().toInt()};
+    auto const now{std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())};
+    return days > 0 ? now - std::chrono::days{days} : std::chrono::sys_seconds{};
+    }
+
+  ///\brief a cell sorted by its number, not by its text
+  auto number_cell(qulonglong value) -> QTableWidgetItem *
+    {
+    auto * cell = new QTableWidgetItem;
+    cell->setData(Qt::DisplayRole, value);
+    cell->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    return cell;
+    }
+
+  auto text_cell(std::string_view text) -> QTableWidgetItem *
+    { return new QTableWidgetItem(QString::fromUtf8(text.data(), qsizetype(text.size()))); }
+
+  ///\brief the bartender's words for the backpack's categories
+  auto category_name(std::string_view category) -> std::string_view
+    {
+    if(category == "Item")
+      return "Goods";
+    if(category == "Component")
+      return "Assets";
+    return category;
+    }
+  }  // namespace
+
+auto micro_resource_window_t::show_bartender() -> void
+  {
+  auto const since{period_start(bartender_period_)};
+  auto rows{db_.load_bartender_summary(since)};
+  auto totals{db_.load_bartender_totals(since)};
+  if(not rows or not totals)
+    {
+    spdlog::error("failed to load bartender statistics");
+    return;
+    }
+
+  // the counts by category, the credits by kind - a sale mixes kinds and the game prices only the whole
+  std::map<std::string, std::array<uint64_t, 4>> by_category;
+  for(info::bartender_summary_t const & row: *rows)
+    {
+    auto & sums{by_category[std::string{category_name(row.category.empty() ? "?" : row.category)}]};
+    sums[0] += row.sold;
+    sums[1] += row.bought;
+    sums[2] += row.bartered_away;
+    sums[3] += row.bartered_for;
+    }
+  std::string text;
+  for(info::bartender_total_t const & total: *totals)
+    text += std::format(
+      "{}{}: {} transactions{}",
+      text.empty() ? "" : "   ",
+      simple_enum::enum_name(total.kind),
+      total.transactions,
+      total.kind == info::micro_trade_e::bartered ? std::string{} : std::format(", {} Cr", format_credits_value(total.credits))
+    );
+  for(auto const & [category, sums]: by_category)
+    text += std::format(
+      "\n{}: sold {}, bought {}, bartered away {}, bartered for {}", category, sums[0], sums[1], sums[2], sums[3]
+    );
+  bartender_totals_->setText(text.empty() ? QString{"Nothing went through a counter in this period"}
+                                          : QString::fromStdString(text));
+
+  bartender_view_->setSortingEnabled(false);
+  bartender_view_->setRowCount(int(rows->size()));
+  for(int ix{}; info::bartender_summary_t const & row: *rows)
+    {
+    bartender_view_->setItem(ix, 0, text_cell(row.localised.empty() ? row.name : row.localised));
+    bartender_view_->setItem(ix, 1, text_cell(category_name(row.category)));
+    bartender_view_->setItem(ix, 2, number_cell(row.sold));
+    bartender_view_->setItem(ix, 3, number_cell(row.bought));
+    bartender_view_->setItem(ix, 4, number_cell(row.bartered_away));
+    bartender_view_->setItem(ix, 5, number_cell(row.bartered_for));
+    ++ix;
+    }
+  bartender_view_->setSortingEnabled(true);
+  }
+
+auto micro_resource_window_t::show_on_foot() -> void
+  {
+  auto const since{period_start(on_foot_period_)};
+  auto used{db_.load_consumable_summary(since)};
+  auto kills{db_.load_foot_kills(since)};
+  if(not used or not kills)
+    {
+    spdlog::error("failed to load on foot statistics");
+    return;
+    }
+
+  consumables_view_->setSortingEnabled(false);
+  consumables_view_->setRowCount(int(used->size()));
+  for(int ix{}; info::consumable_summary_t const & row: *used)
+    {
+    consumables_view_->setItem(ix, 0, text_cell(row.localised.empty() ? row.name : row.localised));
+    consumables_view_->setItem(ix, 1, number_cell(row.used));
+    ++ix;
+    }
+  consumables_view_->setSortingEnabled(true);
+
+  auto const where = [](info::foot_kill_e kind) -> std::string_view
+  {
+    switch(kind)
+      {
+      case info::foot_kill_e::conflict_zone: return "Conflict zone";
+      case info::foot_kill_e::murder:        return "Settlement, murder";
+      case info::foot_kill_e::bounty:        return "Settlement, bounty";
+      }
+    return "?";
+  };
+
+  // a conflict zone and a raid on a settlement are different work, so each gets its own sums
+  std::array<std::array<uint32_t, 2>, 2> sums{};
+  kills_view_->setSortingEnabled(false);
+  kills_view_->setRowCount(int(kills->size()));
+  for(int ix{}; info::foot_kill_summary_t const & row: *kills)
+    {
+    kills_view_->setItem(ix, 0, text_cell(where(row.kind)));
+    kills_view_->setItem(ix, 1, text_cell(row.grenade ? "grenade?" : "weapon"));
+    kills_view_->setItem(ix, 2, text_cell(row.weapon.empty() ? "unknown" : row.weapon));
+    kills_view_->setItem(ix, 3, number_cell(row.kills));
+    sums[row.kind == info::foot_kill_e::conflict_zone ? 0u : 1u][row.grenade ? 1u : 0u] += row.kills;
+    ++ix;
+    }
+  kills_view_->setSortingEnabled(true);
+
+  on_foot_totals_->setText(qformat(
+    "Conflict zones: {} kills, {} of them likely by grenade.   Settlements: {} kills, {} of them likely by grenade.",
+    sums[0][0] + sums[0][1],
+    sums[0][1],
+    sums[1][0] + sums[1][1],
+    sums[1][1]
+  ));
   }
 
 auto micro_resource_window_t::show_stock(std::string_view carrier_id) -> void

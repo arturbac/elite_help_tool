@@ -199,6 +199,8 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
         or std::same_as<T, events::mission_abandoned_t> or std::same_as<T, events::mission_failed_t>
         or std::same_as<T, events::mission_redirected_t> or std::same_as<T, events::missions_t>
         or std::same_as<T, events::sell_micro_resources_t> or std::same_as<T, events::backpack_change_t>
+        or std::same_as<T, events::buy_micro_resources_t> or std::same_as<T, events::trade_micro_resources_t>
+        or std::same_as<T, events::commit_crime_t>
         or std::same_as<T, events::shipyard_transfer_t> or fleet::changes_fleet<T>
       )
         if(not state.personal)
@@ -651,6 +653,32 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
              not res)
             spdlog::error("failed to store acquisition {}", item.Name);
           }
+        for(events::backpack_item_t const & item: event.Removed)
+          if(auto used{state.on_foot.removed(timestamp, item)}; used)
+            {
+            if(auto res{state.db_.store(info::micro_resource_t{
+                 .name = micro_resource_key(item.Name), .id = {}, .localised = item.Name_Localised, .category = item.Type
+               })};
+               not res)
+              spdlog::error("failed to store micro resource {}", item.Name);
+            if(auto res{state.db_.store(*used)}; not res)
+              spdlog::error("failed to store the use of {}", item.Name);
+            }
+        }
+      else if constexpr(std::same_as<T, events::buy_micro_resources_t> or std::same_as<T, events::trade_micro_resources_t>)
+        store_counter_trade(state.db_, timestamp, event);
+      // a murder on foot is the only trace of that kill; a bounty on a suit is a wanted one's
+      else if constexpr(std::same_as<T, events::commit_crime_t>)
+        {
+        if(event.CrimeType == "onFoot_murder")
+          if(auto res{state.db_.store(state.on_foot.kill(timestamp, info::foot_kill_e::murder, {}))}; not res)
+            spdlog::error("failed to store a kill on foot");
+        }
+      else if constexpr(std::same_as<T, events::bounty_t>)
+        {
+        if(state.personal and is_foot_target(event.Target))
+          if(auto res{state.db_.store(state.on_foot.kill(timestamp, info::foot_kill_e::bounty, {}))}; not res)
+            spdlog::error("failed to store a kill on foot");
         }
       else if constexpr(std::same_as<T, events::shipyard_transfer_t>)
         {
@@ -708,6 +736,9 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
         if(auto bond{state.ground_cz.bond(timestamp, event)}; bond)
           if(auto res{state.db_.store(*bond)}; not res)
             spdlog::error("failed to store a kill on foot at {}", bond->market_id);
+        if(state.personal and state.ground_cz.on_foot())
+          if(auto res{state.db_.store(state.on_foot.kill(timestamp, info::foot_kill_e::conflict_zone, {}))}; not res)
+            spdlog::error("failed to store a kill on foot");
         }
       else if constexpr(std::same_as<T, events::book_dropship_t>)
         state.ground_cz.book_dropship(event);

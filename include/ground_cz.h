@@ -29,6 +29,10 @@ public:
   auto embark() -> void;
   auto died() -> void;
 
+  ///\brief whether the commander stands on their own legs - a bond is then a kill in a ground conflict zone
+  [[nodiscard]]
+  auto on_foot() const noexcept -> bool { return on_foot_; }
+
   ///\brief the kill recorded where it was made, when it was made on foot; a kill from a ship is no zone on foot
   [[nodiscard]]
   auto bond(std::chrono::sys_seconds when, events::faction_kill_bond_t const & event) const

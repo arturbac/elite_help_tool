@@ -646,7 +646,7 @@ auto organic_value_range(std::string_view name) noexcept -> std::optional<std::p
   }
 
 [[nodiscard]]
-auto format_credits_value(uint32_t value) -> std::string
+auto format_credits_value(uint64_t value) -> std::string
   {
   auto s_t = std::to_string(value);
   auto res_t = std::string{};
@@ -816,6 +816,9 @@ auto generic_state_t::discovery(std::string_view input) -> void
     case SellMicroResources:
       parse_and_handle.template operator()<events::sell_micro_resources_t>();
       break;
+    case BuyMicroResources:   parse_and_handle.template operator()<events::buy_micro_resources_t>(); break;
+    case TradeMicroResources: parse_and_handle.template operator()<events::trade_micro_resources_t>(); break;
+    case CommitCrime:         parse_and_handle.template operator()<events::commit_crime_t>(); break;
     case FSSSignalDiscovered:
       parse_and_handle.template operator()<events::fss_signal_discovered_t>();
       break;

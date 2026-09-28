@@ -122,7 +122,31 @@ struct database_storage_t
   [[nodiscard]]
   auto store(info::micro_resource_t const & value) -> expected_ec<void>;
 
-  ///\brief stores a micro resource sale, skipping the ones already known
+  ///\brief a consumable used up on foot, skipping known rows
+  [[nodiscard]]
+  auto store(info::consumable_use_t const & value) -> expected_ec<void>;
+
+  ///\brief a kill on foot, skipping known rows
+  [[nodiscard]]
+  auto store(info::foot_kill_t const & value) -> expected_ec<void>;
+
+  ///\brief what went through the counters since the moment, kind by kind
+  [[nodiscard]]
+  auto load_bartender_summary(std::chrono::sys_seconds since) -> expected_ec<std::vector<info::bartender_summary_t>>;
+
+  ///\brief the transactions and their credits since the moment, sold, bought and bartered apart
+  [[nodiscard]]
+  auto load_bartender_totals(std::chrono::sys_seconds since) -> expected_ec<std::vector<info::bartender_total_t>>;
+
+  ///\brief the consumables used up since the moment
+  [[nodiscard]]
+  auto load_consumable_summary(std::chrono::sys_seconds since) -> expected_ec<std::vector<info::consumable_summary_t>>;
+
+  ///\brief the kills on foot since the moment, by place, grenade and weapon
+  [[nodiscard]]
+  auto load_foot_kills(std::chrono::sys_seconds since) -> expected_ec<std::vector<info::foot_kill_summary_t>>;
+
+  ///\brief stores a micro resource sale, purchase or barter, skipping the ones already known
   [[nodiscard]]
   auto store(info::micro_sale_t const & sale, std::span<info::micro_sale_item_t const> items) -> expected_ec<void>;
 
