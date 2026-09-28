@@ -1260,8 +1260,11 @@ auto faction_state_window_t::update_tick_labels(uint64_t system_address) -> void
     if(view.awaiting)
       // the wave has started somewhere and we have not seen it here yet - which does not mean it has not
       // been, because of a system we know only as much as we saw at the last visit
-      local.append(kind == info::tick_kind_e::influence ? "  |  wave started, not seen here yet"
-                                                        : "  |  wave started, bonds not recalculated yet");
+      local.append(
+        view.seen_since ? "  |  wave started, unchanged here since - the tick may not have come, or moved nothing"
+        : kind == info::tick_kind_e::influence ? "  |  wave started, not seen here since"
+                                               : "  |  wave started, bonds not recalculated yet"
+      );
 
     here->setText(QString::fromStdString(local));
     galaxy->setText(QString::fromStdString(view.galaxy.empty() ? std::string{"-"} : view.galaxy));

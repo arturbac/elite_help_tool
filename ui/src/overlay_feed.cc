@@ -1463,8 +1463,16 @@ auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
   {
     tick_view_t const view{describe_tick(db_, factions_system_, kind, wall_clock)};
     return overlay::line_t{
-      .text = std::format("{} {}{}", caption, view.here, view.awaiting ? "  (wave started, not here yet)" : ""),
-      .color = view.awaiting ? colour_alert() : colour_plain()
+      .text = std::format(
+        "{} {}{}",
+        caption,
+        view.here,
+        not view.awaiting ? ""
+        : view.seen_since ? "  (wave started, unchanged here since)"
+                          : "  (wave started, not seen here since)"
+      ),
+      // unchanged at a visit after the wave began is no warning: the tick may have come and moved nothing
+      .color = view.awaiting and not view.seen_since ? colour_alert() : colour_plain()
     };
   };
 

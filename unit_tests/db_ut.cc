@@ -317,6 +317,33 @@ int main()
     expect((*station)->dist_from_star_ls == 812.0) << "Undocked erased the distance Docked gave";
   };
 
+  "a system is last seen at its newest reading, with its influence unchanged"_test = [&]
+  {
+    using namespace std::chrono;
+    constexpr uint64_t quiet{4242424245ull};
+
+    expect(bool(dbs.update_faction_info(info::faction_info_t{.name = "Quiet Settlers"})));
+    auto oid{dbs.faction_oid("Quiet Settlers")};
+    expect(oid and *oid);
+
+    auto never{dbs.last_seen(quiet)};
+    expect(never and not never->has_value());
+
+    sys_seconds const changed{sys_days{2026y / 9 / 26} + 14h};
+    sys_seconds const visit{sys_days{2026y / 9 / 28} + 3h};
+    expect(bool(dbs.store(info::faction_influence_t{
+      .faction_oid = int64_t(**oid), .system_address = quiet, .timestamp = changed, .influence = 0.57
+    })));
+    expect(bool(dbs.store_faction_seen(int64_t(**oid), quiet, changed)));
+    // the next visits find the same influence: presence moves on, influence writes nothing new
+    expect(bool(dbs.store_faction_seen(int64_t(**oid), quiet, visit)));
+
+    auto seen{dbs.last_seen(quiet)};
+    expect(seen and seen->has_value() and **seen == visit);
+    auto tick{dbs.last_local_tick(quiet, info::tick_kind_e::influence)};
+    expect(tick and tick->has_value() and **tick == changed);
+  };
+
   "the last tick in a system is the last change of influence, not of a state"_test = [&]
   {
     using namespace std::chrono;

@@ -2686,6 +2686,19 @@ auto database_storage_t::last_local_tick(uint64_t system_address, info::tick_kin
   return *res;
   }
 
+auto database_storage_t::last_seen(uint64_t system_address) -> expected_ec<std::optional<std::chrono::sys_seconds>>
+  {
+  // influence is written only when it changed, the presence at every reading
+  return sqlite::select_signle_from<std::chrono::sys_seconds>(
+    db_->db,
+    std::format(
+      "SELECT last_seen FROM {} WHERE system_address={} ORDER BY last_seen DESC LIMIT 1",
+      sql_iface::tables::faction_presence,
+      system_address
+    )
+  );
+  }
+
 namespace
   {
 ///\brief a faction's influence by the last sample no later than the given moment, in percent

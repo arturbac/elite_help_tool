@@ -183,6 +183,10 @@ struct database_storage_t
   auto last_local_tick(uint64_t system_address, info::tick_kind_e kind)
     -> expected_ec<std::optional<std::chrono::sys_seconds>>;
 
+  ///\brief when this system's factions were last read, whether anything changed or not
+  [[nodiscard]]
+  auto last_seen(uint64_t system_address) -> expected_ec<std::optional<std::chrono::sys_seconds>>;
+
   ///\brief how regularly the recalculation comes - from the same waves as load_recent_ticks
   [[nodiscard]]
   auto load_tick_stats(info::tick_kind_e kind, uint32_t within_days) -> expected_ec<info::tick_stats_t>;

@@ -23,6 +23,9 @@ struct tick_view_t
   ///\brief the wave has started but we have not yet seen this system in it - for influence that
   /// means "there is still time to hand missions in", for wars "bonds not recalculated yet"
   bool awaiting;
+  ///\brief with awaiting: the system was read since the wave started, and nothing had changed - the
+  /// tick may not have come yet, or it came and moved nothing; the journal cannot tell which
+  bool seen_since{};
   };
 
 ///\brief builds the description of a recalculation from what was observed - it never adds a forecast

@@ -1702,8 +1702,9 @@ auto describe_tick(
 
   auto waves{db.load_recent_ticks(kind, window_days)};
   auto mine{db.last_local_tick(system_address, kind)};
+  auto seen{db.last_seen(system_address)};
   auto stats{db.load_tick_stats(kind, window_days)};
-  if(not waves or not mine or not stats)
+  if(not waves or not mine or not stats or not seen)
     {
     spdlog::error("failed to read tick history for {}", system_address);
     return view;
@@ -1723,6 +1724,8 @@ auto describe_tick(
     // A system recalculates on a clock of its own, so no change since the start of the newest wave means
     // either that it has not reached the system yet or that we have not looked in there since the tick
     view.awaiting = not *mine or **mine < wave.start_begin;
+    // a quiet system - a fresh colony above all - can go through a tick with its influence unmoved
+    view.seen_since = view.awaiting and *seen and **seen >= wave.start_begin;
 
     std::string regularity{"too few waves"};
     if(stats->waves > 2u)

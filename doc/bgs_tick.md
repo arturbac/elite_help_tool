@@ -85,6 +85,15 @@ newest wave. It means "the tick has started, but either it has not reached this 
 have not been here since". This is how a rarely visited system still gets a meaningful answer, even
 though it cannot give a narrow window by itself.
 
+The two cases are told apart by `last_seen` from `faction_presence`, which moves at every reading,
+while influence writes a row only when it changed:
+
+- **"wave started, not seen here since"** (alert colour): no reading of the system since the wave
+  began. Missions handed in may still count towards the old day.
+- **"wave started, unchanged here since"** (plain colour): the system was read after the wave began and
+  its influence had not moved. Either the tick has not reached it yet, or it came and moved nothing,
+  which quiet systems do, fresh colonies above all. The journal cannot tell the two apart.
+
 ## Limitations
 
 - **The window is an upper bound, not the tick hour.** Fewer sessions make it wider, but do not
