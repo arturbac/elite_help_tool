@@ -3368,6 +3368,163 @@ auto database_storage_t::load_war_countdown(uint64_t system_address)
   return result;
   }
 
+namespace territory_detail
+  {
+///\brief a system of the territory as the galaxy describes it - the names must match the query's aliases, and
+/// the struct needs external linkage, because glaze reflection does not reach into an anonymous namespace
+struct system_row_t
+  {
+  uint64_t system_address;
+  std::string name;
+  uint64_t population;
+  std::string controlling_faction;
+  double loc_x;
+  double loc_y;
+  double loc_z;
+  };
+  }  // namespace territory_detail
+
+auto database_storage_t::newest_influence_wave() -> expected_ec<std::optional<std::chrono::sys_seconds>>
+  {
+  auto waves{load_recent_ticks(info::tick_kind_e::influence, 30u)};
+  if(not waves) [[unlikely]]
+    return cxx23::unexpected{waves.error()};
+  if(waves->empty())
+    return std::optional<std::chrono::sys_seconds>{};
+  return std::optional{waves->front().start_begin};
+  }
+
+auto database_storage_t::load_territory(std::span<std::string const> own_factions)
+  -> expected_ec<std::vector<territory::system_t>>
+  {
+  if(own_factions.empty())
+    return std::vector<territory::system_t>{};
+
+  std::string names;
+  for(std::string const & name: own_factions)
+    names += std::format("{}'{}'", names.empty() ? "" : ",", sqlite::escape_sql_quotes(name));
+
+  // a faction that retreated from a system keeps its last row of presence there, so only the newest reading
+  // of each system says who is in it
+  auto rows{sqlite::select_from<territory_detail::system_row_t>(
+    db_->db,
+    std::format(
+      "(SELECT ss.system_address AS system_address, coalesce(ss.name, '') AS name,"
+      " coalesce(ss.population, 0) AS population, coalesce(ss.controlling_faction, '') AS controlling_faction,"
+      " coalesce(ss.loc_x, 0) AS loc_x, coalesce(ss.loc_y, 0) AS loc_y, coalesce(ss.loc_z, 0) AS loc_z"
+      " FROM {1} ss WHERE ss.system_address IN (SELECT fp.system_address FROM {0} fp JOIN {2} fi ON fi.oid = "
+      "fp.faction_oid"
+      " WHERE fi.name IN ({3})"
+      " AND fp.last_seen = (SELECT max(q.last_seen) FROM {0} q WHERE q.system_address = fp.system_address)))",
+      sql_iface::tables::faction_presence,
+      sql_iface::tables::star_system,
+      sql_iface::tables::faction_info,
+      names
+    ),
+    ""
+  )};
+  if(not rows) [[unlikely]]
+    return cxx23::unexpected{rows.error()};
+
+  auto factions{load_factions()};
+  if(not factions) [[unlikely]]
+    return cxx23::unexpected{factions.error()};
+  std::map<int64_t, std::string_view> faction_names;
+  for(info::faction_info_t const & faction: *factions)
+    faction_names.emplace(faction.oid, faction.name);
+
+  auto wave{newest_influence_wave()};
+  if(not wave) [[unlikely]]
+    return cxx23::unexpected{wave.error()};
+
+  std::vector<territory::system_t> result;
+  result.reserve(rows->size());
+  for(territory_detail::system_row_t & row: *rows)
+    {
+    territory::system_t system{
+      .system_address = row.system_address,
+      .name = std::move(row.name),
+      .population = row.population,
+      .controlling = std::move(row.controlling_faction),
+      // the galaxy writes a system down before its position is known - Sol alone really stands at the origin
+      .position = row.loc_x != 0.0 or row.loc_y != 0.0 or row.loc_z != 0.0
+                    ? std::optional{std::array{row.loc_x, row.loc_y, row.loc_z}}
+                    : std::nullopt
+    };
+
+    auto present{load_present_factions(system.system_address)};
+    auto history{load_influence_history(system.system_address)};
+    auto seen{last_seen(system.system_address)};
+    auto changed{last_local_tick(system.system_address, info::tick_kind_e::influence)};
+    auto wars{load_war_countdown(system.system_address)};
+    auto effort{load_state_effort(system.system_address)};
+    if(not present or not history or not seen or not changed or not wars or not effort) [[unlikely]]
+      return cxx23::unexpected{std::make_error_code(std::errc::io_error)};
+
+    system.seen = *seen;
+    system.changed = *changed;
+    bool const read_since_wave{*wave and *seen and **seen >= **wave};
+
+    for(info::faction_ref_t const & ref: *present)
+      {
+      auto const named{faction_names.find(ref.faction_oid)};
+      if(named == faction_names.end())
+        continue;
+
+      // the newest row is the faction's state now; the last one before the wave is where the tick found it
+      info::faction_influence_t const * latest{};
+      info::faction_influence_t const * before_wave{};
+      for(info::faction_influence_t const & entry: *history)
+        {
+        if(entry.faction_oid != ref.faction_oid)
+          continue;
+        latest = &entry;
+        if(*wave and entry.timestamp < **wave)
+          before_wave = &entry;
+        }
+      if(latest == nullptr)
+        continue;
+
+      territory::faction_t faction{
+        .name = std::string{named->second},
+        .influence = latest->influence * 100.0,
+        .moved = {},
+        .active = latest->active_states,
+        .pending = latest->pending_states
+      };
+      // no row since the wave, with a reading since it, means the faction held its ground
+      if(read_since_wave and before_wave != nullptr)
+        faction.moved = (latest->influence - before_wave->influence) * 100.0;
+      system.factions.push_back(std::move(faction));
+      }
+    std::ranges::sort(system.factions, std::ranges::greater{}, &territory::faction_t::influence);
+
+    for(info::war_countdown_t const & war: *wars)
+      system.wars.push_back(
+        territory::war_t{
+          .war_type = war.war_type,
+          .faction1 = war.faction1,
+          .faction2 = war.faction2,
+          .won_days1 = war.won_days1,
+          .won_days2 = war.won_days2,
+          .ticks_left = war.ticks_left,
+          .active = war.active
+        }
+      );
+
+    for(info::state_effort_t const & pushed: *effort)
+      {
+      system.pushed_up += pushed.influence_up;
+      system.pushed_down += pushed.influence_down;
+      }
+
+    result.push_back(std::move(system));
+    }
+
+  std::ranges::sort(result, {}, &territory::system_t::name);
+  return result;
+  }
+
 auto database_storage_t::load_tick_stats(info::tick_kind_e kind, uint32_t within_days)
   -> expected_ec<info::tick_stats_t>
   {

@@ -166,6 +166,73 @@ void print_bgs_effort(database_storage_t & db, uint32_t within_days)
     }
   }
 
+///\brief the systems one's own factions are in, each as last read - the Territory tab in the terminal
+void print_territory(database_storage_t & db)
+  {
+  auto const own{eht::settings()->bgs.own_factions};
+  if(own.empty())
+    {
+    std::println(stderr, "no factions of your own: set bgs.own_factions in {}", eht::settings_file_name);
+    return;
+    }
+  auto systems{db.load_territory(own)};
+  auto wave{db.newest_influence_wave()};
+  if(not systems or not wave)
+    {
+    std::println(stderr, "could not read the territory");
+    return;
+    }
+
+  std::println("\n=== TERRITORY === {} systems", systems->size());
+  for(territory::standing_t const & standing: territory::standings(*systems, own))
+    {
+    std::string text{std::format("{:<24} controls {} of {}", standing.faction, standing.controls, standing.present)};
+    if(standing.thinnest_lead)
+      text += std::format(
+        ", thinnest lead {:.1f} over {} in {}",
+        *standing.thinnest_lead,
+        standing.thinnest_rival,
+        standing.thinnest_system
+      );
+    if(standing.closest_gap)
+      text += std::format(
+        ", closest to control: {} {:.1f} behind {}",
+        standing.closest_system,
+        *standing.closest_gap,
+        standing.closest_controller
+      );
+    std::println("{}", text);
+    }
+
+  for(territory::system_t const & system: *systems)
+    {
+    auto const seen{territory::tick_seen(system, *wave)};
+    std::println(
+      "\n{} ({}), {}{}",
+      system.name,
+      info::format_population(system.population),
+      seen == territory::tick_seen_e::known       ? std::string{"the tick seen"}
+      : seen == territory::tick_seen_e::unchanged ? std::string{"unchanged since the tick"}
+      : system.seen ? std::format("not seen since the tick, read {:%d.%m %H:%M}", *system.seen)
+                    : std::string{"never read"},
+      system.pushed_up != 0 or system.pushed_down != 0
+        ? std::format(", pushed +{}/-{} since", system.pushed_up, system.pushed_down)
+        : std::string{}
+    );
+    for(territory::faction_t const & faction: system.factions)
+      std::println(
+        "  {}{:<36}{:>6.1f}%  {:<6} {}",
+        faction.name == system.controlling ? "* " : "  ",
+        faction.name,
+        faction.influence,
+        faction.moved ? std::format("{:+.1f}", *faction.moved) : std::string{"?"},
+        faction.active
+      );
+    for(std::string const & note: territory::notes(system, own, eht::settings()->bgs.retreat_below))
+      std::println("  ! {}", note);
+    }
+  }
+
 ///\brief prints the observed recalculation waves - influence apart, wars apart
 ///
 /// None of these numbers is a forecast. The tick drifts every few days, over a weekend it can stay away
@@ -294,7 +361,9 @@ auto main(int argc, char ** argv) -> int
   )("bgs",
     po::value<uint32_t>()->implicit_value(14),
     "print the effort in pluses against the influence it moved, day by day, for this many days"
-  )("wars", "print how late after the announcement the wars actually started");
+  )("wars", "print how late after the announcement the wars actually started")(
+    "territory", "print the systems of the factions in bgs.own_factions, each as last read"
+  );
 
   po::variables_map vm;
   try
@@ -314,7 +383,7 @@ auto main(int argc, char ** argv) -> int
     return 0;
     }
 
-  if(vm.count("ticks") or vm.count("bgs") or vm.count("wars"))
+  if(vm.count("ticks") or vm.count("bgs") or vm.count("wars") or vm.count("territory"))
     {
     database_import_state_t::state_t state{"ehtdb.sqlite"};
     if(not state.db_.open(storage_mode_e::live))
@@ -325,6 +394,8 @@ auto main(int argc, char ** argv) -> int
       print_bgs_effort(state.db_, vm["bgs"].as<uint32_t>());
     if(vm.count("wars"))
       print_war_onsets(state.db_);
+    if(vm.count("territory"))
+      print_territory(state.db_);
     return 0;
     }
 

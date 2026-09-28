@@ -89,7 +89,19 @@ it can take the game down: [overlay/README.md](overlay/README.md).
   kill pays: the game pays kills on foot from fixed tables, low 1.9k–4.6k, medium 7.2k–33.8k,
   high 39.6k–87.4k per kill. The settlement a kill is made at is the one last approached, docked
   at, disembarked at or booked by dropship; a relog keeps it.
-- `journal_tailer --ticks`, `--bgs` and `--wars` print the same analyses in the terminal.
+- **Territory.** The first tab of the BGS window sets every system your own factions are in side by
+  side, each as it was last read: population, the controlling faction and its lead over the next one,
+  your factions' influence with the last tick's move (a column each), the strongest rival, whether the
+  system has been read since the tick wave began (and when it was read if not), your pushes since the
+  tick, and what asks for attention - wars and elections with their days won, factions retreating, and
+  one of yours below 2.5% before the game says Retreat. Above the table each of your factions gets a
+  line: how many systems it controls of those it is in, its thinnest lead, and the system where it is
+  least behind the controlling faction - the nearest one to take. Control changes only through a
+  conflict, so the controlling faction is the one the game names, not the strongest; a lead below
+  zero means it has been overtaken. List your factions by their names in the game in
+  `bgs.own_factions`; a lead below `bgs.thin_lead` points (10) is marked. Nothing is forecast: a
+  system not read since the tick shows no move.
+- `journal_tailer --ticks`, `--bgs`, `--wars` and `--territory` print the same analyses in the terminal.
 
 ## Mission tracking
 

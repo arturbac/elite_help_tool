@@ -7,6 +7,7 @@
 #include <elite_events.h>
 #include <elite_data.h>
 #include <biology.h>
+#include <territory.h>
 #include <array>
 #include <map>
 #include <span>
@@ -293,6 +294,15 @@ struct database_storage_t
   ///\brief how many war recalculations are left before each running conflict is settled
   [[nodiscard]]
   auto load_war_countdown(uint64_t system_address) -> expected_ec<std::vector<info::war_countdown_t>>;
+
+  ///\brief every system one of these factions is in at the newest reading there, each as last read: its
+  /// factions with their move at the last tick, its conflicts, when it was read and one's own pushes since the tick
+  [[nodiscard]]
+  auto load_territory(std::span<std::string const> own_factions) -> expected_ec<std::vector<territory::system_t>>;
+
+  ///\brief when the newest influence wave began, empty while none is known
+  [[nodiscard]]
+  auto newest_influence_wave() -> expected_ec<std::optional<std::chrono::sys_seconds>>;
 
   [[nodiscard]]
   auto store(info::fcmaterial_t const & value) -> expected_ec<void>;

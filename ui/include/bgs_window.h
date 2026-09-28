@@ -101,6 +101,64 @@ public:
   auto update_data(std::vector<info::war_onset_t> && new_data) -> void;
   };
 
+///\brief every system one's own factions are in, a row each, as last read
+///
+/// One's own factions get a column each, so a faction's standing across the cluster reads down a column
+/// and a system's balance across a row. A system not read since the tick says so, with the time of its
+/// last reading, rather than passing yesterday's numbers off as today's
+class territory_model_t final : public QAbstractTableModel
+  {
+  Q_OBJECT
+  ///\brief the columns before one's own factions'
+  enum struct lead_column_e : int
+    {
+    system,
+    population,
+    controlling,
+    lead,
+    count
+    };
+  ///\brief and after them
+  enum struct tail_column_e : int
+    {
+    rival,
+    tick,
+    pushed,
+    notes,
+    count
+    };
+
+public:
+  static constexpr int sort_role = Qt::UserRole + 1;
+
+  std::vector<territory::system_t> rows_{};
+  std::vector<std::string> own_{};
+  std::optional<std::chrono::sys_seconds> wave_{};
+  std::string sector_{};
+
+  explicit territory_model_t(QObject * parent);
+
+  [[nodiscard]]
+  auto rowCount(QModelIndex const & parent = QModelIndex()) const -> int override;
+
+  [[nodiscard]]
+  auto columnCount(QModelIndex const & = QModelIndex()) const -> int override;
+
+  [[nodiscard]]
+  auto data(QModelIndex const & index, int role = Qt::DisplayRole) const -> QVariant override;
+
+  [[nodiscard]]
+  auto headerData(int section, Qt::Orientation orientation, int role) const -> QVariant override;
+
+  auto update_data(
+    std::vector<territory::system_t> && rows, std::vector<std::string> own, std::optional<std::chrono::sys_seconds> wave
+  ) -> void;
+
+  ///\brief the column of notes - the one that gives width back to the rest
+  [[nodiscard]]
+  auto notes_column() const noexcept -> int;
+  };
+
 ///\brief the BGS effort window - how many pluses were handed in and what came of it
 class bgs_window_t final : public QMdiSubWindow
   {
@@ -115,6 +173,11 @@ public:
   QLabel * tick_header_{};
   bgs_effort_model_t * model_{};
   QTableView * view_{};
+
+  ///\brief where each of one's own factions stands across the territory, and how much of it the tick has shown
+  QLabel * territory_header_{};
+  territory_model_t * territory_model_{};
+  QTableView * territory_view_{};
 
   ///\brief the spread of the war announcement's delay - shortest, median, longest
   QLabel * war_header_{};
@@ -133,4 +196,5 @@ private:
   auto reload_systems() -> void;
   auto show_effort() -> void;
   auto show_wars() -> void;
+  auto show_territory() -> void;
   };

@@ -375,6 +375,53 @@ int main()
     expect(last and last->has_value() and **last == tick) << "a state named anew was taken for the tick";
   };
 
+  "the territory is every system one's factions are in at its newest reading, the ones gone left out"_test = [&]
+  {
+    using namespace std::chrono;
+    constexpr uint64_t home{4242424246ull};
+    constexpr uint64_t lost{4242424247ull};
+    sys_seconds const before{sys_days{2026y / 9 / 20}};
+    sys_seconds const after{sys_days{2026y / 9 / 25}};
+
+    star_system_t home_row{.system_address = home, .name = "Test Home"};
+    expect(bool(dbs.store(home_row)));
+    home_row.controlling_faction = "Homers";
+    home_row.population = 76117u;
+    expect(bool(dbs.update_system_info(home_row)));
+    expect(bool(dbs.store(star_system_t{.system_address = lost, .name = "Test Lost"})));
+
+    for(std::string_view const name: {"Homers", "Guests", "Gone Guests"})
+      expect(bool(dbs.update_faction_info(info::faction_info_t{.name = std::string{name}})));
+    auto homers{dbs.faction_oid("Homers")};
+    auto guests{dbs.faction_oid("Guests")};
+    auto gone{dbs.faction_oid("Gone Guests")};
+    expect(homers and *homers and guests and *guests and gone and *gone);
+
+    for(auto const [oid, influence]:
+        {std::pair{int64_t(**homers), 0.6}, std::pair{int64_t(**guests), 0.35}, std::pair{int64_t(**gone), 0.05}})
+      expect(bool(dbs.store(
+        info::faction_influence_t{.faction_oid = oid, .system_address = home, .timestamp = before, .influence = influence}
+      )));
+    expect(bool(dbs.store_faction_seen(int64_t(**gone), home, before)));
+    expect(bool(dbs.store_faction_seen(int64_t(**homers), home, after)));
+    expect(bool(dbs.store_faction_seen(int64_t(**guests), home, after)));
+    // the homers retreated from the other system - its newest reading has only the guests
+    expect(bool(dbs.store_faction_seen(int64_t(**homers), lost, before)));
+    expect(bool(dbs.store_faction_seen(int64_t(**guests), lost, after)));
+
+    std::vector<std::string> const own{"Homers"};
+    auto territory{dbs.load_territory(own)};
+    expect(territory and territory->size() == 1u) << "a system the faction has left is still in its territory";
+    if(not territory or territory->size() != 1u)
+      return;
+    territory::system_t const & system{territory->front()};
+    expect(system.name == "Test Home" and system.controlling == "Homers" and system.population == 76117u);
+    expect(system.factions.size() == 2u) << "a faction gone from the newest reading is still listed";
+    expect(system.factions.size() == 2u and system.factions[0].name == "Homers");
+    expect(system.factions.size() == 2u and std::abs(system.factions[0].influence - 60.0) < 1e-9);
+    expect(system.seen.has_value() and *system.seen == after);
+  };
+
   "a carrier's shelf readings keep their time"_test = [&]
   {
     expect(bool(dbs.update_carrier(info::carrier_t{.oid = -1, .market_id = 42u, .carrier_name = "Maria", .carrier_id = "W1V-NXM", .tracked = true})));

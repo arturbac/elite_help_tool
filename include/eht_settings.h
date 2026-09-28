@@ -329,6 +329,22 @@ struct gui_settings_t
   double module_damaged_below{0.4};
   };
 
+///\brief the background simulation of one's own systems - the Territory tab and its block on the galaxy map
+struct bgs_settings_t
+  {
+  ///\brief the factions one works for, by their names in the game - the territory is every system they are in;
+  /// empty shows none
+  std::vector<std::string> own_factions{};
+  ///\brief a controlling faction's lead over the next one below this many points is marked
+  double thin_lead{10.0};
+  ///\brief one's own faction below this influence, in percent, is warned of - the game's threshold of a retreat
+  double retreat_below{2.5};
+  ///\brief the territory on the overlay while the galaxy map is open
+  bool on_galaxy_map{true};
+  ///\brief how many systems that block lists, the nearest first
+  uint32_t overlay_systems{12u};
+  };
+
 ///\brief the copy of the journals and the codex's pictures, made in the background
 struct backup_settings_t
   {
@@ -355,6 +371,7 @@ struct settings_t
   windows_settings_t windows;
   eddn_settings_t eddn;
   backup_settings_t backup;
+  bgs_settings_t bgs;
   };
 
 ///\brief switches read from the file when someone put them there, and never written into a file of
