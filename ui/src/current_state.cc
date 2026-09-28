@@ -540,6 +540,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           {
           // the scanner speaks of the body in front of it both when the mapping ends and when it opens again
           scanner_body_ = event.BodyName;
+          scanner_at_ = timestamp;
           if(stralgo::ends_with(event.BodyName, "Ring"sv))
             {
             if(auto it{system.ring_by_id(event.BodyID)}; it != system.rings.end())
@@ -1166,6 +1167,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
         else if constexpr(std::same_as<T, events::saa_scan_complete_t>)
           {
           scanner_body_ = event.BodyName;
+          scanner_at_ = timestamp;
           if(stralgo::ends_with(event.BodyName, "Ring"sv))
             {
             // we got BodyID for ring, unknown at fss

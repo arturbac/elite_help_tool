@@ -117,6 +117,8 @@ struct current_state_t : public generic_state_t
 
   ///\brief the body the surface scanner last spoke of - the one its view shows while it is open
   std::string scanner_body_;
+  ///\brief when the scanner last spoke of it, by the journal's clock - what its picture is named after
+  std::chrono::sys_seconds scanner_at_{};
 
   ///\brief counts the scans seen live, so whoever is interested can tell a new one came
   uint64_t organic_scans_seen_{};

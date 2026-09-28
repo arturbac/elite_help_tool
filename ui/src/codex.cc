@@ -1,4 +1,5 @@
 #include <codex.h>
+#include <picture_records.h>
 #include <eht_settings.h>
 
 #include <glaze/glaze.hpp>
@@ -24,17 +25,7 @@ auto spool_dir() -> std::filesystem::path
   { return std::filesystem::path{overlay::default_spool_path()}; }
 
 auto file_safe(std::string_view text) -> std::string
-  {
-  std::string result;
-  for(char c: text)
-    if((c >= 'a' and c <= 'z') or (c >= 'A' and c <= 'Z') or (c >= '0' and c <= '9') or c == '-')
-      result.push_back(c);
-    else if(not result.empty() and result.back() != '_')
-      result.push_back('_');
-  while(not result.empty() and result.back() == '_')
-    result.pop_back();
-  return result;
-  }
+  { return pictures::file_safe(text); }
   }  // namespace codex_files
 
 namespace
@@ -201,17 +192,50 @@ auto codex_t::load_pictures() -> void
   std::filesystem::path const list{codex_dir() / "pictures.json"};
   std::error_code ec;
   if(not std::filesystem::exists(list, ec))
-    return;
+    return describe_unlisted();
   std::string buffer;
   if(
     auto const err{glz::read_file_json<glz::opts{.error_on_unknown_keys = false}>(pictures_, list.string(), buffer)};
     err
   )
     {
-    // the list is the only record of what the pictures show - better to keep adding to a copy than lose it
-    spdlog::error("codex: {} could not be read, the pictures already there stay unlisted", list.string());
+    // kept aside rather than written over - whatever it still holds may be read by hand
+    std::filesystem::path const broken{list.string() + ".broken"};
+    std::filesystem::rename(list, broken, ec);
+    spdlog::error("codex: {} could not be read, kept as {}; the pictures are described again", list.string(), broken.string());
     pictures_.clear();
     }
+  describe_unlisted();
+  }
+
+auto codex_t::describe_unlisted() -> void
+  {
+  // every picture is named after its sample's moment in the journal, so one missing from the list - a list
+  // lost, broken, or a picture copied back in - is described again out of the journals
+  std::vector<std::string> unlisted;
+  for(std::string & file: pictures::pictures_under(codex_dir(), "pictures"))
+    if(std::ranges::none_of(pictures_, [&](picture_t const & picture) { return picture.file == file; }))
+      unlisted.push_back(std::move(file));
+  if(unlisted.empty() or journal_dir_.empty())
+    return;
+  for(pictures::codex_record_t & record: pictures::rebuild_codex(unlisted, journal_dir_))
+    pictures_.push_back(picture_t{
+      .file = std::move(record.file),
+      .taken = std::move(record.taken),
+      .system = std::move(record.system),
+      .body = std::move(record.body),
+      .system_address = record.system_address,
+      .body_id = record.body_id,
+      .genus = std::move(record.genus),
+      .species = std::move(record.species),
+      .variant = std::move(record.variant),
+      .scan = std::move(record.scan),
+      .latitude = 0.0,
+      .longitude = 0.0
+    });
+  std::ranges::sort(pictures_, {}, &picture_t::file);
+  spdlog::info("codex: {} pictures described again out of the journals", unlisted.size());
+  save_pictures();
   }
 
 auto codex_t::save_pictures() const -> void

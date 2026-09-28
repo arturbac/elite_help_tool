@@ -62,6 +62,19 @@ public:
   auto capture_request() const -> overlay::capture_t const &
     { return request_; }
 
+  ///\brief where the journals are - what a picture missing from the list is described out of again
+  auto set_journal_dir(std::filesystem::path dir) -> void { journal_dir_ = std::move(dir); }
+
+  ///\brief reads the list at once, describing again what it lacks - so a lost list is back before the first jump
+  auto open() -> void
+    {
+    if(not loaded_)
+      load();
+    }
+
+  ///\brief the file a picture of the body is kept in, named after the journal's moment it was taken for
+  auto set_moment(std::chrono::sys_seconds at) -> void { moment_ = at; }
+
   ///\brief where the page is, for opening it from the tool
   [[nodiscard]]
   static auto page_path() -> std::filesystem::path;
@@ -73,12 +86,15 @@ private:
     std::chrono::steady_clock::time_point at;
     ///\brief put after the body's name in the file's, so the pictures of a series do not overwrite each other
     std::string suffix;
+    ///\brief the journal's moment the picture is for - the jump, the scanner - which names its file
+    std::chrono::sys_seconds moment;
     };
   struct pending_t
     {
     std::filesystem::path spool;
     entry_t subject;
     std::string suffix;
+    std::chrono::sys_seconds moment;
     std::chrono::steady_clock::time_point asked;
     };
 
@@ -87,8 +103,11 @@ private:
   std::optional<pending_t> pending_;
   std::vector<entry_t> entries_;
   bool loaded_{};
+  std::filesystem::path journal_dir_;
+  std::chrono::sys_seconds moment_{};
 
   auto load() -> void;
+  auto describe_unlisted() -> void;
   auto save() const -> void;
   auto write_page() const -> void;
   [[nodiscard]]

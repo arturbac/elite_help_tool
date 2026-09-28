@@ -1,4 +1,5 @@
 #include <overlay_feed.h>
+#include <picture_records.h>
 #include <commodity_facts.h>
 #include <construction_window.h>
 #include <eht_settings.h>
@@ -3424,6 +3425,9 @@ auto overlay_feed_t::build_fleet_lines() const -> std::vector<overlay::line_t>
 
 auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t const & plotted) -> void
   {
+  codex_.set_journal_dir(state.journal_dir_path_);
+  sky_.set_journal_dir(state.journal_dir_path_);
+  sky_.open();
   // the codex does not need the game - its page is written whether anyone is drawing or not
   if(state.organic_scans_seen_ != pictured_scans_)
     {
@@ -3461,6 +3465,7 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
       std::vector<std::chrono::milliseconds> delays;
       for(uint32_t const delay: cfg->exploration.sky_star_delays_ms)
         delays.emplace_back(delay);
+      sky_.set_moment(state.jump_info.timestamp);
       sky_.ask_series(
         sky_album_t::entry_t{.kind = "star", .system = state.system.name, .body = state.system.name}, delays
       );
@@ -3483,15 +3488,13 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
           .kind = "star",
           .system = state.system.name,
           .body = star->name.empty() ? state.system.name : std::format("{} {}", state.system.name, star->name),
-          .detail = std::format(
-            "{}{} {}, {:.2f} solar masses{}, radius {:.0f} km",
+          .detail = pictures::star_detail(
             details.star_type,
             details.sub_class,
             details.luminosity,
             details.stellar_mass,
-            // a black hole's temperature is written as nought
-            details.surface_temperature > 0.0 ? std::format(", {:.0f} K", details.surface_temperature) : std::string{},
-            star->radius / 1'000.0
+            details.surface_temperature,
+            star->radius
           ),
           .first = not star->was_discovered
         }
@@ -3509,12 +3512,12 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
       if(state.scanner_body_ == body.name or state.scanner_body_ == std::format("{} {}", state.system.name, body.name))
         if(auto const * const planet{std::get_if<planet_details_t>(&body.details)}; planet != nullptr)
           {
-          detail = planet->planet_class;
-          if(not planet->atmosphere.empty())
-            detail += ", " + planet->atmosphere;
-          detail += std::format(", {:.2f} g, {:.0f} K", planet->surface_gravity / 9.80665, planet->surface_temperature);
+          detail = pictures::planet_detail(
+            planet->planet_class, planet->atmosphere, planet->surface_gravity, planet->surface_temperature
+          );
           first = not body.was_discovered;
           }
+    sky_.set_moment(state.scanner_at_);
     sky_.ask(
       sky_album_t::entry_t{
         .kind = "planet", .system = state.system.name, .body = state.scanner_body_, .detail = std::move(detail), .first = first

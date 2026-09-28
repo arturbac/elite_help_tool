@@ -320,6 +320,14 @@ stars, pictures, a table of systems and bodies, and what of the family has not b
 *Codex* button opens it. The pictures live in the directory, not in the database: the database can be
 rebuilt from the journals, the pictures cannot.
 
+What the pictures show can be, though. Every picture is named after the journal's timestamp of the
+moment it was taken for (the sample, the jump, the scanner), so `pictures.json` and `sky/sky.json` are
+a convenience, not the only record: at start, a picture missing from its list - the list lost, broken,
+or the picture copied back from a backup - is described again out of the journals, and a list that
+cannot be read is kept aside as `.broken`. Only the place of a sample on the ground is lost that way,
+since it comes from `Status.json` and no journal has it. Backing up means copying the `codex/`
+directory and the journals.
+
 Settings are in the `exploration` section of `eht_settings.json`: `bio_worth`, `bio_bodies`,
 `candidates`, `capture`, `capture_size`, `codex_dir`, `jpeg_quality`.
 
@@ -333,7 +341,8 @@ the star is there; several numbers take a series, each picture under its own nam
 planet 1.5 s after the scanner (`sky_planet_delay_ms`). The star's scan comes some seconds after the
 jump, so the first pictures are described once it is in. Each body is taken once, and only from the ship's own view in supercruise -
 if a menu opens or the ship leaves supercruise first, the picture is called off. They go to
-`codex/sky/<system>/`, are described in `codex/sky/sky.json`, and `codex/sky.html` shows them with the
+`codex/sky/<system>/`, named after the journal's moment of the jump or the scanner, are described in
+`codex/sky/sky.json`, and `codex/sky.html` shows them with the
 star's class, mass, temperature and radius or the planet's class, atmosphere, gravity and temperature,
 and whether it was a first discovery. The *Sky* button opens it; `sky_pictures` turns it off.
 

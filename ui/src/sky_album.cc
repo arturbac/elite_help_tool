@@ -1,5 +1,6 @@
 #include <sky_album.h>
 #include <codex.h>
+#include <picture_records.h>
 #include <eht_settings.h>
 
 #include <glaze/glaze.hpp>
@@ -55,14 +56,44 @@ auto sky_album_t::load() -> void
   loaded_ = true;
   std::error_code ec;
   if(not std::filesystem::exists(list_path(), ec))
-    return;
+    return describe_unlisted();
   std::string buffer;
   if(glz::read_file_json<glz::opts{.error_on_unknown_keys = false}>(entries_, list_path().string(), buffer))
     {
-    // the list is the only record of what the pictures show - better to go on without it than lose it
-    spdlog::error("sky: {} could not be read, the pictures already there stay unlisted", list_path().string());
+    // kept aside rather than written over - whatever it still holds may be read by hand
+    std::filesystem::path const broken{list_path().string() + ".broken"};
+    std::filesystem::rename(list_path(), broken, ec);
+    spdlog::error("sky: {} could not be read, kept as {}; the pictures are described again", list_path().string(), broken.string());
     entries_.clear();
     }
+  describe_unlisted();
+  }
+
+auto sky_album_t::describe_unlisted() -> void
+  {
+  // every picture is named after the journal's moment it was taken for, so one missing from the list is
+  // described again out of the journals
+  std::vector<std::string> unlisted;
+  for(std::string & file: pictures::pictures_under(codex_dir(), "sky"))
+    if(std::ranges::none_of(entries_, [&](entry_t const & entry) { return entry.file == file; }))
+      unlisted.push_back(std::move(file));
+  if(unlisted.empty() or journal_dir_.empty())
+    return;
+  for(pictures::sky_record_t & record: pictures::rebuild_sky(unlisted, journal_dir_))
+    entries_.push_back(entry_t{
+      .file = std::move(record.file),
+      .taken = std::move(record.taken),
+      .kind = std::move(record.kind),
+      .system = std::move(record.system),
+      .body = std::move(record.body),
+      .detail = std::move(record.detail),
+      .first = record.first
+    });
+  // the names begin with the moment, so their order is the order the pictures were taken in
+  std::ranges::sort(entries_, {}, [](entry_t const & entry) { return std::filesystem::path{entry.file}.filename().string(); });
+  spdlog::info("sky: {} pictures described again out of the journals", unlisted.size());
+  save();
+  write_page();
   }
 
 auto sky_album_t::save() const -> void
@@ -101,7 +132,9 @@ auto sky_album_t::ask(entry_t subject, std::chrono::milliseconds after) -> void
   if(pending_ and pending_->subject.body == subject.body)
     return;
   due_.clear();
-  due_.push_back(due_t{.subject = std::move(subject), .at = std::chrono::steady_clock::now() + after, .suffix = {}});
+  due_.push_back(
+    due_t{.subject = std::move(subject), .at = std::chrono::steady_clock::now() + after, .suffix = {}, .moment = moment_}
+  );
   }
 
 auto sky_album_t::ask_series(entry_t subject, std::span<std::chrono::milliseconds const> after) -> void
@@ -118,7 +151,8 @@ auto sky_album_t::ask_series(entry_t subject, std::span<std::chrono::millisecond
       due_t{
         .subject = subject,
         .at = now + delay,
-        .suffix = std::format("-{:.1f}s", std::chrono::duration<double>(delay).count())
+        .suffix = std::format("-{:.1f}s", std::chrono::duration<double>(delay).count()),
+        .moment = moment_
       }
     );
   std::ranges::sort(due_, {}, &due_t::at);
@@ -189,7 +223,11 @@ auto sky_album_t::tick(bool view_clear) -> void
     .aspect = 16.f / 9.f
   };
   pending_ = pending_t{
-    .spool = request_.path, .subject = std::move(due_.front().subject), .suffix = std::move(due_.front().suffix), .asked = now
+    .spool = request_.path,
+    .subject = std::move(due_.front().subject),
+    .suffix = std::move(due_.front().suffix),
+    .moment = due_.front().moment,
+    .asked = now
   };
   due_.pop_front();
   }
@@ -198,6 +236,9 @@ auto sky_album_t::collect() -> bool
   {
   if(not pending_)
     return false;
+  // read before the new picture is on the disk, or it would be taken for one the list lost
+  if(not loaded_)
+    load();
 
   std::error_code ec;
   if(not std::filesystem::exists(pending_->spool, ec))
@@ -211,12 +252,13 @@ auto sky_album_t::collect() -> bool
   std::filesystem::remove(pending_->spool, ec);
   entry_t subject{std::move(pending_->subject)};
   std::string const suffix{std::move(pending_->suffix)};
+  std::chrono::sys_seconds const moment{pending_->moment};
   pending_.reset();
   if(image.isNull())
     return false;
 
   std::filesystem::path const relative{
-    std::filesystem::path{"sky"} / file_safe(subject.system) / (file_safe(subject.body) + suffix + ".jpg")
+    std::filesystem::path{"sky"} / file_safe(subject.system) / (pictures::stem(moment, subject.body) + suffix + ".jpg")
   };
   std::filesystem::path const target{codex_dir() / relative};
   std::filesystem::create_directories(target.parent_path(), ec);
@@ -227,10 +269,9 @@ auto sky_album_t::collect() -> bool
     }
 
   subject.file = relative.generic_string();
-  subject.taken = std::format("{:%Y-%m-%d %H:%M}", std::chrono::floor<std::chrono::minutes>(std::chrono::system_clock::now()));
+  // the journal's clock, as the codex has it - the same moment a rebuilt list would give
+  subject.taken = std::format("{:%Y-%m-%d %H:%M:%S}", moment);
   spdlog::info("sky: {} {} kept as {}", subject.kind, subject.body, target.string());
-  if(not loaded_)
-    load();
   if(not suffix.empty())
     subject.taken += std::format("  ({} after)", suffix.substr(1));
   entries_.push_back(std::move(subject));

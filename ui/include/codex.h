@@ -69,6 +69,9 @@ public:
   ///\brief writes index.html from the database's finds and the pictures kept
   auto write_page(database_storage_t & db) -> void;
 
+  ///\brief where the journals are - what a picture missing from the list is described out of again
+  auto set_journal_dir(std::filesystem::path dir) -> void { journal_dir_ = std::move(dir); }
+
   ///\brief where the page is, for opening it from the tool
   [[nodiscard]]
   static auto page_path() -> std::filesystem::path;
@@ -85,7 +88,9 @@ private:
   std::vector<pending_t> pending_;
   std::vector<picture_t> pictures_;
   bool pictures_loaded_{};
+  std::filesystem::path journal_dir_;
 
   auto load_pictures() -> void;
+  auto describe_unlisted() -> void;
   auto save_pictures() const -> void;
   };
