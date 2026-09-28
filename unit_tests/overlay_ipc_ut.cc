@@ -58,7 +58,19 @@ auto sample_frame(uint64_t sequence) -> overlay::frame_t
       .diagrams = {},
       .pictures = {},
       .picture_columns = 3u,
-      .beside = true
+      .beside = true,
+      .middle = true,
+      .middle_y = -0.105f,
+      .middle_width = 0.6f
+    }},
+    .covers = {overlay::cover_t{
+      .x = 0.0014f,
+      .y = -0.1808f,
+      .width = 0.085f,
+      .height = 0.04f,
+      .emblem = overlay::emblem_e::empire,
+      .emblem_height = 0.03f,
+      .emblem_color = 0x4a90d9u
     }}
   };
   }
@@ -92,6 +104,16 @@ auto main() -> int
       expect(received->frame.blocks.front().corner == overlay::corner_e::top_right);
       expect(received->frame.blocks.front().ttl_ms == 2500_u);
       expect(received->frame.blocks.front().beside);
+      expect(received->frame.blocks.front().middle);
+      expect(received->frame.blocks.front().middle_y == -0.105f);
+      expect(received->frame.covers.size() == 1_ul);
+      if(received->frame.covers.size() == 1u)
+        {
+        overlay::cover_t const & cover{received->frame.covers.front()};
+        expect(cover.emblem == overlay::emblem_e::empire);
+        expect(cover.y == -0.1808f);
+        expect(cover.ground == 0x020304u) << "the panel's black is the default ground";
+        }
       auto const & lines{received->frame.blocks.front().lines};
       expect(lines.size() == 4_ul);
       expect(lines.front().text == std::string{"Bleia Eohn QT-O d7-43"});

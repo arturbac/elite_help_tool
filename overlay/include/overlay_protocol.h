@@ -256,6 +256,12 @@ struct block_t
   ///\brief drawn in a column of its own beside the corner's stack, towards the middle, aligned with the
   /// same edge - a field an older layer skips, so there the block simply joins the stack
   bool beside{false};
+  ///\brief stands in the middle screen rather than in its corner - centred across it, the top edge middle_y
+  /// from the middle screen's centre and middle_width wide at most, both in shares of that screen's height
+  /// like a cover's place. A field an older layer skips, so there the block joins its corner
+  bool middle{false};
+  float middle_y{};
+  float middle_width{};
   };
 
 ///\brief how the layer lays the overlay out - sent by the tool with every frame
@@ -328,6 +334,24 @@ struct screenshot_t
 ///\brief how the layer names a screenshot in the spool, before the moment and the extension
 inline constexpr std::string_view screenshot_prefix{"screenshot_"};
 
+///\brief a patch painted over the game's own interface, to hide a mistake of the game and put it right
+///\detail The place is measured on the middle screen, in shares of its height and from its centre: the game
+/// draws its interface there at the ordinary shape of a monitor, so the patch stays on the same spot of
+/// that interface whatever the resolution and however wide the surface beside it
+struct cover_t
+  {
+  float x{};
+  float y{};
+  float width{};
+  float height{};
+  ///\brief painted fully opaque - the colour of what the patch stands on
+  uint32_t ground{0x020304u};
+  ///\brief drawn in the patch's middle, as tall as emblem_height; none leaves the patch bare
+  emblem_e emblem{emblem_e::none};
+  float emblem_height{};
+  uint32_t emblem_color{0xffffffu};
+  };
+
 ///\brief the full image to draw - replaces the previous one entirely, only the newest counts
 struct frame_t
   {
@@ -339,6 +363,8 @@ struct frame_t
   capture_t capture;
   ///\brief a field an older layer skips, and simply takes no screenshots
   screenshot_t screenshot;
+  ///\brief a field an older layer skips, and simply leaves the game's interface as it is
+  std::vector<cover_t> covers;
   };
 
 ///\brief the socket lives under $HOME, the only place visible on both sides of the pressure-vessel container

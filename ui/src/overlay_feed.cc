@@ -163,6 +163,39 @@ auto allegiance_emblem(info::allegiance_e allegiance) -> overlay::emblem_e
     }
   }
 
+///\brief a patch over the emblem in the panel of a hyperspace jump being charged, with the right emblem on it
+///\detail the game gets the emblem right only for an independent system; for the three superpowers it draws a
+/// wrong one, and those are the only systems the patch is for. A system the database knows nothing of yet
+/// is left to the game - a guess painted over it would be one more wrong emblem
+[[nodiscard]]
+auto jump_emblem_cover(std::string_view allegiance) -> std::optional<overlay::cover_t>
+  {
+  eht::jump_emblem_t const & place{eht::settings()->overlay.jump_emblem};
+  if(not place.enabled)
+    return std::nullopt;
+
+  using enum info::allegiance_e;
+  info::allegiance_e const superpower{
+    allegiance == "Federation" ? federation
+    : allegiance == "Empire"   ? empire
+    : allegiance == "Alliance" ? alliance
+                               : unknown
+  };
+  if(superpower == unknown)
+    return std::nullopt;
+
+  return overlay::cover_t{
+    .x = place.x,
+    .y = place.y,
+    .width = place.width,
+    .height = place.height,
+    .ground = place.ground.rgb,
+    .emblem = allegiance_emblem(superpower),
+    .emblem_height = place.emblem_height,
+    .emblem_color = allegiance_colour(superpower)
+  };
+  }
+
 ///\brief separates factions that share an allegiance, without losing what the colour says
 ///\detail allegiance decides the hue, so four independents come out as one grey mass and their lines
 /// cannot be followed. The hue stays - it is the part that says Federation or Empire - and only the
@@ -1442,23 +1475,25 @@ auto overlay_feed_t::listening() const noexcept -> bool
 auto overlay_feed_t::clients() const noexcept -> unsigned
   { return server_->clients(); }
 
-auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
+auto overlay_feed_t::refresh_factions(
+  current_state_t const & state, uint64_t system_address, std::string_view controlling, system_factions_t & view
+) -> void
   {
   auto const now{std::chrono::steady_clock::now()};
-  bool const same_system{state.current_system_address_ == factions_system_};
+  bool const same_system{system_address == view.system};
 
   // influence moves once a day, so asking the database every frame would be a waste
-  if(same_system and now - factions_loaded_ < faction_refresh())
+  if(same_system and now - view.loaded < faction_refresh())
     return;
 
-  factions_system_ = state.current_system_address_;
-  factions_loaded_ = now;
-  faction_lines_.clear();
-  conflict_lines_.clear();
+  view.system = system_address;
+  view.loaded = now;
+  view.lines.clear();
+  view.conflicts.clear();
   bool war_running{};
-  faction_charts_.clear();
+  view.charts.clear();
 
-  if(factions_system_ == 0u)
+  if(view.system == 0u)
     return;
 
   // one line fits in the side band, so what is left is the hour alone and whether the wave has reached
@@ -1466,24 +1501,24 @@ auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
   auto const wall_clock{std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())};
   auto const tick_line = [&](info::tick_kind_e kind, std::string_view caption) -> overlay::line_t
   {
-    tick_view_t const view{describe_tick(db_, factions_system_, kind, wall_clock)};
+    tick_view_t const tick{describe_tick(db_, view.system, kind, wall_clock)};
     return overlay::line_t{
       .text = std::format(
         "{} {}{}",
         caption,
-        view.here,
-        not view.awaiting ? ""
-        : view.seen_since ? "  (wave started, unchanged here since)"
+        tick.here,
+        not tick.awaiting ? ""
+        : tick.seen_since ? "  (wave started, unchanged here since)"
                           : "  (wave started, not seen here since)"
       ),
       // unchanged at a visit after the wave began is no warning: the tick may have come and moved nothing
-      .color = view.awaiting and not view.seen_since ? colour_alert() : colour_plain()
+      .color = tick.awaiting and not tick.seen_since ? colour_alert() : colour_plain()
     };
   };
 
-  faction_lines_.push_back(tick_line(info::tick_kind_e::influence, "BGS tick"));
+  view.lines.push_back(tick_line(info::tick_kind_e::influence, "BGS tick"));
 
-  if(auto conflicts{db_.load_conflicts(factions_system_)}; conflicts)
+  if(auto conflicts{db_.load_conflicts(view.system)}; conflicts)
     {
     // the database holds the whole history of rows, and the screen is to show each pair's present state
     std::map<std::pair<std::string, std::string>, info::conflict_t const *> latest_conflict;
@@ -1507,7 +1542,7 @@ auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
         continue;
         }
 
-      conflict_lines_.push_back(
+      view.conflicts.push_back(
         overlay::line_t{
           .text = std::format(
             "{}: {} {} - {} {}",
@@ -1522,7 +1557,7 @@ auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
       );
 
       if(not conflict.stake1.empty() or not conflict.stake2.empty())
-        conflict_lines_.push_back(
+        view.conflicts.push_back(
           overlay::line_t{
             .text = std::format(
               "  stake: {} / {}",
@@ -1536,19 +1571,19 @@ auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
     }
 
   // the war clock is shown only while something is running - it is what bonds are sold by
-  if(not conflict_lines_.empty() or war_running)
+  if(not view.conflicts.empty() or war_running)
     {
     // a conflict is settled at the fourth day won, so the end can be counted down without knowing when
     // the recalculation falls - and that is exactly when bonds are worth the most
-    if(auto countdown{db_.load_war_countdown(factions_system_)}; countdown)
+    if(auto countdown{db_.load_war_countdown(view.system)}; countdown)
       for(info::war_countdown_t const & war: *countdown)
         {
         if(not war.active)
           continue;
 
         bool const decides_now{war.ticks_left == 0u};
-        conflict_lines_.insert(
-          conflict_lines_.begin(),
+        view.conflicts.insert(
+          view.conflicts.begin(),
           overlay::line_t{
             .text = decides_now ? std::format("{}: decided at the next tick - have bonds ready", war.war_type)
                                 : std::format("{}: {} more war ticks", war.war_type, war.ticks_left),
@@ -1557,20 +1592,20 @@ auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
         );
         }
 
-    conflict_lines_.insert(conflict_lines_.begin(), tick_line(info::tick_kind_e::war, "war tick"));
+    view.conflicts.insert(view.conflicts.begin(), tick_line(info::tick_kind_e::war, "war tick"));
     }
 
-  auto history{db_.load_influence_history(factions_system_)};
+  auto history{db_.load_influence_history(view.system)};
   if(not history)
     {
-    spdlog::error("overlay feed: failed to load influence for {}", factions_system_);
+    spdlog::error("overlay feed: failed to load influence for {}", view.system);
     return;
     }
 
   // a faction thrown out of the system stops appearing in the readings, but its last influence row stays
   // behind - which is why the list is narrowed to the ones seen at the newest reading
   std::set<int64_t> present;
-  if(auto refs{db_.load_present_factions(factions_system_)}; refs)
+  if(auto refs{db_.load_present_factions(view.system)}; refs)
     for(info::faction_ref_t const & ref: *refs)
       present.insert(ref.faction_oid);
 
@@ -1627,8 +1662,8 @@ auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
   // an uninhabited system has no background simulation at all, so the tick hours would only take room
   if(presence.empty())
     {
-    faction_lines_.clear();
-    conflict_lines_.clear();
+    view.lines.clear();
+    view.conflicts.clear();
     return;
     }
 
@@ -1677,7 +1712,7 @@ auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
   // journal. What it does write is which way each handed-in mission pushed them - counted from the last
   // wave, that is the direction of one's own work on the bar the next tick moves. Others' work is not in it
   std::map<std::string, info::state_effort_t> state_effort;
-  if(auto effort{db_.load_state_effort(factions_system_)}; effort)
+  if(auto effort{db_.load_state_effort(view.system)}; effort)
     for(info::state_effort_t & row: *effort)
       state_effort.emplace(row.faction, std::move(row));
   auto const pushes = [](int32_t up, int32_t down) -> std::string
@@ -1719,12 +1754,12 @@ auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
     for(std::string const & push: state_pushes(item))
       suffix += (suffix.empty() ? "" : "  ") + push;
 
-    faction_lines_.push_back(
+    view.lines.push_back(
       overlay::line_t{
         // the star marks the controlling faction, because that one decides the system's face
         .text = std::format(
           "{}{}  {:.1f}%",
-          item.name == state.system.controlling_faction ? "* " : "  ",
+          item.name == controlling ? "* " : "  ",
           item.name,
           item.influence * 100.0
         ),
@@ -1740,7 +1775,7 @@ auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
     );
     }
 
-  faction_charts_ = build_influence_chart(*history, charted, wall_clock);
+  view.charts = build_influence_chart(*history, charted, wall_clock);
 
   // the ticks are the same for every system, but they belong under the chart whose steps they explain
   auto influence_waves{db_.load_recent_ticks(info::tick_kind_e::influence, tick_chart_window().count())};
@@ -1753,7 +1788,7 @@ auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
     )};
     chart
   )
-    faction_charts_.push_back(std::move(*chart));
+    view.charts.push_back(std::move(*chart));
   }
 
 auto overlay_feed_t::refresh_market(
@@ -3344,7 +3379,7 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
   if(not server_->listening())
     return;
 
-  refresh_factions(state);
+  refresh_factions(state, state.current_system_address_, state.system.controlling_faction, here_);
   refresh_status(state);
   refresh_mission_places(state);
   // the route's last system is where we are going; the first entry is where it was plotted from
@@ -3365,9 +3400,9 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
 
   if(not state.system.name.empty())
     {
-    auto lines{describe_system(state.system, faction_lines_.empty())};
-    lines.insert(lines.end(), faction_lines_.begin(), faction_lines_.end());
-    lines.insert(lines.end(), conflict_lines_.begin(), conflict_lines_.end());
+    auto lines{describe_system(state.system, here_.lines.empty())};
+    lines.insert(lines.end(), here_.lines.begin(), here_.lines.end());
+    lines.insert(lines.end(), here_.conflicts.begin(), here_.conflicts.end());
     frame.blocks.push_back(
       overlay::block_t{
         // the chart goes under the text, because the names and the current values are what one
@@ -3375,7 +3410,7 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
         .corner = overlay::corner_e::top_left,
         .ttl_ms = block_ttl_ms(),
         .lines = std::move(lines),
-        .charts = faction_charts_
+        .charts = here_.charts
       }
     );
     }
@@ -3697,6 +3732,54 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
     }
   frame.capture = capture_;
   frame.screenshot.key = eht::settings()->screenshots.key;
+
+  // The panel of a jump being charged stands in the middle of the screen while the hyperdrive charges - a
+  // state of Flags2 alone: StartJump is written only when the charge is done and the countdown begins,
+  // and by the charging the target is the system chosen, as FSDTarget named it
+  constexpr uint64_t hyperdrive_charging_flag{1u << 19u};
+  uint64_t const target{state.next_target.SystemAddress};
+  if((status_flags2_ & hyperdrive_charging_flag) != 0u and target != 0u and target != state.current_system_address_)
+    {
+    if(target != jump_system_)
+      {
+      jump_system_ = target;
+      jump_allegiance_.clear();
+      jump_controlling_.clear();
+      // a system we have never been to is not in the database, and then there is nothing to put right
+      if(auto known{db_.load_system(target)}; known and *known)
+        {
+        jump_allegiance_ = (*known)->allegiance;
+        jump_controlling_ = (*known)->controlling_faction;
+        }
+      }
+
+    if(auto cover{jump_emblem_cover(jump_allegiance_)}; cover)
+      frame.covers.push_back(*cover);
+
+    eht::jump_emblem_t const & place{eht::settings()->overlay.jump_emblem};
+    if(place.factions)
+      {
+      refresh_factions(state, target, jump_controlling_, jump_);
+      // the tick's hour among the lines says nothing about the system - it stays in the band
+      std::vector<overlay::line_t> lines;
+      for(overlay::line_t const & line: jump_.lines)
+        if(line.marker != overlay::marker_e::none)
+          lines.push_back(line);
+      if(not lines.empty())
+        frame.blocks.push_back(
+          overlay::block_t{
+            .corner = overlay::corner_e::top_left,
+            .ttl_ms = block_ttl_ms(),
+            .lines = std::move(lines),
+            // the middle of the screen is the game's, so the list takes as little of it as it can
+            .text = overlay::text_e::small,
+            .middle = true,
+            .middle_y = place.factions_y,
+            .middle_width = place.factions_width
+          }
+        );
+      }
+    }
 
   // In the scanner the band says what the last picture did: a new view is the sign that the filter is in
   // and the next one may be chosen

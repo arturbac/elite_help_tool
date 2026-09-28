@@ -45,6 +45,12 @@ process carries no state of ours.
 - **Readable over anything.** The ground under each block darkens by how bright the game is
   beneath it, so the text stays legible over an ice planet as over black space.
 - **F11** saves a screenshot of the whole screen, overlay included.
+- **Jump panel.** While the drive charges for a jump to another system, the game shows the
+  destination's superpower emblem, and it is wrong for the Federation, the Empire and the Alliance
+  (only independents get the right one). The overlay paints over it with the right emblem, and
+  lists the destination's factions under the panel with their influence and the last tick's trend.
+  It knows only systems already in its database: on a first visit, and in unpopulated space while
+  exploring, it leaves the panel as the game draws it and shows no list.
 
 The layout (text size, band widths, where the readouts stand, opacity) comes from
 `eht_settings.json` and changes live. The Steam launch option is one variable:

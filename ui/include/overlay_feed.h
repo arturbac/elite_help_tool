@@ -53,8 +53,22 @@ public:
     { return state.organic_scans_seen_ != pictured_scans_; }
 
 private:
+  ///\brief what the overlay shows of one system's factions
+  struct system_factions_t
+    {
+    uint64_t system{};
+    std::chrono::steady_clock::time_point loaded{};
+    std::vector<overlay::line_t> lines;
+    std::vector<overlay::line_t> conflicts;
+    ///\brief the influence chart - empty when there is too little history
+    std::vector<overlay::chart_t> charts;
+    };
+
   ///\brief influence is not in the state, it has to come from the database - its own connection, as in the windows
-  auto refresh_factions(current_state_t const & state) -> void;
+  ///\param controlling the faction that controls the system, marked with a star
+  auto refresh_factions(
+    current_state_t const & state, uint64_t system_address, std::string_view controlling, system_factions_t & view
+  ) -> void;
 
   ///\brief we know the market only for the station we stand in, and only until we leave
   ///\param destination the system the plotted route ends in, 0 without a route - the trades then narrow to it
@@ -126,12 +140,14 @@ private:
 
   std::unique_ptr<overlay::server_t> server_;
   database_storage_t db_;
-  uint64_t factions_system_{};
-  std::chrono::steady_clock::time_point factions_loaded_{};
-  std::vector<overlay::line_t> faction_lines_;
-  std::vector<overlay::line_t> conflict_lines_;
-  ///\brief the influence chart of the system we stand in - empty when there is too little history
-  std::vector<overlay::chart_t> faction_charts_;
+  ///\brief the factions of the system we stand in
+  system_factions_t here_;
+  ///\brief and of the one the drive charges to jump to, under the game's panel of the jump
+  system_factions_t jump_;
+  ///\brief the system being jumped to as the database knows it - read once for each new target
+  uint64_t jump_system_{};
+  std::string jump_allegiance_;
+  std::string jump_controlling_;
 
   uint64_t market_id_{};
   uint64_t market_destination_{};

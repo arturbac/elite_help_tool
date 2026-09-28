@@ -183,6 +183,21 @@ needs `EHT_OVERLAY_CAPTURE=1`, like the codex pictures.
 It works only with the game in an X11 window (XWayland), which is how Proton starts it by default.
 With `PROTON_ENABLE_WAYLAND=1` the layer will not hear the key.
 
+## Patches over the game's interface and blocks in the middle
+
+`frame_t.covers` are patches painted fully opaque over the game's own interface, with an emblem in
+the middle if one is named. The tool uses one to put right the superpower emblem the game gets wrong
+in the panel of a jump being charged. A block with `middle` set stands in the middle screen instead
+of its corner, centred across it; the factions of the destination go under that panel so.
+
+Both are placed on the middle screen, from its centre, in shares of its height (`x`, `y`, `width`,
+`height`, `emblem_height`, `middle_y`, `middle_width`). The game draws its interface on the middle
+screen at 16:9 whatever the resolution and however wide the whole surface, so the same numbers land
+on the same spot of its interface at 1080p, at 4k and on a triple screen. The place and the size
+are in the `overlay.jump_emblem` section of `eht_settings.json`. A patch goes when the tool falls
+silent for 10 s, so it never outlives the tool. An older layer skips both fields: no patches, and
+the block joins its corner.
+
 ## What cannot take the game down
 
 None of this may crash the game:

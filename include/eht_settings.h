@@ -126,6 +126,28 @@ struct system_map_t
   float mission_arrow{6.f};
   };
 
+///\brief the superpower's emblem in the panel of a hyperspace jump being charged
+///\detail the game shows the right emblem only for an independent system and a wrong one for the Federation, the
+/// Empire and the Alliance, so for those three the overlay paints the panel's middle over and draws the right
+/// one. The place is on the middle screen, from its centre, in shares of its height
+struct jump_emblem_t
+  {
+  bool enabled{true};
+  float x{0.0014f};
+  float y{-0.1808f};
+  float width{0.085f};
+  float height{0.040f};
+  float emblem_height{0.030f};
+  ///\brief the panel's own black, under the patch
+  colour_t ground{0x020304u};
+  ///\brief the factions of the system being jumped to, under the panel while the drive charges - names,
+  /// influence and which way it went at the last tick
+  bool factions{true};
+  ///\brief the top of that list from the middle screen's centre, and its widest, in shares of its height
+  float factions_y{-0.105f};
+  float factions_width{0.6f};
+  };
+
 struct overlay_settings_t
   {
   overlay::layout_t layout;
@@ -152,6 +174,7 @@ struct overlay_settings_t
   overlay_chart_t influence_chart{.days = 20u, .height = 74u};
   overlay_chart_t tick_chart{.days = 30u, .height = 45u};
   system_map_t system_map;
+  jump_emblem_t jump_emblem;
   };
 
 ///\brief exploration - what is worth a landing and where the pictures of what was sampled go

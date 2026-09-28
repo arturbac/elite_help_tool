@@ -489,6 +489,16 @@ namespace
       }
     }
 
+  ///\brief where the text of the window being drawn wraps, in the window's own coordinates
+  ///\detail the windows size themselves to their content, so what is left of the current width is nothing
+  /// once the widest line is reached - a mark measured against it would go to a line of its own even
+  /// with the whole band free beside it
+  thread_local float wrap_right{};
+
+  [[nodiscard]]
+  auto room_left() -> float
+    { return wrap_right - ImGui::GetCursorPosX(); }
+
   ///\brief the trend mark and whatever follows it, both optional
   auto draw_trailing(overlay::line_t const & line, float box, float spacing, ImU32 colour) -> void
     {
@@ -497,7 +507,7 @@ namespace
       ImGui::SameLine(0.f, spacing);
       // a mark that does not fit beside the value would be wrapped to a line of its own, where it
       // would stand next to nothing
-      if(ImGui::GetContentRegionAvail().x < box)
+      if(room_left() < box)
         ImGui::NewLine();
 
       ImVec2 const at{ImGui::GetCursorScreenPos()};
@@ -518,7 +528,7 @@ namespace
       // What is left of the line after the value is usually a few pixels, and text wrapped into a
       // few pixels comes out one letter per row. Starting the states on a line of their own costs a
       // row and reads; squeezing them into the remainder costs a column of single letters
-      if(ImGui::GetContentRegionAvail().x < ImGui::CalcTextSize(line.suffix.c_str()).x)
+      if(room_left() < ImGui::CalcTextSize(line.suffix.c_str()).x)
         ImGui::NewLine();
 
       coloured_text(line.color, "%s", line.suffix.c_str());
@@ -965,6 +975,50 @@ namespace
     draw->AddText(at, frame_colour, text.c_str());
     }
 
+  ///\brief patches over the game's own interface, beneath everything else of ours
+  ///\detail measured on the middle screen from its centre in shares of its height, so the patch lands on
+  /// the same spot of the game's interface on any screen - the game draws that interface at 16:9 there
+  auto draw_covers(swapchain_data_t const & data, std::vector<overlay::cover_t> const & covers, ImVec2 display,
+                   overlay::layout_t const & layout) -> void
+    {
+    if(covers.empty())
+      return;
+
+    float const unit{centre_screen_width(display, layout) * 9.f / 16.f};
+    ImVec2 const centre{display.x / 2.f, display.y / 2.f};
+    ImDrawList * const draw{ImGui::GetBackgroundDrawList()};
+    ImFontAtlas & atlas{*ImGui::GetIO().Fonts};
+    for(overlay::cover_t const & cover: covers)
+      {
+      ImVec2 const middle{centre.x + cover.x * unit, centre.y + cover.y * unit};
+      ImVec2 const half{cover.width * unit / 2.f, cover.height * unit / 2.f};
+      draw->AddRectFilled(
+        ImVec2{std::round(middle.x - half.x), std::round(middle.y - half.y)},
+        ImVec2{std::round(middle.x + half.x), std::round(middle.y + half.y)},
+        ImGui::ColorConvertFloat4ToU32(to_color(cover.ground))
+      );
+
+      if(cover.emblem == overlay::emblem_e::none or cover.emblem_height <= 0.f)
+        continue;
+      int const index{data.emblem_rects[static_cast<size_t>(cover.emblem)]};
+      if(index < 0)
+        continue;
+      ImFontAtlasCustomRect const * const rect{atlas.GetCustomRectByIndex(index)};
+      if(rect->Height == 0)
+        continue;
+
+      ImVec2 uv_min{};
+      ImVec2 uv_max{};
+      atlas.CalcCustomRectUV(rect, &uv_min, &uv_max);
+      float const height{cover.emblem_height * unit};
+      float const width{height * static_cast<float>(rect->Width) / static_cast<float>(rect->Height)};
+      ImVec2 const at{std::round(middle.x - width / 2.f), std::round(middle.y - height / 2.f)};
+      draw->AddImage(
+        atlas.TexID, at, ImVec2{at.x + width, at.y + height}, uv_min, uv_max, ImGui::ColorConvertFloat4ToU32(to_color(cover.emblem_color))
+      );
+      }
+    }
+
   ///\brief a word at the top of the middle screen that the screenshot was taken - small and green, no flash
   auto draw_screenshot_notice(swapchain_data_t & data, ImVec2 display) -> void
     {
@@ -1252,7 +1306,8 @@ namespace
       if(ImGui::Begin(name, nullptr, flags))
         {
         draw_ground(data, layout);
-        ImGui::PushTextWrapPos(width - 2.f * ImGui::GetStyle().WindowPadding.x);
+        wrap_right = width - 2.f * ImGui::GetStyle().WindowPadding.x;
+        ImGui::PushTextWrapPos(wrap_right);
         if(stats_here)
           {
           coloured_text(
@@ -1343,7 +1398,7 @@ namespace
       overlay::corner_e const corner{corners[index]};
       bool const stats_here{layout.stats and corner == overlay::corner_e::top_right};
       auto const in_stack = [corner](overlay::block_t const & block) -> bool
-      { return block.corner == corner and not block.beside; };
+      { return block.corner == corner and not block.beside and not block.middle; };
 
       if(not stats_here and not any_visible(in_stack))
         continue;
@@ -1401,6 +1456,33 @@ namespace
       draw_window(names[index], position, pivot, width, false, beside, 0.f);
       }
 
+    // the blocks that stand in the middle screen, each a window of its own, centred across it
+    if(snapshot)
+      {
+      float const unit{centre_screen_width(display, layout) * 9.f / 16.f};
+      size_t count{};
+      for(overlay::block_t const & block: snapshot->frame.blocks)
+        {
+        if(not block.middle or not block_visible(block, age_ms))
+          continue;
+        std::string const name{std::format("eht_middle_{}", count++)};
+        draw_window(
+          name.c_str(),
+          ImVec2{display.x / 2.f, display.y / 2.f + block.middle_y * unit},
+          ImVec2{0.5f, 0.f},
+          std::max(block.middle_width * unit, 1.f),
+          false,
+          [&block](overlay::block_t const & other) -> bool { return &other == &block; },
+          0.f
+        );
+        }
+      }
+
+    // a patch outliving the tool would hide the game's own interface for good, so a silent tool takes it away
+    // - one that lives sends a frame at least every few seconds
+    constexpr uint64_t cover_ttl_ms{10000u};
+    if(snapshot and age_ms < cover_ttl_ms)
+      draw_covers(data, snapshot->frame.covers, display, layout);
     draw_capture_guide(data, display);
     draw_screenshot_notice(data, display);
     }
