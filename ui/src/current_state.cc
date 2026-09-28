@@ -1715,7 +1715,7 @@ auto describe_tick(
   // it reads "no earlier than" rather than "exactly then"
   if(*mine)
     // the zone with every hour - the journal and the game run on UTC, the clock on the bar does not
-    view.here = std::format("changed {:%d.%m %H:%M} UTC, {} ago", **mine, hours_ago(**mine, now));
+    view.here = std::format("seen by you here {:%d.%m %H:%M} UTC, {} ago", **mine, hours_ago(**mine, now));
 
   if(not waves->empty())
     {

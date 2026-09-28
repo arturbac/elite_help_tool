@@ -72,7 +72,7 @@ day. The war tick is found the same way, from changes in days won (`won_days`) i
 
 For a given system, `describe_tick` (`ui/src/current_state.cc`) shows two things:
 
-- **"changed dd.mm HH:MM"**: when you last saw influence change in this very system. Read it as
+- **"seen by you here dd.mm HH:MM"**: when you last saw influence change in this very system. Read it as
   "the tick was here no later than this". It is delayed by your own visit, so it is not a window.
   A reading that brings only a different faction state does not count: the game names the same state
   differently on `FSDJump` and on `Location` (a faction in retreat shows `Retreat`, then `None`, with
