@@ -367,11 +367,22 @@ struct influence_effect_t
   std::string Influence;
   };
 
+///\brief what a mission did to a faction's state bars - economy (EP), security (SP), health (Outbreak)
+///\detail the name alone says which bar and which way, e.g. "$MISSIONUTIL_Interaction_Summary_EP_up;". It
+/// names no system and carries no measure - no pluses like the influence has
+struct state_effect_t
+  {
+  std::string Effect;
+  std::string Trend;
+  };
+
 ///\brief one mission's effect on one faction - a handed-in mission usually moves several factions at once,
 /// and each of them may feel it in more than one system
 struct faction_effect_t
   {
   std::string Faction;
+  ///\brief in the order of Influence when there are as many of them, otherwise all for the first system
+  std::vector<state_effect_t> Effects;
   std::vector<influence_effect_t> Influence;
   };
 

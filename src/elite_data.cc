@@ -49,6 +49,28 @@ auto to_native(events::faction_info_t && faction) -> faction_info_t
   return result;
   }
 
+auto state_shift(events::faction_effect_t const & effect, size_t influence_ix) -> state_shift_t
+  {
+  auto const belongs = [&](size_t effect_ix) -> bool
+  {
+    return effect.Effects.size() == effect.Influence.size() ? effect_ix == influence_ix : influence_ix == 0u;
+  };
+
+  state_shift_t shift{};
+  for(size_t ix{}; ix < effect.Effects.size(); ++ix)
+    {
+    if(not belongs(ix))
+      continue;
+    std::string_view const name{effect.Effects[ix].Effect};
+    int32_t const sign{name.contains("_up;") ? 1 : name.contains("_down;") ? -1 : 0};
+    if(name.contains("_Summary_EP_"))
+      shift.economy += sign;
+    else if(name.contains("_Summary_SP_"))
+      shift.security += sign;
+    }
+  return shift;
+  }
+
 auto format_population(uint64_t value) -> std::string
   {
   struct step_t

@@ -1585,6 +1585,7 @@ auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
     overlay::trend_e trend{overlay::trend_e::unknown};
     std::string name;
     info::allegiance_e allegiance;
+    info::government_e government;
     std::string active;
     double influence;
     };
@@ -1597,6 +1598,7 @@ auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
       .oid = oid,
       .name = {},
       .allegiance = info::allegiance_e::unknown,
+      .government = info::government_e::unknown,
       .active = not entry->active_states.empty() ? entry->active_states
                 : entry->faction_state == "None" ? std::string{}
                                                  : entry->faction_state,
@@ -1610,6 +1612,7 @@ auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
       {
       item.name = it->name;
       item.allegiance = it->allegiance;
+      item.government = it->government;
       }
 
     if(not item.name.empty())
@@ -1665,6 +1668,35 @@ auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
 
   std::ranges::sort(presence, std::ranges::greater{}, &presence_t::influence);
 
+  // The game shows each faction's economy and security as a bar with a trend, and writes neither to the
+  // journal. What it does write is which way each handed-in mission pushed them - counted from the last
+  // wave, that is the direction of one's own work on the bar the next tick moves. Others' work is not in it
+  std::map<std::string, info::state_effort_t> state_effort;
+  if(auto waves{db_.load_recent_ticks(info::tick_kind_e::influence, 30u)}; waves and not waves->empty())
+    if(auto effort{db_.load_state_effort(factions_system_, waves->front().start_end)}; effort)
+      for(info::state_effort_t & row: *effort)
+        state_effort.emplace(row.faction, std::move(row));
+  auto const pushes = [](int32_t up, int32_t down) -> std::string
+  {
+    if(up != 0 and down != 0)
+      return std::format("+{}/-{}", up, down);
+    return up != 0 ? std::format("+{}", up) : std::format("-{}", down);
+  };
+  auto const state_pushes = [&](presence_t const & item) -> std::vector<std::string>
+  {
+    auto const it{state_effort.find(item.name)};
+    if(it == state_effort.end())
+      return {};
+    info::state_effort_t const & effort{it->second};
+    std::vector<std::string> shown;
+    if(effort.economy_up != 0 or effort.economy_down != 0)
+      shown.push_back(std::format("EP {}", pushes(effort.economy_up, effort.economy_down)));
+    // an anarchy's security stays in the middle whatever is done to it
+    if(item.government != info::government_e::anarchy and (effort.security_up != 0 or effort.security_down != 0))
+      shown.push_back(std::format("SP {}", pushes(effort.security_up, effort.security_down)));
+    return shown;
+  };
+
   // the line and the chart series are given the same colour and the same shape in one place, so
   // there is no way for them to drift apart
   std::vector<charted_t> charted;
@@ -1678,6 +1710,10 @@ auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
     ++marker_ix;
 
     charted.push_back(charted_t{.oid = item.oid, .name = item.name, .color = colour, .marker = marker});
+
+    std::string suffix{item.active};
+    for(std::string const & push: state_pushes(item))
+      suffix += (suffix.empty() ? "" : "  ") + push;
 
     faction_lines_.push_back(
       overlay::line_t{
@@ -1694,7 +1730,8 @@ auto overlay_feed_t::refresh_factions(current_state_t const & state) -> void
         .emblem = allegiance_emblem(item.allegiance),
         // the mark goes between the value and the states, because it speaks about the value
         .trend = item.trend,
-        .suffix = item.active
+        // the pushes on the bars after the states, which they lead to
+        .suffix = std::move(suffix)
       }
     );
     }

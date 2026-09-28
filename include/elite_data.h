@@ -726,6 +726,35 @@ struct mission_influence_t
   uint64_t system_address;
   ///\brief signed: positive when the faction rises, negative when this mission pushes it down
   int32_t pluses;
+  ///\brief how many times the mission moved the faction's economy bar here, signed like pluses -
+  /// the game gives a direction only, so each effect counts as one
+  int32_t economy{};
+  ///\brief the same for the security bar
+  int32_t security{};
+  };
+
+///\brief how a mission moved a faction's economy and security in one of the systems it moved its influence in
+struct state_shift_t
+  {
+  int32_t economy{};
+  int32_t security{};
+  };
+
+///\brief the state effects of one faction_effect_t that fall on its influence_ix-th system
+///\detail the effects name no system. When there are as many of them as systems they go in order - so it
+/// is in every journal seen - otherwise all of them go to the first system
+[[nodiscard]]
+auto state_shift(events::faction_effect_t const & effect, size_t influence_ix) -> state_shift_t;
+
+///\brief the missions' pushes on one faction's economy and security bars in one system since a moment
+///\detail up and down apart: two up and two down is work on both sides, not no work
+struct state_effort_t
+  {
+  std::string faction;
+  int32_t economy_up;
+  int32_t economy_down;
+  int32_t security_up;
+  int32_t security_down;
   };
 
 ///\brief the work put into one faction in one system over one BGS day, set against

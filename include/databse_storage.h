@@ -191,6 +191,11 @@ struct database_storage_t
   [[nodiscard]]
   auto load_tick_stats(info::tick_kind_e kind, uint32_t within_days) -> expected_ec<info::tick_stats_t>;
 
+  ///\brief the missions' pushes on the factions' economy and security bars in one system since a moment
+  [[nodiscard]]
+  auto load_state_effort(uint64_t system_address, std::chrono::sys_seconds since)
+    -> expected_ec<std::vector<info::state_effort_t>>;
+
   ///\brief effort in pluses set against the movement of influence, BGS day by day
   ///\detail days are separated by detected recalculation waves, not by a fixed hour - that moves every few
   /// days and at a weekend may not come at all. a system_address other than zero narrows it to one system

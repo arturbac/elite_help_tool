@@ -1180,7 +1180,10 @@ auto database_storage_t::migrate_live_schema() -> expected_ec<void>
        addition_t{sql_iface::tables::carrier, "stats_seen"sv, "TEXT DEFAULT ''"sv},
        addition_t{sql_iface::tables::commodity, "key"sv, "TEXT DEFAULT ''"sv},
        // ships flown before it was kept stay empty until a rebuild from journals
-       addition_t{sql_iface::tables::ship, "flown"sv, "TEXT DEFAULT ''"sv}})
+       addition_t{sql_iface::tables::ship, "flown"sv, "TEXT DEFAULT ''"sv},
+       // missions handed in before the bars were kept say 0 until filled in from the journals
+       addition_t{sql_iface::tables::mission_influence, "economy"sv, "INTEGER DEFAULT 0"sv},
+       addition_t{sql_iface::tables::mission_influence, "security"sv, "INTEGER DEFAULT 0"sv}})
     {
     auto known{sqlite::table_columns(db_->db, add.table)};
     if(not known) [[unlikely]]
@@ -3125,6 +3128,27 @@ auto database_storage_t::load_last_port() -> expected_ec<std::optional<info::por
     if(info::is_escape_pod_port(visit.station_type, visit.name))
       return std::optional<info::port_visit_t>{std::move(visit)};
   return std::optional<info::port_visit_t>{};
+  }
+
+auto database_storage_t::load_state_effort(uint64_t system_address, std::chrono::sys_seconds since)
+  -> expected_ec<std::vector<info::state_effort_t>>
+  {
+  return sqlite::select_from<info::state_effort_t>(
+    db_->db,
+    std::format(
+      "(SELECT faction,"
+      " sum(CASE WHEN economy > 0 THEN economy ELSE 0 END) AS economy_up,"
+      " sum(CASE WHEN economy < 0 THEN -economy ELSE 0 END) AS economy_down,"
+      " sum(CASE WHEN security > 0 THEN security ELSE 0 END) AS security_up,"
+      " sum(CASE WHEN security < 0 THEN -security ELSE 0 END) AS security_down"
+      " FROM {0} WHERE system_address = {1} AND timestamp >= '{2:%Y-%m-%dT%H:%M:%SZ}'"
+      " AND (economy != 0 OR security != 0) GROUP BY faction)",
+      sql_iface::tables::mission_influence,
+      system_address,
+      since
+    ),
+    ""
+  );
   }
 
 auto database_storage_t::load_bgs_systems() -> expected_ec<std::vector<info::system_ref_t>>

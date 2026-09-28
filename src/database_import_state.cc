@@ -948,18 +948,22 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
         // whom this mission moved and by how much - pluses with a sign, so that pushing strangers out can be
         // counted apart from building one's own up. The game gives no number, the measure is the string's length
         for(events::faction_effect_t const & effect: event.FactionEffects)
-          for(events::influence_effect_t const & influence: effect.Influence)
+          for(size_t influence_ix{}; influence_ix < effect.Influence.size(); ++influence_ix)
             {
+            events::influence_effect_t const & influence{effect.Influence[influence_ix]};
             if(influence.Influence.empty())
               continue;
 
             auto const magnitude{int32_t(influence.Influence.size())};
+            info::state_shift_t const shift{info::state_shift(effect, influence_ix)};
             if(auto res{state.db_.store(info::mission_influence_t{
                  .mission_id = event.MissionID,
                  .timestamp = timestamp,
                  .faction = effect.Faction,
                  .system_address = influence.SystemAddress,
-                 .pluses = influence.Trend == "DownBad" ? -magnitude : magnitude
+                 .pluses = influence.Trend == "DownBad" ? -magnitude : magnitude,
+                 .economy = shift.economy,
+                 .security = shift.security
                })};
                not res)
               spdlog::error("failed to store mission influence for {}", event.MissionID);

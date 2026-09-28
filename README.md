@@ -55,6 +55,11 @@ it can take the game down: [overlay/README.md](overlay/README.md).
 
 - **Influence at a glance.** In a system, the overlay shows the factions with their influence and
   states, a chart of the last 20 days of influence, and the last tick.
+- **Economy and security pushes.** The game shows each faction's economy and security as a bar
+  with a trend, but writes neither to the journal. It does write which way each handed-in mission
+  pushed them, so after a faction's states the overlay shows your own pushes since the last tick,
+  up and down apart: `EP +5/-1  SP +2`. Security is left out for anarchies, whose security bar
+  stays in the middle. Other commanders' work is not in it.
 - **Tick tracking.** The daily tick is reconstructed from your own journals as galaxy-wide waves,
   even though systems are visited rarely. The start of the wave is the deadline for handing in
   missions, and the influence tick and the war tick are kept apart:
