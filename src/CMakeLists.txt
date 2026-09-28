@@ -3,6 +3,7 @@ target_sources(eht
   file_io.cc
   discover_logic.cc
   biology.cc
+  surface_nav.cc
   ground_cz.cc
   on_foot.cc
   bar_sales.cc

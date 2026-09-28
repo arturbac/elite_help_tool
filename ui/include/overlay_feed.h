@@ -4,6 +4,7 @@
 #include "overlay_exploration.h"
 #include <legal.h>
 #include "codex.h"
+#include <surface_nav.h>
 #include "scanner_sheet.h"
 #include "screenshots.h"
 
@@ -42,6 +43,9 @@ public:
 
   ///\brief the construction site chosen in the Construction window while that window is the active one, 0 for none
   auto set_construction_focus(uint64_t market_id) -> void { construction_focus_ = market_id; }
+
+  ///\brief the point on a body's surface chosen in the Surface window, or none
+  auto set_surface_target(std::optional<nav::target_t> target) -> void { surface_target_ = std::move(target); }
 
   ///\brief builds the image from the state and sends it, provided anything has changed
   auto publish(current_state_t const & state, plotted_route_t const & plotted) -> void;
@@ -118,6 +122,10 @@ private:
   ///\brief which interface the game has open, which only Status.json says
   auto refresh_status(current_state_t const & state) -> void;
 
+  ///\brief the way to the surface target - an arrow turned the way to go, the distance, and how long at this pace
+  [[nodiscard]]
+  auto build_surface_nav_lines() const -> std::vector<overlay::line_t>;
+
   ///\brief the next hops of both routes - a side band holds only what comes next, not the whole list
   [[nodiscard]]
   auto build_route_lines(current_state_t const & state, plotted_route_t const & plotted) const
@@ -175,6 +183,10 @@ private:
   std::string status_body_;
   ///\brief where on the body we stand, and what we hold - for the samples
   overlay_exploration::surface_view_t surface_;
+  ///\brief which way we face, from Status.json - absent in open space
+  std::optional<double> heading_;
+  nav::ground_speed_t ground_speed_;
+  std::optional<nav::target_t> surface_target_;
   ///\brief every species sampled with its world, what the genera are guessed from - read again when a
   /// sample was analysed, since that is when the history grows
   std::vector<bio::species_record_t> species_history_;

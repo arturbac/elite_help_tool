@@ -43,7 +43,7 @@ auto sample_frame(uint64_t sequence) -> overlay::frame_t
       .ttl_ms = 2500u,
       .lines = {
         overlay::line_t{.text = "Bleia Eohn QT-O d7-43", .color = 0x3cb371u},
-        overlay::line_t{.text = "left diff", .color = 0x55aaffu, .swatch_space = true},
+        overlay::line_t{.text = "left diff", .color = 0x55aaffu, .swatch_space = true, .pointer = -42.5f},
         overlay::line_t{
           .text = "Steel    578  +142",
           .color = 0xccccccu,
@@ -122,6 +122,8 @@ auto main() -> int
         {
         expect(lines[1].swatch_space);
         expect(not lines[1].emblem_column);
+        expect(lines[1].pointer == std::optional{-42.5f});
+        expect(not lines[0].pointer.has_value());
         expect(lines[3].emblem_column);
         expect(lines[1].swatch.empty());
         expect(lines[2].swatch.size() == 2_ul);

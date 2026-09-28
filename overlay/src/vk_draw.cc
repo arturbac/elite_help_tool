@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <numbers>
 #include <chrono>
 #include <cstdlib>
 #include <fstream>
@@ -556,9 +557,37 @@ namespace
       draw->AddCircleFilled(ImVec2{far.x - side * 0.25f, far.y - side * 0.25f}, side * 0.2f, IM_COL32(255, 255, 255, 230));
     }
 
+  ///\brief an arrow round the centre, turned clockwise from straight up - a head and a stem, each convex
+  auto draw_pointer(ImDrawList * draw, ImVec2 centre, float radius, float degrees, ImU32 colour) -> void
+    {
+    float const angle{degrees * std::numbers::pi_v<float> / 180.f};
+    float const c{std::cos(angle)};
+    float const s{std::sin(angle)};
+    // the shape drawn pointing up, in shares of the radius; screen y grows downwards, so this turn is clockwise
+    auto const at = [&](float x, float y) { return ImVec2{centre.x + radius * (x * c - y * s), centre.y + radius * (x * s + y * c)}; };
+    draw->AddTriangleFilled(at(0.f, -1.f), at(0.8f, 0.05f), at(-0.8f, 0.05f), colour);
+    ImVec2 const stem[]{at(-0.28f, 0.f), at(0.28f, 0.f), at(0.28f, 1.f), at(-0.28f, 1.f)};
+    draw->AddConvexPolyFilled(stem, 4, colour);
+    }
+
   auto draw_line(swapchain_data_t const & data, overlay::line_t const & line) -> void
     {
     float const box{ImGui::GetFontSize()};
+
+    // the way to go stands first, in a square slot of its own - it is what the eye looks for on the line
+    if(line.pointer)
+      {
+      ImVec2 const at{ImGui::GetCursorScreenPos()};
+      draw_pointer(
+        ImGui::GetWindowDrawList(),
+        ImVec2{at.x + box * 0.5f, at.y + box * 0.5f},
+        box * 0.45f,
+        *line.pointer,
+        ImGui::GetColorU32(to_color(line.color))
+      );
+      ImGui::Dummy(ImVec2{box, box});
+      ImGui::SameLine(0.f, ImGui::GetStyle().ItemSpacing.x * 0.5f);
+      }
 
     // the economies' square stands before everything else on the line, in a slot of its own, set in by
     // half its width so the commodities read as a list under their type's heading

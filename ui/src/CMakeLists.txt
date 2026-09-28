@@ -14,6 +14,7 @@ target_sources(elite_help_tool
   bgs_window.cc
   construction_window.cc
   ships_window.cc
+  surface_window.cc
   overlay_feed.cc
   overlay_exploration.cc
   codex.cc

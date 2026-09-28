@@ -201,6 +201,12 @@ are in the `overlay.jump_emblem` section of `eht_settings.json`. A patch goes wh
 silent for 10 s, so it never outlives the tool. An older layer skips both fields: no patches, and
 the block joins its corner.
 
+## An arrow on a line
+
+`line_t.pointer` puts an arrow before the line's text, in the line's colour, turned that many degrees
+clockwise from straight up. The tool uses it for the way to a point on a body's surface: up is ahead,
+90 is a right turn. An older layer skips the field and draws the line without the arrow.
+
 ## What cannot take the game down
 
 None of this may crash the game:

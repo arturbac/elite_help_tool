@@ -2554,9 +2554,58 @@ auto overlay_feed_t::refresh_status(current_state_t const & state) -> void
       .planet_radius = status->PlanetRadius.value_or(0.0),
       .sampler_in_hand = status->SelectedWeapon.contains("sampletool")
     };
+    heading_ = status->Heading;
+    if(surface_.here and surface_.planet_radius > 0.0)
+      ground_speed_.push(now, *surface_.here, surface_.planet_radius);
+    else
+      ground_speed_.clear();
     status_body_ = std::move(status->BodyName);
     status_destination_ = std::move(status->Destination);
     }
+  }
+
+auto overlay_feed_t::build_surface_nav_lines() const -> std::vector<overlay::line_t>
+  {
+  if(not surface_target_)
+    return {};
+  nav::target_t const & target{*surface_target_};
+  std::string const name{target.label.empty() ? std::string{"target"} : target.label};
+
+  // near another body the target means nothing yet - but it is worth a word, as the way there is the game's
+  if(status_body_ != target.body or not surface_.here or surface_.planet_radius <= 0.0)
+    {
+    if(status_body_.empty())
+      return {};
+    return {overlay::line_t{.text = std::format("{} is on {}", name, target.body), .color = colour_plain()}};
+    }
+
+  nav::guidance_t const way{nav::guide(*surface_.here, heading_, target.point, surface_.planet_radius)};
+  // close enough to see it with one's own eyes - from there it is the ground that leads, not the numbers
+  constexpr double arrived_m{25.0};
+  if(way.distance_m < arrived_m)
+    return {overlay::line_t{.text = std::format("{} reached", name), .color = colour_first()}};
+
+  std::vector<overlay::line_t> lines;
+  lines.push_back(
+    overlay::line_t{
+      .text = std::format("{}  {}", name, nav::format_distance(way.distance_m)),
+      .color = colour_heading(),
+      .pointer = way.turn_deg ? std::optional{static_cast<float>(*way.turn_deg)} : std::nullopt
+    }
+  );
+
+  std::string detail{std::format("course {:.0f}\u00b0", way.bearing_deg)};
+  if(way.turn_deg)
+    detail += std::format("  {}", nav::format_turn(*way.turn_deg));
+  // the time only when we are going somewhere - and towards the target rather than away from it
+  constexpr double moving_mps{0.5};
+  if(auto const speed{ground_speed_.metres_per_second(std::chrono::steady_clock::now())};
+     speed and *speed > moving_mps and (not way.turn_deg or std::abs(*way.turn_deg) < 90.0))
+    detail += std::format(
+      "  ~{}", nav::format_duration(std::chrono::seconds{static_cast<int64_t>(way.distance_m / *speed)})
+    );
+  lines.push_back(overlay::line_t{.text = std::move(detail), .color = colour_plain()});
+  return lines;
   }
 
 auto overlay_feed_t::build_settlement_owners() const -> std::vector<overlay::line_t>
@@ -3538,6 +3587,12 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
       overlay::block_t{
         .corner = overlay::corner_e::centre_top_left, .ttl_ms = block_ttl_ms(), .lines = std::move(sampling)
       }
+    );
+
+  // the way to a point on the ground is read while flying or walking towards it, so it flanks the centre
+  if(auto way{interface_open ? std::vector<overlay::line_t>{} : build_surface_nav_lines()}; not way.empty())
+    frame.blocks.push_back(
+      overlay::block_t{.corner = overlay::corner_e::centre_top_right, .ttl_ms = block_ttl_ms(), .lines = std::move(way)}
     );
 
   if(auto crew{interface_open ? std::vector<overlay::line_t>{} : build_crew_lines(state)}; not crew.empty())

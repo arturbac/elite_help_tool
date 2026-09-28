@@ -121,6 +121,11 @@ auto main_window_t::publish_overlay() -> void
   overlay_feed_->set_construction_focus(construction_focus);
   if(ships_view_)
     ships_view_->refresh_ui();
+  if(surface_view_)
+    {
+    surface_view_->refresh_ui();
+    overlay_feed_->set_surface_target(surface_view_->target());
+    }
   overlay_feed_->publish(state_, plotted);
 
   if(extension_)
@@ -222,6 +227,9 @@ auto main_window_t::setup_ui() -> void
 
   ships_view_ = new ships_window_t{state_, db_path_};
   add_tool_window(ships_view_, window_type_e::ships);
+
+  surface_view_ = new surface_window_t{state_};
+  add_tool_window(surface_view_, window_type_e::surface);
   }
 
 auto main_window_t::add_tool_window(QMdiSubWindow * sub, window_type_e type) -> void
@@ -250,6 +258,7 @@ auto main_window_t::subwindow_for(window_type_e type) const -> QMdiSubWindow *
     case window_type_e::bgs: return bgs_view_;
     case window_type_e::construction: return construction_view_;
     case window_type_e::ships:        return ships_view_;
+    case window_type_e::surface:      return surface_view_;
     case window_type_e::journal_log:   return jlw_;
     case window_type_e::none:          break;
     }
@@ -304,6 +313,7 @@ auto main_window_t::setup_toolbox() -> void
     {window_type_e::bgs, "BGS"},
     {window_type_e::construction, "Construction"},
     {window_type_e::ships, "Ships"},
+    {window_type_e::surface, "Surface"},
     {window_type_e::journal_log, "Log"}
   };
 

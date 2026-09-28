@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <string>
 #include <string_view>
+#include <optional>
 #include <vector>
 
 ///\brief the protocol between elite_help_tool and the layer drawing in the game window
@@ -124,6 +125,9 @@ struct line_t
   ///\brief keeps the emblem's column without a marker - a list with no chart beside it needs no markers, but
   /// its names still stand in one column. A field an older layer skips, drawing the line without its emblem
   bool emblem_column{};
+  ///\brief an arrow before everything else on the line, turned this many degrees clockwise from straight up -
+  /// straight up being straight ahead. A field an older layer skips, drawing the line without it
+  std::optional<float> pointer;
   };
 
 ///\brief one point of a series, both coordinates already scaled to 0..1 by the tool
