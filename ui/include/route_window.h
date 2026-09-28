@@ -67,6 +67,8 @@ public:
   QPushButton * load_button_{};
   QPushButton * remember_button_{};
   QPushButton * forget_button_{};
+  ///\brief drops a route loaded for a single trip; the remembered one, if any, comes back
+  QPushButton * clear_button_{};
   ///\brief the next waypoint as the destination - to the clipboard, or to whatever set_destination_ does
   QPushButton * destination_button_{};
   std::function<void(std::string const &)> set_destination_;
@@ -104,6 +106,8 @@ private:
   auto load_from_file() -> void;
   ///\brief reverses the order and recomputes the distances between neighbours
   auto apply_direction(std::vector<info::neutron_waypoint_t> route) -> void;
+  ///\brief empties the window of the neutron route, back to the game's route
+  auto drop_route() -> void;
   ///\brief shows the neutron route when there is one, otherwise the game's route
   auto show_route() -> void;
   ///\brief sets progress to the given waypoint - for stepping back and for joining a route halfway

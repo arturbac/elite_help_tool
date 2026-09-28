@@ -133,6 +133,8 @@ it can take the game down: [overlay/README.md](overlay/README.md).
 - Progress moves at an arrival only, and only forward: the game's own course between two waypoints
   may pass systems off the list, and a route there and back passes the same system more than once.
   A double click on a row makes that waypoint the next one.
+- **Remember** keeps the route across restarts, **Forget** drops it. **Clear** drops a route loaded
+  for one trip only; a remembered route, if there is one, is shown again.
 
 ## Colonisation
 

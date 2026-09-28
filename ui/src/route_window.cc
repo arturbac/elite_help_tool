@@ -236,12 +236,15 @@ auto route_window_t::setup_ui() -> void
   reversed_box_->setToolTip("Fly the route from its end - set before loading, or change it on a loaded route");
   remember_button_ = new QPushButton("Remember", central_widget);
   forget_button_ = new QPushButton("Forget", central_widget);
+  clear_button_ = new QPushButton("Clear", central_widget);
+  clear_button_->setToolTip("Drop the route loaded for one trip - the remembered route, if there is one, comes back");
   destination_button_ = new QPushButton("Copy next destination", central_widget);
   destination_button_->setToolTip("Put the next waypoint on the clipboard, for the galaxy map's search");
   controls->addWidget(load_button_);
   controls->addWidget(reversed_box_);
   controls->addWidget(remember_button_);
   controls->addWidget(forget_button_);
+  controls->addWidget(clear_button_);
   controls->addWidget(destination_button_);
   controls->addStretch(1);
 
@@ -295,12 +298,18 @@ auto route_window_t::setup_ui() -> void
   connect(forget_button_, &QPushButton::clicked, this, [this] {
     if(auto res{db_.store_neutron_route({})}; not res)
       spdlog::error("route window: failed to forget route");
-    neutron_route_.clear();
-    neutron_name_.clear();
-    clipboard_target_.clear();
-    reached_ = 0u;
-    progress_system_ = 0u;
-    remembered_ = false;
+    drop_route();
+    show_route();
+  });
+  connect(clear_button_, &QPushButton::clicked, this, [this] {
+    drop_route();
+    // a one-off route only covered the remembered one, which stays stored - it is shown again, as at start
+    if(auto saved{db_.load_neutron_route()}; saved and not saved->empty())
+      {
+      neutron_name_ = saved->front().route_name;
+      neutron_route_ = std::move(*saved);
+      remembered_ = true;
+      }
     show_route();
   });
 
@@ -308,6 +317,16 @@ auto route_window_t::setup_ui() -> void
   }
 
 auto route_window_t::refresh_ui() -> void { show_route(); }
+
+auto route_window_t::drop_route() -> void
+  {
+  neutron_route_.clear();
+  neutron_name_.clear();
+  clipboard_target_.clear();
+  reached_ = 0u;
+  progress_system_ = 0u;
+  remembered_ = false;
+  }
 
 auto route_window_t::set_destination_handler(std::function<void(std::string const &)> handler) -> void
   {
@@ -323,6 +342,7 @@ auto route_window_t::show_route() -> void
   bool const loaded{not neutron_route_.empty()};
   remember_button_->setEnabled(loaded and not remembered_);
   forget_button_->setEnabled(loaded and remembered_);
+  clear_button_->setEnabled(loaded and not remembered_);
   destination_button_->setEnabled(loaded and reached_ < neutron_route_.size());
 
   if(not loaded)
