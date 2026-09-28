@@ -575,7 +575,8 @@ namespace
       ImGui::SameLine(0.f, ImGui::GetStyle().ItemSpacing.x * 0.5f);
       }
 
-    if(line.marker == overlay::marker_e::none and line.emblem == overlay::emblem_e::none and not line.spans.empty())
+    if(line.marker == overlay::marker_e::none and not line.emblem_column and line.emblem == overlay::emblem_e::none
+       and not line.spans.empty())
       {
       // the text as one piece of room, painted part by part - each part where the text before it ends
       ImVec2 const origin{ImGui::GetCursorScreenPos()};
@@ -606,7 +607,7 @@ namespace
       return;
       }
 
-    if(line.marker == overlay::marker_e::none and line.emblem == overlay::emblem_e::none)
+    if(line.marker == overlay::marker_e::none and not line.emblem_column and line.emblem == overlay::emblem_e::none)
       {
       coloured_text(line.color, "%s", line.text.c_str());
       draw_trailing(line, box, ImGui::GetStyle().ItemSpacing.x * 0.5f, ImGui::GetColorU32(to_color(line.color)));
@@ -629,7 +630,9 @@ namespace
 
     emblems::mask_t const * const mask{emblem_mask(line.emblem)};
     float const emblem_height{box * 0.85f};
-    float const emblem_slot{line.marker != overlay::marker_e::none ? emblem_height * widest_emblem : 0.f};
+    float const emblem_slot{
+      line.marker != overlay::marker_e::none or line.emblem_column ? emblem_height * widest_emblem : 0.f
+    };
     float const emblem_width{
       mask != nullptr ? emblem_height * static_cast<float>(mask->width) / static_cast<float>(mask->height) : 0.f
     };

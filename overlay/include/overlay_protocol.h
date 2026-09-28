@@ -121,6 +121,9 @@ struct line_t
   ///\brief parts of the text in colours of their own, in order and not overlapping; a line with any is not
   /// wrapped. A field an older layer skips, drawing the whole text in the line's colour
   std::vector<span_t> spans;
+  ///\brief keeps the emblem's column without a marker - a list with no chart beside it needs no markers, but
+  /// its names still stand in one column. A field an older layer skips, drawing the line without its emblem
+  bool emblem_column{};
   };
 
 ///\brief one point of a series, both coordinates already scaled to 0..1 by the tool

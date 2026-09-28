@@ -189,6 +189,9 @@ With `PROTON_ENABLE_WAYLAND=1` the layer will not hear the key.
 the middle if one is named. The tool uses one to put right the superpower emblem the game gets wrong
 in the panel of a jump being charged. A block with `middle` set stands in the middle screen instead
 of its corner, centred across it; the factions of the destination go under that panel so.
+Those lines carry no markers, since there is no chart beside them to tie them to; `line_t.emblem_column`
+keeps the emblems' column anyway, so the names still start in one place. An older layer skips the
+field and draws the lines without emblems.
 
 Both are placed on the middle screen, from its centre, in shares of its height (`x`, `y`, `width`,
 `height`, `emblem_height`, `middle_y`, `middle_width`). The game draws its interface on the middle

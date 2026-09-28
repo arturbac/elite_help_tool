@@ -51,7 +51,7 @@ auto sample_frame(uint64_t sequence) -> overlay::frame_t
           .swatch_dot = true,
           .spans = {overlay::span_t{.from = 12u, .length = 7u, .color = 0x66dd66u}}
         },
-        overlay::line_t{.text = "Camorra of Purui 6.3%", .color = 0xd9534fu}
+        overlay::line_t{.text = "Camorra of Purui 6.3%", .color = 0xd9534fu, .emblem_column = true}
       },
       .charts = {},
       .text = overlay::text_e::normal,
@@ -121,6 +121,8 @@ auto main() -> int
       if(lines.size() == 4u)
         {
         expect(lines[1].swatch_space);
+        expect(not lines[1].emblem_column);
+        expect(lines[3].emblem_column);
         expect(lines[1].swatch.empty());
         expect(lines[2].swatch.size() == 2_ul);
         expect(lines[2].swatch_dot);

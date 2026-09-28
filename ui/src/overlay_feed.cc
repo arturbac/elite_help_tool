@@ -3770,7 +3770,12 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
       std::vector<overlay::line_t> lines;
       for(overlay::line_t const & line: jump_.lines)
         if(line.marker != overlay::marker_e::none)
+          {
+          // the markers tie the lines to the chart's series, and there is no chart under the panel
           lines.push_back(line);
+          lines.back().marker = overlay::marker_e::none;
+          lines.back().emblem_column = true;
+          }
       if(not lines.empty())
         frame.blocks.push_back(
           overlay::block_t{
