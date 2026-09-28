@@ -135,7 +135,7 @@ public:
   ///\brief which missions pay best - credits and material rewards at what they fetch at one's own bar
   QComboBox * mission_period_{};
   QLabel * mission_note_{};
-  ///\brief missions on foot and in space, one under the other
+  ///\brief data and goods, one under the other - assets are left out, they are a lure on the bar
   std::array<QTableWidget *, 2> mission_views_{};
 
   ///\brief the consumables used up and the kills made on foot

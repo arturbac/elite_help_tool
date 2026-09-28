@@ -375,6 +375,25 @@ int main()
     expect(last and last->has_value() and **last == tick) << "a state named anew was taken for the tick";
   };
 
+  "a carrier's shelf readings keep their time"_test = [&]
+  {
+    expect(bool(dbs.update_carrier(info::carrier_t{.oid = -1, .market_id = 42u, .carrier_name = "Maria", .carrier_id = "W1V-NXM", .tracked = true})));
+    auto carrier{dbs.load_carrier("W1V-NXM")};
+    expect(bool(carrier) and carrier->has_value());
+    expect(bool(dbs.store(info::micro_resource_t{.name = "weaponschematic", .id = 7u, .localised = "Weapon Schematic", .category = "Item"})));
+    // the time is kept in seconds - the sales are told apart by the gaps between readings, so a lost time loses them all
+    for(int64_t const t: {1'790'000'000, 1'790'003'600})
+      expect(bool(dbs.store(info::fcmaterial_t{
+        .oid = -1, .carrier_id = (*carrier)->oid, .timestamp = t, .material_id = 7u, .price = 3'325'000u, .stock = 4u, .demand = 0u
+      })));
+    auto history{dbs.load_carrier_history("W1V-NXM", {})};
+    expect(bool(history) and history->size() == 2_u);
+    expect(history->back().timestamp.time_since_epoch().count() == 1'790'003'600_ll);
+    expect(history->back().name == "weaponschematic" and history->back().category == "Item");
+    auto stock{dbs.load_carrier_stock("W1V-NXM")};
+    expect(bool(stock) and stock->size() == 1_u and stock->front().timestamp.time_since_epoch().count() == 1'790'003'600_ll);
+  };
+
   "a galaxy rebuild loses no progress"_test = [&]
   {
     dbs.close();

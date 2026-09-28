@@ -46,6 +46,8 @@ struct item_sales_t
   uint32_t absences_sold;
   ///\brief what players sold to the bar against its demand
   uint32_t bought_in;
+  ///\brief what the owner put on the shelf: the stock of the first reading and every rise since
+  uint32_t put_up;
   };
 
 ///\brief a gap between readings this long is an absence - restocking readings come seconds or minutes apart
@@ -65,6 +67,8 @@ struct item_value_t
   double value;
   ///\brief the value came from the bar; false for a port's price or for nothing known
   bool from_bar;
+  ///\brief what one piece put on the bar has brought so far: the revenue over the pieces put up - zero off the bar
+  double sold_per_piece;
   };
 
 [[nodiscard]]
@@ -76,18 +80,21 @@ struct mission_reward_row_t
   {
   uint64_t mission_id;
   std::string type;
-  uint64_t reward;
   std::string name;
+  ///\brief the game's category of the reward: Data, Item or Component - empty with no reward
+  std::string category;
   uint32_t count;
   };
 
-///\brief what the missions of one type brought, credits and materials apart
+///\brief what the missions of one type brought in rewards of one category, valued at the bar
 struct mission_value_t
   {
   std::string type;
+  ///\brief all the missions of the type, those that gave nothing of the category too - the average is per mission taken
   uint32_t missions;
-  uint64_t credits;
   double materials;
+  ///\brief what the rewards brought at the bar, each piece at what one put up there has brought so far
+  double sold;
   ///\brief the reward kinds with no value known - the total says less than it could
   uint32_t unvalued_kinds;
   ///\brief the kinds given most, by count, with how many
@@ -98,7 +105,9 @@ struct mission_value_t
 [[nodiscard]]
 auto mission_kind(std::string_view type) -> std::string;
 
+///\brief the mission types that gave rewards of the category, what those rewards are worth
 [[nodiscard]]
-auto mission_values(std::span<mission_reward_row_t const> rows, std::map<std::string, item_value_t> const & values)
-  -> std::vector<mission_value_t>;
+auto mission_values(
+  std::span<mission_reward_row_t const> rows, std::map<std::string, item_value_t> const & values, std::string_view category
+) -> std::vector<mission_value_t>;
   }  // namespace bar

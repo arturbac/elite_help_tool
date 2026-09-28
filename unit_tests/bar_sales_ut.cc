@@ -38,6 +38,8 @@ auto main() -> int
     expect(sold[1].sold == 55_u);
     expect(sold[1].revenue == 9u * 1000u + 46u * 2000u);
     expect(sold[1].absences_listed == 2_u and sold[1].absences_sold == 2_u);
+    // the first stock and each rise are what the owner put up
+    expect(sold[0].put_up == 66_u and sold[1].put_up == 59_u);
     expect(bar::absences(history) == 2_u);
   };
 
@@ -69,13 +71,13 @@ auto main() -> int
     expect(not prices.contains("c"));
   };
 
-  "a mission is its credits and its materials at what they fetch"_test = []
+  "a mission is its rewards of one category at what they fetch"_test = []
   {
     std::vector<bar::item_sales_t> const shelf{
-      {.name = "schematic", .localised = {}, .category = {}, .price = 3'000'000u, .stock = 4u, .sold = 50u, .revenue = 0u,
-       .absences_listed = 2u, .absences_sold = 2u, .bought_in = 0u},
+      {.name = "schematic", .localised = {}, .category = {}, .price = 3'000'000u, .stock = 4u, .sold = 50u, .revenue = 150'000'000u,
+       .absences_listed = 2u, .absences_sold = 2u, .bought_in = 0u, .put_up = 100u},
       {.name = "gas", .localised = {}, .category = {}, .price = 2'000'000u, .stock = 66u, .sold = 0u, .revenue = 0u,
-       .absences_listed = 2u, .absences_sold = 0u, .bought_in = 0u},
+       .absences_listed = 2u, .absences_sold = 0u, .bought_in = 0u, .put_up = 66u},
     };
     auto const values{bar::item_values(shelf, {{"cocktail", 100'000.0}})};
     expect(values.at("schematic").value == 3'000'000.0_d and values.at("schematic").from_bar);
@@ -83,17 +85,23 @@ auto main() -> int
     expect(values.at("cocktail").value == 100'000.0_d and not values.at("cocktail").from_bar);
 
     std::vector<bar::mission_reward_row_t> const rows{
-      {.mission_id = 1u, .type = "Hack", .reward = 100u, .name = "schematic", .count = 1u},
-      {.mission_id = 1u, .type = "Hack", .reward = 100u, .name = "gas", .count = 3u},
-      {.mission_id = 2u, .type = "Hack", .reward = 200u, .name = "", .count = 0u},
-      {.mission_id = 3u, .type = "Kill", .reward = 50u, .name = "unknown", .count = 2u},
+      {.mission_id = 1u, .type = "Hack", .name = "schematic", .category = "Data", .count = 1u},
+      {.mission_id = 1u, .type = "Hack", .name = "gas", .category = "Item", .count = 3u},
+      {.mission_id = 2u, .type = "Hack", .name = "", .category = "", .count = 0u},
+      {.mission_id = 3u, .type = "Kill", .name = "unknown", .category = "Data", .count = 2u},
+      {.mission_id = 4u, .type = "Lure", .name = "cocktail", .category = "Component", .count = 5u},
     };
-    auto const missions{bar::mission_values(rows, values)};
-    expect(missions.size() == 2_u);
-    expect(missions[0].type == "Hack" and missions[0].missions == 2_u and missions[0].credits == 300_u);
-    expect(missions[0].materials == 3'000'000.0_d);
-    expect(missions[0].rewards.front().first == "gas");
-    expect(missions[1].unvalued_kinds == 1_u);
+    auto const data{bar::mission_values(rows, values, "Data")};
+    // the missions that gave no data count in the average, a type with none is left out
+    expect(data.size() == 2_u);
+    expect(data[0].type == "Hack" and data[0].missions == 2_u);
+    expect(data[0].materials == 3'000'000.0_d);
+    // half the schematics put up sold, at 3 million each
+    expect(data[0].sold == 1'500'000.0_d);
+    expect(data[0].rewards.size() == 1_u and data[0].rewards.front().first == "schematic");
+    expect(data[1].unvalued_kinds == 1_u);
+    auto const goods{bar::mission_values(rows, values, "Item")};
+    expect(goods.size() == 1_u and goods[0].rewards.front().first == "gas" and goods[0].materials == 0.0_d and goods[0].sold == 0.0_d);
   };
 
   "a mission's kind drops the version"_test = []

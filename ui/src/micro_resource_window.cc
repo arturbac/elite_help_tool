@@ -350,14 +350,18 @@ auto micro_resource_window_t::setup_ui() -> void
   mission_note_ = new QLabel(mission_page);
   mission_note_->setWordWrap(true);
   mission_layout->addWidget(mission_note_);
-  for(size_t ix{}; char const * heading: {"On foot", "Space"})
+  // assets are left out - they sell for next to nothing and lie on the bar as a lure
+  for(size_t ix{}; char const * heading: {"Data", "Goods"})
     {
     mission_layout->addWidget(new QLabel(QString{"<b>%1</b>"}.arg(heading), mission_page));
     auto * view = numbers_table(
       mission_page,
-      {"Mission type", "Missions", "At the bar / mission", "At the bar, all", "Unvalued kinds", "Rewards given most"}
+      {"Mission type", "Missions", "Sold / mission", "Sold, all", "At the bar / mission", "At the bar, all",
+       "Unvalued kinds", "Rewards given most"}
     );
     view->setToolTip(
+      "Sold: what the rewards have brought at your carrier's bar - each piece at what one piece put on the shelf\n"
+      "has brought so far, the revenue of its sales over all the pieces put up.\n"
       "At the bar: what the material rewards fetch at your carrier's bar.\n"
       "A material reward is valued at the price on your carrier's bar times the share of absences it sold in there -\n"
       "a price nobody pays counts for little. A kind never put on the bar takes a port's price when it is known,\n"
@@ -883,34 +887,34 @@ auto micro_resource_window_t::show_mission_value() -> void
     return name;
   };
 
-  auto const missions{bar::mission_values(*rows, values)};
   mission_note_->setText(qformat(
-    "At the bar: what a mission's material rewards fetch at the bar of {} - its price times the share of absences "
-    "they sold in.",
+    "Sold: what a mission's rewards have brought at the bar of {0} - the revenue of each kind over all its pieces put "
+    "on the shelf. At the bar: the price there times the share of absences they sold in.",
     carrier_name
   ));
 
   for(size_t table{}; QTableWidget * view: mission_views_)
     {
+    auto const missions{bar::mission_values(*rows, values, table == 0u ? "Data" : "Item")};
     view->setSortingEnabled(false);
     view->setRowCount(0);
     for(bar::mission_value_t const & m: missions)
       {
-      if((m.type.starts_with("OnFoot") ? 0u : 1u) != table)
-        continue;
       int const ix{view->rowCount()};
       view->insertRow(ix);
       double const per_materials{m.missions != 0u ? m.materials / m.missions : 0.0};
       std::string given;
       for(auto const & [name, count]: m.rewards | std::views::take(3))
         given += std::format("{}{} {}", given.empty() ? "" : ", ", count, readable(name));
-      // the table already says on foot, the type need not
-      view->setItem(ix, 0, text_cell(table == 0u and m.type.starts_with("OnFoot_") ? std::string_view{m.type}.substr(7) : std::string_view{m.type}));
+      // only missions on foot give such rewards, the type need not say it
+      view->setItem(ix, 0, text_cell(m.type.starts_with("OnFoot_") ? std::string_view{m.type}.substr(7) : std::string_view{m.type}));
       view->setItem(ix, 1, number_cell(m.missions));
-      view->setItem(ix, 2, credits_cell(per_materials));
-      view->setItem(ix, 3, credits_cell(m.materials));
-      view->setItem(ix, 4, number_cell(m.unvalued_kinds));
-      view->setItem(ix, 5, text_cell(given));
+      view->setItem(ix, 2, credits_cell(m.missions != 0u ? m.sold / m.missions : 0.0));
+      view->setItem(ix, 3, credits_cell(m.sold));
+      view->setItem(ix, 4, credits_cell(per_materials));
+      view->setItem(ix, 5, credits_cell(m.materials));
+      view->setItem(ix, 6, number_cell(m.unvalued_kinds));
+      view->setItem(ix, 7, text_cell(given));
       }
     view->setSortingEnabled(true);
     view->sortByColumn(2, Qt::DescendingOrder);

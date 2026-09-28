@@ -139,10 +139,14 @@ it can take the game down: [overlay/README.md](overlay/README.md).
   skipped. Data, goods and assets are listed apart.
 - **Mission value**: which kinds of mission pay best at your carrier's bar - what their material
   rewards fetch there, per mission and in all. The missions' credits are not counted.
-  Each reward is valued at the price on the bar times the share of absences it sold in there, so a
-  price nobody pays counts for little. A kind never put on the bar takes a port's
+  *Sold* is what the rewards have brought: each piece at what one piece put on the shelf has brought
+  so far, the revenue of its kind over all the pieces put up (the first reading's stock and every
+  rise since). *At the bar* is an estimate instead: the price on the bar times the share of absences
+  the kind sold in there, so a price nobody pays counts for little. A kind never put on the bar takes a port's
   price when known and is otherwise counted as unvalued. Mission versions (`_004`, `_007`) are
-  counted as one kind. Missions on foot and in space are listed apart.
+  counted as one kind. Data and goods are listed apart; assets are left out, as they sell for next
+  to nothing. The average is over all the missions of a kind, those that gave nothing of the
+  category too.
 - **On foot**: the consumables used up (grenades by type, medkits, energy cells, e-breaches), and
   the kills on foot, conflict zones apart from settlements. The game does not say what made a kill,
   so a kill 2 to 4 seconds after a frag grenade was thrown counts as the grenade's - the delay at

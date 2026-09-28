@@ -2380,26 +2380,37 @@ auto database_storage_t::load_carriers() -> expected_ec<std::vector<info::carrie
   );
   }
 
+namespace
+  {
+  ///\brief the readings of a carrier's shelf joined with the dictionary - a reading keeps its time in seconds,
+  /// the reading row takes it as the text every other time is kept in
+  auto shelf_readings(std::string_view where) -> std::string
+    {
+    return std::format(
+      "(SELECT r.name AS name, r.localised AS localised, r.category AS category, m.price AS price, m.stock AS stock,"
+      " m.demand AS demand, strftime('%Y-%m-%dT%H:%M:%SZ', m.timestamp, 'unixepoch') AS timestamp"
+      " FROM {} m JOIN {} c ON c.oid = m.carrier_id LEFT JOIN {} r ON r.id = m.material_id{})",
+      sql_iface::tables::carrier_materials,
+      sql_iface::tables::carrier,
+      sql_iface::tables::micro_resource,
+      where
+    );
+    }
+  }  // namespace
+
 auto database_storage_t::load_carrier_stock(std::string_view carrier_id)
   -> expected_ec<std::vector<info::carrier_stock_t>>
   {
   // what counts is the last reading, the earlier ones are the history of sales
-  std::string const where{std::format(
-    " WHERE c.carrier_id = '{}' AND m.timestamp = (SELECT max(timestamp) FROM {} WHERE carrier_id = c.oid)"
-    " ORDER BY r.category, r.localised",
-    sqlite::escape_sql_quotes(carrier_id),
-    sql_iface::tables::carrier_materials
-  )};
-
   return sqlite::select_from<info::carrier_stock_t>(
     db_->db,
-    std::format(
-      "{} m JOIN {} c ON c.oid = m.carrier_id LEFT JOIN {} r ON r.id = m.material_id",
-      sql_iface::tables::carrier_materials,
-      sql_iface::tables::carrier,
-      sql_iface::tables::micro_resource
-    ),
-    where
+    shelf_readings(std::format(
+      " WHERE c.carrier_id = '{}' AND m.timestamp = (SELECT max(timestamp) FROM {} WHERE carrier_id = c.oid)"
+      " ORDER BY r.category, r.localised",
+      sqlite::escape_sql_quotes(carrier_id),
+      sql_iface::tables::carrier_materials
+    )),
+    ""
   );
   }
 
@@ -2440,13 +2451,15 @@ auto database_storage_t::load_mission_rewards(std::chrono::sys_seconds since)
   return sqlite::select_from<bar::mission_reward_row_t>(
     db_->db,
     std::format(
-      "(SELECT m.mission_id AS mission_id, m.type AS type, m.reward AS reward,"
-      " coalesce(a.name, '') AS name, coalesce(a.count, 0) AS count"
+      "(SELECT m.mission_id AS mission_id, m.type AS type, coalesce(a.name, '') AS name,"
+      " coalesce(r.category, '') AS category, coalesce(a.count, 0) AS count"
       " FROM {0} m LEFT JOIN {1} a ON a.timestamp = m.closed AND a.source = 'mission_reward'"
+      " LEFT JOIN {3} r ON r.name = a.name"
       " WHERE m.status = 'completed' AND m.closed >= '{2:%Y-%m-%dT%H:%M:%SZ}')",
       sql_iface::tables::mission,
       sql_iface::tables::micro_acquisition,
-      since
+      since,
+      sql_iface::tables::micro_resource
     ),
     ""
   );
@@ -2456,24 +2469,17 @@ auto database_storage_t::load_carrier_history(std::string_view carrier_id, std::
   -> expected_ec<std::vector<info::carrier_stock_t>>
   {
   // the reading before the period is taken too - without it the first fall in the period has nothing to fall from
-  std::string const where{std::format(
-    " WHERE c.carrier_id = '{0}' AND m.timestamp >= coalesce((SELECT max(timestamp) FROM {1}"
-    " WHERE carrier_id = c.oid AND timestamp < {2}), 0)"
-    " ORDER BY r.name, m.timestamp",
-    sqlite::escape_sql_quotes(carrier_id),
-    sql_iface::tables::carrier_materials,
-    since.time_since_epoch().count()
-  )};
-
   return sqlite::select_from<info::carrier_stock_t>(
     db_->db,
-    std::format(
-      "{} m JOIN {} c ON c.oid = m.carrier_id LEFT JOIN {} r ON r.id = m.material_id",
+    shelf_readings(std::format(
+      " WHERE c.carrier_id = '{0}' AND m.timestamp >= coalesce((SELECT max(timestamp) FROM {1}"
+      " WHERE carrier_id = c.oid AND timestamp < {2}), 0)"
+      " ORDER BY r.name, m.timestamp",
+      sqlite::escape_sql_quotes(carrier_id),
       sql_iface::tables::carrier_materials,
-      sql_iface::tables::carrier,
-      sql_iface::tables::micro_resource
-    ),
-    where
+      since.time_since_epoch().count()
+    )),
+    ""
   );
   }
 

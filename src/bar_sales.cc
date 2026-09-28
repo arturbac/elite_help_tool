@@ -88,7 +88,8 @@ auto sales(std::span<info::carrier_stock_t const> history) -> std::vector<item_s
         .revenue = 0u,
         .absences_listed = 0u,
         .absences_sold = 0u,
-        .bought_in = 0u
+        .bought_in = 0u,
+        .put_up = reading.stock
       });
       previous = &reading;
       continue;
@@ -97,6 +98,7 @@ auto sales(std::span<info::carrier_stock_t const> history) -> std::vector<item_s
     item_sales_t & item{result.back()};
     uint32_t const sold{previous->stock > reading.stock ? previous->stock - reading.stock : 0u};
     item.sold += sold;
+    item.put_up += reading.stock > previous->stock ? reading.stock - previous->stock : 0u;
     item.revenue += uint64_t(sold) * previous->price;
     item.bought_in += previous->demand > reading.demand ? previous->demand - reading.demand : 0u;
     if(is_absence(previous->timestamp, reading.timestamp) and previous->stock != 0u)
@@ -116,11 +118,13 @@ auto item_values(std::span<item_sales_t const> sales, std::map<std::string, doub
   {
   std::map<std::string, item_value_t> values;
   for(auto const & [name, price]: port)
-    values[name] = item_value_t{.value = price, .from_bar = false};
+    values[name] = item_value_t{.value = price, .from_bar = false, .sold_per_piece = 0.0};
   for(item_sales_t const & item: sales)
     if(item.absences_listed != 0u)
       values[item.name] = item_value_t{
-        .value = double(item.price) * item.absences_sold / item.absences_listed, .from_bar = true
+        .value = double(item.price) * item.absences_sold / item.absences_listed,
+        .from_bar = true,
+        .sold_per_piece = item.put_up != 0u ? double(item.revenue) / item.put_up : 0.0
       };
   return values;
   }
@@ -143,14 +147,15 @@ auto mission_kind(std::string_view type) -> std::string
   return std::string{type};
   }
 
-auto mission_values(std::span<mission_reward_row_t const> rows, std::map<std::string, item_value_t> const & values)
-  -> std::vector<mission_value_t>
+auto mission_values(
+  std::span<mission_reward_row_t const> rows, std::map<std::string, item_value_t> const & values, std::string_view category
+) -> std::vector<mission_value_t>
   {
   struct bucket_t
     {
     std::set<uint64_t> missions;
-    uint64_t credits{};
     double materials{};
+    double sold{};
     std::set<std::string> unvalued;
     std::map<std::string, uint32_t> given;
     };
@@ -158,14 +163,16 @@ auto mission_values(std::span<mission_reward_row_t const> rows, std::map<std::st
   for(mission_reward_row_t const & row: rows)
     {
     bucket_t & bucket{by_type[mission_kind(row.type)]};
-    // a mission comes once per kind of its reward, its credits count once
-    if(bucket.missions.insert(row.mission_id).second)
-      bucket.credits += row.reward;
-    if(row.name.empty() or row.count == 0u)
+    // a mission comes once per kind of its reward, and counts once
+    bucket.missions.insert(row.mission_id);
+    if(row.name.empty() or row.count == 0u or row.category != category)
       continue;
     bucket.given[row.name] += row.count;
     if(auto it{values.find(row.name)}; it != values.end())
+      {
       bucket.materials += it->second.value * row.count;
+      bucket.sold += it->second.sold_per_piece * row.count;
+      }
     else
       bucket.unvalued.insert(row.name);
     }
@@ -173,13 +180,15 @@ auto mission_values(std::span<mission_reward_row_t const> rows, std::map<std::st
   std::vector<mission_value_t> result;
   for(auto & [type, bucket]: by_type)
     {
+    if(bucket.given.empty())
+      continue;
     std::vector<std::pair<std::string, uint32_t>> given{bucket.given.begin(), bucket.given.end()};
     std::ranges::sort(given, std::ranges::greater{}, &std::pair<std::string, uint32_t>::second);
     result.push_back(mission_value_t{
       .type = type,
       .missions = uint32_t(bucket.missions.size()),
-      .credits = bucket.credits,
       .materials = bucket.materials,
+      .sold = bucket.sold,
       .unvalued_kinds = uint32_t(bucket.unvalued.size()),
       .rewards = std::move(given)
     });
