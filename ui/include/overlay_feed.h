@@ -7,6 +7,7 @@
 #include <surface_nav.h>
 #include "scanner_sheet.h"
 #include "screenshots.h"
+#include "sky_album.h"
 
 #include <overlay_ipc.h>
 
@@ -199,6 +200,15 @@ private:
   uint64_t pictured_scans_{};
   ///\brief the surface scanner's views, for finding the genera again from the ground
   scanner_sheet_t scanner_;
+  sky_album_t sky_;
+  ///\brief the system the album last saw us arrive in - 0 until the first, which is where the tool started, not a jump
+  uint64_t sky_system_{};
+  bool sky_started_{};
+  ///\brief the jump's end, while its star is still to be asked for - the star's scan comes a moment after
+  std::optional<std::chrono::steady_clock::time_point> sky_arrival_;
+  ///\brief the interface open at the last frame - the scanner closing is the planet's moment
+  uint32_t sky_focus_{};
+  uint64_t sky_capture_id_{};
   ///\brief the screenshots the layer took at the key, filed as they come
   screenshots_t screenshots_;
   ///\brief the one request the frame carries - the newest of the codex's and the scanner's. Kept here so

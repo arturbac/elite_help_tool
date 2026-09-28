@@ -323,6 +323,20 @@ rebuilt from the journals, the pictures cannot.
 Settings are in the `exploration` section of `eht_settings.json`: `bio_worth`, `bio_bodies`,
 `candidates`, `capture`, `capture_size`, `codex_dir`, `jpeg_quality`.
 
+### Sky album
+
+Out of a jump the ship faces the arrival star, and after the surface scanner closes it still faces the
+planet it mapped. At those two moments the layer quietly takes a picture of 80% of the middle screen in
+its own 16:9 shape (`exploration.sky_size`), with no frame and no countdown: the star after the jump, in
+unpopulated space, 1 s after it (`sky_star_delays_ms`: at 0 s the tunnel is still on the screen, at 1 s
+the star is there; several numbers take a series, each picture under its own name), and the
+planet 1.5 s after the scanner (`sky_planet_delay_ms`). The star's scan comes some seconds after the
+jump, so the first pictures are described once it is in. Each body is taken once, and only from the ship's own view in supercruise -
+if a menu opens or the ship leaves supercruise first, the picture is called off. They go to
+`codex/sky/<system>/`, are described in `codex/sky/sky.json`, and `codex/sky.html` shows them with the
+star's class, mass, temperature and radius or the planet's class, atmosphere, gravity and temperature,
+and whether it was a first discovery. The *Sky* button opens it; `sky_pictures` turns it off.
+
 ## Privacy and your own galaxy
 
 EHT is cut off from the public databases **in both directions**, on purpose.

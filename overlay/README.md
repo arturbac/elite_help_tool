@@ -147,7 +147,8 @@ freshly started layer sees counts as already served: it is the tool's last frame
 client, and the moment it was meant for is long gone.
 
 The layer copies a square from the middle of the game's image **before** drawing the overlay over
-it. It takes the pixels out only once that frame's fence has signalled, and writes the PPM in a
+it - or a wider rectangle of the same height, when `capture_t.aspect` asks for one (16/9 takes the
+middle screen's own shape; an older layer skips the field and takes the square). It takes the pixels out only once that frame's fence has signalled, and writes the PPM in a
 thread of its own, under its final name only when the file is complete. The files go beside the
 socket (`~/.local/share/elite_help_tool/captures/`), the one place visible on both sides of the
 container. The tool turns them into JPGs in its `codex/` directory.

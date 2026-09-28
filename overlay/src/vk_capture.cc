@@ -358,15 +358,18 @@ auto record_capture(
   swapchain_data_t & data, frame_resources_t & frame, uint32_t image_index, overlay::capture_t const & request
 ) noexcept -> bool
   {
-  // a square round the very middle of the whole surface - on a triple screen the middle of the centre one
+  // round the very middle of the whole surface - on a triple screen the middle of the centre one; a square
+  // unless a wider shape is asked for
   float const share{std::clamp(request.size, 0.05f, 1.f)};
   uint32_t const side{std::min(
     {static_cast<uint32_t>(std::lround(float(data.extent.height) * share)), data.extent.height, data.extent.width}
   )};
+  float const aspect{std::clamp(request.aspect, 0.25f, 4.f)};
+  uint32_t const width{std::min(static_cast<uint32_t>(std::lround(float(side) * aspect)), data.extent.width)};
   VkRect2D const area{
     .offset
-    = {static_cast<int32_t>((data.extent.width - side) / 2u), static_cast<int32_t>((data.extent.height - side) / 2u)},
-    .extent = {side, side}
+    = {static_cast<int32_t>((data.extent.width - width) / 2u), static_cast<int32_t>((data.extent.height - side) / 2u)},
+    .extent = {width, side}
   };
   try
     {

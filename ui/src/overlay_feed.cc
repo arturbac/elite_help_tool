@@ -3441,6 +3441,90 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
   };
   scanner_.collect(scanner_on_planet);
   scanner_.observe(scanner_on_planet, state.scanner_body_);
+
+  // Out of the jump the ship faces the arrival star; after the scanner it still faces the planet. Both are
+  // taken then, quietly, once per body - in the ship's own view in supercruise, nothing else open
+  {
+  auto const cfg{eht::settings()};
+  bool const ship_view{
+    gui_focus_ == 0u and (status_flags_ & supercruise_flag) != 0u and (status_flags_ & main_ship_flag) != 0u
+    and not state.in_witchspace_
+  };
+  sky_.collect();
+  if(state.current_system_address_ != 0u and state.current_system_address_ != sky_system_ and not state.in_witchspace_)
+    {
+    sky_system_ = state.current_system_address_;
+    // the system the tool started in was not jumped into just now - the ship may face anything
+    if(std::exchange(sky_started_, true) and state.system.population == 0u)
+      {
+      sky_arrival_ = std::chrono::steady_clock::now();
+      std::vector<std::chrono::milliseconds> delays;
+      for(uint32_t const delay: cfg->exploration.sky_star_delays_ms)
+        delays.emplace_back(delay);
+      sky_.ask_series(
+        sky_album_t::entry_t{.kind = "star", .system = state.system.name, .body = state.system.name}, delays
+      );
+      }
+    }
+  if(sky_arrival_)
+    {
+    // the star's own scan comes some seconds after the jump, later than the first pictures - they are taken
+    // under the system's name and told what they show once it is in
+    body_t const * star{};
+    for(body_t const & body: state.system.bodies)
+      if(body.body_type() == body_type_e::star and (star == nullptr or body.distance_from_arrival_ls < star->distance_from_arrival_ls))
+        star = &body;
+    if(star != nullptr)
+      {
+      auto const & details{std::get<star_details_t>(star->details)};
+      sky_.describe(
+        state.system.name,
+        sky_album_t::entry_t{
+          .kind = "star",
+          .system = state.system.name,
+          .body = star->name.empty() ? state.system.name : std::format("{} {}", state.system.name, star->name),
+          .detail = std::format(
+            "{}{} {}, {:.2f} solar masses{}, radius {:.0f} km",
+            details.star_type,
+            details.sub_class,
+            details.luminosity,
+            details.stellar_mass,
+            // a black hole's temperature is written as nought
+            details.surface_temperature > 0.0 ? std::format(", {:.0f} K", details.surface_temperature) : std::string{},
+            star->radius / 1'000.0
+          ),
+          .first = not star->was_discovered
+        }
+      );
+      sky_arrival_.reset();
+      }
+    else if(std::chrono::steady_clock::now() - *sky_arrival_ > std::chrono::seconds{30})
+      sky_arrival_.reset();
+    }
+  if(sky_focus_ == 10u and gui_focus_ != 10u and (status_flags_ & supercruise_flag) != 0u and not state.scanner_body_.empty())
+    {
+    std::string detail;
+    bool first{};
+    for(body_t const & body: state.system.bodies)
+      if(state.scanner_body_ == body.name or state.scanner_body_ == std::format("{} {}", state.system.name, body.name))
+        if(auto const * const planet{std::get_if<planet_details_t>(&body.details)}; planet != nullptr)
+          {
+          detail = planet->planet_class;
+          if(not planet->atmosphere.empty())
+            detail += ", " + planet->atmosphere;
+          detail += std::format(", {:.2f} g, {:.0f} K", planet->surface_gravity / 9.80665, planet->surface_temperature);
+          first = not body.was_discovered;
+          }
+    sky_.ask(
+      sky_album_t::entry_t{
+        .kind = "planet", .system = state.system.name, .body = state.scanner_body_, .detail = std::move(detail), .first = first
+      },
+      std::chrono::milliseconds{cfg->exploration.sky_planet_delay_ms}
+    );
+    }
+  sky_focus_ = gui_focus_;
+  sky_.tick(ship_view);
+  }
   screenshots_.collect();
   refresh_species_history(state);
 
@@ -3802,6 +3886,11 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
   if(auto const & asked{scanner_.capture_request()}; asked.id != scanner_capture_id_)
     {
     scanner_capture_id_ = asked.id;
+    capture_ = asked;
+    }
+  if(auto const & asked{sky_.capture_request()}; asked.id != sky_capture_id_)
+    {
+    sky_capture_id_ = asked.id;
     capture_ = asked;
     }
   frame.capture = capture_;

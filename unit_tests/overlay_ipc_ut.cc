@@ -1,6 +1,7 @@
 #include <overlay_ipc.h>
 
 #include <boost/ut.hpp>
+#include <cmath>
 
 #include <unistd.h>
 
@@ -63,6 +64,7 @@ auto sample_frame(uint64_t sequence) -> overlay::frame_t
       .middle_y = -0.105f,
       .middle_width = 0.6f
     }},
+    .capture = overlay::capture_t{.id = 7u, .path = "sky_7.ppm", .size = 0.8f, .quiet = true, .aspect = 16.f / 9.f},
     .covers = {overlay::cover_t{
       .x = 0.0014f,
       .y = -0.1808f,
@@ -106,6 +108,9 @@ auto main() -> int
       expect(received->frame.blocks.front().beside);
       expect(received->frame.blocks.front().middle);
       expect(received->frame.blocks.front().middle_y == -0.105f);
+      expect(received->frame.capture.id == 7_ul);
+      expect(received->frame.capture.quiet);
+      expect(std::abs(received->frame.capture.aspect - 16.f / 9.f) < 1e-6f);
       expect(received->frame.covers.size() == 1_ul);
       if(received->frame.covers.size() == 1u)
         {

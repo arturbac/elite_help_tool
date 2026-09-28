@@ -39,6 +39,7 @@ target_sources(elite_help_tool
             include/ships_window.h
             include/surface_window.h
             include/overlay_feed.h
+            include/sky_album.h
             include/eht_extension.h
 )
 add_subdirectory(src)

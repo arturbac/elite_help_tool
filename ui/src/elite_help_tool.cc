@@ -334,6 +334,16 @@ auto main_window_t::setup_toolbox() -> void
     this,
     []() { QDesktopServices::openUrl(QUrl::fromLocalFile(QString::fromStdString(codex_t::page_path().string()))); }
   );
+
+  // the stars and planets photographed as the ship looked at them
+  auto * sky = new QPushButton("Sky", this);
+  toolbox_dock->addWidget(sky);
+  connect(
+    sky,
+    &QPushButton::clicked,
+    this,
+    []() { QDesktopServices::openUrl(QUrl::fromLocalFile(QString::fromStdString(sky_album_t::page_path().string()))); }
+  );
   }
 
 auto main_window_t::save_settings() -> void

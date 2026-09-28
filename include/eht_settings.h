@@ -194,6 +194,15 @@ struct exploration_settings_t
   uint32_t little_known{3u};
   ///\brief where a white dwarf's danger begins, in its own radii - measured on the HUD at one DC dwarf, where the
   /// game gives no warning at all and the heat comes too late to be one; 0 shows no such line
+  ///\brief the arrival star after a jump and the planet after the surface scanner, photographed without asking
+  bool sky_pictures{true};
+  ///\brief the picture's height as a share of the screen's, in the middle screen's own 16:9 shape
+  float sky_size{0.8f};
+  ///\brief when after the jump the star is taken, one picture for each - several while the moment worth it is
+  /// being found out. At 0 s the tunnel is still on the screen; at 1 s the star is there
+  std::vector<uint32_t> sky_star_delays_ms{1000u};
+  ///\brief how long after the scanner closes the planet is taken - the cockpit comes back round it first
+  uint32_t sky_planet_delay_ms{1500u};
   float white_dwarf_danger_radii{78.f};
   ///\brief how many measurements the figure above rests on, said beside it so it is read for what it is
   uint32_t white_dwarf_measurements{1u};

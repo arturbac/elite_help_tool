@@ -326,6 +326,9 @@ struct capture_t
   ///\brief taken without the frame, the countdown or the word that it was - a picture the player did not
   /// ask for and should not be bothered with, such as the surface scanner's view of a planet
   bool quiet{};
+  ///\brief the picture's width to its height - 1 a square, 16/9 the shape of the middle screen. A field an older
+  /// layer skips, taking a square of the same height
+  float aspect{1.f};
   };
 
 ///\brief a picture of the whole screen, overlay and all, taken by the layer when the player presses a key

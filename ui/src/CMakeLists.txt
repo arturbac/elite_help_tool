@@ -20,5 +20,6 @@ target_sources(elite_help_tool
   codex.cc
   scanner_sheet.cc
   screenshots.cc
+  sky_album.cc
   eddn_sender.cc
   )
