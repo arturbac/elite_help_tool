@@ -188,6 +188,17 @@ auto construction_window_t::refresh_ui(bool force) -> void
 
   // the choice stays where it was; a site docked at is chosen when nothing was
   uint64_t keep{selected_market()};
+  auto const listed = [](std::vector<info::construction_site_t> const & sites, uint64_t market)
+  { return std::ranges::contains(sites, market, [](info::construction_site_t const & s) { return s.depot.market_id; }); };
+  // the chosen site gone from the list, and not for an abandoned mark: it was finished
+  uint64_t finished{};
+  if(keep != 0u and not listed(sites_, keep))
+    {
+    if(show_abandoned_->isChecked())
+      finished = keep;
+    else if(auto const all{db_.load_construction_sites(true)}; all and not listed(*all, keep))
+      finished = keep;
+    }
   if(keep == 0u)
     keep = state_.settlement_market_id_;
   QSignalBlocker const block{site_combo_};
@@ -208,6 +219,11 @@ auto construction_window_t::refresh_ui(bool force) -> void
     site_combo_->setCurrentIndex(index);
   restore_carrier();
   show_site();
+  if(finished != 0u)
+    {
+    spdlog::info("construction window: site {} is under way no more", finished);
+    emit site_finished(finished);
+    }
   }
 
 namespace

@@ -141,6 +141,9 @@ it can take the game down: [overlay/README.md](overlay/README.md).
   (chosen in the window and remembered for each site; all our carriers when none is) and the ship's
   hold against what is left: + what is to spare, - what is still to be brought, with that in all at
   the bottom.
+- **A site finished** leaves the list at the last delivery, and becomes the settlement or station it
+  turned into, under its new name and type. When the Construction window was on top, the System
+  window takes its place, showing the place just built.
 - **Who produces each commodity**: a square before its name, in the window and on the overlay, in the
   colours of the economies that produce it (Agriculture green, High Tech cyan, Industrial olive,
   Military purple, Refinery orange), split along the diagonal when several do; a dot marks what only

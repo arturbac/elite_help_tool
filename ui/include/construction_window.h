@@ -35,6 +35,11 @@ public:
   [[nodiscard]]
   auto selected_market() const -> uint64_t;
 
+signals:
+  ///\brief the site chosen here is under way no more - built, failed or its system given up; not one
+  /// marked abandoned, which the commander did here
+  void site_finished(uint64_t market_id);
+
 private:
   current_state_t const & state_;
   /// a connection of its own; the state's db_ belongs to the journal following thread

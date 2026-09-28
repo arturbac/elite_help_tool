@@ -205,6 +205,18 @@ auto main_window_t::setup_ui() -> void
 
   construction_view_ = new construction_window_t{state_, db_path_};
   add_tool_window(construction_view_, window_type_e::construction);
+  // a site finished while its window was on top: the window would move on to another site, while the
+  // commander now stands at a new settlement or station - the system shows it
+  connect(
+    construction_view_,
+    &construction_window_t::site_finished,
+    this,
+    [this](uint64_t)
+    {
+      if(mdi_area_->currentSubWindow() == construction_view_)
+        activate_window(window_type_e::system);
+    }
+  );
 
   ships_view_ = new ships_window_t{state_, db_path_};
   add_tool_window(ships_view_, window_type_e::ships);
