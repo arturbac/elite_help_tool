@@ -141,7 +141,7 @@ it can take the game down: [overlay/README.md](overlay/README.md).
   each reward valued at the price on your carrier's bar times the share of absences it sold in
   there, so a price nobody pays counts for little. A kind never put on the bar takes a port's
   price when known and is otherwise counted as unvalued. Mission versions (`_004`, `_007`) are
-  counted as one kind.
+  counted as one kind. Missions on foot and in space are listed apart.
 - **On foot**: the consumables used up (grenades by type, medkits, energy cells, e-breaches), and
   the kills on foot, conflict zones apart from settlements. The game does not say what made a kill,
   so a kill 2 to 4 seconds after a frag grenade was thrown counts as the grenade's - the delay at

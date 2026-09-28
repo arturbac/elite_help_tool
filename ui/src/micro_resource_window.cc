@@ -350,17 +350,22 @@ auto micro_resource_window_t::setup_ui() -> void
   mission_note_ = new QLabel(mission_page);
   mission_note_->setWordWrap(true);
   mission_layout->addWidget(mission_note_);
-  mission_view_ = numbers_table(
-    mission_page,
-    {"Mission type", "Missions", "Credits / mission", "Materials / mission", "Total / mission", "Total",
-     "Unvalued kinds", "Rewards given most"}
-  );
-  mission_view_->setToolTip(
-    "A material reward is valued at the price on your carrier's bar times the share of absences it sold in there -\n"
-    "a price nobody pays counts for little. A kind never put on the bar takes a port's price when it is known,\n"
-    "otherwise it counts as nothing and is listed under Unvalued kinds"
-  );
-  mission_layout->addWidget(mission_view_, 1);
+  for(size_t ix{}; char const * heading: {"On foot", "Space"})
+    {
+    mission_layout->addWidget(new QLabel(QString{"<b>%1</b>"}.arg(heading), mission_page));
+    auto * view = numbers_table(
+      mission_page,
+      {"Mission type", "Missions", "Credits / mission", "Materials / mission", "Total / mission", "Total",
+       "Unvalued kinds", "Rewards given most"}
+    );
+    view->setToolTip(
+      "A material reward is valued at the price on your carrier's bar times the share of absences it sold in there -\n"
+      "a price nobody pays counts for little. A kind never put on the bar takes a port's price when it is known,\n"
+      "otherwise it counts as nothing and is listed under Unvalued kinds"
+    );
+    mission_layout->addWidget(view, 1);
+    mission_views_[ix++] = view;
+    }
   tabs->addTab(mission_page, "Mission value");
 
   // --- on foot: what was used up, and what was killed with what ---
@@ -884,28 +889,35 @@ auto micro_resource_window_t::show_mission_value() -> void
     carrier_name
   ));
 
-  mission_view_->setSortingEnabled(false);
-  mission_view_->setRowCount(int(missions.size()));
-  for(int ix{}; bar::mission_value_t const & m: missions)
+  for(size_t table{}; QTableWidget * view: mission_views_)
     {
-    std::string const & type{m.type};
-    double const per_credits{m.missions != 0u ? double(m.credits) / m.missions : 0.0};
-    double const per_materials{m.missions != 0u ? m.materials / m.missions : 0.0};
-    std::string given;
-    for(auto const & [name, count]: m.rewards | std::views::take(3))
-      given += std::format("{}{} {}", given.empty() ? "" : ", ", count, readable(name));
-    mission_view_->setItem(ix, 0, text_cell(type));
-    mission_view_->setItem(ix, 1, number_cell(m.missions));
-    mission_view_->setItem(ix, 2, credits_cell(per_credits));
-    mission_view_->setItem(ix, 3, credits_cell(per_materials));
-    mission_view_->setItem(ix, 4, credits_cell(per_credits + per_materials));
-    mission_view_->setItem(ix, 5, credits_cell(double(m.credits) + m.materials));
-    mission_view_->setItem(ix, 6, number_cell(m.unvalued_kinds));
-    mission_view_->setItem(ix, 7, text_cell(given));
-    ++ix;
+    view->setSortingEnabled(false);
+    view->setRowCount(0);
+    for(bar::mission_value_t const & m: missions)
+      {
+      if((m.type.starts_with("OnFoot") ? 0u : 1u) != table)
+        continue;
+      int const ix{view->rowCount()};
+      view->insertRow(ix);
+      double const per_credits{m.missions != 0u ? double(m.credits) / m.missions : 0.0};
+      double const per_materials{m.missions != 0u ? m.materials / m.missions : 0.0};
+      std::string given;
+      for(auto const & [name, count]: m.rewards | std::views::take(3))
+        given += std::format("{}{} {}", given.empty() ? "" : ", ", count, readable(name));
+      // the table already says on foot, the type need not
+      view->setItem(ix, 0, text_cell(table == 0u and m.type.starts_with("OnFoot_") ? std::string_view{m.type}.substr(7) : std::string_view{m.type}));
+      view->setItem(ix, 1, number_cell(m.missions));
+      view->setItem(ix, 2, credits_cell(per_credits));
+      view->setItem(ix, 3, credits_cell(per_materials));
+      view->setItem(ix, 4, credits_cell(per_credits + per_materials));
+      view->setItem(ix, 5, credits_cell(double(m.credits) + m.materials));
+      view->setItem(ix, 6, number_cell(m.unvalued_kinds));
+      view->setItem(ix, 7, text_cell(given));
+      }
+    view->setSortingEnabled(true);
+    view->sortByColumn(4, Qt::DescendingOrder);
+    ++table;
     }
-  mission_view_->setSortingEnabled(true);
-  mission_view_->sortByColumn(4, Qt::DescendingOrder);
   }
 
 auto micro_resource_window_t::show_on_foot() -> void
