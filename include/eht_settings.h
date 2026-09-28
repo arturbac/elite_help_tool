@@ -192,6 +192,11 @@ struct exploration_settings_t
   colour_t new_knowledge{0x7fb8ffu};
   ///\brief below this many finds of a genus on worlds like this one, the world counts as little known
   uint32_t little_known{3u};
+  ///\brief where a white dwarf's danger begins, in its own radii - measured on the HUD at one DC dwarf, where the
+  /// game gives no warning at all and the heat comes too late to be one; 0 shows no such line
+  float white_dwarf_danger_radii{78.f};
+  ///\brief how many measurements the figure above rests on, said beside it so it is read for what it is
+  uint32_t white_dwarf_measurements{1u};
   ///\brief a picture of the middle of the screen is taken at every sample - the plant is right there
   bool capture{true};
   ///\brief the side of the square taken, as a share of the screen's height

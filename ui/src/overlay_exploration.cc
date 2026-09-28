@@ -253,6 +253,22 @@ auto describe_arrival(star_system_t const & system) -> std::vector<overlay::line
           .color = colour_plain()
         }
       );
+      // at a white dwarf the game says nothing before the drop and the heat comes too late - the one number
+      // there is, the HUD distance at which the danger began, scaled by the dwarf's size
+      auto const & cfg{eht::settings()->exploration};
+      if(details.star_type.starts_with('D') and cfg.white_dwarf_danger_radii > 0.f)
+        lines.push_back(
+          overlay::line_t{
+            .text = std::format(
+              "  white dwarf: keep beyond ~{:.1f} Ls ({:.0f} radii, {} measurement{})",
+              star->radius / metres_per_ls * cfg.white_dwarf_danger_radii,
+              cfg.white_dwarf_danger_radii,
+              cfg.white_dwarf_measurements,
+              cfg.white_dwarf_measurements == 1u ? "" : "s"
+            ),
+            .color = colour_alert()
+          }
+        );
       }
     }
 

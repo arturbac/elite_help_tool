@@ -280,7 +280,11 @@ The bottom right corner of the overlay follows the order of work in a new system
    `UNDISCOVERED`, the star's radius in km and in light seconds, and how many bodies from the honk
    have been scanned already. The game writes neither where its exclusion zone ends nor how far the
    ship is from the star - that is only on the HUD - so the radius is the scale to read the HUD's
-   distance against, which matters at a white dwarf or a neutron star, a few thousand km across,
+   distance against, which matters at a white dwarf or a neutron star, a few thousand km across.
+   At a white dwarf a line says how far to keep: the game gives no warning before the drop, and the
+   heat comes too late to be one. The figure is the HUD distance at which the danger began at one DC
+   dwarf, 78 of its radii (`exploration.white_dwarf_danger_radii`), scaled by this dwarf's radius,
+   with the number of measurements it rests on (`exploration.white_dwarf_measurements`),
 2. **to map** — bodies worth the probes, most valuable first, green when it is a first discovery,
 3. **life** — bodies with biological signals and, for each genus, the species it most likely is on
    this world, with its price; green when it is worth landing for (`bio_worth`, 5M).
