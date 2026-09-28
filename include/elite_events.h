@@ -1259,6 +1259,8 @@ struct undocked_t
   {
   uint64_t MarketID;
   std::string StationName;
+  ///\brief what the place is now - a construction finished while docked leaves as the station it became
+  std::string StationType;
   ///\brief left in a taxi or a dropship, not in a ship of one's own
   bool Taxi;
   ///\brief left in someone else's ship, as crew

@@ -717,10 +717,16 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
             ++fleet_changes_;
             }
           settlement_market_id_ = 0;
-          // a name given while docked - a construction site's, chosen from the game's rolls - shows first here
+          // a name given while docked - a construction site's, chosen from the game's rolls - shows first here,
+          // and a construction finished while docked leaves as what it became: a settlement, an outpost
           if(event.MarketID != 0u and not event.StationName.empty())
             {
-            if(auto res{db_.store(info::station_t{.market_id = event.MarketID, .system_address = 0u, .name = event.StationName})};
+            if(auto res{db_.store(info::station_t{
+                 .market_id = event.MarketID,
+                 .system_address = 0u,
+                 .name = event.StationName,
+                 .station_type = event.StationType
+               })};
                not res)
               spdlog::error("failed to store the name of {}", event.MarketID);
             ++construction_changes_;

@@ -618,9 +618,15 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
         if(state.personal)
           fleet::record(state.db_, timestamp, event, state.system.name, state.settlement_market_id);
         state.settlement_market_id = 0;
-        // a name given while docked - a construction site's, chosen from the game's rolls - shows first here
+        // a name given while docked - a construction site's, chosen from the game's rolls - shows first here,
+        // and a construction finished while docked leaves as what it became: a settlement, an outpost
         if(event.MarketID != 0u and not event.StationName.empty())
-          if(auto res{state.db_.store(info::station_t{.market_id = event.MarketID, .system_address = 0u, .name = event.StationName})};
+          if(auto res{state.db_.store(info::station_t{
+               .market_id = event.MarketID,
+               .system_address = 0u,
+               .name = event.StationName,
+               .station_type = event.StationType
+             })};
              not res)
             spdlog::error("failed to store the name of {}", event.MarketID);
         }

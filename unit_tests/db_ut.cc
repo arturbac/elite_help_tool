@@ -291,6 +291,32 @@ int main()
   };
 
 
+  "a construction finished while docked leaves as the settlement it became"_test = [&]
+  {
+    constexpr uint64_t site{4393068035ull};
+    // Docked at the site, then ApproachSettlement of the finished one - with no type - then Undocked
+    expect(bool(dbs.store(info::station_t{
+      .market_id = site,
+      .system_address = 4242424244ull,
+      .name = "Planetary Construction Site: Horwood Military Camp",
+      .station_type = "PlanetaryConstructionDepot",
+      .dist_from_star_ls = 812.0
+    })));
+    expect(bool(dbs.store(info::station_t{
+      .market_id = site, .system_address = 4242424244ull, .name = "Horwood Military Camp", .station_type = {}
+    })));
+    expect(bool(dbs.store(info::station_t{
+      .market_id = site, .system_address = 0u, .name = "Horwood Military Camp", .station_type = "OnFootSettlement"
+    })));
+
+    auto station{dbs.load_station(site)};
+    expect(station and station->has_value());
+    expect((*station)->name == "Horwood Military Camp");
+    expect((*station)->station_type == "OnFootSettlement") << "the type of the finished place came from Undocked";
+    expect((*station)->system_address == 4242424244ull) << "Undocked's zero system erased the known one";
+    expect((*station)->dist_from_star_ls == 812.0) << "Undocked erased the distance Docked gave";
+  };
+
   "the last tick in a system is the last change of influence, not of a state"_test = [&]
   {
     using namespace std::chrono;
