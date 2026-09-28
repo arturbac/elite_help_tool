@@ -43,16 +43,28 @@ auto main() -> int
     expect(bar::absences(history) == 2_u);
   };
 
-  "an empty reading is skipped"_test = [&]
+  "a reading with no prices is skipped"_test = [&]
   {
     std::vector<info::carrier_stock_t> const history{
       reading("gas", 0, 100u, 25u),
-      reading("gas", 600, 100u, 0u),
+      reading("gas", 600, 0u, 0u),
       reading("gas", 607, 100u, 25u),
     };
     auto const sold{bar::sales(history)};
     expect(sold[0].sold == 0_u);
     expect(bar::absences(history) == 1_u);
+  };
+
+  "a shelf sold out is a sale of everything"_test = [&]
+  {
+    std::vector<info::carrier_stock_t> const history{
+      reading("gas", 0, 100u, 25u),
+      reading("gas", 600, 100u, 0u),
+      reading("gas", 607, 100u, 25u), // restocked
+    };
+    auto const sold{bar::sales(history)};
+    expect(sold[0].sold == 25_u and sold[0].revenue == 2500_u);
+    expect(sold[0].put_up == 50_u);
   };
 
   "port prices come out of the sales"_test = []

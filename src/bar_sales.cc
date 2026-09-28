@@ -52,13 +52,14 @@ namespace
   {
   auto is_absence(std::chrono::sys_seconds from, std::chrono::sys_seconds to) -> bool { return to - from >= absence_gap; }
 
-  ///\brief readings with nothing on the whole shelf - the game writes the file before the bar has loaded, and
-  /// a fall to zero followed by a rise minutes later is no sale
+  ///\brief readings of a bar not loaded yet - no stock, no demand and no price anywhere on the shelf. A shelf
+  /// sold out keeps its prices, and that is a sale of everything
   auto empty_readings(std::span<info::carrier_stock_t const> history) -> std::set<std::chrono::sys_seconds>
     {
     std::map<std::chrono::sys_seconds, bool> anything;
     for(info::carrier_stock_t const & reading: history)
-      anything[reading.timestamp] = anything[reading.timestamp] or reading.stock != 0u or reading.demand != 0u;
+      anything[reading.timestamp]
+        = anything[reading.timestamp] or reading.stock != 0u or reading.demand != 0u or reading.price != 0u;
     std::set<std::chrono::sys_seconds> empty;
     for(auto const & [moment, something]: anything)
       if(not something)

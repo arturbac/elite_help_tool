@@ -131,6 +131,8 @@ public:
   QLabel * bar_totals_{};
   ///\brief Data, Goods and Assets, one under another - they sell to different buyers at different prices
   std::array<QTableWidget *, 3> bar_views_{};
+  ///\brief each table's heading with its sums - the rows alone are many small numbers
+  std::array<QLabel *, 3> bar_headings_{};
 
   ///\brief which missions pay best - credits and material rewards at what they fetch at one's own bar
   QComboBox * mission_period_{};

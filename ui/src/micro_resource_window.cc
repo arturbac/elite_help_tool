@@ -322,15 +322,16 @@ auto micro_resource_window_t::setup_ui() -> void
   bar_layout->addWidget(bar_totals_);
   for(size_t ix{}; char const * heading: {"Data", "Goods", "Assets"})
     {
-    bar_layout->addWidget(new QLabel(QString{"<b>%1</b>"}.arg(heading), bar_page));
+    bar_headings_[ix] = new QLabel(QString{"<b>%1</b>"}.arg(heading), bar_page);
+    bar_layout->addWidget(bar_headings_[ix]);
     auto * view = numbers_table(
       bar_page,
-      {"Item", "Price", "Stock", "Sold", "Revenue", "Sold in absences", "Port price", "Price / port", "Bought in"}
+      {"Item", "Price", "Stock", "Sold", "Revenue", "Absences with a sale", "Port price", "Price / port", "Bought in"}
     );
     view->setToolTip(
       "Read from the shelf: a fall in stock between two bartender readings is a sale, at the price shown before it;\n"
       "a rise is what you added. Read the bar on arriving, before adding anything, and again after.\n"
-      "Sold in absences: in how many of the absences the item lay on the shelf it sold at all.\n"
+      "Absences with a sale: in how many of the absences the item lay on the shelf it sold at all - absences, not pieces.\n"
       "Port price: what a port's bartender pays, worked out from your own sales at ports - blank when never sold there"
     );
     bar_layout->addWidget(view, 1);
@@ -819,10 +820,14 @@ auto micro_resource_window_t::show_bar_sales() -> void
     {
     view->setSortingEnabled(false);
     view->setRowCount(0);
+    uint32_t table_sold{};
+    uint64_t table_revenue{};
     for(bar::item_sales_t const & item: items)
       {
       if(table_of(item.category) != table)
         continue;
+      table_sold += item.sold;
+      table_revenue += item.revenue;
       int const ix{view->rowCount()};
       view->insertRow(ix);
       view->setItem(ix, 0, text_cell(item.localised.empty() ? item.name : item.localised));
@@ -852,6 +857,9 @@ auto micro_resource_window_t::show_bar_sales() -> void
       }
     view->setSortingEnabled(true);
     view->sortByColumn(4, Qt::DescendingOrder);
+    bar_headings_[table]->setText(qformat(
+      "<b>{}</b> - {} sold for {} Cr", std::array{"Data", "Goods", "Assets"}[table], table_sold, format_credits_value(table_revenue)
+    ));
     ++table;
     }
   }
