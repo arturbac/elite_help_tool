@@ -2403,6 +2403,50 @@ auto database_storage_t::load_carrier_stock(std::string_view carrier_id)
   );
   }
 
+auto database_storage_t::load_port_sale_rows() -> expected_ec<std::vector<bar::port_sale_row_t>>
+  {
+  // a carrier's bar pays what its owner set, so only the ports' sales say what a kind is worth
+  return sqlite::select_from<bar::port_sale_row_t>(
+    db_->db,
+    std::format(
+      "(SELECT s.oid AS sale_oid, s.price AS price, i.name AS name, i.count AS count"
+      " FROM {0} s JOIN {1} i ON i.sale_oid = s.oid"
+      " WHERE s.kind = 'sold' AND s.market_id NOT IN (SELECT market_id FROM {2})"
+      " AND s.market_id NOT IN (SELECT market_id FROM {3} WHERE station_type = 'FleetCarrier'))",
+      sql_iface::tables::micro_sale,
+      sql_iface::tables::micro_sale_item,
+      sql_iface::tables::carrier,
+      sql_iface::tables::station
+    ),
+    ""
+  );
+  }
+
+auto database_storage_t::load_carrier_history(std::string_view carrier_id, std::chrono::sys_seconds since)
+  -> expected_ec<std::vector<info::carrier_stock_t>>
+  {
+  // the reading before the period is taken too - without it the first fall in the period has nothing to fall from
+  std::string const where{std::format(
+    " WHERE c.carrier_id = '{0}' AND m.timestamp >= coalesce((SELECT max(timestamp) FROM {1}"
+    " WHERE carrier_id = c.oid AND timestamp < {2}), 0)"
+    " ORDER BY r.name, m.timestamp",
+    sqlite::escape_sql_quotes(carrier_id),
+    sql_iface::tables::carrier_materials,
+    since.time_since_epoch().count()
+  )};
+
+  return sqlite::select_from<info::carrier_stock_t>(
+    db_->db,
+    std::format(
+      "{} m JOIN {} c ON c.oid = m.carrier_id LEFT JOIN {} r ON r.id = m.material_id",
+      sql_iface::tables::carrier_materials,
+      sql_iface::tables::carrier,
+      sql_iface::tables::micro_resource
+    ),
+    where
+  );
+  }
+
 auto database_storage_t::load_mission_stats(std::chrono::sys_seconds since, uint64_t system_address)
   -> expected_ec<std::vector<info::mission_stat_t>>
   {

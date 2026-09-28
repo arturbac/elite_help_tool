@@ -1,4 +1,6 @@
 #include <micro_resource_window.h>
+#include <bar_sales.h>
+#include <cmath>
 #include <ranges>
 #include <algorithm>
 #include <qformat.h>
@@ -304,6 +306,34 @@ auto micro_resource_window_t::setup_ui() -> void
   bartender_layout->addWidget(bartender_view_, 1);
   tabs->addTab(bartender_page, "Bartender");
 
+  // --- what one's own bar sold ---
+  auto * bar_page = new QWidget(tabs);
+  auto * bar_layout = new QVBoxLayout(bar_page);
+  auto * bar_row = new QHBoxLayout();
+  bar_row->addWidget(new QLabel("Carrier:", bar_page));
+  bar_carrier_ = new QComboBox(bar_page);
+  bar_row->addWidget(bar_carrier_, 1);
+  bar_row->addWidget(new QLabel("Period:", bar_page));
+  bar_period_ = period_choice(bar_page);
+  bar_row->addWidget(bar_period_);
+  bar_layout->addLayout(bar_row);
+  bar_totals_ = new QLabel(bar_page);
+  bar_totals_->setWordWrap(true);
+  bar_layout->addWidget(bar_totals_);
+  bar_view_ = numbers_table(
+    bar_page,
+    {"Item", "Category", "Price", "Stock", "Sold", "Revenue", "Sold in absences", "Port price", "Price / port",
+     "Bought in"}
+  );
+  bar_view_->setToolTip(
+    "Read from the shelf: a fall in stock between two bartender readings is a sale, at the price shown before it;\n"
+    "a rise is what you added. Read the bar on arriving, before adding anything, and again after.\n"
+    "Sold in absences: in how many of the absences the item lay on the shelf it sold at all.\n"
+    "Port price: what a port's bartender pays, worked out from your own sales at ports - blank when never sold there"
+  );
+  bar_layout->addWidget(bar_view_, 1);
+  tabs->addTab(bar_page, "Bar sales");
+
   // --- on foot: what was used up, and what was killed with what ---
   auto * on_foot_page = new QWidget(tabs);
   auto * on_foot_layout = new QVBoxLayout(on_foot_page);
@@ -483,6 +513,8 @@ auto micro_resource_window_t::setup_ui() -> void
   connect(period_combo_, &QComboBox::activated, this, [this](int) { show_acquisitions(); });
   connect(bartender_period_, &QComboBox::activated, this, [this](int) { show_bartender(); });
   connect(on_foot_period_, &QComboBox::activated, this, [this](int) { show_on_foot(); });
+  connect(bar_period_, &QComboBox::activated, this, [this](int) { show_bar_sales(); });
+  connect(bar_carrier_, &QComboBox::activated, this, [this](int) { show_bar_sales(); });
 
   setWidget(central_widget);
   refresh_ui();
@@ -575,6 +607,7 @@ auto micro_resource_window_t::refresh_ui() -> void
 
   show_acquisitions();
   show_bartender();
+  show_bar_sales();
   show_on_foot();
   }
 
@@ -660,6 +693,84 @@ auto micro_resource_window_t::show_bartender() -> void
     ++ix;
     }
   bartender_view_->setSortingEnabled(true);
+  }
+
+auto micro_resource_window_t::show_bar_sales() -> void
+  {
+  // only one's own carriers - a stranger's bar is read at a single visit, which says nothing of its sales
+    {
+    QString const chosen{bar_carrier_->currentData().toString()};
+    QSignalBlocker const block{bar_carrier_};
+    bar_carrier_->clear();
+    if(auto carriers{db_.load_carriers()}; carriers)
+      for(info::carrier_t const & c: *carriers)
+        if(c.tracked)
+          bar_carrier_->addItem(qformat("{} ({})", c.carrier_name, c.carrier_id), QString::fromStdString(c.carrier_id));
+    if(auto const index{bar_carrier_->findData(chosen)}; index >= 0)
+      bar_carrier_->setCurrentIndex(index);
+    }
+  if(bar_carrier_->count() == 0)
+    {
+    bar_totals_->setText("No carrier of your own with a bar read yet");
+    bar_view_->setRowCount(0);
+    return;
+    }
+
+  auto history{db_.load_carrier_history(bar_carrier_->currentData().toString().toStdString(), period_start(bar_period_))};
+  auto port_rows{db_.load_port_sale_rows()};
+  if(not history or not port_rows)
+    {
+    spdlog::error("failed to load bar sales");
+    return;
+    }
+  auto const items{bar::sales(*history)};
+  auto const port{bar::port_prices(*port_rows)};
+
+  uint64_t revenue{};
+  uint32_t sold{};
+  for(bar::item_sales_t const & item: items)
+    {
+    revenue += item.revenue;
+    sold += item.sold;
+    }
+  bar_totals_->setText(qformat(
+    "{} sold for {} Cr over {} absences between bartender readings. An absence whose arrival was not read first "
+    "mixes what sold with what was added, and shows only the difference.",
+    sold,
+    format_credits_value(revenue),
+    bar::absences(*history)
+  ));
+
+  bar_view_->setSortingEnabled(false);
+  bar_view_->setRowCount(int(items.size()));
+  for(int ix{}; bar::item_sales_t const & item: items)
+    {
+    bar_view_->setItem(ix, 0, text_cell(item.localised.empty() ? item.name : item.localised));
+    bar_view_->setItem(ix, 1, text_cell(category_name(item.category)));
+    bar_view_->setItem(ix, 2, number_cell(item.price));
+    bar_view_->setItem(ix, 3, number_cell(item.stock));
+    bar_view_->setItem(ix, 4, number_cell(item.sold));
+    bar_view_->setItem(ix, 5, number_cell(item.revenue));
+    auto * rate = text_cell(item.absences_listed == 0u ? std::string{} : std::format("{} of {}", item.absences_sold, item.absences_listed));
+    bar_view_->setItem(ix, 6, rate);
+    if(auto it{port.find(item.name)}; it != port.end() and it->second > 0.0)
+      {
+      bar_view_->setItem(ix, 7, number_cell(qulonglong(std::llround(it->second))));
+      auto * ratio = new QTableWidgetItem;
+      ratio->setData(Qt::DisplayRole, std::round(double(item.price) / it->second * 10.0) / 10.0);
+      ratio->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+      bar_view_->setItem(ix, 8, ratio);
+      }
+    else
+      {
+      bar_view_->setItem(ix, 7, text_cell(""));
+      bar_view_->setItem(ix, 8, text_cell(""));
+      }
+    bar_view_->setItem(ix, 9, number_cell(item.bought_in));
+    ++ix;
+    }
+  bar_view_->setSortingEnabled(true);
+  bar_view_->sortByColumn(5, Qt::DescendingOrder);
   }
 
 auto micro_resource_window_t::show_on_foot() -> void

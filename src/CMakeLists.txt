@@ -5,6 +5,7 @@ target_sources(eht
   biology.cc
   ground_cz.cc
   on_foot.cc
+  bar_sales.cc
   legal.cc
   fleet.cc
   database_storage.cc

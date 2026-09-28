@@ -1,4 +1,5 @@
 #pragma once
+#include <bar_sales.h>
 #include <string>
 #include <memory>
 #include <simple_enum/expected.h>
@@ -157,6 +158,15 @@ struct database_storage_t
   ///\brief the bartender's shelf as of the last reading, with the time of it
   [[nodiscard]]
   auto load_carrier_stock(std::string_view carrier_id) -> expected_ec<std::vector<info::carrier_stock_t>>;
+
+  ///\brief the sales to ports' bartenders, a row a kind - the prices of a port come out of them
+  [[nodiscard]]
+  auto load_port_sale_rows() -> expected_ec<std::vector<bar::port_sale_row_t>>;
+
+  ///\brief every reading of a carrier's shelf since the moment, ordered by kind and time - what bar::sales reads
+  [[nodiscard]]
+  auto load_carrier_history(std::string_view carrier_id, std::chrono::sys_seconds since)
+    -> expected_ec<std::vector<info::carrier_stock_t>>;
 
   ///\brief marks a carrier as one's own, or takes that mark off
   ///\detail until now the flag existed in the schema and was carefully preserved on every

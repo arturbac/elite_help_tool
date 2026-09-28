@@ -129,6 +129,14 @@ it can take the game down: [overlay/README.md](overlay/README.md).
 - **Bartender**: what you sold to bartenders, bought and bartered, item by item and summed by
   category (goods, assets, data), with the credits of sales and purchases. The game's own
   `Statistics` already count Horizons material traders, so they are not repeated here.
+- **Bar sales** of your own carrier: the game never says a player bought from your bar, but the
+  shelf does. Read the bartender on arriving, before adding anything, and again after: a fall in
+  stock between readings is a sale at the price shown before it, a rise is what you added. Per
+  item: units sold, revenue, in how many absences it sold at all out of those it lay on the
+  shelf, and the price against a port's bartender. The port price is worked out from your own
+  sales at ports - a sale of one kind gives its price, a sale where all kinds but one are known
+  gives that one. A reading with the whole shelf empty, written before the bar has loaded, is
+  skipped.
 - **On foot**: the consumables used up (grenades by type, medkits, energy cells, e-breaches), and
   the kills on foot, conflict zones apart from settlements. The game does not say what made a kill,
   so a kill 2 to 4 seconds after a frag grenade was thrown counts as the grenade's - the delay at

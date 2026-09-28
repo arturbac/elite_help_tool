@@ -124,6 +124,12 @@ public:
   QLabel * bartender_totals_{};
   QTableWidget * bartender_view_{};
 
+  ///\brief what one's own carrier's bar sold, from the falls of its shelf between readings
+  QComboBox * bar_carrier_{};
+  QComboBox * bar_period_{};
+  QLabel * bar_totals_{};
+  QTableWidget * bar_view_{};
+
   ///\brief the consumables used up and the kills made on foot
   QComboBox * on_foot_period_{};
   QLabel * on_foot_totals_{};
@@ -151,5 +157,6 @@ private:
   auto carrier_stats_line(std::string_view carrier_id) -> std::string;
   auto show_acquisitions() -> void;
   auto show_bartender() -> void;
+  auto show_bar_sales() -> void;
   auto show_on_foot() -> void;
   };
