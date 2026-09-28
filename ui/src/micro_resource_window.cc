@@ -355,10 +355,10 @@ auto micro_resource_window_t::setup_ui() -> void
     mission_layout->addWidget(new QLabel(QString{"<b>%1</b>"}.arg(heading), mission_page));
     auto * view = numbers_table(
       mission_page,
-      {"Mission type", "Missions", "Credits / mission", "Materials / mission", "Total / mission", "Total",
-       "Unvalued kinds", "Rewards given most"}
+      {"Mission type", "Missions", "At the bar / mission", "At the bar, all", "Unvalued kinds", "Rewards given most"}
     );
     view->setToolTip(
+      "At the bar: what the material rewards fetch at your carrier's bar.\n"
       "A material reward is valued at the price on your carrier's bar times the share of absences it sold in there -\n"
       "a price nobody pays counts for little. A kind never put on the bar takes a port's price when it is known,\n"
       "otherwise it counts as nothing and is listed under Unvalued kinds"
@@ -885,7 +885,8 @@ auto micro_resource_window_t::show_mission_value() -> void
 
   auto const missions{bar::mission_values(*rows, values)};
   mission_note_->setText(qformat(
-    "Material rewards valued at what they fetch at the bar of {}: its price times the share of absences they sold in.",
+    "At the bar: what a mission's material rewards fetch at the bar of {} - its price times the share of absences "
+    "they sold in.",
     carrier_name
   ));
 
@@ -899,7 +900,6 @@ auto micro_resource_window_t::show_mission_value() -> void
         continue;
       int const ix{view->rowCount()};
       view->insertRow(ix);
-      double const per_credits{m.missions != 0u ? double(m.credits) / m.missions : 0.0};
       double const per_materials{m.missions != 0u ? m.materials / m.missions : 0.0};
       std::string given;
       for(auto const & [name, count]: m.rewards | std::views::take(3))
@@ -907,15 +907,13 @@ auto micro_resource_window_t::show_mission_value() -> void
       // the table already says on foot, the type need not
       view->setItem(ix, 0, text_cell(table == 0u and m.type.starts_with("OnFoot_") ? std::string_view{m.type}.substr(7) : std::string_view{m.type}));
       view->setItem(ix, 1, number_cell(m.missions));
-      view->setItem(ix, 2, credits_cell(per_credits));
-      view->setItem(ix, 3, credits_cell(per_materials));
-      view->setItem(ix, 4, credits_cell(per_credits + per_materials));
-      view->setItem(ix, 5, credits_cell(double(m.credits) + m.materials));
-      view->setItem(ix, 6, number_cell(m.unvalued_kinds));
-      view->setItem(ix, 7, text_cell(given));
+      view->setItem(ix, 2, credits_cell(per_materials));
+      view->setItem(ix, 3, credits_cell(m.materials));
+      view->setItem(ix, 4, number_cell(m.unvalued_kinds));
+      view->setItem(ix, 5, text_cell(given));
       }
     view->setSortingEnabled(true);
-    view->sortByColumn(4, Qt::DescendingOrder);
+    view->sortByColumn(2, Qt::DescendingOrder);
     ++table;
     }
   }

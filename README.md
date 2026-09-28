@@ -137,9 +137,10 @@ it can take the game down: [overlay/README.md](overlay/README.md).
   sales at ports - a sale of one kind gives its price, a sale where all kinds but one are known
   gives that one. A reading with the whole shelf empty, written before the bar has loaded, is
   skipped. Data, goods and assets are listed apart.
-- **Mission value**: which kinds of mission pay best - their credits and their material rewards,
-  each reward valued at the price on your carrier's bar times the share of absences it sold in
-  there, so a price nobody pays counts for little. A kind never put on the bar takes a port's
+- **Mission value**: which kinds of mission pay best at your carrier's bar - what their material
+  rewards fetch there, per mission and in all. The missions' credits are not counted.
+  Each reward is valued at the price on the bar times the share of absences it sold in there, so a
+  price nobody pays counts for little. A kind never put on the bar takes a port's
   price when known and is otherwise counted as unvalued. Mission versions (`_004`, `_007`) are
   counted as one kind. Missions on foot and in space are listed apart.
 - **On foot**: the consumables used up (grenades by type, medkits, energy cells, e-breaches), and
