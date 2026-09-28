@@ -320,19 +320,48 @@ auto micro_resource_window_t::setup_ui() -> void
   bar_totals_ = new QLabel(bar_page);
   bar_totals_->setWordWrap(true);
   bar_layout->addWidget(bar_totals_);
-  bar_view_ = numbers_table(
-    bar_page,
-    {"Item", "Category", "Price", "Stock", "Sold", "Revenue", "Sold in absences", "Port price", "Price / port",
-     "Bought in"}
-  );
-  bar_view_->setToolTip(
-    "Read from the shelf: a fall in stock between two bartender readings is a sale, at the price shown before it;\n"
-    "a rise is what you added. Read the bar on arriving, before adding anything, and again after.\n"
-    "Sold in absences: in how many of the absences the item lay on the shelf it sold at all.\n"
-    "Port price: what a port's bartender pays, worked out from your own sales at ports - blank when never sold there"
-  );
-  bar_layout->addWidget(bar_view_, 1);
+  for(size_t ix{}; char const * heading: {"Data", "Goods", "Assets"})
+    {
+    bar_layout->addWidget(new QLabel(QString{"<b>%1</b>"}.arg(heading), bar_page));
+    auto * view = numbers_table(
+      bar_page,
+      {"Item", "Price", "Stock", "Sold", "Revenue", "Sold in absences", "Port price", "Price / port", "Bought in"}
+    );
+    view->setToolTip(
+      "Read from the shelf: a fall in stock between two bartender readings is a sale, at the price shown before it;\n"
+      "a rise is what you added. Read the bar on arriving, before adding anything, and again after.\n"
+      "Sold in absences: in how many of the absences the item lay on the shelf it sold at all.\n"
+      "Port price: what a port's bartender pays, worked out from your own sales at ports - blank when never sold there"
+    );
+    bar_layout->addWidget(view, 1);
+    bar_views_[ix++] = view;
+    }
   tabs->addTab(bar_page, "Bar sales");
+
+  // --- which missions pay best ---
+  auto * mission_page = new QWidget(tabs);
+  auto * mission_layout = new QVBoxLayout(mission_page);
+  auto * mission_row = new QHBoxLayout();
+  mission_row->addWidget(new QLabel("Missions completed:", mission_page));
+  mission_period_ = period_choice(mission_page);
+  mission_row->addWidget(mission_period_);
+  mission_row->addStretch(1);
+  mission_layout->addLayout(mission_row);
+  mission_note_ = new QLabel(mission_page);
+  mission_note_->setWordWrap(true);
+  mission_layout->addWidget(mission_note_);
+  mission_view_ = numbers_table(
+    mission_page,
+    {"Mission type", "Missions", "Credits / mission", "Materials / mission", "Total / mission", "Total",
+     "Unvalued kinds", "Rewards given most"}
+  );
+  mission_view_->setToolTip(
+    "A material reward is valued at the price on your carrier's bar times the share of absences it sold in there -\n"
+    "a price nobody pays counts for little. A kind never put on the bar takes a port's price when it is known,\n"
+    "otherwise it counts as nothing and is listed under Unvalued kinds"
+  );
+  mission_layout->addWidget(mission_view_, 1);
+  tabs->addTab(mission_page, "Mission value");
 
   // --- on foot: what was used up, and what was killed with what ---
   auto * on_foot_page = new QWidget(tabs);
@@ -514,7 +543,8 @@ auto micro_resource_window_t::setup_ui() -> void
   connect(bartender_period_, &QComboBox::activated, this, [this](int) { show_bartender(); });
   connect(on_foot_period_, &QComboBox::activated, this, [this](int) { show_on_foot(); });
   connect(bar_period_, &QComboBox::activated, this, [this](int) { show_bar_sales(); });
-  connect(bar_carrier_, &QComboBox::activated, this, [this](int) { show_bar_sales(); });
+  connect(bar_carrier_, &QComboBox::activated, this, [this](int) { show_bar_sales(); show_mission_value(); });
+  connect(mission_period_, &QComboBox::activated, this, [this](int) { show_mission_value(); });
 
   setWidget(central_widget);
   refresh_ui();
@@ -608,6 +638,7 @@ auto micro_resource_window_t::refresh_ui() -> void
   show_acquisitions();
   show_bartender();
   show_bar_sales();
+  show_mission_value();
   show_on_foot();
   }
 
@@ -628,6 +659,34 @@ namespace
     cell->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
     return cell;
     }
+
+  ///\brief a sum read at a glance - 12.3M rather than 12'345'678 - but sorted by the number itself
+  class credits_cell_t final : public QTableWidgetItem
+    {
+  public:
+    explicit credits_cell_t(double value) : QTableWidgetItem{human_credits(value)}
+      {
+      setData(Qt::UserRole, value);
+      setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+      }
+
+    auto operator<(QTableWidgetItem const & other) const -> bool override
+      { return data(Qt::UserRole).toDouble() < other.data(Qt::UserRole).toDouble(); }
+
+  private:
+    static auto human_credits(double value) -> QString
+      {
+      if(value >= 1e9)
+        return qformat("{:.1f}B", value / 1e9);
+      if(value >= 1e6)
+        return qformat("{:.1f}M", value / 1e6);
+      if(value >= 1e3)
+        return qformat("{:.1f}k", value / 1e3);
+      return qformat("{:.0f}", value);
+      }
+    };
+
+  auto credits_cell(double value) -> QTableWidgetItem * { return new credits_cell_t{value}; }
 
   auto text_cell(std::string_view text) -> QTableWidgetItem *
     { return new QTableWidgetItem(QString::fromUtf8(text.data(), qsizetype(text.size()))); }
@@ -712,7 +771,8 @@ auto micro_resource_window_t::show_bar_sales() -> void
   if(bar_carrier_->count() == 0)
     {
     bar_totals_->setText("No carrier of your own with a bar read yet");
-    bar_view_->setRowCount(0);
+    for(QTableWidget * view: bar_views_)
+      view->setRowCount(0);
     return;
     }
 
@@ -741,36 +801,111 @@ auto micro_resource_window_t::show_bar_sales() -> void
     bar::absences(*history)
   ));
 
-  bar_view_->setSortingEnabled(false);
-  bar_view_->setRowCount(int(items.size()));
-  for(int ix{}; bar::item_sales_t const & item: items)
+  // the bartender's own split, in the order the bar lists them
+  auto const table_of = [](std::string_view category) -> size_t
+  {
+    return category == "Data" ? 0u : category == "Item" ? 1u : category == "Component" ? 2u : 3u;
+  };
+  for(size_t table{}; QTableWidget * view: bar_views_)
     {
-    bar_view_->setItem(ix, 0, text_cell(item.localised.empty() ? item.name : item.localised));
-    bar_view_->setItem(ix, 1, text_cell(category_name(item.category)));
-    bar_view_->setItem(ix, 2, number_cell(item.price));
-    bar_view_->setItem(ix, 3, number_cell(item.stock));
-    bar_view_->setItem(ix, 4, number_cell(item.sold));
-    bar_view_->setItem(ix, 5, number_cell(item.revenue));
-    auto * rate = text_cell(item.absences_listed == 0u ? std::string{} : std::format("{} of {}", item.absences_sold, item.absences_listed));
-    bar_view_->setItem(ix, 6, rate);
-    if(auto it{port.find(item.name)}; it != port.end() and it->second > 0.0)
+    view->setSortingEnabled(false);
+    view->setRowCount(0);
+    for(bar::item_sales_t const & item: items)
       {
-      bar_view_->setItem(ix, 7, number_cell(qulonglong(std::llround(it->second))));
-      auto * ratio = new QTableWidgetItem;
-      ratio->setData(Qt::DisplayRole, std::round(double(item.price) / it->second * 10.0) / 10.0);
-      ratio->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
-      bar_view_->setItem(ix, 8, ratio);
+      if(table_of(item.category) != table)
+        continue;
+      int const ix{view->rowCount()};
+      view->insertRow(ix);
+      view->setItem(ix, 0, text_cell(item.localised.empty() ? item.name : item.localised));
+      view->setItem(ix, 1, number_cell(item.price));
+      view->setItem(ix, 2, number_cell(item.stock));
+      view->setItem(ix, 3, number_cell(item.sold));
+      view->setItem(ix, 4, credits_cell(double(item.revenue)));
+      view->setItem(
+        ix,
+        5,
+        text_cell(item.absences_listed == 0u ? std::string{} : std::format("{} of {}", item.absences_sold, item.absences_listed))
+      );
+      if(auto it{port.find(item.name)}; it != port.end() and it->second > 0.0)
+        {
+        view->setItem(ix, 6, number_cell(qulonglong(std::llround(it->second))));
+        auto * ratio = new QTableWidgetItem;
+        ratio->setData(Qt::DisplayRole, std::round(double(item.price) / it->second * 10.0) / 10.0);
+        ratio->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+        view->setItem(ix, 7, ratio);
+        }
+      else
+        {
+        view->setItem(ix, 6, text_cell(""));
+        view->setItem(ix, 7, text_cell(""));
+        }
+      view->setItem(ix, 8, number_cell(item.bought_in));
       }
-    else
-      {
-      bar_view_->setItem(ix, 7, text_cell(""));
-      bar_view_->setItem(ix, 8, text_cell(""));
-      }
-    bar_view_->setItem(ix, 9, number_cell(item.bought_in));
+    view->setSortingEnabled(true);
+    view->sortByColumn(4, Qt::DescendingOrder);
+    ++table;
+    }
+  }
+
+auto micro_resource_window_t::show_mission_value() -> void
+  {
+  // what a kind fetches is learnt from the whole history of the bar, whatever period the missions are from
+  std::map<std::string, bar::item_value_t> values;
+  auto port_rows{db_.load_port_sale_rows()};
+  std::map<std::string, double> const port{port_rows ? bar::port_prices(*port_rows) : std::map<std::string, double>{}};
+  std::string carrier_name{"no carrier of your own"};
+  if(bar_carrier_->count() != 0)
+    {
+    carrier_name = bar_carrier_->currentText().toStdString();
+    if(auto history{db_.load_carrier_history(bar_carrier_->currentData().toString().toStdString(), {})}; history)
+      values = bar::item_values(bar::sales(*history), port);
+    }
+  else
+    values = bar::item_values({}, port);
+
+  auto rows{db_.load_mission_rewards(period_start(mission_period_))};
+  auto names{db_.load_micro_resource_names()};
+  if(not rows)
+    {
+    spdlog::error("failed to load mission rewards");
+    return;
+    }
+  auto const readable = [&](std::string const & name) -> std::string
+  {
+    if(names)
+      if(auto it{names->find(name)}; it != names->end() and not it->second.empty())
+        return it->second;
+    return name;
+  };
+
+  auto const missions{bar::mission_values(*rows, values)};
+  mission_note_->setText(qformat(
+    "Material rewards valued at what they fetch at the bar of {}: its price times the share of absences they sold in.",
+    carrier_name
+  ));
+
+  mission_view_->setSortingEnabled(false);
+  mission_view_->setRowCount(int(missions.size()));
+  for(int ix{}; bar::mission_value_t const & m: missions)
+    {
+    std::string const & type{m.type};
+    double const per_credits{m.missions != 0u ? double(m.credits) / m.missions : 0.0};
+    double const per_materials{m.missions != 0u ? m.materials / m.missions : 0.0};
+    std::string given;
+    for(auto const & [name, count]: m.rewards | std::views::take(3))
+      given += std::format("{}{} {}", given.empty() ? "" : ", ", count, readable(name));
+    mission_view_->setItem(ix, 0, text_cell(type));
+    mission_view_->setItem(ix, 1, number_cell(m.missions));
+    mission_view_->setItem(ix, 2, credits_cell(per_credits));
+    mission_view_->setItem(ix, 3, credits_cell(per_materials));
+    mission_view_->setItem(ix, 4, credits_cell(per_credits + per_materials));
+    mission_view_->setItem(ix, 5, credits_cell(double(m.credits) + m.materials));
+    mission_view_->setItem(ix, 6, number_cell(m.unvalued_kinds));
+    mission_view_->setItem(ix, 7, text_cell(given));
     ++ix;
     }
-  bar_view_->setSortingEnabled(true);
-  bar_view_->sortByColumn(5, Qt::DescendingOrder);
+  mission_view_->setSortingEnabled(true);
+  mission_view_->sortByColumn(4, Qt::DescendingOrder);
   }
 
 auto micro_resource_window_t::show_on_foot() -> void

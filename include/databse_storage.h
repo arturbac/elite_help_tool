@@ -163,6 +163,14 @@ struct database_storage_t
   [[nodiscard]]
   auto load_port_sale_rows() -> expected_ec<std::vector<bar::port_sale_row_t>>;
 
+  ///\brief the micro resources' readable names by their internal ones
+  [[nodiscard]]
+  auto load_micro_resource_names() -> expected_ec<std::map<std::string, std::string>>;
+
+  ///\brief the completed missions since the moment with their material rewards, a row a kind of reward
+  [[nodiscard]]
+  auto load_mission_rewards(std::chrono::sys_seconds since) -> expected_ec<std::vector<bar::mission_reward_row_t>>;
+
   ///\brief every reading of a carrier's shelf since the moment, ordered by kind and time - what bar::sales reads
   [[nodiscard]]
   auto load_carrier_history(std::string_view carrier_id, std::chrono::sys_seconds since)

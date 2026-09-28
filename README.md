@@ -136,7 +136,12 @@ it can take the game down: [overlay/README.md](overlay/README.md).
   shelf, and the price against a port's bartender. The port price is worked out from your own
   sales at ports - a sale of one kind gives its price, a sale where all kinds but one are known
   gives that one. A reading with the whole shelf empty, written before the bar has loaded, is
-  skipped.
+  skipped. Data, goods and assets are listed apart.
+- **Mission value**: which kinds of mission pay best - their credits and their material rewards,
+  each reward valued at the price on your carrier's bar times the share of absences it sold in
+  there, so a price nobody pays counts for little. A kind never put on the bar takes a port's
+  price when known and is otherwise counted as unvalued. Mission versions (`_004`, `_007`) are
+  counted as one kind.
 - **On foot**: the consumables used up (grenades by type, medkits, energy cells, e-breaches), and
   the kills on foot, conflict zones apart from settlements. The game does not say what made a kill,
   so a kill 2 to 4 seconds after a frag grenade was thrown counts as the grenade's - the delay at

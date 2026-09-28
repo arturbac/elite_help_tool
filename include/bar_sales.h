@@ -58,4 +58,47 @@ auto sales(std::span<info::carrier_stock_t const> history) -> std::vector<item_s
 ///\brief how many absences the readings span
 [[nodiscard]]
 auto absences(std::span<info::carrier_stock_t const> history) -> uint32_t;
+///\brief what one kind is worth to the owner: the bar's price times the share of absences it sold in - a price
+/// nobody pays is worth little. A kind never put on the shelf takes the port's price, when that is known
+struct item_value_t
+  {
+  double value;
+  ///\brief the value came from the bar; false for a port's price or for nothing known
+  bool from_bar;
+  };
+
+[[nodiscard]]
+auto item_values(std::span<item_sales_t const> sales, std::map<std::string, double> const & port)
+  -> std::map<std::string, item_value_t>;
+
+///\brief one completed mission and one kind of its material reward - a mission with none has an empty name
+struct mission_reward_row_t
+  {
+  uint64_t mission_id;
+  std::string type;
+  uint64_t reward;
+  std::string name;
+  uint32_t count;
+  };
+
+///\brief what the missions of one type brought, credits and materials apart
+struct mission_value_t
+  {
+  std::string type;
+  uint32_t missions;
+  uint64_t credits;
+  double materials;
+  ///\brief the reward kinds with no value known - the total says less than it could
+  uint32_t unvalued_kinds;
+  ///\brief the kinds given most, by count, with how many
+  std::vector<std::pair<std::string, uint32_t>> rewards;
+  };
+
+///\brief a mission's type without the game's prefix and version number - the kind of work it is
+[[nodiscard]]
+auto mission_kind(std::string_view type) -> std::string;
+
+[[nodiscard]]
+auto mission_values(std::span<mission_reward_row_t const> rows, std::map<std::string, item_value_t> const & values)
+  -> std::vector<mission_value_t>;
   }  // namespace bar

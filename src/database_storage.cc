@@ -2422,6 +2422,36 @@ auto database_storage_t::load_port_sale_rows() -> expected_ec<std::vector<bar::p
   );
   }
 
+auto database_storage_t::load_micro_resource_names() -> expected_ec<std::map<std::string, std::string>>
+  {
+  auto rows{sqlite::select_from<info::micro_resource_t>(db_->db, sql_iface::tables::micro_resource, "")};
+  if(not rows) [[unlikely]]
+    return cxx23::unexpected{rows.error()};
+  std::map<std::string, std::string> names;
+  for(info::micro_resource_t & row: *rows)
+    names.emplace(std::move(row.name), std::move(row.localised));
+  return names;
+  }
+
+auto database_storage_t::load_mission_rewards(std::chrono::sys_seconds since)
+  -> expected_ec<std::vector<bar::mission_reward_row_t>>
+  {
+  // a reward is written in the same event that completes the mission, so the second of it is the link
+  return sqlite::select_from<bar::mission_reward_row_t>(
+    db_->db,
+    std::format(
+      "(SELECT m.mission_id AS mission_id, m.type AS type, m.reward AS reward,"
+      " coalesce(a.name, '') AS name, coalesce(a.count, 0) AS count"
+      " FROM {0} m LEFT JOIN {1} a ON a.timestamp = m.closed AND a.source = 'mission_reward'"
+      " WHERE m.status = 'completed' AND m.closed >= '{2:%Y-%m-%dT%H:%M:%SZ}')",
+      sql_iface::tables::mission,
+      sql_iface::tables::micro_acquisition,
+      since
+    ),
+    ""
+  );
+  }
+
 auto database_storage_t::load_carrier_history(std::string_view carrier_id, std::chrono::sys_seconds since)
   -> expected_ec<std::vector<info::carrier_stock_t>>
   {

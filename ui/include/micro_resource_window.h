@@ -1,4 +1,5 @@
 #pragma once
+#include <array>
 #include "logic.h"
 #include <qwidget.h>
 #include <qmdiarea.h>
@@ -128,7 +129,13 @@ public:
   QComboBox * bar_carrier_{};
   QComboBox * bar_period_{};
   QLabel * bar_totals_{};
-  QTableWidget * bar_view_{};
+  ///\brief Data, Goods and Assets, one under another - they sell to different buyers at different prices
+  std::array<QTableWidget *, 3> bar_views_{};
+
+  ///\brief which missions pay best - credits and material rewards at what they fetch at one's own bar
+  QComboBox * mission_period_{};
+  QLabel * mission_note_{};
+  QTableWidget * mission_view_{};
 
   ///\brief the consumables used up and the kills made on foot
   QComboBox * on_foot_period_{};
@@ -158,5 +165,6 @@ private:
   auto show_acquisitions() -> void;
   auto show_bartender() -> void;
   auto show_bar_sales() -> void;
+  auto show_mission_value() -> void;
   auto show_on_foot() -> void;
   };
