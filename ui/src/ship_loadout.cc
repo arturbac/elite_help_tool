@@ -124,15 +124,20 @@ auto ship_loadout_window_t::refresh_ui(ship_loadout_t const & load) -> void
       row_l->addWidget(s_lab);
 
       modules_layout->addWidget(row);
-      module_rows.push_back({h_bar, p_lab, s_lab});
+      module_rows.push_back({name, h_bar, p_lab, s_lab});
       }
     }
 
-  // 3. update the values of the rows (always)
+  // 3. update the values of the rows (always) - including the slot name/tooltip, since a same-count
+  // ship or loadout swap does not go through the rebuild branch above but still changes which module
+  // sits at each index
   for(size_t i = 0; i < loadout.Modules.size(); ++i)
     {
     auto const & mod = loadout.Modules[i];
     auto & ui = module_rows[i];
+
+    ui.name->setText(QString::fromStdString(mod.Slot));
+    ui.name->setToolTip(QString::fromStdString(mod.Item));
 
     ui.health->setValue(static_cast<int>(mod.Health * 100));
     auto const cfg{eht::settings()};

@@ -23,6 +23,7 @@ class ship_loadout_window_t final : public QMdiSubWindow
 
   struct module_row_t
     {
+    QLabel * name;
     QProgressBar * health;
     QLabel * prio;
     QLabel * status;

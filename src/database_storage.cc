@@ -3809,7 +3809,9 @@ auto database_storage_t::store(info::carrier_movement_t const & value) -> expect
       value.timestamp
     )
   )};
-  if(known and *known and **known != 0u)
+  if(not known) [[unlikely]]
+    return cxx23::unexpected{known.error()};
+  if(*known and **known != 0u)
     return {};
   return sqlite::insert_into(db_->db, "oid"sv, sql_iface::tables::carrier_movement, value);
   }

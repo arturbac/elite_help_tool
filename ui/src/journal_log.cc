@@ -95,8 +95,8 @@ elite_event_widget_t<T>::elite_event_widget_t(T const & event, QWidget * parent)
     }
   else if constexpr(std::same_as<T, events::saa_scan_complete_t>)
     {
-    layout->addWidget(new QLabel(qformat("🌕 scan complete", event.BodyName)));
-
+    layout->addWidget(new QLabel("🌕 scan complete"));
+    layout->addWidget(new QLabel(QString::fromStdString(event.BodyName)));
     layout->addStretch();
     }
   // else

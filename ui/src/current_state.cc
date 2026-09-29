@@ -1092,7 +1092,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           }
         else if constexpr(std::same_as<T, events::scan_bary_centre_t>)
           {
-          system.put_bary_centre(
+          auto const & bc{system.put_bary_centre(
             bary_centre_t{
               .body_id = event.BodyID,
               .semi_major_axis = event.SemiMajorAxis,
@@ -1104,7 +1104,10 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
               .mean_anomaly = event.MeanAnomaly,
               .scanned_at = timestamp
             }
-          );
+          )};
+          if(auto res{db_.store(system.system_address, bc)}; not res) [[unlikely]]
+            spdlog::error("failed to store bary_centre {}: {}", system.system_address, bc.body_id);
+          update_system = true;
           }
         else if constexpr(std::same_as<T, events::scan_detailed_scan_t>)
           {

@@ -365,7 +365,7 @@ auto mission_window_t::setup_ui() -> void
     header->setStretchLastSection(true);
     header->setSectionResizeMode(QHeaderView::Interactive);
     header->setSectionResizeMode(0, QHeaderView::ResizeToContents);
-    for(int i{0}; i < model_->columnCount(); ++i)
+    for(int i{0}; i < massacre_stack_model_->columnCount(); ++i)
       header->setSectionResizeMode(i, QHeaderView::ResizeToContents);
     }
   massacre_layout->addWidget(massace_view_);

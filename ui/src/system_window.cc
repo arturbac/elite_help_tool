@@ -166,7 +166,8 @@ auto system_bodies_model_t::data(QModelIndex const & index, int role) const -> Q
             case 0:  return QString::fromStdString(b.name);
             case 1:  return qformat("{} {}", exploration::get_star_icon(details.star_type), details.star_type);
             case 2:  return {};
-            case 3:  return QString::fromStdString(format_credits_value(b.value));
+            case 3:  return {};
+            case 4:  return QString::fromStdString(format_credits_value(b.value));
             default: return {};
             }
           }
@@ -592,8 +593,7 @@ auto system_window_t::setup_ui() -> void
   signals_layout->addWidget(signals_label);
   signals_layout->addWidget(signals_view);
 
-  // wiring the automatic expansion for the signals
-  connect(signals_model_, &QAbstractItemModel::modelReset, signals_view, [&] { signals_view->expandAll(); });
+  // the automatic expansion for the signals is wired once in the constructor, after setup_ui() returns
   // main_layout->addWidget(signals_view);
 
   // Dodaj obie sekcje do splittera

@@ -509,7 +509,7 @@ auto aprox_value(body_t const & body) noexcept -> uint32_t
   if(body.body_type() == body_type_e::star)
     {
     star_details_t const & details{std::get<star_details_t>(body.details)};
-    result = star_value(details.star_type, details.stellar_mass);
+    result = star_value(details.star_type, details.stellar_mass, not body.was_discovered);
     }
   else
     {
