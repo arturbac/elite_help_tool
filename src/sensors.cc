@@ -128,6 +128,23 @@ auto level_of(double celsius, double critical, double warn_margin, double hyster
   return level_e::normal;
   }
 
+auto log_line(std::chrono::system_clock::time_point at, temperatures_t const & reading, found_t const & found)
+  -> std::string
+  {
+  auto const number = [](std::optional<reading_t> const & value)
+  { return value ? std::format("{:.1f}", value->celsius) : std::string{"null"}; };
+  // names from sysfs are plain words and addresses - nothing in them needs escaping
+  return std::format(
+    R"({{"ts_utc":"{:%FT%T}Z","gpu_c":{},"gpu_sensor":"{}","pci":"{}","cpu_c":{},"cpu_sensor":"{}"}})",
+    std::chrono::floor<std::chrono::milliseconds>(at),
+    number(reading.gpu),
+    found.gpu_sensor,
+    found.gpu_pci,
+    number(reading.cpu),
+    found.cpu_name
+  );
+  }
+
 auto discover(std::filesystem::path const & sys) -> found_t
   {
   found_t found;
@@ -161,7 +178,9 @@ auto discover(std::filesystem::path const & sys) -> found_t
         {
         most_memory = memory;
         found.gpu = source_of(*chosen, std::filesystem::exists(status, ec) ? status : std::filesystem::path{});
-        found.gpu_name = std::format("{} {}", driver, std::filesystem::canonical(device, ec).filename().string());
+        found.gpu_pci = std::filesystem::canonical(device, ec).filename().string();
+        found.gpu_name = std::format("{} {}", driver, found.gpu_pci);
+        found.gpu_sensor = chosen->label;
         }
       continue;
       }

@@ -85,6 +85,16 @@ auto main() -> int
     expect(now.gpu.has_value() and now.gpu->celsius == 55.0);
     expect(now.cpu.has_value() and now.cpu->celsius == 41.0);
 
+    using namespace std::chrono_literals;
+    std::chrono::system_clock::time_point const at{std::chrono::sys_days{std::chrono::September / 29 / 2026} + 5h + 47min};
+    expect(
+      sensors::log_line(at, now, reader.found())
+      == std::string{
+        R"({"ts_utc":"2026-09-29T05:47:00.000Z","gpu_c":55.0,"gpu_sensor":"junction","pci":"device","cpu_c":41.0,"cpu_sensor":"k10temp"})"
+      }
+    );
+    expect(sensors::log_line(at, {}, {}).contains(R"("gpu_c":null)"));
+
     // a sleeping card is not read
     put(sys / "class" / "hwmon" / "hwmon3" / "device" / "power" / "runtime_status", "suspended");
     expect(not reader.read().gpu.has_value());

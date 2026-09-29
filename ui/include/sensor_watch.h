@@ -2,6 +2,7 @@
 
 #include <sensors.h>
 
+#include <chrono>
 #include <mutex>
 #include <optional>
 #include <thread>
@@ -24,5 +25,10 @@ public:
 private:
   mutable std::mutex mutex_;
   std::optional<sensors::temperatures_t> latest_;
+  ///\brief the last line of the log - written from the worker alone
+  std::chrono::steady_clock::time_point logged_{};
   std::jthread worker_;
+
+  ///\brief a line to sensors.jsonl beside the glare's markers, now and then
+  auto log(sensors::temperatures_t const & reading, sensors::found_t const & found) -> void;
   };

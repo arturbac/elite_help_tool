@@ -57,6 +57,9 @@ process carries no state of ours.
   driver is asked through its library when it is installed. Where the driver gives no critical
   level, `sensors.gpu_critical` (100) and `sensors.cpu_critical` (90) stand in; `sensors.enabled`
   turns the line off, `sensors.interval_ms` sets the pace.
+  With `evidence.dir` set (see the settlement glare below) a line goes every 10 s
+  (`sensors.log_interval_s`) to `<dir>/sensors.jsonl` - `ts_utc`, `gpu_c`, `gpu_sensor`, `pci`,
+  `cpu_c`, `cpu_sensor` - moved aside to `sensors.jsonl.1` at 20 MB (`sensors.log_max_mb`).
 - **Jump panel.** While the drive charges for a jump to another system, the game shows the
   destination's superpower emblem, and it is wrong for the Federation, the Empire and the Alliance
   (only independents get the right one). The overlay paints over it with the right emblem, and

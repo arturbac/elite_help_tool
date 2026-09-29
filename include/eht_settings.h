@@ -276,6 +276,10 @@ struct sensors_settings_t
   double warn_margin{10.0};
   ///\brief and a level is left only this many degrees below its border, so the colour does not flicker
   double hysteresis{3.0};
+  ///\brief a line to sensors.jsonl in evidence.dir this often, beside the glare's markers - none without that dir
+  uint32_t log_interval_s{10u};
+  ///\brief the log is moved aside to sensors.jsonl.1 at this size, the older one dropped
+  uint32_t log_max_mb{20u};
   };
 
 struct trade_settings_t

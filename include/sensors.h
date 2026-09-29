@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <cstdint>
 #include <filesystem>
 #include <optional>
@@ -43,6 +44,10 @@ struct found_t
   std::optional<source_t> gpu;
   std::vector<source_t> cpu;
   std::string gpu_name;
+  ///\brief the card's sensor taken - junction or edge
+  std::string gpu_sensor;
+  ///\brief the card's PCI address, 0000:03:00.0
+  std::string gpu_pci;
   std::string cpu_name;
   };
 
@@ -58,6 +63,11 @@ auto discover(std::filesystem::path const & sys) -> found_t;
 ///\detail some sensors give -273.15 or a value no chip survives - 103 C with an unset limit is what one NVMe says
 [[nodiscard]]
 auto parse_millidegrees(std::string_view text) -> std::optional<double>;
+
+///\brief one line of the temperature log, JSON: the moment in UTC, the card's and the processor's degrees
+[[nodiscard]]
+auto log_line(std::chrono::system_clock::time_point at, temperatures_t const & reading, found_t const & found)
+  -> std::string;
 
 ///\brief how warm a reading is against its limit
 enum struct level_e : uint8_t
