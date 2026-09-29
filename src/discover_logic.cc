@@ -82,6 +82,8 @@ struct orbital_node_t
   double orbital_period;
   double ascending_node;
   double mean_anomaly;
+  ///\brief the moment ascending_node/mean_anomaly were true - what "now" is measured onward from
+  std::chrono::sys_seconds epoch;
   std::vector<events::parent_t> parents;
   };
 
@@ -138,8 +140,9 @@ auto calculate_relative_pos(orbital_node_t const & node, double dt) -> body_loca
   }
 
 [[nodiscard]]
-auto order_calculation(std::span<bary_centre_t const> barycentres, std::vector<body_t const *> const & scans)
-  -> std::vector<body_location_t>
+auto body_positions_now(
+  std::span<bary_centre_t const> barycentres, std::vector<body_t const *> const & scans, std::chrono::sys_seconds now
+) -> std::vector<body_location_t>
   {
   std::unordered_map<body_id_t, orbital_node_t> registry;
 
@@ -154,6 +157,7 @@ auto order_calculation(std::span<bary_centre_t const> barycentres, std::vector<b
       bc.orbital_period,
       bc.ascending_node,
       bc.mean_anomaly,
+      bc.scanned_at,
       {}
     };
 
@@ -169,6 +173,7 @@ auto order_calculation(std::span<bary_centre_t const> barycentres, std::vector<b
       s->orbital_period,
       {},  // s->ascending_node,
       {},  // s->mean_anomaly,
+      s->scanned_at,
       {}
     };
     // the node's own immediate parent - the nearest one wins, since a moon's planet outranks whatever
@@ -206,7 +211,17 @@ auto order_calculation(std::span<bary_centre_t const> barycentres, std::vector<b
 
   std::unordered_map<body_id_t, body_location_t> rel_coords;
   for(auto const & [id, node]: registry)
-    rel_coords[id] = calculate_relative_pos(node, 0.0);
+    {
+    // seconds since the scan that gave us this orbit's phase - zero for a scan taken this instant, and
+    // however long since for one read back out of an earlier visit. A row written before the epoch was
+    // kept carries the sentinel default (1970) rather than its real scan's moment - treated as "just
+    // scanned" instead, which is a position off by however far the body has moved since, rather than
+    // one thrown to a near-arbitrary phase by decades that never really passed
+    double const dt{
+      node.epoch == std::chrono::sys_seconds{} ? 0.0 : std::chrono::duration<double>(now - node.epoch).count()
+    };
+    rel_coords[id] = calculate_relative_pos(node, dt);
+    }
 
   std::vector<body_location_t> absolute_positions;
   absolute_positions.reserve(scans.size());
@@ -233,6 +248,16 @@ auto order_calculation(std::span<bary_centre_t const> barycentres, std::vector<b
       }
     absolute_positions.push_back({s->body_id, abs_x, abs_y, abs_z});
     }
+
+  return absolute_positions;
+  }
+
+[[nodiscard]]
+auto order_calculation(
+  std::span<bary_centre_t const> barycentres, std::vector<body_t const *> const & scans, std::chrono::sys_seconds now
+) -> std::vector<body_location_t>
+  {
+  std::vector<body_location_t> const absolute_positions{body_positions_now(barycentres, scans, now)};
 
   // --- TSP Nearest Neighbor (Start from index 0) ---
   if(absolute_positions.empty())

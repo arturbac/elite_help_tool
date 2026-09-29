@@ -91,9 +91,10 @@ private:
   [[nodiscard]]
   auto build_settlement_lines(current_state_t const & state) const -> std::vector<overlay::line_t>;
   ///\brief the system's settlements under the factions holding them - on foot at a mission board, before
-  /// taking a job that sends one to a settlement, the board never says whose it is
+  /// taking a job that sends one to a settlement, the board never says whose it is. Each one's distance
+  /// from wherever we stand now is added where both bodies have been scanned
   [[nodiscard]]
-  auto build_settlement_owners() const -> std::vector<overlay::line_t>;
+  auto build_settlement_owners(star_system_t const & system) const -> std::vector<overlay::line_t>;
 
   ///\brief who holds the places the open missions point at - the journal does not say
   auto refresh_mission_places(current_state_t const & state) -> void;

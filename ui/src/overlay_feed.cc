@@ -2612,7 +2612,7 @@ auto overlay_feed_t::build_surface_nav_lines() const -> std::vector<overlay::lin
   return lines;
   }
 
-auto overlay_feed_t::build_settlement_owners() const -> std::vector<overlay::line_t>
+auto overlay_feed_t::build_settlement_owners(star_system_t const & system) const -> std::vector<overlay::line_t>
   {
   // On foot at a place with mission boards - a port's concourse or hangar, or a settlement. Inside a port
   // the game's own flags say so; at a settlement only its market, known from the approach, does. A taxi
@@ -2642,9 +2642,42 @@ auto overlay_feed_t::build_settlement_owners() const -> std::vector<overlay::lin
     "SpaceConstructionDepot"sv,
     "PlanetaryConstructionDepot"sv
   };
+  // the settlement we stand at now, if any - what every other one's distance is measured from
+  std::optional<uint32_t> here_body_id;
+  if(not station_name_.empty())
+    if(auto it{std::ranges::find(stations_, station_name_, &info::station_t::name)}; it != stations_.end())
+      here_body_id = it->body_id;
+
+  // each scanned body's position now, keyed by body_id - empty when we stand nowhere a settlement could
+  // be measured from, so the walk below costs nothing when it would go unused
+  std::unordered_map<events::body_id_t, events::body_location_t> positions_now;
+  if(here_body_id)
+    {
+    std::vector<body_t const *> scans;
+    scans.reserve(system.bodies.size());
+    for(body_t const & b: system.bodies)
+      scans.push_back(&b);
+    auto const now{std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())};
+    for(events::body_location_t const & loc: body_positions_now(system.bary_centre, scans, now))
+      positions_now.emplace(loc.body_id, loc);
+    }
+  auto const here_pos{
+    here_body_id ? [&]() -> events::body_location_t const *
+    {
+      auto const it{positions_now.find(*here_body_id)};
+      return it != positions_now.end() ? &it->second : nullptr;
+    }()
+                 : nullptr
+  };
+
   // the faction, then its settlements, both in alphabetical order - std::map keeps it so; the economy
   // rides along, since it says what the settlement's missions and its market are about
-  std::map<std::string, std::map<std::string, std::string>> by_owner;
+  struct settlement_info_t
+    {
+    std::string economy;
+    std::optional<uint32_t> body_id;
+    };
+  std::map<std::string, std::map<std::string, settlement_info_t>> by_owner;
   size_t count{};
   for(info::station_t const & station: stations_)
     {
@@ -2655,7 +2688,7 @@ auto overlay_feed_t::build_settlement_owners() const -> std::vector<overlay::lin
        or station.name.starts_with("Orbital Construction Site:"))
       continue;
     by_owner[station.controlling_faction.empty() ? std::string{"owner unknown"} : station.controlling_faction]
-      .emplace(station.name, station.economy);
+      .emplace(station.name, settlement_info_t{.economy = station.economy, .body_id = station.body_id});
     ++count;
     }
   if(by_owner.empty())
@@ -2692,7 +2725,7 @@ auto overlay_feed_t::build_settlement_owners() const -> std::vector<overlay::lin
   // the economies stand in a column of their own, after the longest name
   size_t longest_name{};
   for(auto const & [owner, names]: by_owner)
-    for(auto const & [name, economy]: names)
+    for(auto const & [name, info]: names)
       longest_name = std::max(longest_name, shortened(name).size());
 
   std::vector<entry_t> entries;
@@ -2701,14 +2734,25 @@ auto overlay_feed_t::build_settlement_owners() const -> std::vector<overlay::lin
     {
     entries.push_back(entry_t{.text = owner, .owner = &owner, .faction = true});
     widest = std::max(widest, owner.size() + continued.size());
-    for(auto const & [name, economy]: names)
+    for(auto const & [name, info]: names)
       {
       std::string text{(name == here ? "> " : "  ") + shortened(name)};
-      if(not economy.empty())
+      if(not info.economy.empty())
         {
         text.resize(2u + longest_name + 2u, ' ');
-        text += economy;
+        text += info.economy;
         }
+      // the distance from wherever we stand now to this settlement's own body - only when both are
+      // scanned bodies and it is not the one we are already standing on
+      if(here_pos and info.body_id and info.body_id != here_body_id)
+        if(auto const it{positions_now.find(*info.body_id)}; it != positions_now.end())
+          {
+          double const dx{it->second.x - here_pos->x};
+          double const dy{it->second.y - here_pos->y};
+          double const dz{it->second.z - here_pos->z};
+          double const ls{std::sqrt(dx * dx + dy * dy + dz * dz) / info::light_speed_mps};
+          text += std::format("  {:.0f} Ls", ls);
+          }
       entries.push_back(entry_t{.text = std::move(text), .owner = &owner, .faction = false, .here = name == here});
       }
     }
@@ -3304,12 +3348,27 @@ auto overlay_feed_t::build_logistics_lines(std::array<double, 3> const & here) c
   // The last port decides where an escape pod sends you - settlements and carriers do not count, and
   // after a few stops it is easy to lose track of which of them was a port
   if(auto port{db.load_last_port()}; port and *port)
+    {
+    std::string away;
+    bool const here_known{here[0] != 0.0 or here[1] != 0.0 or here[2] != 0.0};
+    if(here_known)
+      if(auto positions{db.load_system_positions(std::vector{(*port)->system})};
+         positions and not positions->empty())
+        {
+        double const dx{positions->begin()->second[0] - here[0]};
+        double const dy{positions->begin()->second[1] - here[1]};
+        double const dz{positions->begin()->second[2] - here[2]};
+        double const ly{std::sqrt(dx * dx + dy * dy + dz * dz)};
+        away = ly < 0.05 ? std::string{", here"} : std::format(", {:.1f} ly", ly);
+        }
     lines.push_back(
       overlay::line_t{
-        .text = std::format("last port: {}, {} ({})", (*port)->name, (*port)->system, (*port)->station_type),
+        .text
+        = std::format("last port: {}, {} ({}){}", (*port)->name, (*port)->system, (*port)->station_type, away),
         .color = colour_plain()
       }
     );
+    }
 
   // one's own carrier and the squadron's: where each is, or where it goes and when it can jump again
   if(auto carriers{db.load_carrier_states(now, carrier_cooldown)}; carriers and not carriers->empty())
@@ -4151,7 +4210,7 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
       }
     );
 
-  if(auto owners{build_settlement_owners()}; not owners.empty())
+  if(auto owners{build_settlement_owners(state.system)}; not owners.empty())
     frame.blocks.push_back(
       overlay::block_t{
         .corner = overlay::corner_e::bottom_left,

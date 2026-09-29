@@ -1099,7 +1099,8 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
               .periapsis = event.Periapsis,
               .orbital_period = event.OrbitalPeriod,
               .ascending_node = event.AscendingNode,
-              .mean_anomaly = event.MeanAnomaly
+              .mean_anomaly = event.MeanAnomaly,
+              .scanned_at = timestamp
             }
           );
           }
@@ -1112,6 +1113,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
             {
             system.bodies.emplace_back(to_body(std::move(event)));
             body_t & body{system.bodies.back()};
+            body.scanned_at = timestamp;
             std::visit(
               [&]<typename U>(U & details)
               {

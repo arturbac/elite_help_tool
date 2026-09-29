@@ -1754,6 +1754,9 @@ struct body_t
   double periapsis;
   double radius;
   bool was_discovered;
+  ///\brief when the scan that gave the orbital elements above was taken - what a position "now" is
+  /// propagated onward from; default-constructed (the epoch) for rows written before it was kept
+  std::chrono::sys_seconds scanned_at{};
 
   [[nodiscard]]
   auto body_type() const noexcept
@@ -1780,13 +1783,25 @@ struct bary_centre_t
   double orbital_period;
   double ascending_node;
   double mean_anomaly;
+  ///\brief when the ScanBaryCentre that gave the figures above was read
+  std::chrono::sys_seconds scanned_at{};
   };
 
-///\brief every scanned body's absolute position at the moment of its own scan, the moons and the
-/// companion stars' own orbits added onto whatever they in turn circle, up to the system's own centre
+///\brief every scanned body's own position at the given moment, in the order given - the moons and the
+/// companion stars' own orbits added onto whatever they in turn circle, up to the system's own centre.
+/// Each body's orbit is carried forward from its own scan to the given moment, so a body scanned long
+/// ago and a fresh one are both placed at their true position now, not frozen at their scan's moment
 [[nodiscard]]
-auto order_calculation(std::span<bary_centre_t const> barycentres, std::vector<body_t const *> const & scans)
-  -> std::vector<events::body_location_t>;
+auto body_positions_now(
+  std::span<bary_centre_t const> barycentres, std::vector<body_t const *> const & scans, std::chrono::sys_seconds now
+) -> std::vector<events::body_location_t>;
+
+///\brief the same positions as body_positions_now(), walked as a sensible route: nearest-neighbour from
+/// the first body given, which stands for wherever the route starts
+[[nodiscard]]
+auto order_calculation(
+  std::span<bary_centre_t const> barycentres, std::vector<body_t const *> const & scans, std::chrono::sys_seconds now
+) -> std::vector<events::body_location_t>;
 
 ///\brief a lasting signal in the system, one row per name
 struct system_signal_t

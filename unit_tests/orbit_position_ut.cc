@@ -1,6 +1,7 @@
 #include <boost/ut.hpp>
 #include <elite_events.h>
 
+#include <chrono>
 #include <cmath>
 #include <numbers>
 
@@ -9,6 +10,11 @@ namespace
 using ::events::body_location_t;
 
 auto near(double a, double b, double eps = 1e-6) -> bool { return std::abs(a - b) < eps; }
+
+///\brief a fixed moment stood in for "the scan just happened" - every fixture below is both scanned and
+/// asked about at this same instant, so dt is zero and the checks below stay about the geometry alone
+auto const epoch{std::chrono::sys_days{std::chrono::year{2026} / 7 / 24} + std::chrono::hours{14}
+                  + std::chrono::minutes{17} + std::chrono::seconds{13}};
 
 ///\brief a lone star, or a star at the far end of a Parents ladder - everything left at its zero default
 auto make_star(
@@ -152,8 +158,9 @@ auto main() -> int
   {
     auto star{make_star(0, "Bleia Eohn XB-K a63-2", 40528921907736, "L")};
     auto body{to_body(std::move(star))};
+    body.scanned_at = epoch;
     std::vector<body_t const *> scans{&body};
-    auto const positions{order_calculation({}, scans)};
+    auto const positions{order_calculation({}, scans, epoch)};
     expect(fatal(positions.size() == 1_ul));
     expect(near(positions[0].x, 0.0));
     expect(near(positions[0].y, 0.0));
@@ -177,10 +184,11 @@ auto main() -> int
       {::events::parent_t{.Star = 0}}
     )};
     auto body{to_body(std::move(planet))};
+    body.scanned_at = epoch;
     std::vector<body_t const *> scans{&body};
     // the star itself (body_id 0) was never scanned in this test - same as an unscanned system root:
     // its own contribution is zero, so the planet's local position IS its absolute one
-    auto const positions{order_calculation({}, scans)};
+    auto const positions{order_calculation({}, scans, epoch)};
     expect(fatal(positions.size() == 1_ul));
     expect(std::abs(positions[0].x) > 1.0 or std::abs(positions[0].y) > 1.0);
   };
@@ -220,10 +228,12 @@ auto main() -> int
     )};
     auto body_b{to_body(std::move(star_b))};
     auto body_c{to_body(std::move(star_c))};
+    body_b.scanned_at = epoch;
+    body_c.scanned_at = epoch;
     // barycentre 2 held still at the root (0 is never scanned) so both stars' positions are relative to it
     std::vector<bary_centre_t> barycentres{};
     std::vector<body_t const *> scans{&body_b, &body_c};
-    auto const positions{order_calculation(barycentres, scans)};
+    auto const positions{order_calculation(barycentres, scans, epoch)};
     expect(fatal(positions.size() == 2_ul));
     auto const & pb{positions[0]};
     auto const & pc{positions[1]};
@@ -287,6 +297,8 @@ auto main() -> int
     )};
     auto body_a{to_body(std::move(star_a))};
     auto body_c{to_body(std::move(star_c))};
+    body_a.scanned_at = epoch;
+    body_c.scanned_at = epoch;
 
     bary_centre_t const barycentre2{
       .body_id = 2,
@@ -296,11 +308,12 @@ auto main() -> int
       .periapsis = 263.411716,
       .orbital_period = 464275825.023651,
       .ascending_node = 66.120381,
-      .mean_anomaly = 283.472801
+      .mean_anomaly = 283.472801,
+      .scanned_at = epoch
     };
     std::vector<bary_centre_t> barycentres{barycentre2};
     std::vector<body_t const *> scans{&body_a, &body_c};
-    auto const positions{order_calculation(barycentres, scans)};
+    auto const positions{order_calculation(barycentres, scans, epoch)};
     expect(fatal(positions.size() == 2_ul));
     auto const & pa{positions[0]};
     auto const & pc{positions[1]};

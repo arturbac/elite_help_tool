@@ -367,6 +367,7 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
 
         state.system.bodies.emplace_back(to_body(std::move(event)));
         body_t & body{state.system.bodies.back()};
+        body.scanned_at = timestamp;
         body.value = exploration::aprox_value(body);
 
         std::visit(
@@ -444,7 +445,8 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
             .periapsis = event.Periapsis,
             .orbital_period = event.OrbitalPeriod,
             .ascending_node = event.AscendingNode,
-            .mean_anomaly = event.MeanAnomaly
+            .mean_anomaly = event.MeanAnomaly,
+            .scanned_at = timestamp
           }
         )};
         if(auto res{state.db_.store(state.system.system_address, bc)}; not res)

@@ -279,6 +279,7 @@ struct body_t
   double radius;
   bool was_discovered;
   uint8_t details_type;
+  std::chrono::sys_seconds scanned_at;
   };
 
 [[nodiscard]]
@@ -297,7 +298,8 @@ auto to_db_fromat(uint64_t ref_system_address, ::body_t const & v) noexcept -> s
     .periapsis = v.periapsis,
     .radius = v.radius,
     .was_discovered = v.was_discovered,
-    .details_type = uint8_t(v.body_type())
+    .details_type = uint8_t(v.body_type()),
+    .scanned_at = v.scanned_at
   };
   }
 
@@ -315,7 +317,8 @@ auto to_native_fromat(sql_iface::body_t && v) noexcept -> ::body_t
     .eccentricity = v.eccentricity,
     .periapsis = v.periapsis,
     .radius = v.radius,
-    .was_discovered = v.was_discovered
+    .was_discovered = v.was_discovered,
+    .scanned_at = v.scanned_at
   };
   }
 
@@ -332,6 +335,7 @@ struct bary_centre_t
   double orbital_period;
   double ascending_node;
   double mean_anomaly;
+  std::chrono::sys_seconds scanned_at;
   };
 
 [[nodiscard]]
@@ -346,7 +350,8 @@ auto to_db_fromat(uint64_t ref_system_address, ::bary_centre_t const & bc) noexc
     .periapsis = bc.periapsis,
     .orbital_period = bc.orbital_period,
     .ascending_node = bc.ascending_node,
-    .mean_anomaly = bc.mean_anomaly
+    .mean_anomaly = bc.mean_anomaly,
+    .scanned_at = bc.scanned_at
   };
   }
 
@@ -1169,6 +1174,10 @@ auto database_storage_t::migrate_live_schema() -> expected_ec<void>
        addition_t{sql_iface::tables::station, "controlling_faction"sv, "TEXT DEFAULT ''"sv},
        addition_t{sql_iface::tables::station, "dist_from_star_ls"sv, "REAL DEFAULT 0"sv},
        addition_t{sql_iface::tables::station, "body_id"sv, "INTEGER"sv},
+       // when the scan behind a body's orbital elements was taken - rows written before it was kept
+       // stay at the epoch, as distant in the past as a position "now" could ever be carried forward to
+       addition_t{sql_iface::tables::body, "scanned_at"sv, "TEXT DEFAULT '1970-01-01T00:00:00Z'"sv},
+       addition_t{sql_iface::tables::bary_centre, "scanned_at"sv, "TEXT DEFAULT '1970-01-01T00:00:00Z'"sv},
        // what a star orbits - stars written before it was kept stay NULL until a rebuild or a rescan
        addition_t{sql_iface::tables::star_details, "parent_star"sv, "INTEGER"sv},
        addition_t{sql_iface::tables::star_details, "parent_barycenter"sv, "INTEGER"sv},

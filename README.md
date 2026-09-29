@@ -39,8 +39,9 @@ process carries no state of ours.
   middle of the screen. Both readouts stand where you look during a fight, clear of the crosshair.
 - **What stands where:** the system and its exploration work on the right, the station's market
   and mission cargo top right, the route, cargo, missions and what a death would cost on the left.
-- **Last port:** where an escape pod would take you, beside the ships in transit. Only ports count:
-  not on-foot settlements, fleet carriers, construction sites or the colonisation ship.
+- **Last port:** where an escape pod would take you, beside the ships in transit, with its distance
+  in light years when its system's position is known. Only ports count: not on-foot settlements,
+  fleet carriers, construction sites or the colonisation ship.
 - **System map:** the bodies and ports of the current system, drawn in the game's colours, with
   arrows at the places open missions send you to.
 - **Readable over anything.** The ground under each block darkens by how bright the game is
@@ -139,7 +140,10 @@ it can take the game down: [overlay/README.md](overlay/README.md).
   them, both in alphabetical order, each with its economy, flowing into a second and third column
   when long. The settlement you stand at is marked with an arrow and painted green. The board
   never says whose a settlement is, and a job there moves that faction's influence. Only
-  settlements you have visited or flown close to are known.
+  settlements you have visited or flown close to are known. Each other one gets its distance in Ls
+  from wherever you stand now, when both its own body and yours have been scanned: real orbital
+  positions at this instant, not the raw distance-from-star the journal writes, which two bodies on
+  opposite sides of the same star can share.
 - **Mission cargo**: the goods delivery missions still need against what is in the hold, and the
   known markets and producers that supply them.
 - **What is really paid**: the reward is taken from the hand-in, not from the offer, and missions
