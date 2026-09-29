@@ -225,6 +225,25 @@ int main()
     expect((*faction)->reputation > 87.4 and (*faction)->reputation < 87.6) << "the reputation lost";
   };
 
+  "a replayed body_signals event replaces the genus list rather than duplicating it"_test = [&]
+  {
+    std::vector<::events::genus_t> const first_pass{
+      ::events::genus_t{.Genus_Localised = "Bacterium", .Species_Localised = "", .Sampled = false},
+      ::events::genus_t{.Genus_Localised = "Stratum", .Species_Localised = "", .Sampled = false}
+    };
+    expect(bool(dbs.store(address, body, std::span{first_pass})));
+
+    // a second reading of the same body's signals - as a journal replay after a restart would do -
+    // must not stack a second copy of the same two genuses on top of the first
+    expect(bool(dbs.store(address, body, std::span{first_pass})));
+
+    auto reloaded{dbs.load_system(address)};
+    expect(bool(reloaded));
+    expect(reloaded->has_value());
+    auto const & genuses{std::get<planet_details_t>((**reloaded).bodies[0].details).genuses_};
+    expect(genuses.size() == 2u) << "genus rows duplicated on replay, got:" << genuses.size();
+  };
+
   // this is the whole point of the split: the shared knowledge of the galaxy can be rebuilt by the second
   // account, and this character's progress has to survive that - hence natural keys rather than oids
   // the rule Artur pointed out: when a faction's retreat completes it leaves the system, and every

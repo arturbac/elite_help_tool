@@ -353,9 +353,6 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
         }
       else if constexpr(std::same_as<T, events::scan_detailed_scan_t>)
         {
-        if(state.system.fss_complete)
-          return;
-
         if(
           auto it{std::ranges::find(state.system.bodies, event.BodyID, body_body_id_proj)};
           it != state.system.bodies.end()

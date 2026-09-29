@@ -1108,9 +1108,6 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           }
         else if constexpr(std::same_as<T, events::scan_detailed_scan_t>)
           {
-          if(system.fss_complete)
-            return;
-
           if(auto it{system.body_by_id(event.BodyID)}; it == system.bodies.end())
             {
             system.bodies.emplace_back(to_body(std::move(event)));

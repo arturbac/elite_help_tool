@@ -2343,7 +2343,21 @@ auto database_storage_t::store(
   auto resoid{oid_for_body(system_address, body_id)};
   if(not resoid)
     return cxx23::unexpected{resoid.error()};
+
   std::optional<uint64_t> boid_oid{*resoid};
+  if(not boid_oid)
+    return {};
+
+  // same reasoning as the signal_t overload above: the event carries the body's whole list, so it
+  // replaces what was there rather than adding to it
+  if(
+    auto res{sqlite::execute_query_no_result(
+      db_->db, std::format("DELETE FROM {} WHERE ref_body_oid={}", sql_iface::tables::genus, *boid_oid)
+    )};
+    not res
+  ) [[unlikely]]
+    return res;
+
   for(events::genus_t const & gen: genuses)
     if(auto res{store(*boid_oid, gen)}; not res)
       return cxx23::unexpected{res.error()};

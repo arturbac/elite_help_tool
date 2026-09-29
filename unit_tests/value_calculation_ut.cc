@@ -64,6 +64,27 @@ auto main() -> int
     expect(value > 1'000'000);
   };
 
+  "star_value"_test = []
+  {
+    "a supergiant uses the same base as an ordinary star, not the old 33.0 bug"_test = []
+    {
+      auto const supergiant{exploration::star_value("K_OrangeSuperGiant", 5.0)};
+      auto const ordinary{exploration::star_value("K", 5.0)};
+      expect(supergiant == ordinary) << "supergiant:" << supergiant << "ordinary:" << ordinary;
+      expect(supergiant > 1'000_u) << "supergiant value too low:" << supergiant;
+    };
+
+    "a scanned star body gets a non-zero value, unlike the pre-fix always-0 bug"_test = []
+    {
+      body_t b{
+        .details = star_details_t{.system_address = 1, .star_type = "K", .luminosity = "V", .stellar_mass = 1.0},
+        .was_discovered = false
+      };
+      auto const value{exploration::aprox_value(b)};
+      expect(value > 0_u) << "star value must not be 0";
+    };
+  };
+
   "organic_values"_test = []
   {
     "a species hits the price list directly"_test = []

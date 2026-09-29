@@ -485,12 +485,8 @@ auto star_value(std::string_view star_type, double stellar_mass, bool is_first_d
     if(type == "BlackHole"sv or type == "H"sv)
       return 22628.0;
 
-    // supergiants
-    if(type.find("SuperGiant"sv) != std::string_view::npos)
-      return 33.0;
-
-    // ordinary main sequence stars and the rest (K, G, B, F, O, A, M)
-    // most share the same base and differ by mass
+    // ordinary main sequence stars, giants and supergiants (K, G, B, F, O, A, M) all share the same
+    // base and differ by mass - the game has no separate supergiant bucket
     return 1200.0;
   };
 
@@ -995,6 +991,8 @@ auto to_body(events::scan_detailed_scan_t && event) -> body_t
     if(auto it{std::ranges::find_if(event.Parents, [](events::parent_t const & p) { return p.Null.has_value(); })};
        it != event.Parents.end())
       star.parent_barycenter = *it->Null;
+
+    b.value = exploration::aprox_value(b);
     }
   else
     {
