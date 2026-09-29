@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20..4.1.20)
-project(EliteHelpTool VERSION 1.0.1 LANGUAGES CXX)
+project(EliteHelpTool VERSION 1.0.2 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
