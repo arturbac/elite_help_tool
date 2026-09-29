@@ -1,5 +1,6 @@
 #include <micro_resource_window.h>
 #include <bar_sales.h>
+#include <biology.h>
 #include <cmath>
 #include <ranges>
 #include <algorithm>
@@ -549,6 +550,34 @@ auto micro_resource_window_t::setup_ui() -> void
 
   connect(only_mine_, &QCheckBox::toggled, this, [this](bool) { reload_carriers(); });
 
+  // --- what cartographic data paid against the estimate ---
+  auto * cartography_page = new QWidget(tabs);
+  auto * cartography_layout = new QVBoxLayout(cartography_page);
+  cartography_note_ = new QLabel(cartography_page);
+  cartography_note_->setWordWrap(true);
+  cartography_layout->addWidget(cartography_note_);
+  cartography_view_ = new QTableWidget(cartography_page);
+  cartography_view_->setColumnCount(9);
+  cartography_view_->setHorizontalHeaderLabels(
+    {"Sold (UTC)", "Systems", "Bodies sold", "Bodies priced", "Estimate", "Base", "Bonus", "Paid", "Paid / estimate"}
+  );
+  cartography_view_->verticalHeader()->setVisible(false);
+  cartography_view_->setEditTriggers(QAbstractItemView::NoEditTriggers);
+  cartography_view_->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
+  cartography_view_->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
+  cartography_layout->addWidget(cartography_view_, 1);
+  tabs->addTab(cartography_page, "Cartography");
+  connect(
+    tabs,
+    &QTabWidget::currentChanged,
+    this,
+    [this, tabs, cartography_page](int index)
+    {
+      if(tabs->widget(index) == cartography_page)
+        show_cartography(true);
+    }
+  );
+
   connect(period_combo_, &QComboBox::activated, this, [this](int) { show_acquisitions(); });
   connect(bartender_period_, &QComboBox::activated, this, [this](int) { show_bartender(); });
   connect(on_foot_period_, &QComboBox::activated, this, [this](int) { show_on_foot(); });
@@ -650,6 +679,78 @@ auto micro_resource_window_t::refresh_ui() -> void
   show_bar_sales();
   show_mission_value();
   show_on_foot();
+  show_cartography(false);
+  }
+
+auto micro_resource_window_t::show_cartography(bool now) -> void
+  {
+  // read only while in view, and then not at every change of the game's state
+  if(not cartography_view_->isVisible() and not now)
+    return;
+  auto const clock{std::chrono::steady_clock::now()};
+  if(not now and clock - cartography_read_ < std::chrono::minutes{1})
+    return;
+  cartography_read_ = clock;
+
+  std::string fid;
+  if(auto owner{db_.load_owner()}; owner and *owner)
+    fid = (*owner)->fid;
+  auto sales{bio::cartography_sales("journal-dir", fid)};
+  std::ranges::reverse(sales);
+
+  std::string note{
+    "Each sale of cartographic data from the journals, against what EHT reckoned the bodies scanned there were worth"
+    " at the moment of the sale - the same reckoning as the cartography a death would cost. The game writes one sum"
+    " for all the systems of a sale and nothing for a body, so only a sale of one system gives an exact price:"
+    " sell system by system to learn more."
+  };
+  if(auto const accuracy{bio::estimate_accuracy(sales)}; accuracy)
+    note += std::format(
+      "\n{} sales of one system: paid {:.2f} times the estimate (median), from {:.2f} to {:.2f}.",
+      accuracy->sales,
+      accuracy->median,
+      accuracy->lowest,
+      accuracy->highest
+    );
+  cartography_note_->setText(QString::fromStdString(note));
+
+  auto const cell = [](std::string const & text, bool number) -> QTableWidgetItem *
+  {
+    auto * item{new QTableWidgetItem(QString::fromStdString(text))};
+    if(number)
+      item->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    return item;
+  };
+  cartography_view_->setRowCount(int(sales.size()));
+  for(auto const & [row, sale]: sales | std::views::enumerate)
+    {
+    int const r{int(row)};
+    bool const single{sale.systems.size() == 1u};
+    std::string systems{single ? sale.systems.front() : std::format("{} systems", sale.systems.size())};
+    cartography_view_->setItem(r, 0, cell(std::format("{:%d.%m.%Y %H:%M}", sale.when), false));
+    auto * names{cell(systems, false)};
+    if(not single)
+      {
+      std::string all;
+      for(std::string const & name: sale.systems)
+        all += (all.empty() ? "" : "\n") + name;
+      names->setToolTip(QString::fromStdString(all));
+      }
+    cartography_view_->setItem(r, 1, names);
+    cartography_view_->setItem(r, 2, cell(sale.bodies != 0u ? std::format("{}", sale.bodies) : std::string{}, true));
+    cartography_view_->setItem(r, 3, cell(std::format("{}", sale.priced), true));
+    cartography_view_->setItem(r, 4, cell(format_credits_value(sale.estimate), true));
+    cartography_view_->setItem(r, 5, cell(format_credits_value(sale.base_value), true));
+    cartography_view_->setItem(r, 6, cell(format_credits_value(sale.bonus), true));
+    cartography_view_->setItem(r, 7, cell(format_credits_value(sale.total), true));
+    // a sale of several systems is a sum over all of them, so its ratio is shown but says less
+    auto * ratio{cell(
+      sale.estimate != 0u ? std::format("{:.2f}", double(sale.total) / double(sale.estimate)) : std::string{"-"}, true
+    )};
+    if(not single)
+      ratio->setForeground(QBrush{QColor{0x8a, 0x8a, 0x8a}});
+    cartography_view_->setItem(r, 8, ratio);
+    }
   }
 
 namespace

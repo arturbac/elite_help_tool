@@ -146,6 +146,12 @@ public:
   QTableWidget * consumables_view_{};
   QTableWidget * kills_view_{};
 
+  ///\brief the sales of cartographic data, what each paid against EHT's estimate
+  QLabel * cartography_note_{};
+  QTableWidget * cartography_view_{};
+  ///\brief the journals are read again at most this often while the tab is on top - the whole archive takes a second
+  std::chrono::steady_clock::time_point cartography_read_{};
+
   explicit micro_resource_window_t(std::string db_path, QWidget * parent = nullptr);
 
   ///\brief called when the game state has changed
@@ -170,4 +176,5 @@ private:
   auto show_bar_sales() -> void;
   auto show_mission_value() -> void;
   auto show_on_foot() -> void;
+  auto show_cartography(bool now) -> void;
   };

@@ -73,6 +73,46 @@ struct at_risk_t
 [[nodiscard]]
 auto at_risk(std::filesystem::path const & journal_dir, std::string_view commander_fid) -> at_risk_t;
 
+///\brief one sale of cartographic data, what it paid against what EHT reckoned it was worth
+///\detail The game writes a sale's sums for all its systems together and nothing for a body, so a sale of one
+/// system is the only exact price there is - which is why data sold system by system is worth more to this
+struct cartography_sale_t
+  {
+  std::chrono::sys_seconds when{};
+  std::vector<std::string> systems;
+  ///\brief as the sale counts them - 0 for the older, single sale event, which does not
+  uint32_t bodies{};
+  ///\brief the bodies of those systems this commander scanned and EHT could price
+  uint32_t priced{};
+  ///\brief what the exploration values gave for them at the moment of the sale - the same reckoning as the
+  /// cartography that a death would cost
+  uint64_t estimate{};
+  uint64_t base_value{};
+  uint64_t bonus{};
+  ///\brief what reached the account, after a carrier's or a squadron's cut
+  uint64_t total{};
+  };
+
+///\brief every sale of cartographic data in the journals, oldest first
+///\detail The journals may hold another account's sessions - only those of commander_fid count, all when empty
+[[nodiscard]]
+auto cartography_sales(std::filesystem::path const & journal_dir, std::string_view commander_fid)
+  -> std::vector<cartography_sale_t>;
+
+///\brief how far off the estimate was, over the sales of one system - the only exact prices
+struct estimate_accuracy_t
+  {
+  size_t sales{};
+  ///\brief what was paid over what was reckoned: the median, the lowest and the highest
+  double median{};
+  double lowest{};
+  double highest{};
+  };
+
+///\brief over the sales of one system with anything priced; empty when there are none
+[[nodiscard]]
+auto estimate_accuracy(std::span<cartography_sale_t const> sales) -> std::optional<estimate_accuracy_t>;
+
 ///\brief a species this commander sampled, together with the world it grew on
 ///\detail the field names are the columns of the query that reads them
 struct species_record_t

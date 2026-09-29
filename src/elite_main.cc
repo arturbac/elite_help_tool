@@ -1,5 +1,6 @@
 #include <eht_settings.h>
 #include <file_io.h>
+#include <biology.h>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -164,6 +165,39 @@ void print_bgs_effort(database_storage_t & db, uint32_t within_days)
       rate
     );
     }
+  }
+
+///\brief what cartographic data paid against what EHT reckoned, sale by sale - one system a sale is an exact price
+void print_cartography(fs::path const & journal_dir, std::string_view commander)
+  {
+  auto const sales{bio::cartography_sales(journal_dir, commander)};
+  std::println("\n=== CARTOGRAPHY SALES === {}", sales.size());
+  std::println(
+    "{:<17}{:>6}{:>7}{:>12}{:>12}{:>10}{:>12}{:>8}  {}",
+    "sold UTC",
+    "sys",
+    "bodies",
+    "estimate",
+    "base",
+    "bonus",
+    "total",
+    "paid/est",
+    "system"
+  );
+  for(bio::cartography_sale_t const & sale: sales)
+    std::println(
+      "{:<17%d.%m.%Y %H:%M}{:>6}{:>7}{:>12}{:>12}{:>10}{:>12}{:>8}  {}",
+      sale.when,
+      sale.systems.size(),
+      sale.bodies,
+      sale.estimate,
+      sale.base_value,
+      sale.bonus,
+      sale.total,
+      sale.estimate != 0u ? std::format("{:.2f}", double(sale.base_value + sale.bonus) / double(sale.estimate))
+                          : std::string{"-"},
+      sale.systems.size() == 1u ? sale.systems.front() : std::format("{} systems", sale.systems.size())
+    );
   }
 
 ///\brief the systems one's own factions are in, each as last read - the Territory tab in the terminal
@@ -363,7 +397,7 @@ auto main(int argc, char ** argv) -> int
     "print the effort in pluses against the influence it moved, day by day, for this many days"
   )("wars", "print how late after the announcement the wars actually started")(
     "territory", "print the systems of the factions in bgs.own_factions, each as last read"
-  );
+  )("cartography", "print every sale of cartographic data from the journals, what it paid against EHT's estimate");
 
   po::variables_map vm;
   try
@@ -380,6 +414,13 @@ auto main(int argc, char ** argv) -> int
   if(vm.count("help"))
     {
     std::cout << desc << "\n";
+    return 0;
+    }
+
+  // straight from the journals, the database untouched; --commander narrows it to one account, empty takes all
+  if(vm.count("cartography"))
+    {
+    print_cartography(fs::path{vm["dir"].as<std::string>()}, vm["commander"].as<std::string>());
     return 0;
     }
 

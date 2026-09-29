@@ -330,6 +330,16 @@ counted live from `Status.json` — a green "sample" when you may take the next 
 grows on this body. It shows in analysis mode or with the sampler in hand, in an SRV always - not in combat mode nor on foot
 with a weapon.
 
+**What cartography really pays.** The *Cartography* tab of the Data window lists every sale of
+cartographic data in the journals: when, which systems, the bodies sold and those EHT could price,
+EHT's estimate at the moment of the sale (the same reckoning as the cartography a death would cost),
+and what the game paid - base, bonus and the sum that reached the account. The game writes one sum for
+all the systems of a sale and nothing for a body, so only a sale of one system is an exact price;
+over those the tab gives how many times the estimate was paid (median, lowest, highest). Sell system
+by system to learn more. Exobiology needs no such check: the price list agrees to the credit with
+every sample sold in the archive, and the first-logged bonus is always four times the price.
+`journal_tailer --cartography --dir <journals> --commander <FID>` prints the same.
+
 ### Codex
 
 With every sample the layer takes a picture of the centre of the screen (see `overlay/README.md`), and

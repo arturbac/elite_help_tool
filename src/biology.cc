@@ -10,6 +10,7 @@
 #include <numbers>
 #include <ranges>
 #include <set>
+#include <sstream>
 #include <tuple>
 
 using namespace std::string_view_literals;
@@ -83,6 +84,17 @@ namespace detail
     {
     std::vector<std::string> Systems;
     std::vector<glz::generic> Discovered;
+    };
+
+  ///\brief a sale with its sums - Discovered is objects in the multiple sale, plain names in the single one
+  struct priced_sale_line_t
+    {
+    std::string timestamp;
+    std::vector<std::string> Systems;
+    std::vector<glz::generic> Discovered;
+    uint64_t BaseValue{};
+    uint64_t Bonus{};
+    uint64_t TotalEarnings{};
     };
   }  // namespace detail
 
@@ -491,6 +503,113 @@ auto at_risk(std::filesystem::path const & journal_dir, std::string_view command
       }
     }
   return result;
+  }
+
+auto cartography_sales(std::filesystem::path const & journal_dir, std::string_view commander_fid)
+  -> std::vector<cartography_sale_t>
+  {
+  std::vector<std::filesystem::path> journals;
+  std::error_code ec;
+  for(auto const & entry: std::filesystem::directory_iterator{journal_dir, ec})
+    if(auto const name{entry.path().filename().string()}; name.starts_with("Journal.") and name.ends_with(".log"))
+      journals.push_back(entry.path());
+  std::ranges::sort(journals);
+
+  constexpr auto opts{glz::opts{.error_on_unknown_keys = false}};
+  std::vector<cartography_sale_t> result;
+  // the bodies scanned and not sold yet, by system and name - a later scan of the same body replaces the earlier
+  std::map<std::string, std::map<std::string, detail::scan_line_t>> unsold;
+  std::set<std::string> mapped;
+
+  for(std::filesystem::path const & path: journals)
+    {
+    std::ifstream in{path, std::ios::binary};
+    bool ours{commander_fid.empty()};
+    for(std::string line; std::getline(in, line);)
+      {
+      if(line.contains("\"event\":\"Commander\""))
+        {
+        detail::commander_line_t commander{};
+        if(not glz::read<opts>(commander, line))
+          ours = commander_fid.empty() or commander.FID == commander_fid;
+        continue;
+        }
+      // another account's session - its scans and sales are not this commander's
+      if(not ours)
+        continue;
+
+      if(line.contains("\"event\":\"Scan\""))
+        {
+        detail::scan_line_t scan{};
+        if(not glz::read<opts>(scan, line))
+          unsold[scan.StarSystem].insert_or_assign(scan.BodyName, std::move(scan));
+        }
+      else if(line.contains("\"event\":\"SAAScanComplete\""))
+        {
+        detail::body_line_t body{};
+        if(not glz::read<opts>(body, line))
+          mapped.insert(std::move(body.BodyName));
+        }
+      else if(line.contains("SellExplorationData\""))
+        {
+        detail::priced_sale_line_t sale{};
+        if(glz::read<opts>(sale, line))
+          continue;
+        cartography_sale_t record{.base_value = sale.BaseValue, .bonus = sale.Bonus, .total = sale.TotalEarnings};
+        std::chrono::sys_seconds when{};
+        std::istringstream stamp{sale.timestamp};
+        if(stamp >> std::chrono::parse("%FT%TZ", when))
+          record.when = when;
+
+        record.systems = std::move(sale.Systems);
+        for(glz::generic const & item: sale.Discovered)
+          if(auto const * const object{item.get_if<glz::generic::object_t>()}; object != nullptr)
+            {
+            if(auto const it{object->find("SystemName")}; it != object->end())
+              if(auto const * const name{it->second.get_if<std::string>()}; name != nullptr)
+                record.systems.push_back(*name);
+            if(auto const it{object->find("NumBodies")}; it != object->end())
+              if(auto const * const count{it->second.get_if<double>()}; count != nullptr)
+                record.bodies += uint32_t(*count);
+            }
+          else if(auto const * const name{item.get_if<std::string>()}; name != nullptr)
+            record.systems.push_back(*name);
+        std::ranges::sort(record.systems);
+        record.systems.erase(std::ranges::unique(record.systems).begin(), record.systems.end());
+
+        // what was scanned in these systems is sold now, at the price the bodies had
+        for(std::string const & system: record.systems)
+          if(auto const found{unsold.find(system)}; found != unsold.end())
+            {
+            for(auto const & [name, scan]: found->second)
+              if(uint64_t const price{body_price(scan, mapped.contains(name))}; price != 0u)
+                {
+                record.estimate += price;
+                ++record.priced;
+                }
+            unsold.erase(found);
+            }
+        result.push_back(std::move(record));
+        }
+      }
+    }
+  return result;
+  }
+
+auto estimate_accuracy(std::span<cartography_sale_t const> sales) -> std::optional<estimate_accuracy_t>
+  {
+  std::vector<double> ratios;
+  for(cartography_sale_t const & sale: sales)
+    if(sale.systems.size() == 1u and sale.estimate != 0u)
+      ratios.push_back(double(sale.total) / double(sale.estimate));
+  if(ratios.empty())
+    return std::nullopt;
+  std::ranges::sort(ratios);
+  size_t const half{ratios.size() / 2u};
+  double const median{ratios.size() % 2u == 1u ? ratios[half] : (ratios[half - 1u] + ratios[half]) / 2.0};
+  return estimate_accuracy_t{
+    .sales = ratios.size(), .median = median, .lowest = ratios.front(), .highest = ratios.back()
+  };
   }
 
 auto merge_history(std::vector<species_record_t> & into, std::vector<species_record_t> && from) -> void

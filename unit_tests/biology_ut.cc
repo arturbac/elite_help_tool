@@ -91,6 +91,61 @@ auto main() -> int
     std::filesystem::remove(dir);
   };
 
+  "cartography sales"_test = []
+  {
+    std::filesystem::path const dir{std::filesystem::temp_directory_path() / "eht_cartography_ut"};
+    std::filesystem::create_directories(dir);
+    auto const write = [&](char const * name, std::initializer_list<char const *> lines)
+    {
+      std::ofstream out{dir / name, std::ios::trunc};
+      for(char const * line: lines)
+        out << line << '\n';
+    };
+    write(
+      "Journal.2026-09-01T100000.01.log",
+      {R"({ "event":"Commander", "FID":"F1", "Name":"ME" })",
+       R"({ "event":"Scan", "StarSystem":"S1", "BodyName":"S1 A", "StarType":"N", "StellarMass":1.0, "WasDiscovered":true })",
+       R"({ "event":"Scan", "StarSystem":"S1", "BodyName":"S1 1", "PlanetClass":"Icy body", "MassEM":1.0, "WasDiscovered":true, "WasMapped":true })",
+       R"({ "event":"Scan", "StarSystem":"S2", "BodyName":"S2 A", "StarType":"N", "StellarMass":1.0, "WasDiscovered":true })",
+       R"({ "timestamp":"2026-09-01T11:00:00Z", "event":"MultiSellExplorationData", "Discovered":[ { "SystemName":"S1", "NumBodies":2 } ], "BaseValue":50000, "Bonus":0, "TotalEarnings":46500 })"}
+    );
+    write(
+      "Journal.2026-09-02T100000.01.log",
+      {R"({ "event":"Commander", "FID":"F2", "Name":"OTHER" })",
+       R"({ "event":"Scan", "StarSystem":"S2", "BodyName":"S2 B", "StarType":"N", "StellarMass":1.0, "WasDiscovered":true })",
+       R"({ "timestamp":"2026-09-02T11:00:00Z", "event":"SellExplorationData", "Systems":[ "S9" ], "Discovered":[ "S9" ], "BaseValue":1, "Bonus":0, "TotalEarnings":1 })"}
+    );
+    write(
+      "Journal.2026-09-03T100000.01.log",
+      {R"({ "event":"Commander", "FID":"F1", "Name":"ME" })",
+       R"({ "timestamp":"2026-09-03T11:00:00Z", "event":"SellExplorationData", "Systems":[ "S2", "S3" ], "Discovered":[ "S2", "S3" ], "BaseValue":30000, "Bonus":0, "TotalEarnings":30000 })"}
+    );
+
+    auto const sales{bio::cartography_sales(dir, "F1")};
+    // the other account's sale is not mine, nor its scan of S2 B
+    expect(sales.size() == 2_u) << sales.size();
+    if(sales.size() == 2u)
+      {
+      // a neutron star 22628 * (1 + 1/66.25) and an icy body scanned but not mapped, at the floor of 500
+      expect(sales[0].systems == std::vector<std::string>{"S1"});
+      expect(sales[0].estimate == 23469_u) << sales[0].estimate;
+      expect(sales[0].priced == 2_u and sales[0].bodies == 2_u and sales[0].total == 46500_u);
+      expect(sales[0].when == std::chrono::sys_days{std::chrono::September / 1 / 2026} + std::chrono::hours{11});
+      // the single sale names its systems plainly and counts no bodies
+      expect(sales[1].systems.size() == 2_u and sales[1].bodies == 0_u and sales[1].estimate == 22969_u);
+      }
+
+    // only a sale of one system is an exact price
+    auto const accuracy{bio::estimate_accuracy(sales)};
+    expect(accuracy.has_value() and accuracy->sales == 1_u);
+    expect(accuracy.has_value() and std::abs(accuracy->median - 46500.0 / 23469.0) < 1e-9);
+
+    for(char const * name:
+        {"Journal.2026-09-01T100000.01.log", "Journal.2026-09-02T100000.01.log", "Journal.2026-09-03T100000.01.log"})
+      std::filesystem::remove(dir / name);
+    std::filesystem::remove(dir);
+  };
+
   "colony"_test = []
   {
     expect(bio::colony_range_m("Bacterium") == 500_u);
