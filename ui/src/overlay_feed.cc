@@ -2029,6 +2029,19 @@ auto overlay_feed_t::refresh_market(
   add_trades(false, "take from here, best known:", 0u);
   }
 
+namespace
+  {
+///\brief the names in the hold are internal, in missions readable - compared by letters and digits alone
+auto supply_key(std::string_view text) -> std::string
+  {
+  std::string out;
+  for(char const c: text)
+    if(std::isalnum(static_cast<unsigned char>(c)))
+      out.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
+  return out;
+  }
+}  // namespace
+
 auto overlay_feed_t::refresh_supply() -> void
   {
   auto const now{std::chrono::steady_clock::now()};
@@ -2039,6 +2052,7 @@ auto overlay_feed_t::refresh_supply() -> void
   needs_.clear();
   options_.clear();
   producers_.clear();
+  data_commodities_.clear();
 
   if(auto needs{db_.load_cargo_needs()}; needs)
     needs_ = std::move(*needs);
@@ -2051,6 +2065,10 @@ auto overlay_feed_t::refresh_supply() -> void
 
   if(auto producers{db_.load_producers()}; producers)
     producers_ = std::move(*producers);
+
+  if(auto data{db_.load_data_category_commodities()}; data)
+    for(std::string const & name: *data)
+      data_commodities_.insert(supply_key(name));
   }
 
 ///\brief what the open missions can be advanced with without flying anywhere
@@ -3096,15 +3114,7 @@ auto overlay_feed_t::build_supply_lines(events::cargo_file_t const & cargo) cons
   if(needs_.empty())
     return {};
 
-  // the names in the hold are internal, in missions readable - we compare by letters and digits alone
-  auto const key{[](std::string_view text)
-                 {
-                   std::string out;
-                   for(char const c: text)
-                     if(std::isalnum(static_cast<unsigned char>(c)))
-                       out.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
-                   return out;
-                 }};
+  auto const & key{supply_key};
 
   std::map<std::string, uint32_t> aboard;
   for(events::cargo_item_t const & item: cargo.Inventory)
@@ -3132,9 +3142,14 @@ auto overlay_feed_t::build_supply_lines(events::cargo_file_t const & cargo) cons
   for(info::cargo_need_t const & need: needs_)
     {
     auto const have{held(need.commodity)};
-    bool const known{std::ranges::any_of(
-      options_, [&need](info::supply_option_t const & option) { return option.commodity == need.commodity; }
-    )};
+    // a "Data" micro resource is downloaded off a terminal, never bought - flagging it as having no
+    // source is not news, since it could never have had one
+    bool const known{
+      std::ranges::any_of(
+        options_, [&need](info::supply_option_t const & option) { return option.commodity == need.commodity; }
+      )
+      or data_commodities_.contains(key(need.commodity))
+    };
 
     // a market may trade in it and happen to be empty - that is quite different news from having no source
     auto const seller{std::ranges::find_if(

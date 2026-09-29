@@ -85,6 +85,11 @@ struct database_storage_t
   [[nodiscard]]
   auto load_producers() -> expected_ec<std::vector<info::supply_option_t>>;
 
+  ///\brief the readable names of every "Data" micro resource ever seen - downloaded off a terminal,
+  /// never bought, so a mission asking for one never has a market to point at
+  [[nodiscard]]
+  auto load_data_category_commodities() -> expected_ec<std::vector<std::string>>;
+
   ///\brief where it can be bought among the markets we know, with stock covering the need
   [[nodiscard]]
   auto load_supply_options() -> expected_ec<std::vector<info::supply_option_t>>;

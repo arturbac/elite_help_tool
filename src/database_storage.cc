@@ -2544,6 +2544,20 @@ auto database_storage_t::load_port_sale_rows() -> expected_ec<std::vector<bar::p
   );
   }
 
+auto database_storage_t::load_data_category_commodities() -> expected_ec<std::vector<std::string>>
+  {
+  auto rows{
+    sqlite::select_from<info::micro_resource_t>(db_->db, sql_iface::tables::micro_resource, " WHERE category='Data'")
+  };
+  if(not rows) [[unlikely]]
+    return cxx23::unexpected{rows.error()};
+  std::vector<std::string> names;
+  names.reserve(rows->size());
+  for(info::micro_resource_t & row: *rows)
+    names.push_back(std::move(row.localised));
+  return names;
+  }
+
 auto database_storage_t::load_micro_resource_names() -> expected_ec<std::map<std::string, std::string>>
   {
   auto rows{sqlite::select_from<info::micro_resource_t>(db_->db, sql_iface::tables::micro_resource, "")};
