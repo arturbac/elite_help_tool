@@ -10,6 +10,7 @@
 #include "sky_album.h"
 #include "glare_watch.h"
 #include "sensor_watch.h"
+#include "netstate_watch.h"
 
 #include <overlay_ipc.h>
 
@@ -226,6 +227,11 @@ private:
   uint64_t glare_capture_id_{};
   ///\brief the graphics card's and the processor's temperatures, under the layer's frame rate
   sensor_watch_t sensors_;
+  ///\brief the game's network connections, written down beside the glare's markers
+  netstate_watch_t netstate_;
+  ///\brief where the game's netLog is, looked for now and then - the game may start after the tool
+  std::filesystem::path netlog_dir_;
+  std::chrono::steady_clock::time_point netlog_looked_{};
   sensors::level_e gpu_level_{};
   sensors::level_e cpu_level_{};
   ///\brief the one request the frame carries - the newest of the codex's and the scanner's. Kept here so

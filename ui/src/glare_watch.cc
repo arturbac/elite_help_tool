@@ -3,6 +3,7 @@
 #include <glare_watch.h>
 #include <backup.h>
 #include <eht_settings.h>
+#include <evidence_log.h>
 
 #include <spdlog/spdlog.h>
 
@@ -10,7 +11,9 @@
 #include <QString>
 
 #include <format>
+#include <algorithm>
 #include <fstream>
+#include <iterator>
 
 namespace
   {
@@ -119,6 +122,18 @@ auto glare_watch_t::write(std::optional<QImage> image) -> void
   {
   if(not found_)
     return;
+  auto const cfg{eht::settings()};
+  std::filesystem::path const dir{backup::expand_home(cfg->evidence.dir)};
+  // the same names keep() gives them
+  reports_.push_back(
+    report_t{
+      .evidence_dir = dir,
+      .marker = dir / "markers" / glare::file_name(*found_),
+      .picture = dir / "screenshots" / std::format("{}_{}.png", found_->ts_utc, found_->source),
+      .moment = found_at_,
+      .due = std::chrono::steady_clock::now() + std::chrono::seconds{cfg->evidence.report_after_s + 10u}
+    }
+  );
   work_.push_back(
     std::async(
       std::launch::async,
@@ -140,12 +155,13 @@ auto glare_watch_t::write(std::optional<QImage> image) -> void
   found_.reset();
   }
 
-auto glare_watch_t::collect(glare::game_t const & game) -> void
+auto glare_watch_t::collect(glare::game_t const & game, places_t const & places) -> void
   {
   std::erase_if(
     work_,
     [](std::future<void> const & job) { return job.wait_for(std::chrono::seconds{}) == std::future_status::ready; }
   );
+  write_due_reports(places);
   if(not pending_)
     return;
 
@@ -196,6 +212,7 @@ auto glare_watch_t::collect(glare::game_t const & game) -> void
   darkened_ = false;
   marked_ = now;
 
+  found_at_ = done.taken;
   found_ = glare::marker_t{
     .ts_utc = glare::iso_utc(done.taken),
     .note = std::format("{:.0f}% of the middle of the screen burnt out", metrics.overexposed_pct),
@@ -224,4 +241,55 @@ auto glare_watch_t::collect(glare::game_t const & game) -> void
     metrics.luma_p99,
     metrics.overexposed_pct
   );
+  }
+
+auto glare_watch_t::write_due_reports(places_t const & places) -> void
+  {
+  auto const now{std::chrono::steady_clock::now()};
+  auto const due{std::ranges::partition(reports_, [now](report_t const & r) { return r.due > now; })};
+  if(due.empty())
+    return;
+  auto const cfg{eht::settings()};
+  std::chrono::seconds offset{};
+  try
+    {
+    offset = std::chrono::current_zone()->get_info(std::chrono::system_clock::now()).offset;
+    }
+  catch(...)
+    {
+    }
+  for(report_t const & report: due)
+    {
+    std::ifstream in{report.marker};
+    std::string marker{std::istreambuf_iterator<char>{in}, std::istreambuf_iterator<char>{}};
+    std::error_code ec;
+    evidence::report_input_t input{
+      .evidence_dir = report.evidence_dir,
+      .marker_json = std::move(marker),
+      .moment = report.moment,
+      .picture = std::filesystem::exists(report.picture, ec) ? report.picture : std::filesystem::path{},
+      .journal_dir = places.journal_dir,
+      .netlog_dir = places.netlog_dir,
+      .before = std::chrono::seconds{cfg->evidence.report_before_s},
+      .after = std::chrono::seconds{cfg->evidence.report_after_s},
+      .utc_offset = offset
+    };
+    work_.push_back(
+      std::async(
+        std::launch::async,
+        [input = std::move(input)]
+        {
+          try
+            {
+            spdlog::info("glare: report {}", evidence::write_report(input).string());
+            }
+          catch(std::exception const & e)
+            {
+            spdlog::error("glare: the report failed: {}", e.what());
+            }
+        }
+      )
+    );
+    }
+  reports_.erase(due.begin(), due.end());
   }

@@ -1,4 +1,6 @@
 #include <overlay_feed.h>
+#include <backup.h>
+#include <evidence_log.h>
 #include <picture_records.h>
 #include <commodity_facts.h>
 #include <construction_window.h>
@@ -3772,13 +3774,26 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
     (status_flags2_ & on_foot_flag) != 0u and (status_flags2_ & on_planet_flag) != 0u
     and (status_flags2_ & (exterior_flag | taxi_flag)) == 0u and gui_focus_ == 0u
   };
+  netstate_.set_journal_dir(state.journal_dir_path_);
+  if(auto const now{std::chrono::steady_clock::now()}; now - netlog_looked_ > std::chrono::minutes{1})
+    {
+    netlog_looked_ = now;
+    auto const cfg{eht::settings()};
+    std::error_code ec;
+    std::filesystem::path cwd;
+    if(auto const pid{netstate_.game()}; pid)
+      cwd = std::filesystem::read_symlink(std::format("/proc/{}/cwd", *pid), ec);
+    netlog_dir_ = not cfg->evidence.netlog_dir.empty() ? backup::expand_home(cfg->evidence.netlog_dir)
+                                                       : evidence::find_netlog_dir(state.journal_dir_path_, cwd);
+    }
   glare_.collect(
     glare::game_t{
       .system = state.system.name,
       .body = status_body_,
       .settlement = station_name_,
       .journal_ts = std::format("{:%FT%T}Z", state.last_event_)
-    }
+    },
+    glare_watch_t::places_t{.journal_dir = state.journal_dir_path_, .netlog_dir = netlog_dir_}
   );
   glare_.observe(inside_settlement);
   }

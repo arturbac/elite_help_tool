@@ -262,6 +262,16 @@ struct evidence_settings_t
   double overexposed_pct{60.0};
   ///\brief after a marker the next one waits for the screen to darken, or this long
   uint32_t again_after_s{300u};
+  ///\brief the logs beside the markers - temperatures, the network - are kept this many days, one file a day
+  uint32_t keep_days{2u};
+  ///\brief how often the state of the game's network connections is written down
+  uint32_t netstate_interval_ms{2000u};
+  ///\brief a report of each marker takes this much from before it and, written this long after it, from after it
+  uint32_t report_before_s{600u};
+  uint32_t report_after_s{300u};
+  ///\brief the game's Logs directory with its netLog files; empty finds it beside a Steam library's game, or
+  /// from the running game's own directory
+  std::string netlog_dir;
   };
 
 ///\brief the temperatures of the graphics card and the processor beside the frame rate - see sensors.h
@@ -276,10 +286,9 @@ struct sensors_settings_t
   double warn_margin{10.0};
   ///\brief and a level is left only this many degrees below its border, so the colour does not flicker
   double hysteresis{3.0};
-  ///\brief a line to sensors.jsonl in evidence.dir this often, beside the glare's markers - none without that dir
+  ///\brief a line to the day's sensors-YYYY-MM-DD.jsonl in evidence.dir this often, beside the glare's markers -
+  /// none without that dir
   uint32_t log_interval_s{10u};
-  ///\brief the log is moved aside to sensors.jsonl.1 at this size, the older one dropped
-  uint32_t log_max_mb{20u};
   };
 
 struct trade_settings_t

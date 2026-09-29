@@ -36,8 +36,17 @@ public:
   auto capture_request() const -> overlay::capture_t const &
     { return request_; }
 
-  ///\brief measures the picture the layer has finished, if there is one, and writes the marker for a glare
-  auto collect(glare::game_t const & game) -> void;
+  ///\brief where the game keeps what a report takes besides the evidence directory's own logs
+  struct places_t
+    {
+    std::filesystem::path journal_dir;
+    ///\brief the Logs directory with the netLog files; empty when not known
+    std::filesystem::path netlog_dir;
+    };
+
+  ///\brief measures the picture the layer has finished, if there is one, and writes the marker for a glare; writes
+  /// the report of a marker once the minutes after it are in the logs too
+  auto collect(glare::game_t const & game, places_t const & places) -> void;
 
   ///\brief the last glare found, as the player's clock says it - for the word on the overlay that the watch works
   struct noticed_t
@@ -68,9 +77,23 @@ private:
   bool darkened_{true};
   ///\brief a glare measured, waiting for its whole picture
   std::optional<glare::marker_t> found_;
+  std::chrono::system_clock::time_point found_at_{};
+  ///\brief a report to write once its window has passed - the marker and the picture are read from their files then
+  struct report_t
+    {
+    std::filesystem::path evidence_dir;
+    std::filesystem::path marker;
+    std::filesystem::path picture;
+    std::chrono::system_clock::time_point moment;
+    std::chrono::steady_clock::time_point due;
+    };
+  std::vector<report_t> reports_;
   std::optional<noticed_t> noticed_;
   std::vector<std::future<void>> work_;
 
   ///\brief writes the marker found, with its picture when there is one
   auto write(std::optional<QImage> image) -> void;
+
+  ///\brief the reports whose window has passed, written in the background
+  auto write_due_reports(places_t const & places) -> void;
   };

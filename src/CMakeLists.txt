@@ -14,6 +14,8 @@ target_sources(eht
   territory.cc
   glare.cc
   sensors.cc
+  netstate.cc
+  evidence_log.cc
   database_storage.cc
   database_import_state.cc
   elite_data.cc

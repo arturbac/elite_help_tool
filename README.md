@@ -58,8 +58,8 @@ process carries no state of ours.
   level, `sensors.gpu_critical` (100) and `sensors.cpu_critical` (90) stand in; `sensors.enabled`
   turns the line off, `sensors.interval_ms` sets the pace.
   With `evidence.dir` set (see the settlement glare below) a line goes every 10 s
-  (`sensors.log_interval_s`) to `<dir>/sensors.jsonl` - `ts_utc`, `gpu_c`, `gpu_sensor`, `pci`,
-  `cpu_c`, `cpu_sensor` - moved aside to `sensors.jsonl.1` at 20 MB (`sensors.log_max_mb`).
+  (`sensors.log_interval_s`) to the day's `<dir>/sensors-YYYY-MM-DD.jsonl` - `ts_utc`, `gpu_c`,
+  `gpu_sensor`, `pci`, `cpu_c`, `cpu_sensor`.
 - **Jump panel.** While the drive charges for a jump to another system, the game shows the
   destination's superpower emblem, and it is wrong for the Federation, the Empire and the Alliance
   (only independents get the right one). The overlay paints over it with the right emblem, and
@@ -430,6 +430,27 @@ once and kept:
 Both files are written whole under a temporary name and renamed, so a tool watching the directory
 never reads half of one. One white room makes one marker: the next waits for the screen to darken
 again, or 5 minutes (`evidence.again_after_s`).
+While the game runs, the state of its network connections goes every 2 s
+(`evidence.netstate_interval_ms`) to the day's `<dir>/netstate-YYYY-MM-DD.jsonl`, again from what
+any user may read - no packet capture, nothing as root. The game's sockets come from its
+`/proc/<pid>/fd` (the game whose Wine prefix holds the journals, so two accounts playing at once
+are told apart) and their state from the kernel's socket diagnostics: for TCP the round trip, its
+variance, retransmissions and losses; for UDP the queues and the datagrams dropped. Beside them go
+the system's UDP and TCP counters from `/proc/net/snmp` as deltas, and the number of default
+routes. The lines hold the addresses the game talks to, other players' among them: keep them on
+the machine and give them to nobody but Frontier. The daily logs are kept 2 days
+(`evidence.keep_days`); an older day's file is deleted when a new day's starts.
+
+Five minutes after a marker (`evidence.report_after_s`), once what followed it is in the logs
+too, EHT writes a report into `<dir>/reports/<moment>/`: the picture, `marker.json`, the lines of
+`netstate.jsonl` and `sensors.jsonl` from 10 minutes before (`evidence.report_before_s`) to 5
+after, the game's journal and its network log (`netLog`, found beside a Steam library's game or
+by the running game's directory; `evidence.netlog_dir` names it otherwise) of the same minutes,
+and `report.md` to read first - the longest TCP round trip, retransmissions, UDP errors and drops,
+the netLog's cancelled requests and zero hashes, the minute round the moment against the minutes
+before, and the temperatures at the moment. `report.md` is written last, so a report with one is
+complete.
+
 For two minutes after a glare the overlay says so in red at the top of the right band -
 `lighting defect detected 08:47:21, evidence kept` - the sign that the watch works.
 

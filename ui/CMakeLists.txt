@@ -42,6 +42,7 @@ target_sources(elite_help_tool
             include/sky_album.h
             include/glare_watch.h
             include/sensor_watch.h
+            include/netstate_watch.h
             include/eht_extension.h
 )
 add_subdirectory(src)

@@ -1,13 +1,12 @@
 #include <sensor_watch.h>
 #include <eht_settings.h>
 #include <backup.h>
+#include <evidence_log.h>
 
 #include <spdlog/spdlog.h>
 
 #include <chrono>
 #include <condition_variable>
-#include <filesystem>
-#include <fstream>
 
 sensor_watch_t::sensor_watch_t()
   {
@@ -74,13 +73,8 @@ auto sensor_watch_t::log(sensors::temperatures_t const & reading, sensors::found
      or now - logged_ < std::chrono::seconds{cfg->sensors.log_interval_s})
     return;
   logged_ = now;
-  std::error_code ec;
-  std::filesystem::path const dir{backup::expand_home(cfg->evidence.dir)};
-  std::filesystem::create_directories(dir, ec);
-  std::filesystem::path const file{dir / "sensors.jsonl"};
-  if(auto const size{std::filesystem::file_size(file, ec)}; not ec and size > uint64_t{cfg->sensors.log_max_mb} << 20u)
-    std::filesystem::rename(file, dir / "sensors.jsonl.1", ec);
-  std::ofstream out{file, std::ios::app};
-  if(out)
-    out << sensors::log_line(std::chrono::system_clock::now(), reading, found) << '\n';
+  auto const at{std::chrono::system_clock::now()};
+  evidence::append(
+    backup::expand_home(cfg->evidence.dir), "sensors", at, sensors::log_line(at, reading, found), cfg->evidence.keep_days
+  );
   }
