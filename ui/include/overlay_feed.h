@@ -137,6 +137,12 @@ private:
   [[nodiscard]]
   auto build_logistics_lines(std::array<double, 3> const & here) const -> std::vector<overlay::line_t>;
 
+  ///\brief the systems of one's own factions, read while the galaxy map is open - where a trip is planned
+  auto refresh_territory() -> void;
+  ///\brief the territory in a side band: each faction's standing, then its systems, the nearest first
+  [[nodiscard]]
+  auto build_territory_lines(current_state_t const & state) const -> std::vector<overlay::line_t>;
+
   ///\brief the fleet placed, read again when it changed, on a change of system, or every half minute
   auto refresh_fleet(current_state_t const & state) -> void;
   ///\brief our ships within reach of here, the nearest first - which one to go and take, or have brought
@@ -220,6 +226,9 @@ private:
   bio::at_risk_t at_risk_;
   ///\brief the factions that probably hold a bounty on the commander - read back with what a death would cost
   legal_standing_t legal_;
+  std::vector<territory::system_t> territory_;
+  std::optional<std::chrono::sys_seconds> territory_wave_;
+  std::chrono::steady_clock::time_point territory_read_{};
   std::vector<fleet::placed_ship_t> fleet_;
   uint64_t fleet_changes_{~uint64_t{}};
   uint64_t fleet_system_{~uint64_t{}};

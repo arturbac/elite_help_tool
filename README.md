@@ -101,6 +101,12 @@ it can take the game down: [overlay/README.md](overlay/README.md).
   zero means it has been overtaken. List your factions by their names in the game in
   `bgs.own_factions`; a lead below `bgs.thin_lead` points (10) is marked. Nothing is forecast: a
   system not read since the tick shows no move.
+- **Territory on the galaxy map.** While the galaxy map is open - where the next trip is chosen - the
+  overlay shows the same in the right band, in small text: each faction's standing, then the systems
+  nearest first with their distance, the controlling faction's lead, your factions' influence and
+  last move (`*` marks the one in control), who holds the system when none of yours does, and in
+  amber the systems whose tick you have not seen yet and what asks for attention there.
+  `bgs.on_galaxy_map` turns it off, `bgs.overlay_systems` (12) sets how many systems it lists.
 - `journal_tailer --ticks`, `--bgs`, `--wars` and `--territory` print the same analyses in the terminal.
 
 ## Mission tracking

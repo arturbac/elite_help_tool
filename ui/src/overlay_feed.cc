@@ -26,6 +26,7 @@ namespace
 ///\detail 5 station services, 6 galaxy map, 7 system map, 8 orrery, 9 FSS, 10 surface scanner,
 /// 11 codex. The cockpit panels below 5 leave the middle of the screen alone, and so may we
 constexpr uint32_t first_fullscreen_interface{5u};
+constexpr uint32_t galaxy_map_focus{6u};
 
 // What used to be constants here now comes from the settings file, read afresh at every use so that a
 // saved change shows at the next refresh. Each accessor takes the snapshot in force at that moment
@@ -3362,6 +3363,185 @@ auto overlay_feed_t::build_logistics_lines(std::array<double, 3> const & here) c
   return lines;
   }
 
+auto overlay_feed_t::refresh_territory() -> void
+  {
+  // read only while it is shown - a dozen systems of queries have no business in every frame of a fight
+  auto const settings{eht::settings()};
+  if(not settings->bgs.on_galaxy_map or settings->bgs.own_factions.empty() or gui_focus_ != galaxy_map_focus)
+    return;
+  auto const now{std::chrono::steady_clock::now()};
+  if(not territory_.empty() and now - territory_read_ < std::chrono::seconds{30})
+    return;
+  territory_read_ = now;
+
+  auto systems{db_.load_territory(settings->bgs.own_factions)};
+  auto wave{db_.newest_influence_wave()};
+  if(not systems or not wave)
+    {
+    spdlog::error("overlay feed: failed to load the territory");
+    return;
+    }
+  territory_ = std::move(*systems);
+  territory_wave_ = *wave;
+  }
+
+auto overlay_feed_t::build_territory_lines(current_state_t const & state) const -> std::vector<overlay::line_t>
+  {
+  auto const settings{eht::settings()};
+  if(not settings->bgs.on_galaxy_map or gui_focus_ != galaxy_map_focus or territory_.empty())
+    return {};
+  std::vector<std::string> const & own{settings->bgs.own_factions};
+  std::string const sector{territory::common_sector(territory_)};
+
+  // nearest first - the map is open to choose where to go, and what is near is what is chosen
+  std::array<double, 3> const & location{state.system.system_location};
+  std::optional<std::array<double, 3>> const here{
+    location[0] != 0.0 or location[1] != 0.0 or location[2] != 0.0 ? std::optional{location} : std::nullopt
+  };
+  std::vector<std::pair<std::optional<double>, territory::system_t const *>> placed;
+  for(territory::system_t const & system: territory_)
+    placed.emplace_back(territory::distance(here, system.position), &system);
+  std::ranges::stable_sort(
+    placed,
+    [](auto const & l, auto const & r)
+    {
+      if(l.first.has_value() != r.first.has_value())
+        return l.first.has_value();
+      return l.first.value_or(0.0) < r.first.value_or(0.0);
+    }
+  );
+
+  std::vector<overlay::line_t> lines;
+  size_t const read{static_cast<size_t>(std::ranges::count_if(
+    territory_,
+    [this](territory::system_t const & system)
+    { return territory::tick_seen(system, territory_wave_) != territory::tick_seen_e::not_seen; }
+  ))};
+  lines.push_back(
+    overlay::line_t{
+      .text = territory_wave_ ? std::format("territory - {} of {} read since the tick", read, territory_.size())
+                              : std::string{"territory"},
+      .color = colour_heading()
+    }
+  );
+
+  for(territory::standing_t const & standing: territory::standings(territory_, own))
+    {
+    std::string text{std::format("{}: {} of {}", standing.faction, standing.controls, standing.present)};
+    if(standing.thinnest_lead)
+      text += std::format(
+        ", thinnest lead {:.1f} in {}", *standing.thinnest_lead, territory::short_name(standing.thinnest_system, sector)
+      );
+    if(standing.closest_gap)
+      text += std::format(
+        ", nearest to take {} {:.1f} behind", territory::short_name(standing.closest_system, sector), *standing.closest_gap
+      );
+    lines.push_back(overlay::line_t{.text = std::move(text), .color = colour_plain()});
+    }
+
+  // a column for each faction of one's own, headed by its first word - the lines above name them in full
+  std::vector<std::string> labels;
+  for(std::string const & name: own)
+    {
+    std::string label{name.substr(0u, name.find(' '))};
+    if(std::ranges::count_if(own, [&label](std::string const & n) { return n.starts_with(label + " ") or n == label; }) > 1)
+      label = name.substr(0u, 10u);
+    labels.push_back(std::move(label));
+    }
+
+  size_t const shown{rows_for(placed.size(), settings->bgs.overlay_systems)};
+  size_t name_width{6u};
+  for(auto const & [distance, system]: placed | std::views::take(shown))
+    name_width = std::max(name_width, std::min<size_t>(territory::short_name(system->name, sector).size(), 24u));
+  constexpr size_t faction_width{12u};
+
+  std::string heading{std::format("{:>6}  {:<{}}{:>7}", "ly", "system", name_width, "lead")};
+  for(std::string const & label: labels)
+    heading += std::format("{:>{}}", label, faction_width);
+  lines.push_back(overlay::line_t{.text = std::move(heading), .color = colour_heading()});
+
+  constexpr uint32_t up_colour{0x66dd66u};
+  constexpr uint32_t down_colour{0xff6666u};
+  for(auto const & [distance, system]: placed | std::views::take(shown))
+    {
+    overlay::line_t line{.color = colour_plain()};
+    std::string name{territory::short_name(system->name, sector)};
+    if(name.size() > name_width)
+      name.resize(name_width);
+    line.text = std::format(
+      "{:>6}  {:<{}}", distance ? std::format("{:.1f}", *distance) : std::string{"?"}, name, name_width
+    );
+
+    // overtaken is a conflict for control on its way, thin is work to be done before one comes
+    std::string lead_text;
+    uint32_t lead_colour{colour_plain()};
+    if(auto const held{territory::lead(*system)}; held)
+      {
+      lead_text = std::format("{:.1f}", held->margin);
+      lead_colour = held->margin < 0.0                      ? down_colour
+                    : held->margin < settings->bgs.thin_lead ? colour_alert()
+                                                             : colour_plain();
+      }
+    line.spans.push_back(overlay::span_t{.from = uint32_t(line.text.size()), .length = 7u, .color = lead_colour});
+    line.text += std::format("{:>7}", lead_text);
+
+    for(std::string const & name_of_own: own)
+      {
+      auto const faction{std::ranges::find(system->factions, name_of_own, &territory::faction_t::name)};
+      if(faction == system->factions.end())
+        {
+        line.text += std::string(faction_width, ' ');
+        continue;
+        }
+      std::string const value{std::format("{}{:.1f}", name_of_own == system->controlling ? "*" : "", faction->influence)};
+      std::string const move{faction->moved ? std::format(" {:+.1f}", *faction->moved) : std::string{}};
+      std::string const cell{std::format("{:>{}}", value + move, faction_width)};
+      if(faction->moved and *faction->moved != 0.0)
+        line.spans.push_back(
+          overlay::span_t{
+            .from = uint32_t(line.text.size() + cell.size() - move.size()),
+            .length = uint32_t(move.size()),
+            .color = *faction->moved > 0.0 ? up_colour : down_colour
+          }
+        );
+      line.text += cell;
+      }
+
+    // the lead is then someone else's, and whose it is says who is to be beaten
+    if(not system->controlling.empty() and not std::ranges::contains(own, system->controlling))
+      line.text += std::format("  held by {}", system->controlling);
+
+    // the result of the tick still to be seen - that is a reason to fly there on its own
+    switch(territory::tick_seen(*system, territory_wave_))
+      {
+      case territory::tick_seen_e::known: break;
+      case territory::tick_seen_e::unchanged: line.text += "  unchanged"; break;
+      case territory::tick_seen_e::not_seen:
+        {
+        std::string const note{
+          system->seen ? std::format("  not seen since, {:%d.%m}", *system->seen) : std::string{"  never read"}
+        };
+        line.spans.push_back(
+          overlay::span_t{.from = uint32_t(line.text.size()), .length = uint32_t(note.size()), .color = colour_alert()}
+        );
+        line.text += note;
+        break;
+        }
+      }
+    // the spans must stand in order and not overlap - the lead's comes first, before any of the cells
+    std::ranges::sort(line.spans, {}, &overlay::span_t::from);
+    lines.push_back(std::move(line));
+
+    for(std::string const & note: territory::notes(*system, own, settings->bgs.retreat_below))
+      lines.push_back(overlay::line_t{.text = std::format("{:>8}{}", "", note), .color = colour_alert()});
+    }
+  if(shown != placed.size())
+    lines.push_back(
+      overlay::line_t{.text = std::format("... and {} more", placed.size() - shown), .color = colour_plain()}
+    );
+  return lines;
+  }
+
 auto overlay_feed_t::refresh_fleet(current_state_t const & state) -> void
   {
   auto const now{std::chrono::steady_clock::now()};
@@ -3736,6 +3916,20 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
   if(auto logistics{build_logistics_lines(state.system.system_location)}; not logistics.empty())
     frame.blocks.push_back(
       overlay::block_t{.corner = overlay::corner_e::bottom_left, .ttl_ms = block_ttl_ms(), .lines = std::move(logistics)}
+    );
+
+  // the territory while the galaxy map is open - where the next trip is chosen
+  refresh_territory();
+  if(auto territory{build_territory_lines(state)}; not territory.empty())
+    frame.blocks.push_back(
+      overlay::block_t{
+        .corner = overlay::corner_e::top_right,
+        .ttl_ms = block_ttl_ms(),
+        .lines = std::move(territory),
+        .charts = {},
+        // a table read when choosing, not glanced at in flight
+        .text = overlay::text_e::small
+      }
     );
 
   // our ships nearby - which one to go and take, or have brought over
