@@ -1447,6 +1447,10 @@ auto database_storage_t::create_database() -> expected_ec<void>
 
   if(auto res{sqlite::create_index(db_->db, sql_iface::tables::market_item, "market_id")}; not res) [[unlikely]]
     return res;
+  // and by commodity, for where to get what the missions need
+  if(auto res{sqlite::create_index(db_->db, sql_iface::tables::market_item, "commodity_id", "commodity")}; not res)
+    [[unlikely]]
+    return res;
 
   if(
     auto res{sqlite::create_index(
@@ -1548,6 +1552,34 @@ auto database_storage_t::create_database() -> expected_ec<void>
     [[unlikely]]
     return res;
 
+  // a system is read with its bodies and each body with its details, so every one of these is looked up by
+  // its owner - without an index each look is a scan of the whole table, some twenty-five thousand rows,
+  // a dozen times for every system read
+  for(auto const & [table, column]:
+      {std::pair{sql_iface::tables::body, "ref_system_address"sv},
+       std::pair{sql_iface::tables::bary_centre, "ref_system_address"sv},
+       std::pair{sql_iface::tables::ring, "ref_system_address"sv},
+       std::pair{sql_iface::tables::planet_details, "ref_body_oid"sv},
+       std::pair{sql_iface::tables::star_details, "ref_body_oid"sv},
+       std::pair{sql_iface::tables::atmosphere_element, "ref_body_oid"sv},
+       std::pair{sql_iface::tables::signal, "ref_body_oid"sv},
+       std::pair{sql_iface::tables::genus, "ref_body_oid"sv},
+       std::pair{sql_iface::tables::station, "system_address"sv}})
+    if(auto res{sqlite::create_index(db_->db, table, column, "owner")}; not res) [[unlikely]]
+      return res;
+
+  // a system's influence and presence are asked for by the system, while the keys above lead with the
+  // faction - the first reading of a system, asked once for every tick observation, walked the whole key
+  if(auto res{sqlite::create_index(db_->db, sql_iface::tables::faction_influence, "system_address, timestamp", "system")};
+     not res) [[unlikely]]
+    return res;
+  if(auto res{sqlite::create_index(db_->db, sql_iface::tables::faction_presence, "system_address, last_seen", "system")};
+     not res) [[unlikely]]
+    return res;
+  // the positions of the fleet's and the carriers' systems are looked up by name, a few times a second
+  if(auto res{sqlite::create_index(db_->db, sql_iface::tables::star_system, "name", "name")}; not res) [[unlikely]]
+    return res;
+
   return {};
   }
 
@@ -1628,7 +1660,13 @@ auto database_storage_t::load_producers() -> expected_ec<std::vector<info::suppl
   return sqlite::select_from<info::supply_option_t>(
     db_->db,
     std::format(
-      "(SELECT i.market_id AS market_id,"
+      // the missions' needs worked out once and the markets reached from them - as a subquery in FROM the
+      // planner walked every market item first and summed the needs again for each, seconds for an empty answer
+      "(WITH n AS MATERIALIZED (SELECT mc.commodity AS commodity, sum(mc.count) AS needed"
+      "       FROM {0} mc JOIN {1} m ON m.mission_id = mc.mission_id"
+      "       WHERE m.status IN ('{2}','{3}') AND mc.commodity <> ''"
+      "       GROUP BY mc.commodity)"
+      " SELECT i.market_id AS market_id,"
       " coalesce(st.name,'') AS station,"
       " coalesce(st.station_type,'') AS station_type,"
       " coalesce(ss.name,'') AS system,"
@@ -1636,10 +1674,7 @@ auto database_storage_t::load_producers() -> expected_ec<std::vector<info::suppl
       " n.needed AS needed,"
       " i.stock AS stock,"
       " i.buy_price AS buy_price"
-      " FROM (SELECT mc.commodity AS commodity, sum(mc.count) AS needed"
-      "       FROM {0} mc JOIN {1} m ON m.mission_id = mc.mission_id"
-      "       WHERE m.status IN ('{2}','{3}') AND mc.commodity <> ''"
-      "       GROUP BY mc.commodity) n"
+      " FROM n"
       " JOIN {4} c ON lower(c.name) = lower(n.commodity)"
       " JOIN {5} i ON i.commodity_id = c.id AND i.producer <> 0"
       " LEFT JOIN {6} st ON st.market_id = i.market_id"
@@ -1663,7 +1698,13 @@ auto database_storage_t::load_supply_options() -> expected_ec<std::vector<info::
   return sqlite::select_from<info::supply_option_t>(
     db_->db,
     std::format(
-      "(SELECT i.market_id AS market_id,"
+      // the missions' needs worked out once and the markets reached from them - as a subquery in FROM the
+      // planner walked every market item first and summed the needs again for each, seconds for an empty answer
+      "(WITH n AS MATERIALIZED (SELECT mc.commodity AS commodity, sum(mc.count) AS needed"
+      "       FROM {0} mc JOIN {1} m ON m.mission_id = mc.mission_id"
+      "       WHERE m.status IN ('{2}','{3}') AND mc.commodity <> ''"
+      "       GROUP BY mc.commodity)"
+      " SELECT i.market_id AS market_id,"
       " coalesce(st.name,'') AS station,"
       " coalesce(st.station_type,'') AS station_type,"
       " coalesce(ss.name,'') AS system,"
@@ -1671,10 +1712,7 @@ auto database_storage_t::load_supply_options() -> expected_ec<std::vector<info::
       " n.needed AS needed,"
       " i.stock AS stock,"
       " i.buy_price AS buy_price"
-      " FROM (SELECT mc.commodity AS commodity, sum(mc.count) AS needed"
-      "       FROM {0} mc JOIN {1} m ON m.mission_id = mc.mission_id"
-      "       WHERE m.status IN ('{2}','{3}') AND mc.commodity <> ''"
-      "       GROUP BY mc.commodity) n"
+      " FROM n"
       " JOIN {4} c ON lower(c.name) = lower(n.commodity)"
       " JOIN {5} i ON i.commodity_id = c.id AND i.stock >= n.needed AND i.buy_price > 0"
       " LEFT JOIN {6} st ON st.market_id = i.market_id"
@@ -3999,8 +4037,13 @@ auto database_storage_t::load_construction_sites(bool with_abandoned)
         rest.remove_prefix(1u);
       site.name = std::format("Colonisation Ship: {}", rest);
       }
-    if(auto system{load_system(depot.system_address)}; system and *system)
-      site.system = (*system)->name;
+    // the name alone - the whole system with its bodies is a dozen queries, read here for every site
+    if(auto name{sqlite::select_signle_from<std::string>(
+         db_->db,
+         std::format("SELECT name FROM {} WHERE system_address={}", sql_iface::tables::star_system, depot.system_address)
+       )};
+       name and *name)
+      site.system = **name;
     auto needs{sqlite::select_from<info::construction_need_t>(
       db_->db,
       sql_iface::tables::construction_need,
