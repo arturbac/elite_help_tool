@@ -13,6 +13,7 @@ target_sources(eht
   fleet.cc
   territory.cc
   glare.cc
+  sensors.cc
   database_storage.cc
   database_import_state.cc
   elite_data.cc

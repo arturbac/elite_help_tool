@@ -46,6 +46,17 @@ process carries no state of ours.
 - **Readable over anything.** The ground under each block darkens by how bright the game is
   beneath it, so the text stays legible over an ice planet as over black space.
 - **F11** saves a screenshot of the whole screen, overlay included.
+- **Temperatures.** Under the frame rate at the top of the right band stand the graphics card's and
+  the processor's temperatures in degrees Celsius, orange from 10 degrees below the driver's
+  critical level and red at it (3 degrees of hysteresis). They are read from `/sys/class/hwmon`,
+  which every user may read - no root, no group, nothing written - in a thread of their own every
+  2 s, the sensors looked for after the start, so a missing one never holds anything back. The card
+  is the one with the most video memory, by its hottest spot (junction) or else its edge, and a
+  card that sleeps is not woken to be read; the processor is its hottest die (k10temp's Tccd,
+  Tdie or Tctl, zenpower, coretemp's package, or the thermal zone). A card from NVIDIA with its own
+  driver is asked through its library when it is installed. Where the driver gives no critical
+  level, `sensors.gpu_critical` (100) and `sensors.cpu_critical` (90) stand in; `sensors.enabled`
+  turns the line off, `sensors.interval_ms` sets the pace.
 - **Jump panel.** While the drive charges for a jump to another system, the game shows the
   destination's superpower emblem, and it is wrong for the Federation, the Empire and the Alliance
   (only independents get the right one). The overlay paints over it with the right emblem, and

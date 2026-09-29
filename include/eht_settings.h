@@ -264,6 +264,20 @@ struct evidence_settings_t
   uint32_t again_after_s{300u};
   };
 
+///\brief the temperatures of the graphics card and the processor beside the frame rate - see sensors.h
+struct sensors_settings_t
+  {
+  bool enabled{true};
+  uint32_t interval_ms{2000u};
+  ///\brief the critical levels for a sensor whose driver gives none - most processors' do not
+  double gpu_critical{100.0};
+  double cpu_critical{90.0};
+  ///\brief this many degrees below critical the reading turns warm
+  double warn_margin{10.0};
+  ///\brief and a level is left only this many degrees below its border, so the colour does not flicker
+  double hysteresis{3.0};
+  };
+
 struct trade_settings_t
   {
   ///\brief a rate on fewer tonnes than this in stock or in demand is no rate
@@ -382,6 +396,7 @@ struct settings_t
   exploration_settings_t exploration;
   screenshot_settings_t screenshots;
   evidence_settings_t evidence;
+  sensors_settings_t sensors;
   gui_settings_t gui;
   trade_settings_t trade;
   tick_settings_t ticks;

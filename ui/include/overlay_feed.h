@@ -9,6 +9,7 @@
 #include "screenshots.h"
 #include "sky_album.h"
 #include "glare_watch.h"
+#include "sensor_watch.h"
 
 #include <overlay_ipc.h>
 
@@ -223,6 +224,10 @@ private:
   ///\brief the white glare of a settlement's rooms, written down for the evidence tool
   glare_watch_t glare_;
   uint64_t glare_capture_id_{};
+  ///\brief the graphics card's and the processor's temperatures, under the layer's frame rate
+  sensor_watch_t sensors_;
+  sensors::level_e gpu_level_{};
+  sensors::level_e cpu_level_{};
   ///\brief the one request the frame carries - the newest of the codex's and the scanner's. Kept here so
   /// that an older one never returns to the frame, where the layer would take it for new
   overlay::capture_t capture_;

@@ -4296,6 +4296,46 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
     return;
 
   frame.seq = ++sequence_;
+  // The temperatures come first in the right band, straight under the layer's own frame rate - the
+  // number goes warm, then red, near the driver's critical level
+  if(auto const reading{sensors_.latest()}; reading and (reading->gpu or reading->cpu))
+    {
+    auto const cfg{eht::settings()};
+    overlay::line_t line{.color = colour_plain()};
+    auto const add = [&](std::string_view name,
+                         std::optional<sensors::reading_t> const & value,
+                         double fallback_critical,
+                         sensors::level_e & level)
+    {
+      if(not line.text.empty())
+        line.text += "   ";
+      if(not value)
+        {
+        line.text += std::format("{} -", name);
+        return;
+        }
+      level = sensors::level_of(
+        value->celsius, value->critical.value_or(fallback_critical), cfg->sensors.warn_margin, cfg->sensors.hysteresis, level
+      );
+      std::string const part{std::format("{} {:.0f}\u00b0C", name, value->celsius)};
+      if(level != sensors::level_e::normal)
+        line.spans.push_back(
+          overlay::span_t{
+            .from = uint32_t(line.text.size()),
+            .length = uint32_t(part.size()),
+            .color = level == sensors::level_e::critical ? colour_expiring() : colour_alert()
+          }
+        );
+      line.text += part;
+    };
+    add("GPU", reading->gpu, cfg->sensors.gpu_critical, gpu_level_);
+    add("CPU", reading->cpu, cfg->sensors.cpu_critical, cpu_level_);
+    frame.blocks.insert(
+      frame.blocks.begin(),
+      overlay::block_t{.corner = overlay::corner_e::top_right, .ttl_ms = block_ttl_ms(), .lines = {std::move(line)}}
+    );
+    }
+
   server_->publish(frame);
   last_ = std::move(frame);
   last_sent_ = now;
