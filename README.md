@@ -159,7 +159,9 @@ it can take the game down: [overlay/README.md](overlay/README.md).
   since you last paid their bounties, the last of them within 7 days (`overlay.bounty_days`), with its
   date - and, for a squadron with Notoriety Decay, whose crimes add up to more than one step of it
   (100k) or were within the last two hours. The notoriety the game wrote at your last login stands
-  beside it. When the destination or the port you are docked at belongs to one of them, the overlay
+  beside it, with that login's own time - the game decays it quietly afterwards with no event of its
+  own to say so, so this is what it was then, not necessarily what it is now. When the destination or
+  the port you are docked at belongs to one of them, the overlay
   warns you to pay first. The sums are not shown: the game writes them to no file and counts them in
   amounts the journal does not record.
 - **Your legal state here**: when you are anything but clean in the current system (Wanted, Hostile,
@@ -168,7 +170,11 @@ it can take the game down: [overlay/README.md](overlay/README.md).
 ## Trade
 
 - **The station's market on the overlay**: what it pays above and sells below the galactic
-  average, beyond 25% and 500 Cr/t, with minerals that pay well only from mining listed apart.
+  average, beyond 25% and 500 Cr/t, with minerals that pay well only from mining listed apart. A
+  market never opened says so in the side band - easy to miss - and, for a ship actually docked
+  there (not a taxi ride, not an on-foot arrival), a second, wide reminder across the top middle of
+  the screen in the ordinary overlay size: *open the Commodities Market to record it*
+  (`overlay.market_reminder`, its own place and width, on by default).
 - **Best known trades**: what to bring here and what to take from here, against every market you
   have ever opened. Each line gives the margin per tonne, the tonnes (capped by your hold, the stock
   and the demand), the profit of the run and the station. With a route plotted, it looks for what to

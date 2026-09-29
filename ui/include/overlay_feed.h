@@ -173,6 +173,9 @@ private:
   uint64_t market_destination_{};
   std::chrono::steady_clock::time_point market_loaded_{};
   std::vector<overlay::line_t> market_lines_;
+  ///\brief the current market has never been opened - the side band already says so; the middle-screen
+  /// reminder repeats it only for an actual ship docked there, not a taxi ride or an on-foot arrival
+  bool market_unknown_{};
   ///\brief the place we are standing at, kept from the same reading the market came from
   std::string station_name_;
   std::string station_faction_;

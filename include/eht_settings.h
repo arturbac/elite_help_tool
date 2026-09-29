@@ -148,6 +148,18 @@ struct jump_emblem_t
   float factions_width{0.6f};
   };
 
+///\brief a reminder, impossible to miss, that the market just docked at has never been opened
+///\detail the side band already says "open the commodity market to record it", among everything
+/// else there - easy to miss. This repeats it once, wide and across the middle of the screen, only
+/// for a ship actually docked (not a taxi ride nor an on-foot arrival) at a market never recorded
+struct market_reminder_t
+  {
+  bool enabled{true};
+  ///\brief the top of the panel from the middle screen's centre, and its widest, in shares of its height
+  float y{-0.35f};
+  float width{0.6f};
+  };
+
 struct overlay_settings_t
   {
   overlay::layout_t layout;
@@ -175,6 +187,7 @@ struct overlay_settings_t
   overlay_chart_t tick_chart{.days = 30u, .height = 45u};
   system_map_t system_map;
   jump_emblem_t jump_emblem;
+  market_reminder_t market_reminder;
   };
 
 ///\brief exploration - what is worth a landing and where the pictures of what was sampled go

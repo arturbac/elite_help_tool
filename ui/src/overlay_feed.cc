@@ -1811,6 +1811,7 @@ auto overlay_feed_t::refresh_market(
   market_destination_ = destination;
   market_loaded_ = now;
   market_lines_.clear();
+  market_unknown_ = false;
   station_name_.clear();
   station_faction_.clear();
   station_type_.clear();
@@ -1837,6 +1838,7 @@ auto overlay_feed_t::refresh_market(
     {
     // the Market event appears only once the commodities screen is opened - silence here would look like
     // there being no opportunity, when it means nothing but that we had nothing to record
+    market_unknown_ = true;
     market_lines_.push_back(overlay::line_t{.text = std::format("{}: no market data", name), .color = colour_alert()});
     if(not owner.empty())
       market_lines_.push_back(overlay::line_t{.text = std::format("  {}", owner), .color = colour_first()});
@@ -3927,6 +3929,26 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
 
   overlay::frame_t frame{};
 
+  // a ship actually docked, not a taxi ride nor an on-foot arrival, at a market never opened - the
+  // side band already says so, easy to miss among everything else there; this repeats it where it
+  // cannot be, until the commodities screen is opened or the ship leaves
+  {
+  constexpr uint64_t on_foot_flag{1u << 0u};
+  eht::market_reminder_t const & reminder{eht::settings()->overlay.market_reminder};
+  if(reminder.enabled and market_unknown_ and (status_flags2_ & on_foot_flag) == 0u)
+    frame.blocks.push_back(
+      overlay::block_t{
+        .corner = overlay::corner_e::top_left,
+        .ttl_ms = block_ttl_ms(),
+        .lines = {overlay::line_t{.text = "Open the Commodities Market to record it", .color = colour_alert()}},
+        .text = overlay::text_e::normal,
+        .middle = true,
+        .middle_y = reminder.y,
+        .middle_width = reminder.width
+      }
+    );
+  }
+
   if(not state.system.name.empty())
     {
     auto lines{describe_system(state.system, here_.lines.empty())};
@@ -4202,9 +4224,10 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
     for(bounty_holder_t const & holder: legal_.holders)
       text += std::format("  {} ({:%d.%m})", holder.faction, holder.last_crime);
     // while notoriety lasts the squadron's decay goes on clearing bounties; once it runs out it stops -
-    // the game writes it only at login
+    // the game writes it only at login, and decays it quietly afterwards with no event of its own, so
+    // this number is what it was at login, not necessarily what it is now
     if(legal_.notoriety != 0u)
-      text += std::format("   notoriety {} at {:%H:%M}", legal_.notoriety, legal_.notoriety_at);
+      text += std::format("   notoriety {} at login {:%H:%M}, maybe lower by now", legal_.notoriety, legal_.notoriety_at);
     lines.push_back(overlay::line_t{.text = std::move(text), .color = colour_alert()});
 
     // a port of one of them as the destination or the place docked at - pay first
