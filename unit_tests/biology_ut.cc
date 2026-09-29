@@ -91,6 +91,38 @@ auto main() -> int
     std::filesystem::remove(dir);
   };
 
+  "mapping efficiency changes the value, unlike the always-best-case bug"_test = []
+  {
+    std::filesystem::path const dir{std::filesystem::temp_directory_path() / "eht_efficiency_ut"};
+    std::filesystem::create_directories(dir);
+    auto const write = [&](std::initializer_list<char const *> lines)
+    {
+      std::ofstream out{dir / "Journal.2026-09-01T100000.01.log", std::ios::trunc};
+      for(char const * line: lines)
+        out << line << '\n';
+    };
+
+    write(
+      {R"({ "event":"Commander", "FID":"F1", "Name":"ME" })",
+       R"({ "event":"Scan", "StarSystem":"E1", "BodyName":"E1 1", "PlanetClass":"High metal content body", "MassEM":1.0, "WasDiscovered":true, "WasMapped":false })",
+       R"({ "event":"SAAScanComplete", "BodyName":"E1 1", "ProbesUsed":3, "EfficiencyTarget":4 })"}
+    );
+    auto const efficient{bio::at_risk(dir, "F1")};
+
+    write(
+      {R"({ "event":"Commander", "FID":"F1", "Name":"ME" })",
+       R"({ "event":"Scan", "StarSystem":"E1", "BodyName":"E1 1", "PlanetClass":"High metal content body", "MassEM":1.0, "WasDiscovered":true, "WasMapped":false })",
+       R"({ "event":"SAAScanComplete", "BodyName":"E1 1", "ProbesUsed":9, "EfficiencyTarget":4 })"}
+    );
+    auto const inefficient{bio::at_risk(dir, "F1")};
+
+    expect(efficient.cartography > inefficient.cartography)
+      << "efficient:" << efficient.cartography << "inefficient:" << inefficient.cartography;
+
+    std::filesystem::remove(dir / "Journal.2026-09-01T100000.01.log");
+    std::filesystem::remove(dir);
+  };
+
   "cartography sales"_test = []
   {
     std::filesystem::path const dir{std::filesystem::temp_directory_path() / "eht_cartography_ut"};

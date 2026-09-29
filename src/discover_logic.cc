@@ -503,7 +503,7 @@ auto scanned_value(planet_value_info_t const & info, double mass_em, bool is_ter
   return static_cast<uint32_t>(std::max(500.0, std::round(fss_value * (is_first_discoverer ? 2.6 : 1.0))));
   }
 
-auto aprox_value(body_t const & body) noexcept -> uint32_t
+auto aprox_value(body_t const & body, bool efficiency_bonus) noexcept -> uint32_t
   {
   uint32_t result{};
   if(body.body_type() == body_type_e::star)
@@ -529,7 +529,7 @@ auto aprox_value(body_t const & body) noexcept -> uint32_t
         details.terraform_state != events::terraform_state_e::none,
         not body.was_discovered,
         not details.was_mapped,
-        true
+        efficiency_bonus
       );
       }
     }

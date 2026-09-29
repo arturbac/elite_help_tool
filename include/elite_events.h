@@ -2131,7 +2131,9 @@ auto extract_mass_code(std::string_view name) noexcept -> char;
 [[nodiscard]]
 auto system_approx_value(std::string_view star_class, std::string_view system_name) noexcept -> planet_value_e;
 [[nodiscard]]
-auto aprox_value(body_t const & body) noexcept -> uint32_t;
+///\brief before a body is actually mapped, this is a best-case estimate ("worth this much if mapped
+/// efficiently") - pass the real outcome (ProbesUsed <= EfficiencyTarget) once SAAScanComplete is known
+auto aprox_value(body_t const & body, bool efficiency_bonus = true) noexcept -> uint32_t;
 ///\brief a star's value by its class and mass; the discovery bonus when nobody had it before
 [[nodiscard]]
 auto star_value(std::string_view star_type, double stellar_mass, bool is_first_discoverer = false) noexcept -> uint32_t;

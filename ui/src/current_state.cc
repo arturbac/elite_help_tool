@@ -1209,6 +1209,10 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
             {
             planet_details_t & details{std::get<planet_details_t>(it->details)};
             details.mapped = true;
+            // the real efficiency is only known once mapping is done - this corrects the value shown
+            // for the rest of this session; the shared galaxy.body row keeps its best-case estimate,
+            // since whether THIS commander mapped efficiently is personal, not a fact about the body
+            it->value = exploration::aprox_value(*it, event.ProbesUsed <= event.EfficiencyTarget);
             if(not personal_)
               {}
             else if(auto res{db_.store_dss_complete(system.system_address, event.BodyID)}; not res) [[unlikely]]
@@ -1678,8 +1682,13 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
     if(not catching_up_ and std::chrono::steady_clock::now() - progress_written_ > progress_write_interval())
       remember_progress();
 
-    // the overlay is given a picture after every batch of events and decides for itself whether anything changed
-    QMetaObject::invokeMethod(parent, [target = parent]() mutable { target->publish_overlay(); }, Qt::QueuedConnection);
+    // the overlay is given a picture after every batch of events and decides for itself whether anything
+    // changed - skipped while catching up on the tail of the current journal, since the periodic overlay
+    // timer (elite_help_tool.cc, publish_ms) already guarantees a real publish within a fraction of a
+    // second of catch-up ending, and firing it once per replayed event floods the Qt event queue for
+    // nothing
+    if(not catching_up_)
+      QMetaObject::invokeMethod(parent, [target = parent]() mutable { target->publish_overlay(); }, Qt::QueuedConnection);
 
     if(update_factions)
       {

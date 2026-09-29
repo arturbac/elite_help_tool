@@ -925,6 +925,9 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
             {
             planet_details_t & details{std::get<planet_details_t>(it->details)};
             details.mapped = true;
+            // real efficiency corrects the value for the rest of this rebuild; the shared galaxy.body
+            // row keeps its best-case estimate, since this is a fact about this commander, not the body
+            it->value = exploration::aprox_value(*it, event.ProbesUsed <= event.EfficiencyTarget);
             if(state.personal)
               if(auto res{state.db_.store_dss_complete(state.system.system_address, event.BodyID)};
                  not res) [[unlikely]]

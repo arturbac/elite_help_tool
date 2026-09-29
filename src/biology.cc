@@ -72,6 +72,8 @@ namespace detail
   struct body_line_t
     {
     std::string BodyName;
+    uint16_t ProbesUsed{};
+    uint16_t EfficiencyTarget{};
     };
 
   struct sold_system_t
@@ -101,9 +103,10 @@ namespace detail
 namespace
   {
   ///\brief what a scanned body brings at the cartographer's - the discovery bonus when nobody had it,
-  /// the mapping value only when it was mapped
+  /// the mapping value only when it was mapped, and only the full +25% efficiency bonus when the DSS
+  /// probes used did not exceed the efficiency target it was actually mapped with
   [[nodiscard]]
-  auto body_price(detail::scan_line_t const & scan, bool mapped) -> uint64_t
+  auto body_price(detail::scan_line_t const & scan, std::optional<bool> mapped_efficiently) -> uint64_t
     {
     if(not scan.StarType.empty())
       return exploration::star_value(scan.StarType, scan.StellarMass, not scan.WasDiscovered);
@@ -111,8 +114,10 @@ namespace
     if(it == exploration_values.end())
       return 0u;
     bool const terraformable{not scan.TerraformState.empty()};
-    if(mapped)
-      return exploration::calculate_value(*it, scan.MassEM, terraformable, not scan.WasDiscovered, not scan.WasMapped, true);
+    if(mapped_efficiently)
+      return exploration::calculate_value(
+        *it, scan.MassEM, terraformable, not scan.WasDiscovered, not scan.WasMapped, *mapped_efficiently
+      );
     return exploration::scanned_value(*it, scan.MassEM, terraformable, not scan.WasDiscovered);
     }
 
@@ -399,9 +404,10 @@ auto at_risk(std::filesystem::path const & journal_dir, std::string_view command
   constexpr auto opts{glz::opts{.error_on_unknown_keys = false}};
   at_risk_t result;
   bool samples_sold{};
-  // the systems whose data was sold later than the line being read, and the bodies mapped later
+  // the systems whose data was sold later than the line being read, and the bodies mapped later - the
+  // value tells whether that mapping used no more probes than its efficiency target
   std::set<std::string> systems_sold;
-  std::set<std::string> mapped;
+  std::map<std::string, bool> mapped;
   std::set<std::string> priced;
   bool all_handed_in{};
   // the factions whose vouchers were handed in later than the line being read
@@ -458,14 +464,21 @@ auto at_risk(std::filesystem::path const & journal_dir, std::string_view command
         {
         detail::body_line_t body{};
         if(not glz::read<opts>(body, line))
-          mapped.insert(std::move(body.BodyName));
+          {
+          bool const efficient{body.ProbesUsed <= body.EfficiencyTarget};
+          mapped.insert_or_assign(std::move(body.BodyName), efficient);
+          }
         }
       else if(line.contains("\"event\":\"Scan\""))
         {
         detail::scan_line_t scan{};
         if(glz::read<opts>(scan, line) or systems_sold.contains(scan.StarSystem) or not priced.insert(scan.BodyName).second)
           continue;
-        result.cartography += body_price(scan, mapped.contains(scan.BodyName));
+        auto const mapped_it{mapped.find(scan.BodyName)};
+        std::optional<bool> const mapped_efficiently{
+          mapped_it != mapped.end() ? std::optional{mapped_it->second} : std::nullopt
+        };
+        result.cartography += body_price(scan, mapped_efficiently);
         }
       else if(line.contains("\"event\":\"RedeemVoucher\""))
         {
@@ -519,7 +532,7 @@ auto cartography_sales(std::filesystem::path const & journal_dir, std::string_vi
   std::vector<cartography_sale_t> result;
   // the bodies scanned and not sold yet, by system and name - a later scan of the same body replaces the earlier
   std::map<std::string, std::map<std::string, detail::scan_line_t>> unsold;
-  std::set<std::string> mapped;
+  std::map<std::string, bool> mapped;
 
   for(std::filesystem::path const & path: journals)
     {
@@ -548,7 +561,10 @@ auto cartography_sales(std::filesystem::path const & journal_dir, std::string_vi
         {
         detail::body_line_t body{};
         if(not glz::read<opts>(body, line))
-          mapped.insert(std::move(body.BodyName));
+          {
+          bool const efficient{body.ProbesUsed <= body.EfficiencyTarget};
+          mapped.insert_or_assign(std::move(body.BodyName), efficient);
+          }
         }
       else if(line.contains("SellExplorationData\""))
         {
@@ -582,11 +598,17 @@ auto cartography_sales(std::filesystem::path const & journal_dir, std::string_vi
           if(auto const found{unsold.find(system)}; found != unsold.end())
             {
             for(auto const & [name, scan]: found->second)
-              if(uint64_t const price{body_price(scan, mapped.contains(name))}; price != 0u)
+              {
+              auto const mapped_it{mapped.find(name)};
+              std::optional<bool> const mapped_efficiently{
+                mapped_it != mapped.end() ? std::optional{mapped_it->second} : std::nullopt
+              };
+              if(uint64_t const price{body_price(scan, mapped_efficiently)}; price != 0u)
                 {
                 record.estimate += price;
                 ++record.priced;
                 }
+              }
             unsold.erase(found);
             }
         result.push_back(std::move(record));
