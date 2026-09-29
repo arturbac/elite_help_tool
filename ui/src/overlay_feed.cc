@@ -3707,26 +3707,56 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
     else if(std::chrono::steady_clock::now() - *sky_arrival_ > std::chrono::seconds{30})
       sky_arrival_.reset();
     }
+  // a planet of this system by its full name, described for the album - none for a star or a body not scanned
+  auto const planet_entry = [&](std::string const & name) -> std::optional<sky_album_t::entry_t>
+  {
+    for(body_t const & body: state.system.bodies)
+      if(name == body.name or name == std::format("{} {}", state.system.name, body.name))
+        if(auto const * const planet{std::get_if<planet_details_t>(&body.details)}; planet != nullptr)
+          return sky_album_t::entry_t{
+            .kind = "planet",
+            .system = state.system.name,
+            .body = name,
+            .detail = pictures::planet_detail(
+              planet->planet_class, planet->atmosphere, planet->surface_gravity, planet->surface_temperature
+            ),
+            .first = not body.was_discovered
+          };
+    return std::nullopt;
+  };
+
+  // Standing before a planet in analysis mode, the one set as the destination, the view is taken now and
+  // then and kept aside; the scanner opening holds the last one, and the mapping puts it into the album -
+  // the view just before the scanner, with the planet in front and nothing of the scanner's blue on it
+  constexpr uint64_t analysis_flag{1u << 27u};
+  std::string const destination{
+    status_destination_ and status_destination_->System == state.current_system_address_ and status_destination_->Body != 0u
+      ? status_destination_->Name
+      : std::string{}
+  };
+  if(ship_view and (status_flags_ & analysis_flag) != 0u and not destination.empty())
+    if(auto entry{planet_entry(destination)}; entry)
+      sky_.offer(std::move(*entry));
+  if(sky_focus_ != 10u and gui_focus_ == 10u)
+    {
+    spdlog::info("sky: the scanner opened, destination {}", destination.empty() ? std::string{"none"} : destination);
+    sky_.hold(destination);
+    }
+  if(state.scanner_at_ != sky_scanner_at_)
+    {
+    sky_scanner_at_ = state.scanner_at_;
+    if(sky_started_ and not state.scanner_body_.empty() and sky_.keep_held(state.scanner_body_, state.scanner_at_))
+      spdlog::info("sky: {} mapped, the view before the scanner kept", state.scanner_body_);
+    }
+  // no view held - the scanner opened on another body, or the picture came late: the view after it, then
   if(sky_focus_ == 10u and gui_focus_ != 10u and (status_flags_ & supercruise_flag) != 0u and not state.scanner_body_.empty())
     {
-    std::string detail;
-    bool first{};
-    for(body_t const & body: state.system.bodies)
-      if(state.scanner_body_ == body.name or state.scanner_body_ == std::format("{} {}", state.system.name, body.name))
-        if(auto const * const planet{std::get_if<planet_details_t>(&body.details)}; planet != nullptr)
-          {
-          detail = pictures::planet_detail(
-            planet->planet_class, planet->atmosphere, planet->surface_gravity, planet->surface_temperature
-          );
-          first = not body.was_discovered;
-          }
-    sky_.set_moment(state.scanner_at_);
-    sky_.ask(
-      sky_album_t::entry_t{
-        .kind = "planet", .system = state.system.name, .body = state.scanner_body_, .detail = std::move(detail), .first = first
-      },
-      std::chrono::milliseconds{cfg->exploration.sky_planet_delay_ms}
-    );
+    spdlog::info("sky: the scanner closed on {}", state.scanner_body_);
+    if(auto entry{planet_entry(state.scanner_body_)}; entry)
+      {
+      sky_.set_moment(state.scanner_at_);
+      sky_.ask(std::move(*entry), std::chrono::milliseconds{cfg->exploration.sky_planet_delay_ms});
+      }
     }
   sky_focus_ = gui_focus_;
   sky_.tick(ship_view);

@@ -187,6 +187,67 @@ auto sky_album_t::describe(std::string const & system, entry_t const & known) ->
     }
   }
 
+auto sky_album_t::request(std::chrono::steady_clock::time_point) -> overlay::capture_t
+  {
+  auto const cfg{eht::settings()};
+  // the moment, made unlike the codex's and the scanner's numbers - neither is to be taken for this one
+  uint64_t const id{
+    uint64_t(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch())
+               .count())
+    * 4u
+  };
+  return overlay::capture_t{
+    .id = id,
+    .path = (spool_dir() / std::format("sky_{}.ppm", id)).string(),
+    .size = cfg->exploration.sky_size,
+    .delay_ms = 0u,
+    .quiet = true,
+    // the middle screen's own shape - a star or a planet is a landscape, not a square
+    .aspect = 16.f / 9.f
+  };
+  }
+
+auto sky_album_t::offer(entry_t subject) -> void
+  {
+  auto const cfg{eht::settings()};
+  if(not cfg->exploration.sky_pictures or subject.body.empty() or pending_ or not due_.empty() or kept(subject.body))
+    return;
+  auto const now{std::chrono::steady_clock::now()};
+  // one every two seconds is enough to have one taken just before the scanner, whenever it is opened
+  constexpr std::chrono::seconds every{2};
+  if(candidate_ and candidate_->subject.body == subject.body and now - candidate_->at < every)
+    return;
+  std::error_code ec;
+  std::filesystem::create_directories(spool_dir(), ec);
+  if(ec)
+    return;
+  request_ = request(now);
+  pending_ = pending_t{
+    .spool = request_.path, .subject = std::move(subject), .suffix = {}, .moment = {}, .asked = now, .candidate = true
+  };
+  }
+
+auto sky_album_t::hold(std::string const & body) -> void
+  {
+  // taken a moment ago - older, and the ship may have been looking elsewhere
+  constexpr std::chrono::seconds fresh{6};
+  if(candidate_ and candidate_->subject.body == body and std::chrono::steady_clock::now() - candidate_->at < fresh)
+    {
+    held_ = std::move(candidate_);
+    spdlog::info("sky: the view of {} before the scanner is held", body);
+    }
+  candidate_.reset();
+  }
+
+auto sky_album_t::keep_held(std::string const & body, std::chrono::sys_seconds moment) -> bool
+  {
+  if(not held_ or held_->subject.body != body)
+    return false;
+  aside_t aside{std::move(*held_)};
+  held_.reset();
+  return aside.image != nullptr and keep(*aside.image, std::move(aside.subject), {}, moment);
+  }
+
 auto sky_album_t::tick(bool view_clear) -> void
   {
   if(due_.empty() or pending_)
@@ -206,22 +267,7 @@ auto sky_album_t::tick(bool view_clear) -> void
   if(ec)
     return;
 
-  auto const cfg{eht::settings()};
-  // the moment, made unlike the codex's and the scanner's numbers - neither is to be taken for this one
-  uint64_t const id{
-    uint64_t(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch())
-               .count())
-    * 4u
-  };
-  request_ = overlay::capture_t{
-    .id = id,
-    .path = (spool_dir() / std::format("sky_{}.ppm", id)).string(),
-    .size = cfg->exploration.sky_size,
-    .delay_ms = 0u,
-    .quiet = true,
-    // the middle screen's own shape - a star or a planet is a landscape, not a square
-    .aspect = 16.f / 9.f
-  };
+  request_ = request(now);
   pending_ = pending_t{
     .spool = request_.path,
     .subject = std::move(due_.front().subject),
@@ -253,9 +299,24 @@ auto sky_album_t::collect() -> bool
   entry_t subject{std::move(pending_->subject)};
   std::string const suffix{std::move(pending_->suffix)};
   std::chrono::sys_seconds const moment{pending_->moment};
+  bool const candidate{pending_->candidate};
   pending_.reset();
   if(image.isNull())
     return false;
+  if(candidate)
+    {
+    candidate_ = aside_t{
+      .image = std::make_shared<QImage const>(image), .subject = std::move(subject), .at = std::chrono::steady_clock::now()
+    };
+    return false;
+    }
+  return keep(image, std::move(subject), suffix, moment);
+  }
+
+auto sky_album_t::keep(QImage const & image, entry_t subject, std::string const & suffix, std::chrono::sys_seconds moment)
+  -> bool
+  {
+  std::error_code ec;
 
   std::filesystem::path const relative{
     std::filesystem::path{"sky"} / file_safe(subject.system) / (pictures::stem(moment, subject.body) + suffix + ".jpg")

@@ -358,7 +358,10 @@ planet it mapped. At those two moments the layer quietly takes a picture of 80% 
 its own 16:9 shape (`exploration.sky_size`), with no frame and no countdown: the star after the jump, in
 unpopulated space, 1 s after it (`sky_star_delays_ms`: at 0 s the tunnel is still on the screen, at 1 s
 the star is there; several numbers take a series, each picture under its own name), and the
-planet 1.5 s after the scanner (`sky_planet_delay_ms`). The star's scan comes some seconds after the
+planet as it stood before the scanner: in analysis mode, with a planet of this system set as the
+destination, the view is taken every 2 s and kept aside; the scanner opening holds the last one, and
+the mapping puts it into the album. Without such a view the planet is taken 1.5 s after the scanner
+closes (`sky_planet_delay_ms`). The star's scan comes some seconds after the
 jump, so the first pictures are described once it is in. Each body is taken once, and only from the ship's own view in supercruise -
 if a menu opens or the ship leaves supercruise first, the picture is called off. They go to
 `codex/sky/<system>/`, named after the journal's moment of the jump or the scanner, are described in

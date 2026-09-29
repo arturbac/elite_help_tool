@@ -214,6 +214,8 @@ private:
   std::optional<std::chrono::steady_clock::time_point> sky_arrival_;
   ///\brief the interface open at the last frame - the scanner closing is the planet's moment
   uint32_t sky_focus_{};
+  ///\brief the scanner's last moment seen - a new one is a body mapped
+  std::chrono::sys_seconds sky_scanner_at_{};
   uint64_t sky_capture_id_{};
   ///\brief the screenshots the layer took at the key, filed as they come
   screenshots_t screenshots_;
