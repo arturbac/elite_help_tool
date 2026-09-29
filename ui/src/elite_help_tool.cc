@@ -25,6 +25,7 @@
 #include <qscrollarea.h>
 #include <qgroupbox.h>
 #include <qicon.h>
+#include <qmessagebox.h>
 
 namespace
   {
@@ -601,8 +602,24 @@ auto main(int argc, char * argv[]) -> int
   eht::settings_watcher_t const settings_watcher{std::filesystem::path{eht::settings_file_name}};
 
   main_window_t window{"ehtdb.sqlite", "journal-dir"};
-  if(not window.state_.db_.open())
+  if(auto const res{window.state_.db_.open()}; not res)
+    {
+    // a database written by a newer EHT stops the older one here, rather than have it rewrite rows in
+    // a shape it only half understands
+    QString text{res.error() == std::errc::not_supported
+                   ? QString{
+                       "This database was written by a newer version of EHT than this build "
+                       "understands. Continuing could lose data, so EHT is stopping here instead.\n\n"
+                       "Back up ehtdb.sqlite and galaxy.sqlite, then rebuild them from your journals:\n\n"
+                       "journal_tailer --dir \"<your journal folder>\" --commander <your FID>\n\n"
+                       "(see the journal's own LoadGame event for the FID, and README.md for details)"
+                     }
+                   : QString::fromStdString(std::format("Could not open the database: {}", res.error().message()))};
+    QMessageBox box{QMessageBox::Critical, "EHT: database", text, QMessageBox::Ok};
+    box.setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
+    box.exec();
     return EXIT_FAILURE;
+    }
 
   // being killed from outside, or logging out, is to close the window properly; otherwise this session's
   // settings are lost - only closeEvent writes them

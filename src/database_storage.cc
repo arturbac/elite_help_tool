@@ -1174,6 +1174,29 @@ auto database_storage_t::open(storage_mode_e mode) -> expected_ec<void>
 
 auto database_storage_t::migrate_live_schema() -> expected_ec<void>
   {
+  // bumped only when a table's shape changes in a way an older build could misread - not for a column
+  // simply added in place, which every build already tolerates via the loop below. A file this build
+  // does not recognise is left alone rather than risked: better a refusal to start than a silent
+  // rewrite of rows in a shape half-understood
+  constexpr int current_schema_version{1};
+
+  for(std::string_view const schema: {"main"sv, "galaxy"sv, "live"sv})
+    {
+    auto stored{sqlite::select_signle_from<int>(db_->db, std::format("PRAGMA {}.user_version", schema))};
+    if(not stored) [[unlikely]]
+      return cxx23::unexpected{stored.error()};
+    if(*stored and **stored > current_schema_version) [[unlikely]]
+      {
+      spdlog::critical(
+        "{}.sqlite was written by a newer EHT (schema {} > {} this build knows) - refusing to touch it",
+        schema,
+        **stored,
+        current_schema_version
+      );
+      return cxx23::unexpected(std::make_error_code(std::errc::not_supported));
+      }
+    }
+
   // a column added in place instead of rebuilding the whole database. for live.sqlite it is the only
   // way, because that file cannot be rebuilt from journals; for galaxy it is a courtesy - the tool starts
   // at once, and a rebuild will fill the column in hindsight whenever one comes along anyway
@@ -1246,6 +1269,13 @@ auto database_storage_t::migrate_live_schema() -> expected_ec<void>
     ) [[unlikely]]
       return res;
     }
+
+  for(std::string_view const schema: {"main"sv, "galaxy"sv, "live"sv})
+    if(auto res{sqlite::execute_query_no_result(
+         db_->db, std::format("PRAGMA {}.user_version = {}", schema, current_schema_version)
+       )};
+       not res) [[unlikely]]
+      return res;
 
   return {};
   }

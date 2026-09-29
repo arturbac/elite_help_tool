@@ -427,8 +427,14 @@ auto main(int argc, char ** argv) -> int
   if(vm.count("ticks") or vm.count("bgs") or vm.count("wars") or vm.count("territory"))
     {
     database_import_state_t::state_t state{"ehtdb.sqlite"};
-    if(not state.db_.open(storage_mode_e::live))
+    if(auto const res{state.db_.open(storage_mode_e::live)}; not res)
+      {
+      if(res.error() == std::errc::not_supported)
+        std::println(
+          "this database was written by a newer EHT than this build understands - refusing to touch it"
+        );
       return EXIT_FAILURE;
+      }
     if(vm.count("ticks"))
       print_tick_history(state.db_, vm["ticks"].as<uint32_t>());
     if(vm.count("bgs"))
