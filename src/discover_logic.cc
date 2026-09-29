@@ -171,38 +171,38 @@ auto order_calculation(std::span<bary_centre_t const> barycentres, std::vector<b
       {},  // s->mean_anomaly,
       {}
     };
+    // the node's own immediate parent - the nearest one wins, since a moon's planet outranks whatever
+    // that planet in turn orbits, and the walk up to the root climbs one link at a time
     std::visit(
-      [&registry, &reg]<typename T>(T const & det)
+      [&reg]<typename T>(T const & det)
       {
         if constexpr(std::same_as<T, planet_details_t>)
           {
           reg.ascending_node = det.ascending_node;
           reg.mean_anomaly = det.mean_anomaly;
-          if(det.parent_barycenter)
-            registry[*det.parent_barycenter].parents.emplace_back(events::parent_t{.Null = det.parent_barycenter});
-          if(det.parent_star)
-            registry[*det.parent_star].parents.emplace_back(events::parent_t{.Star = det.parent_star});
           if(det.parent_planet)
-            registry[*det.parent_planet].parents.emplace_back(events::parent_t{.Planet = det.parent_planet});
+            reg.parents.emplace_back(events::parent_t{.Planet = det.parent_planet});
+          else if(det.parent_barycenter)
+            reg.parents.emplace_back(events::parent_t{.Null = det.parent_barycenter});
+          else if(det.parent_star)
+            reg.parents.emplace_back(events::parent_t{.Star = det.parent_star});
+          }
+        else if constexpr(std::same_as<T, star_details_t>)
+          {
+          reg.ascending_node = det.ascending_node;
+          reg.mean_anomaly = det.mean_anomaly;
+          if(det.parent_barycenter)
+            reg.parents.emplace_back(events::parent_t{.Null = det.parent_barycenter});
+          else if(det.parent_star)
+            reg.parents.emplace_back(events::parent_t{.Star = det.parent_star});
           }
       },
       s->details
     );
-
-    // filling in the hierarchy of barycentres from the scan's path of parents
-    // for(size_t i = 0; i + 1 < s->parents.size(); ++i)
-    //   {
-    //   auto parent_id = s->parents[i].id();
-    //   if(registry.contains(parent_id) and registry[parent_id].parents.empty())
-    //     {
-    //     // since s.Parents[i] is our barycentre, s.Parents[i+1] is its parent
-    //     registry[parent_id].parents.push_back(s->parents[i + 1]);
-    //     }
-    //   }
     }
 
-  // Explicit logic error check: If a barycentre has parents in the log, they should be mapped!
-  // Note: Barycentre logs in ED sometimes don't list parents, but they are referenced by bodies.
+  // a barycentre nested under a further-out one (a close pair, itself orbiting a distant third body)
+  // stays at the root's origin - the game's ScanBaryCentre never says what an outer barycentre orbits
 
   std::unordered_map<body_id_t, body_location_t> rel_coords;
   for(auto const & [id, node]: registry)
@@ -957,6 +957,8 @@ auto to_body(events::scan_detailed_scan_t && event) -> body_t
       .rotation_period = event.RotationPeriod,
       .age_my = event.Age_MY,
       .sub_class = event.Subclass,
+      .ascending_node = event.AscendingNode,
+      .mean_anomaly = event.MeanAnomaly,
       .parent_star = {},
       .parent_barycenter = {}
     };

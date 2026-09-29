@@ -30,6 +30,8 @@ struct star_details_t
   std::optional<double> rotation_period;
   uint32_t age_my;
   uint8_t sub_class;
+  double ascending_node;
+  double mean_anomaly;
   std::optional<events::body_id_t> parent_star;
   std::optional<events::body_id_t> parent_barycenter;
   };
@@ -47,6 +49,8 @@ auto to_db_fromat(uint64_t ref_body_oid, ::star_details_t const & v) noexcept ->
     .rotation_period = v.rotation_period,
     .age_my = v.age_my,
     .sub_class = v.sub_class,
+    .ascending_node = v.ascending_node,
+    .mean_anomaly = v.mean_anomaly,
     .parent_star = v.parent_star,
     .parent_barycenter = v.parent_barycenter
   };
@@ -64,6 +68,8 @@ auto to_native_fromat(sql_iface::star_details_t const & v) noexcept -> ::star_de
     .rotation_period = v.rotation_period,
     .age_my = v.age_my,
     .sub_class = v.sub_class,
+    .ascending_node = v.ascending_node,
+    .mean_anomaly = v.mean_anomaly,
     .parent_star = v.parent_star,
     .parent_barycenter = v.parent_barycenter
   };
@@ -1166,6 +1172,10 @@ auto database_storage_t::migrate_live_schema() -> expected_ec<void>
        // what a star orbits - stars written before it was kept stay NULL until a rebuild or a rescan
        addition_t{sql_iface::tables::star_details, "parent_star"sv, "INTEGER"sv},
        addition_t{sql_iface::tables::star_details, "parent_barycenter"sv, "INTEGER"sv},
+       // a star's own phase on the orbit it is written above - rows written before it was kept stay 0,
+       // as if the star sat still at the moment of every scan
+       addition_t{sql_iface::tables::star_details, "ascending_node"sv, "REAL DEFAULT 0"sv},
+       addition_t{sql_iface::tables::star_details, "mean_anomaly"sv, "REAL DEFAULT 0"sv},
        // what the discovery scan counted - systems honked before it was kept say 0, as if never honked
        addition_t{sql_iface::tables::star_system, "body_count"sv, "INTEGER DEFAULT 0"sv},
        // the carrier's state from CarrierStats - added in place, because live.sqlite is never created anew

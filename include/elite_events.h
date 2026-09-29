@@ -3,6 +3,7 @@
 #include <string>
 #include <simple_enum/glaze_json_enum_name.hpp>
 #include <chrono>
+#include <span>
 
 namespace color_codes_t
   {
@@ -1679,6 +1680,10 @@ struct star_details_t
   std::optional<double> rotation_period;
   uint32_t age_my;
   uint8_t sub_class;
+  ///\brief where the star stands on its own orbit around what it orbits, at the scan's own moment - 0 for
+  /// a star alone at the centre, which the game's journal leaves out rather than writes as zero
+  double ascending_node{};
+  double mean_anomaly{};
   ///\brief what the star orbits - with two stars or more it is a barycentre shared with its partner,
   /// which is what pairs them in a picture of the system; empty for rows written before it was kept
   std::optional<events::body_id_t> parent_star;
@@ -1776,6 +1781,12 @@ struct bary_centre_t
   double ascending_node;
   double mean_anomaly;
   };
+
+///\brief every scanned body's absolute position at the moment of its own scan, the moons and the
+/// companion stars' own orbits added onto whatever they in turn circle, up to the system's own centre
+[[nodiscard]]
+auto order_calculation(std::span<bary_centre_t const> barycentres, std::vector<body_t const *> const & scans)
+  -> std::vector<events::body_location_t>;
 
 ///\brief a lasting signal in the system, one row per name
 struct system_signal_t
