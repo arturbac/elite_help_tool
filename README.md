@@ -416,6 +416,8 @@ once and kept:
 Both files are written whole under a temporary name and renamed, so a tool watching the directory
 never reads half of one. One white room makes one marker: the next waits for the screen to darken
 again, or 5 minutes (`evidence.again_after_s`).
+For two minutes after a glare the overlay says so in red at the top of the right band -
+`lighting defect detected 08:47:21, evidence kept` - the sign that the watch works.
 
 ## Privacy and your own galaxy
 

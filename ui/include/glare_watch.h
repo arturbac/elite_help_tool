@@ -9,6 +9,7 @@
 #include <filesystem>
 #include <future>
 #include <optional>
+#include <string>
 #include <vector>
 
 ///\brief watches for the white glare of a settlement's rooms and writes each one down - see glare.h
@@ -38,6 +39,17 @@ public:
   ///\brief measures the picture the layer has finished, if there is one, and writes the marker for a glare
   auto collect(glare::game_t const & game) -> void;
 
+  ///\brief the last glare found, as the player's clock says it - for the word on the overlay that the watch works
+  struct noticed_t
+    {
+    std::string local_time;
+    std::chrono::steady_clock::time_point at;
+    };
+
+  [[nodiscard]]
+  auto noticed() const noexcept -> std::optional<noticed_t> const &
+    { return noticed_; }
+
 private:
   struct pending_t
     {
@@ -56,6 +68,7 @@ private:
   bool darkened_{true};
   ///\brief a glare measured, waiting for its whole picture
   std::optional<glare::marker_t> found_;
+  std::optional<noticed_t> noticed_;
   std::vector<std::future<void>> work_;
 
   ///\brief writes the marker found, with its picture when there is one

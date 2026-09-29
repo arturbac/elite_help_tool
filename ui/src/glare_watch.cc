@@ -202,6 +202,20 @@ auto glare_watch_t::collect(glare::game_t const & game) -> void
     .metrics = metrics,
     .game = game
   };
+  std::string local_time;
+  try
+    {
+    local_time = std::format(
+      "{:%H:%M:%S}",
+      std::chrono::zoned_time{std::chrono::current_zone(), std::chrono::floor<std::chrono::seconds>(done.taken)}
+        .get_local_time()
+    );
+    }
+  catch(...)
+    {
+    local_time = std::format("{:%H:%M:%S} UTC", std::chrono::floor<std::chrono::seconds>(done.taken));
+    }
+  noticed_ = noticed_t{.local_time = std::move(local_time), .at = now};
   spdlog::info(
     "glare: {} at {} - mean {:.2f}, p99 {:.2f}, {:.0f}% burnt out",
     found_->ts_utc,

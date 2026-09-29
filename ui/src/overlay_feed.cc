@@ -3941,6 +3941,21 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
       overlay::block_t{.corner = overlay::corner_e::centre_top_right, .ttl_ms = block_ttl_ms(), .lines = std::move(crew)}
     );
 
+  // the word that the glare was seen and written down - the player's proof that the watch works, in red, for
+  // two minutes; no flash, the room is bright enough already
+  if(auto const & noticed{glare_.noticed()};
+     noticed and std::chrono::steady_clock::now() - noticed->at < std::chrono::minutes{2})
+    frame.blocks.push_back(
+      overlay::block_t{
+        .corner = overlay::corner_e::top_right,
+        .ttl_ms = block_ttl_ms(),
+        .lines = {overlay::line_t{
+          .text = std::format("lighting defect detected {}, evidence kept", noticed->local_time),
+          .color = colour_expiring()
+        }}
+      }
+    );
+
   if(auto settlement{build_settlement_lines(state)}; not settlement.empty())
     frame.blocks.push_back(
       overlay::block_t{.corner = overlay::corner_e::top_right, .ttl_ms = block_ttl_ms(), .lines = std::move(settlement)}
