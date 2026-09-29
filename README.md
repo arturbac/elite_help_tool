@@ -380,14 +380,15 @@ Settings are in the `exploration` section of `eht_settings.json`: `bio_worth`, `
 Out of a jump the ship faces the arrival star, and after the surface scanner closes it still faces the
 planet it mapped. At those two moments the layer quietly takes a picture of 80% of the middle screen in
 its own 16:9 shape (`exploration.sky_size`), with no frame and no countdown: the star after the jump, in
-unpopulated space, 1 s after it (`sky_star_delays_ms`: at 0 s the tunnel is still on the screen, at 1 s
-the star is there; several numbers take a series, each picture under its own name), and the
+unpopulated space, tried at 1 s, 2 s and 3 s in turn (`sky_star_delays_ms`: at 0 s the tunnel is still on
+the screen; the series stops at whichever attempt first finds the ship's own view, so a map or a scanner
+opened during one attempt only costs that attempt, not the ones still to come), and the
 planet as it stood before the scanner: in analysis mode, with a planet of this system set as the
 destination, the view is taken every 2 s and kept aside; the scanner opening holds the last one, and
 the mapping puts it into the album. Without such a view the planet is taken 1.5 s after the scanner
 closes (`sky_planet_delay_ms`). The star's scan comes some seconds after the
 jump, so the first pictures are described once it is in. Each body is taken once, and only from the ship's own view in supercruise -
-if a menu opens or the ship leaves supercruise first, the picture is called off. They go to
+a menu or the galaxy map open at the moment an attempt falls due drops that attempt alone. They go to
 `codex/sky/<system>/`, named after the journal's moment of the jump or the scanner, are described in
 `codex/sky/sky.json`, and `codex/sky.html` shows them with the
 star's class, mass, temperature and radius or the planet's class, atmosphere, gravity and temperature,

@@ -3664,17 +3664,20 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
     {
     sky_system_ = state.current_system_address_;
     // the system the tool started in was not jumped into just now - the ship may face anything
-    if(std::exchange(sky_started_, true) and state.system.population == 0u)
+    if(bool const started{std::exchange(sky_started_, true)}; started and state.system.population == 0u)
       {
       sky_arrival_ = std::chrono::steady_clock::now();
       std::vector<std::chrono::milliseconds> delays;
       for(uint32_t const delay: cfg->exploration.sky_star_delays_ms)
         delays.emplace_back(delay);
       sky_.set_moment(state.jump_info.timestamp);
+      spdlog::info("sky: arrival at {}, ship_view {}, star photo asked", state.system.name, ship_view);
       sky_.ask_series(
         sky_album_t::entry_t{.kind = "star", .system = state.system.name, .body = state.system.name}, delays
       );
       }
+    else if(started)
+      spdlog::info("sky: arrival at {}, population {}, star photo skipped", state.system.name, state.system.population);
     }
   if(sky_arrival_)
     {

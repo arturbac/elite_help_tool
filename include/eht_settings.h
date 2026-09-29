@@ -198,9 +198,10 @@ struct exploration_settings_t
   bool sky_pictures{true};
   ///\brief the picture's height as a share of the screen's, in the middle screen's own 16:9 shape
   float sky_size{0.8f};
-  ///\brief when after the jump the star is taken, one picture for each - several while the moment worth it is
-  /// being found out. At 0 s the tunnel is still on the screen; at 1 s the star is there
-  std::vector<uint32_t> sky_star_delays_ms{1000u};
+  ///\brief when after the jump the star is taken - tried at each in turn until one lands, the rest of the
+  /// series called off once it does. At 0 s the tunnel is still on the screen; a map or a scanner opened
+  /// before one is due only costs that one attempt, not the series
+  std::vector<uint32_t> sky_star_delays_ms{1000u, 2000u, 3000u};
   ///\brief how long after the scanner closes the planet is taken - the cockpit comes back round it first
   uint32_t sky_planet_delay_ms{1500u};
   float white_dwarf_danger_radii{78.f};

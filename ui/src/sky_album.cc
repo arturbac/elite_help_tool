@@ -250,17 +250,24 @@ auto sky_album_t::keep_held(std::string const & body, std::chrono::sys_seconds m
 
 auto sky_album_t::tick(bool view_clear) -> void
   {
-  if(due_.empty() or pending_)
+  if(pending_)
     return;
-  if(not view_clear)
-    {
-    // the view is a menu or the ship is somewhere else - the moment the pictures were for has passed
-    due_.clear();
+  // an earlier attempt in this series already landed - the rest is called off
+  while(not due_.empty() and kept(due_.front().subject.body))
+    due_.pop_front();
+  if(due_.empty())
     return;
-    }
   auto const now{std::chrono::steady_clock::now()};
   if(now < due_.front().at)
     return;
+  if(not view_clear)
+    {
+    // the view was not the ship's own at the moment this one was due - only this attempt is lost, a
+    // later one in the series may still catch the view clear again
+    spdlog::info("sky: the view was not clear for {}, that attempt is dropped", due_.front().subject.body);
+    due_.pop_front();
+    return;
+    }
 
   std::error_code ec;
   std::filesystem::create_directories(spool_dir(), ec);
@@ -290,7 +297,10 @@ auto sky_album_t::collect() -> bool
   if(not std::filesystem::exists(pending_->spool, ec))
     {
     if(std::chrono::steady_clock::now() - pending_->asked > pending_limit)
+      {
+      spdlog::warn("sky: the layer never answered for {}, {} given up", pending_->subject.body, pending_->spool.string());
       pending_.reset();
+      }
     return false;
     }
 

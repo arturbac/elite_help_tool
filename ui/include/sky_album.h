@@ -38,12 +38,12 @@ public:
     bool first{};
     };
 
-  ///\brief a picture wanted after the given delay, unless one of this body is kept already - the moment the
-  /// ship turns away is when it is called off
+  ///\brief a picture wanted after the given delay, unless one of this body is kept already - lost if the view
+  /// is not the ship's own right at that moment
   auto ask(entry_t subject, std::chrono::milliseconds after) -> void;
 
-  ///\brief a series of pictures of one subject, each the given time from now, each kept under its own name - to see
-  /// at which moment the view is worth it, before the moment is settled on
+  ///\brief a picture tried at each of the given delays in turn, until one lands - a map or a scanner opened
+  /// over an earlier one costs only that attempt, not the ones still to come
   auto ask_series(entry_t subject, std::span<std::chrono::milliseconds const> after) -> void;
 
   ///\brief what the pictures of a system's star show, once the star's scan has come - a few seconds after the
