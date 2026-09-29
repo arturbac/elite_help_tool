@@ -849,6 +849,7 @@ auto generic_state_t::discovery(std::string_view input) -> void
     case SAAScanComplete:   parse_and_handle.template operator()<events::saa_scan_complete_t>(); break;
     case SAASignalsFound:   parse_and_handle.template operator()<events::dss_body_signals_t>(); break;
     case ScanOrganic:       parse_and_handle.template operator()<events::scan_organic_t>(); break;
+    case Touchdown:         parse_and_handle.template operator()<events::touchdown_t>(); break;
     case Music:             break;
     case NavRoute:
         {

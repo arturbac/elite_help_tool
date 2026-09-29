@@ -354,6 +354,9 @@ struct database_storage_t
   auto store_dss_complete(uint64_t system_address, events::body_id_t body_id) -> expected_ec<void>;
 
   [[nodiscard]]
+  auto store_footfall_complete(uint64_t system_address, events::body_id_t body_id) -> expected_ec<void>;
+
+  [[nodiscard]]
   auto store(uint64_t ref_body_oid, events::signal_t const & value) -> expected_ec<void>;
 
   [[nodiscard]]

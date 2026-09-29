@@ -517,8 +517,10 @@ The data is split into three files lying side by side, because they differ in or
 | `live.sqlite` | markets, prices, the bartender's shelf | **no** | yes |
 
 `ehtdb` is split from `galaxy` for one concrete reason: the world is the same for every commander,
-but "what I have scanned and mapped" is not. Showing one commander that they mapped a planet which was
-really mapped by the other leads straight to a wrong decision when planning a flight. That is why
+but "what I have scanned, mapped or set foot on" is not. Showing one commander that they mapped a planet which was
+really mapped by the other leads straight to a wrong decision when planning a flight. `body_progress`
+tracks `mapped` from `SAAScanComplete` and `footfalled` from `Touchdown`, each column set independently
+so mapping and landing do not overwrite one another. That is why
 `system_progress`, `body_progress`, `genus_progress` and `faction_reputation` stay in the personal
 database and are keyed **naturally** — by system address, body id, faction name — and not by `oid`s,
 which change with every rebuild of `galaxy.sqlite`.

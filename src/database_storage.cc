@@ -2184,6 +2184,19 @@ auto database_storage_t::store_dss_complete(uint64_t system_address, events::bod
   return sqlite::execute_query_no_result(db_->db, query);
   }
 
+auto database_storage_t::store_footfall_complete(uint64_t system_address, events::body_id_t body_id) -> expected_ec<void>
+  {
+  // the key is the system and the game's body number, not an oid - an oid changes with every galaxy rebuild
+  std::string query{std::format(
+    "INSERT INTO {0} (system_address, body_id, mapped, footfalled) VALUES ({1}, {2}, 0, 1)"
+    " ON CONFLICT(system_address, body_id) DO UPDATE SET footfalled = 1",
+    sql_iface::tables::body_progress,
+    system_address,
+    body_id
+  )};
+  return sqlite::execute_query_no_result(db_->db, query);
+  }
+
 auto database_storage_t::store_ring_body_id(
   uint64_t system_address, events::body_id_t parent_body_id, std::string_view ring_name, events::body_id_t ring_body_id
 ) -> expected_ec<void>

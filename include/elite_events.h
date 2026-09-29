@@ -976,6 +976,15 @@ struct supercruise_entry_t
   uint64_t SystemAddress;
   };
 
+///\brief the ship lands on a body's surface - marks it footfalled by this commander, same as an SAAScanComplete marks mapped
+struct touchdown_t
+  {
+  uint64_t SystemAddress;
+  body_id_t BodyID;
+  ///\brief false when an NPC crew member lands the ship on the commander's behalf
+  bool PlayerControlled;
+  };
+
 ///\brief a kill in a conflict zone - who pays for it and whom it was against. The reward also says the
 /// intensity of a zone on foot: the game pays from fixed tables, one per intensity
 struct faction_kill_bond_t
@@ -1575,6 +1584,7 @@ using event_holder_t = std::variant<
   approach_settlement_t,
   disembark_t,
   supercruise_entry_t,
+  touchdown_t,
   backpack_change_t,
   fss_all_bodies_found_t,
   scan_bary_centre_t,

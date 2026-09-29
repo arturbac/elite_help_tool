@@ -190,6 +190,7 @@ int main()
   {
     expect(bool(dbs.store_fss_complete(address)));
     expect(bool(dbs.store_dss_complete(address, body)));
+    expect(bool(dbs.store_footfall_complete(address, body)));
     expect(bool(dbs.store_genus_species(address, body, "Bacterium", "Bacterium Aurasus", true, true)));
     // a later Log of the same genus does not take the finished sample back
     expect(bool(dbs.store_genus_species(address, body, "Bacterium", "Bacterium Aurasus", true, false)));
@@ -201,6 +202,7 @@ int main()
     star_system_t const & got{**reloaded};
     expect(got.fss_complete) << "fss_complete lost";
     expect(std::get<planet_details_t>(got.bodies[0].details).mapped) << "mapped lost";
+    expect(std::get<planet_details_t>(got.bodies[0].details).footfalled) << "footfalled lost";
 
     auto const & genuses{std::get<planet_details_t>(got.bodies[0].details).genuses_};
     expect(genuses.size() == 1u);
