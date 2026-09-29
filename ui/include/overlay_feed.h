@@ -97,6 +97,13 @@ private:
   [[nodiscard]]
   auto build_settlement_owners(star_system_t const & system) const -> std::vector<overlay::line_t>;
 
+  ///\brief keeps neutron_route_/neutron_reached_ current with the remembered route and the system we
+  /// are actually in - independent of whether the Route window happens to be open
+  auto refresh_neutron_route(current_state_t const & state) -> void;
+  ///\brief what to do right now, flying the remembered neutron route - empty off it, or not flying
+  [[nodiscard]]
+  auto build_neutron_checklist_lines() const -> std::vector<overlay::line_t>;
+
   ///\brief who holds the places the open missions point at - the journal does not say
   auto refresh_mission_places(current_state_t const & state) -> void;
 
@@ -180,6 +187,13 @@ private:
   std::string station_name_;
   std::string station_faction_;
   std::string station_type_;
+
+  ///\brief the remembered neutron route, and how far along it we are - a live checklist for the
+  /// highway's own ritual, read while flying rather than glanced at in a window that may not be open
+  std::vector<info::neutron_waypoint_t> neutron_route_;
+  size_t neutron_reached_{};
+  uint64_t neutron_progress_system_{};
+  std::chrono::steady_clock::time_point neutron_route_loaded_{};
 
   ///\brief the faction holding each place a mission points at, keyed by system and name
   std::map<std::pair<std::string, std::string>, std::string> place_owner_;

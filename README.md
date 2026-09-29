@@ -225,6 +225,10 @@ it can take the game down: [overlay/README.md](overlay/README.md).
   A double click on a row makes that waypoint the next one.
 - **Remember** keeps the route across restarts, **Forget** drops it. **Clear** drops a route loaded
   for one trip only; a remembered route, if there is one, is shown again.
+- **On the overlay, in flight**: a small reminder of what to do right now with the remembered route -
+  go to the next waypoint, approach it and jump, or that a jump is under way - so the ritual can be
+  followed without the Route window open. Shown only in supercruise, in the main ship; docked or on
+  foot it goes quiet, since neither has anything to do with the next jump.
 
 ## Colonisation
 

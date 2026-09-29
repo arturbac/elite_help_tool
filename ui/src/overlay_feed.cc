@@ -2632,6 +2632,69 @@ auto overlay_feed_t::build_surface_nav_lines() const -> std::vector<overlay::lin
   return lines;
   }
 
+auto overlay_feed_t::refresh_neutron_route(current_state_t const & state) -> void
+  {
+  auto const now{std::chrono::steady_clock::now()};
+  if(now - neutron_route_loaded_ >= std::chrono::seconds{5})
+    {
+    neutron_route_loaded_ = now;
+    if(auto route{db_.load_neutron_route()}; route)
+      {
+      // a route replaced or cleared starts the progress over - matching by name would still break on
+      // a route flown a second time, so a size change is the simplest sign it is not the same one
+      if(route->size() != neutron_route_.size())
+        neutron_reached_ = 0u;
+      neutron_route_ = std::move(*route);
+      }
+    }
+
+  if(neutron_route_.empty())
+    return;
+
+  // the same walk-forward the Route window itself does, independent of whether that window is open
+  if(state.current_system_address_ != neutron_progress_system_)
+    {
+    neutron_progress_system_ = state.current_system_address_;
+    auto const ahead{neutron_route_ | std::views::drop(neutron_reached_)};
+    if(auto const here{
+         std::ranges::find(ahead, state.current_system_address_, &info::neutron_waypoint_t::system_address)
+       };
+       here != ahead.end())
+      neutron_reached_ += size_t(std::ranges::distance(ahead.begin(), here)) + 1u;
+    }
+  }
+
+auto overlay_feed_t::build_neutron_checklist_lines() const -> std::vector<overlay::line_t>
+  {
+  if(neutron_route_.empty() or neutron_reached_ >= neutron_route_.size())
+    return {};
+
+  // only in flight, supercruise, the main ship - a docked or on-foot state has nothing to do with the
+  // next jump, and would only clutter what actually matters there instead
+  constexpr uint64_t supercruise_flag{1u << 4u};
+  constexpr uint64_t main_ship_flag{1u << 24u};
+  constexpr uint64_t hyperdrive_charging_flag{1u << 19u};
+  if((status_flags_ & supercruise_flag) == 0u or (status_flags_ & main_ship_flag) == 0u)
+    return {};
+
+  info::neutron_waypoint_t const & next{neutron_route_[neutron_reached_]};
+
+  std::string step;
+  if((status_flags2_ & hyperdrive_charging_flag) != 0u)
+    step = std::format("jumping to {}...", next.system);
+  else if(status_destination_ and status_destination_->System == next.system_address)
+    step = std::format("approach {}, then jump", next.system);
+  else
+    step = std::format(
+      "go to {} neutron star: {}", neutron_reached_ == 0u ? "your first" : "the next", next.system
+    );
+
+  return {
+    overlay::line_t{.text = "neutron highway:", .color = colour_heading()},
+    overlay::line_t{.text = std::format("  {}", step), .color = colour_plain()}
+  };
+  }
+
 auto overlay_feed_t::build_settlement_owners(star_system_t const & system) const -> std::vector<overlay::line_t>
   {
   // On foot at a place with mission boards - a port's concourse or hangar, or a settlement. Inside a port
@@ -3926,8 +3989,14 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
     destination != nullptr ? std::string_view{destination->system} : std::string_view{}
   );
   refresh_supply();
+  refresh_neutron_route(state);
 
   overlay::frame_t frame{};
+
+  if(auto neutron{build_neutron_checklist_lines()}; not neutron.empty())
+    frame.blocks.push_back(
+      overlay::block_t{.corner = overlay::corner_e::top_left, .ttl_ms = block_ttl_ms(), .lines = std::move(neutron)}
+    );
 
   // a ship actually docked, not a taxi ride nor an on-foot arrival, at a market never opened - the
   // side band already says so, easy to miss among everything else there; this repeats it where it
