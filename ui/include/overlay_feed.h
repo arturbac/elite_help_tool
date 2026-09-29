@@ -8,6 +8,7 @@
 #include "scanner_sheet.h"
 #include "screenshots.h"
 #include "sky_album.h"
+#include "glare_watch.h"
 
 #include <overlay_ipc.h>
 
@@ -219,6 +220,9 @@ private:
   uint64_t sky_capture_id_{};
   ///\brief the screenshots the layer took at the key, filed as they come
   screenshots_t screenshots_;
+  ///\brief the white glare of a settlement's rooms, written down for the evidence tool
+  glare_watch_t glare_;
+  uint64_t glare_capture_id_{};
   ///\brief the one request the frame carries - the newest of the codex's and the scanner's. Kept here so
   /// that an older one never returns to the frame, where the layer would take it for new
   overlay::capture_t capture_;

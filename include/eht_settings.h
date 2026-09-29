@@ -247,6 +247,23 @@ struct screenshot_settings_t
   uint32_t jpeg_quality{92u};
   };
 
+///\brief the white glare of some settlements measured and written down for another tool - see glare.h
+struct evidence_settings_t
+  {
+  ///\brief markers go into markers/ under it, pictures into screenshots/; empty measures nothing
+  std::string dir;
+  ///\brief how often the middle of the screen is measured inside a settlement
+  uint32_t interval_ms{3000u};
+  ///\brief the height of the patch measured, as a share of the screen's height, at the middle screen's shape
+  float measured_size{0.3f};
+  ///\brief a pixel this bright or brighter, 0..255, counts as burnt out
+  uint32_t burnt_out{245u};
+  ///\brief the share of burnt-out pixels, in percent, that makes the screen the glare
+  double overexposed_pct{60.0};
+  ///\brief after a marker the next one waits for the screen to darken, or this long
+  uint32_t again_after_s{300u};
+  };
+
 struct trade_settings_t
   {
   ///\brief a rate on fewer tonnes than this in stock or in demand is no rate
@@ -364,6 +381,7 @@ struct settings_t
   overlay_settings_t overlay;
   exploration_settings_t exploration;
   screenshot_settings_t screenshots;
+  evidence_settings_t evidence;
   gui_settings_t gui;
   trade_settings_t trade;
   tick_settings_t ticks;

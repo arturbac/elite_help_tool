@@ -3761,6 +3761,27 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
   sky_focus_ = gui_focus_;
   sky_.tick(ship_view);
   }
+
+  // On foot inside a settlement's buildings, with nothing open - where the white glare of some rooms comes
+  {
+  constexpr uint64_t on_foot_flag{1u << 0u};
+  constexpr uint64_t taxi_flag{1u << 1u};
+  constexpr uint64_t on_planet_flag{1u << 4u};
+  constexpr uint64_t exterior_flag{1u << 15u};
+  bool const inside_settlement{
+    (status_flags2_ & on_foot_flag) != 0u and (status_flags2_ & on_planet_flag) != 0u
+    and (status_flags2_ & (exterior_flag | taxi_flag)) == 0u and gui_focus_ == 0u
+  };
+  glare_.collect(
+    glare::game_t{
+      .system = state.system.name,
+      .body = status_body_,
+      .settlement = station_name_,
+      .journal_ts = std::format("{:%FT%T}Z", state.last_event_)
+    }
+  );
+  glare_.observe(inside_settlement);
+  }
   screenshots_.collect();
   refresh_species_history(state);
 
@@ -4141,6 +4162,11 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
   if(auto const & asked{sky_.capture_request()}; asked.id != sky_capture_id_)
     {
     sky_capture_id_ = asked.id;
+    capture_ = asked;
+    }
+  if(auto const & asked{glare_.capture_request()}; asked.id != glare_capture_id_)
+    {
+    glare_capture_id_ = asked.id;
     capture_ = asked;
     }
   frame.capture = capture_;

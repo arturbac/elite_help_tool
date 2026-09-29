@@ -396,6 +396,27 @@ described again out of them.
 - `backup.dir` moves it, `backup.enabled` turns it off. Copying `~/.backups/eht` to another disk
   is then the whole backup.
 
+## Evidence of the settlement glare
+
+Since an update of the game some rooms of Odyssey settlements are now and then lit so brightly that
+nearly the whole screen is white. To report it with what the network did at that moment, EHT can
+write the moments down for another tool to pick up. With `evidence.dir` set (empty, the default,
+turns it off), while you are on foot inside a settlement's buildings with no menu open, a patch of
+the middle screen (`evidence.measured_size`, 0.3 of its height) is taken quietly every 3 s
+(`evidence.interval_ms`) and measured. When at least 60 % of it (`evidence.overexposed_pct`) is
+burnt out - brighter than `evidence.burnt_out`, 245 of 255 - the whole middle screen is taken at
+once and kept:
+
+- `<dir>/screenshots/<moment>_eht.png` - the picture;
+- `<dir>/markers/<moment>_eht.json` - the marker: `ts_utc` (the machine's clock, UTC with
+  milliseconds), `kind` `auto-luma`, the brightness (`luma_mean`, `luma_p99`, `overexposed_pct`),
+  the picture's path and size, and where it was - system, body, settlement and the journal's
+  newest moment (`journal_ts`, the game's clock, which is not always the machine's).
+
+Both files are written whole under a temporary name and renamed, so a tool watching the directory
+never reads half of one. One white room makes one marker: the next waits for the screen to darken
+again, or 5 minutes (`evidence.again_after_s`).
+
 ## Privacy and your own galaxy
 
 EHT is cut off from the public databases **in both directions**, on purpose.

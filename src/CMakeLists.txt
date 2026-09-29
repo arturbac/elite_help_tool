@@ -12,6 +12,7 @@ target_sources(eht
   legal.cc
   fleet.cc
   territory.cc
+  glare.cc
   database_storage.cc
   database_import_state.cc
   elite_data.cc
