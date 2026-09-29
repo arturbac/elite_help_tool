@@ -955,6 +955,10 @@ struct approach_settlement_t
   std::string StationGovernment_Localised;
   ///\brief the faction holding the place - the journal gives it nested, not as a bare string
   system_faction_t StationFaction;
+  ///\brief where on the body it stands - absent for a settlement approached from orbit rather than
+  /// walked up to, which the journal does not explain
+  std::optional<double> Latitude;
+  std::optional<double> Longitude;
   };
 
 ///\brief leaving the vehicle - sometimes the only trace of the place when the arrival was by taxi

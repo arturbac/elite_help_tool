@@ -355,6 +355,22 @@ auto to_db_fromat(uint64_t ref_system_address, ::bary_centre_t const & bc) noexc
   };
   }
 
+[[nodiscard]]
+auto to_native_fromat(sql_iface::bary_centre_t const & bc) noexcept -> ::bary_centre_t
+  {
+  return ::bary_centre_t{
+    .body_id = bc.body_id,
+    .semi_major_axis = bc.semi_major_axis,
+    .eccentricity = bc.eccentricity,
+    .orbital_inclination = bc.orbital_inclination,
+    .periapsis = bc.periapsis,
+    .orbital_period = bc.orbital_period,
+    .ascending_node = bc.ascending_node,
+    .mean_anomaly = bc.mean_anomaly,
+    .scanned_at = bc.scanned_at
+  };
+  }
+
 struct star_system_t
   {
   uint64_t system_address;
@@ -1174,6 +1190,10 @@ auto database_storage_t::migrate_live_schema() -> expected_ec<void>
        addition_t{sql_iface::tables::station, "controlling_faction"sv, "TEXT DEFAULT ''"sv},
        addition_t{sql_iface::tables::station, "dist_from_star_ls"sv, "REAL DEFAULT 0"sv},
        addition_t{sql_iface::tables::station, "body_id"sv, "INTEGER"sv},
+       // where on that body the settlement stands, from ApproachSettlement - unknown for rows written
+       // before it was kept, or where the approach came from orbit rather than on foot
+       addition_t{sql_iface::tables::station, "latitude"sv, "REAL"sv},
+       addition_t{sql_iface::tables::station, "longitude"sv, "REAL"sv},
        // when the scan behind a body's orbital elements was taken - rows written before it was kept
        // stay at the epoch, as distant in the past as a position "now" could ever be carried forward to
        addition_t{sql_iface::tables::body, "scanned_at"sv, "TEXT DEFAULT '1970-01-01T00:00:00Z'"sv},
@@ -2423,6 +2443,10 @@ auto database_storage_t::store(info::station_t const & value) -> expected_ec<voi
     merged.dist_from_star_ls = value.dist_from_star_ls;
   if(value.body_id)
     merged.body_id = value.body_id;
+  if(value.latitude)
+    merged.latitude = value.latitude;
+  if(value.longitude)
+    merged.longitude = value.longitude;
   if(merged.system_address == 0)
     merged.system_address = value.system_address;
 
@@ -4904,6 +4928,18 @@ auto database_storage_t::load_system(uint64_t system_address)
           out_body.details = sql_iface::to_native_fromat((*res3)[0]);
           }
         }
+      }
+      // barycentres - what a body of a shared orbit (two stars, or two planets of one pair) itself
+      // orbits; without this a system reopened after a restart has every such body's position collapse
+      // to its own small local wobble, missing the barycentre's own, usually much larger, offset
+      {
+      auto res5{sqlite::select_from<sql_iface::bary_centre_t>(
+        db_->db, sql_iface::tables::bary_centre, std::format(" WHERE ref_system_address='{}'", system_address)
+      )};
+      if(not res5) [[unlikely]]
+        return cxx23::unexpected{res.error()};
+      for(sql_iface::bary_centre_t const & bc: *res5)
+        system.bary_centre.push_back(sql_iface::to_native_fromat(bc));
       }
       // rings
       {

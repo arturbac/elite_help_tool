@@ -205,6 +205,10 @@ struct station_t
   ///\brief the body a settlement or a surface port stands on, from ApproachSettlement; unknown for
   /// a port in space - the game never tells it
   std::optional<uint32_t> body_id;
+  ///\brief where on that body it stands, from ApproachSettlement - lets a distance to another
+  /// settlement of the same body be a real surface distance instead of a Ls one
+  std::optional<double> latitude;
+  std::optional<double> longitude;
   };
 
 ///\brief whether a place stands on the ground and can be a conflict zone on foot - not a port in space,

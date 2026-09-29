@@ -684,7 +684,9 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
                .economy = event.StationEconomy_Localised,
                .government = event.StationGovernment_Localised,
                .controlling_faction = event.StationFaction.Name,
-               .body_id = event.BodyID
+               .body_id = event.BodyID,
+               .latitude = event.Latitude,
+               .longitude = event.Longitude
              })};
              not res)
             spdlog::error("failed to store settlement {}", event.MarketID);

@@ -2644,9 +2644,14 @@ auto overlay_feed_t::build_settlement_owners(star_system_t const & system) const
   };
   // the settlement we stand at now, if any - what every other one's distance is measured from
   std::optional<uint32_t> here_body_id;
+  std::optional<bio::surface_point_t> here_point;
   if(not station_name_.empty())
     if(auto it{std::ranges::find(stations_, station_name_, &info::station_t::name)}; it != stations_.end())
+      {
       here_body_id = it->body_id;
+      if(it->latitude and it->longitude)
+        here_point = bio::surface_point_t{.latitude = *it->latitude, .longitude = *it->longitude};
+      }
 
   // each scanned body's position now, keyed by body_id - empty when we stand nowhere a settlement could
   // be measured from, so the walk below costs nothing when it would go unused
@@ -2676,6 +2681,8 @@ auto overlay_feed_t::build_settlement_owners(star_system_t const & system) const
     {
     std::string economy;
     std::optional<uint32_t> body_id;
+    std::optional<double> latitude;
+    std::optional<double> longitude;
     };
   std::map<std::string, std::map<std::string, settlement_info_t>> by_owner;
   size_t count{};
@@ -2688,7 +2695,15 @@ auto overlay_feed_t::build_settlement_owners(star_system_t const & system) const
        or station.name.starts_with("Orbital Construction Site:"))
       continue;
     by_owner[station.controlling_faction.empty() ? std::string{"owner unknown"} : station.controlling_faction]
-      .emplace(station.name, settlement_info_t{.economy = station.economy, .body_id = station.body_id});
+      .emplace(
+        station.name,
+        settlement_info_t{
+          .economy = station.economy,
+          .body_id = station.body_id,
+          .latitude = station.latitude,
+          .longitude = station.longitude
+        }
+      );
     ++count;
     }
   if(by_owner.empty())
@@ -2742,9 +2757,21 @@ auto overlay_feed_t::build_settlement_owners(star_system_t const & system) const
         text.resize(2u + longest_name + 2u, ' ');
         text += info.economy;
         }
-      // the distance from wherever we stand now to this settlement's own body - only when both are
-      // scanned bodies and it is not the one we are already standing on
-      if(here_pos and info.body_id and info.body_id != here_body_id)
+      // on the body we already stand on, a real surface distance means more than a Ls figure sized for
+      // between stars; off it, the distance is between two scanned bodies' own positions right now
+      if(here_point and info.body_id and info.body_id == here_body_id and info.latitude and info.longitude)
+        {
+        if(auto const body_it{std::ranges::find(system.bodies, *info.body_id, body_body_id_proj)};
+           body_it != system.bodies.end())
+          {
+          double const metres{bio::surface_distance_m(
+            *here_point, bio::surface_point_t{.latitude = *info.latitude, .longitude = *info.longitude},
+            body_it->radius
+          )};
+          text += std::format("  {}", nav::format_distance(metres));
+          }
+        }
+      else if(here_pos and info.body_id and info.body_id != here_body_id)
         if(auto const it{positions_now.find(*info.body_id)}; it != positions_now.end())
           {
           double const dx{it->second.x - here_pos->x};
