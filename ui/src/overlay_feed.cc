@@ -2052,7 +2052,7 @@ auto overlay_feed_t::refresh_supply() -> void
   needs_.clear();
   options_.clear();
   producers_.clear();
-  data_commodities_.clear();
+  micro_resource_commodities_.clear();
 
   if(auto needs{db_.load_cargo_needs()}; needs)
     needs_ = std::move(*needs);
@@ -2066,9 +2066,9 @@ auto overlay_feed_t::refresh_supply() -> void
   if(auto producers{db_.load_producers()}; producers)
     producers_ = std::move(*producers);
 
-  if(auto data{db_.load_data_category_commodities()}; data)
+  if(auto data{db_.load_micro_resource_commodities()}; data)
     for(std::string const & name: *data)
-      data_commodities_.insert(supply_key(name));
+      micro_resource_commodities_.insert(supply_key(name));
   }
 
 ///\brief what the open missions can be advanced with without flying anywhere
@@ -3142,13 +3142,14 @@ auto overlay_feed_t::build_supply_lines(events::cargo_file_t const & cargo) cons
   for(info::cargo_need_t const & need: needs_)
     {
     auto const have{held(need.commodity)};
-    // a "Data" micro resource is downloaded off a terminal, never bought - flagging it as having no
-    // source is not news, since it could never have had one
+    // a micro resource (Data downloaded off a terminal, Goods or Assets picked up or stolen) is never
+    // bought at a station's market - flagging it as having no source is not news, since it could
+    // never have had one
     bool const known{
       std::ranges::any_of(
         options_, [&need](info::supply_option_t const & option) { return option.commodity == need.commodity; }
       )
-      or data_commodities_.contains(key(need.commodity))
+      or micro_resource_commodities_.contains(key(need.commodity))
     };
 
     // a market may trade in it and happen to be empty - that is quite different news from having no source

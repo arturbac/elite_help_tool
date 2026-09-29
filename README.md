@@ -147,9 +147,10 @@ it can take the game down: [overlay/README.md](overlay/README.md).
   distance in m/km, once both settlements have been approached at least once to record where on the
   body each one stands.
 - **Mission cargo**: the goods delivery missions still need against what is in the hold, and the
-  known markets and producers that supply them - "no source known" only for something a market
-  could plausibly sell; a "Data" micro resource (a settlement's Surveillance Logs, say) is downloaded
-  off a terminal, never bought, so it is never flagged that way.
+  known markets and producers that supply them - "no source known" only for something a market could
+  plausibly sell; a micro resource (Data downloaded off a terminal, Goods or Assets picked up or
+  stolen at a settlement - a Surveillance Logs, a Nutritional Concentrate) never sits in a station's
+  market at all, so it is never flagged that way.
 - **What is really paid**: the reward is taken from the hand-in, not from the offer, and missions
   the game no longer lists expire by themselves.
 - **What a death would cost**: unsold exobiology, cartography and bounties at risk, moved to the

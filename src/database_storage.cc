@@ -2544,11 +2544,12 @@ auto database_storage_t::load_port_sale_rows() -> expected_ec<std::vector<bar::p
   );
   }
 
-auto database_storage_t::load_data_category_commodities() -> expected_ec<std::vector<std::string>>
+auto database_storage_t::load_micro_resource_commodities() -> expected_ec<std::vector<std::string>>
   {
-  auto rows{
-    sqlite::select_from<info::micro_resource_t>(db_->db, sql_iface::tables::micro_resource, " WHERE category='Data'")
-  };
+  // Data, Goods or Assets alike - none of the three ever sits in a station's commodity market, only in
+  // a bartender's shelf or a backpack, so a mission asking for any of them never has a market "source"
+  // to point at in the first place
+  auto rows{sqlite::select_from<info::micro_resource_t>(db_->db, sql_iface::tables::micro_resource, "")};
   if(not rows) [[unlikely]]
     return cxx23::unexpected{rows.error()};
   std::vector<std::string> names;

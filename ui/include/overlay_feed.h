@@ -289,9 +289,10 @@ private:
   std::vector<info::supply_option_t> options_;
   ///\brief markets that trade the commodity, empty ones included - so emptiness is not mistaken for no source
   std::vector<info::supply_option_t> producers_;
-  ///\brief "Data" micro resources by their normalised name - downloaded off a terminal, never bought,
-  /// so asking a mission for one of these never has "no source known" to say
-  std::set<std::string> data_commodities_;
+  ///\brief every known micro resource (Data, Goods or Assets alike) by its normalised name - none of
+  /// them sits in a station's commodity market, so a mission asking for one never has "no source
+  /// known" to say
+  std::set<std::string> micro_resource_commodities_;
   overlay::frame_t last_;
   std::chrono::steady_clock::time_point last_sent_{};
   uint64_t sequence_{};
