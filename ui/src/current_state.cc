@@ -1,9 +1,28 @@
+#include <backup.h>
 #include <eht_settings.h>
 #include "logic.h"
 #include <main_window.h>
+#include <picture_records.h>
 #include <spdlog/spdlog.h>
 #include <stralgo/stralgo.h>
+
+#include <filesystem>
 using namespace std::string_view_literals;
+
+///\brief refreshes the backup's copy of live.sqlite right away - a market's Market.json or a carrier's
+/// FCMaterials.json is gone the moment the game overwrites it, so neither reading waits for the
+/// monthly backup schedule
+static auto backup_live_now(std::string_view commander_name, std::string const & live_db_path) -> void
+  {
+  auto const cfg{eht::settings()};
+  if(not cfg->backup.enabled or commander_name.empty())
+    return;
+  std::filesystem::path const destination{
+    backup::expand_home(cfg->backup.dir) / codex_files::file_safe(commander_name)
+  };
+  if(not backup::backup_live_db(destination, live_db_path))
+    spdlog::error("backup: could not copy live.sqlite to {}", destination.string());
+  }
 
 static auto new_system_def(uint64_t system_address, std::string_view name, std::string_view star_type)
   {
@@ -1058,7 +1077,10 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
              not res)
             spdlog::error("failed to store market {}", event.MarketID);
           else
+            {
             spdlog::info("market {} at {}: {} items", event.MarketID, event.StationName, items.size());
+            backup_live_now(commander_name_, db_.live_db_path_);
+            }
           }
         else if constexpr(std::same_as<T, events::fss_signal_discovered_t>)
           {
@@ -1628,6 +1650,9 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
                   if(auto res{db_.store(mat)}; not res)
                     spdlog::error("failed to store material id {} for {}", fmat.id, fcmat.CarrierID);
                   }
+                // FCMaterials.json is overwritten the next time the bartender is opened anywhere - same
+                // reasoning as a market's Market.json, so this reading goes straight into the backup too
+                backup_live_now(commander_name_, db_.live_db_path_);
                 }
               }
             }

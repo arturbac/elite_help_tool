@@ -122,10 +122,11 @@ auto main_window_t::follow_backup() -> void
         backup::mark_t{.at = std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now()), .pictures = backup_pictures_}
       );
     spdlog::info(
-      "backup: {} month(s) of journals packed{}, {} file(s) of the codex copied, in {}",
+      "backup: {} month(s) of journals packed{}, {} file(s) of the codex copied{}, in {}",
       summary.months.size(),
       summary.months.empty() ? std::string{} : std::format(" ({})", summary.months.back()),
       summary.pictures_copied,
+      summary.live_db_copied ? ", live.sqlite refreshed" : "",
       backup_destination_.string()
     );
     return;
@@ -149,8 +150,8 @@ auto main_window_t::follow_backup() -> void
   backup_ = std::async(
     std::launch::async,
     [destination, journals = std::filesystem::path{state_.journal_dir_path_}, codex = codex_files::codex_dir(),
-     level = cfg->backup.level]
-    { return backup::run(destination, journals, codex, level); }
+     live_db = std::filesystem::path{state_.db_.live_db_path_}, level = cfg->backup.level]
+    { return backup::run(destination, journals, codex, live_db, level); }
   );
   }
 

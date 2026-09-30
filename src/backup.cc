@@ -1,6 +1,7 @@
 #include <backup.h>
 
 #include <glaze/glaze.hpp>
+#include <sqlite3.h>
 #include <zstd.h>
 
 #include <algorithm>
@@ -139,6 +140,46 @@ auto file_time(std::filesystem::path const & path) -> std::filesystem::file_time
   }
   }  // namespace
 
+auto backup_live_db(std::filesystem::path const & destination, std::filesystem::path const & live_db_path) -> bool
+  {
+  std::error_code ec;
+  std::filesystem::create_directories(destination, ec);
+  std::filesystem::path const target{destination / "live.sqlite"};
+  std::filesystem::path const partial{destination / "live.sqlite.partial"};
+  std::filesystem::remove(partial, ec);
+
+  sqlite3 * src{};
+  if(sqlite3_open_v2(live_db_path.string().c_str(), &src, SQLITE_OPEN_READONLY, nullptr) != SQLITE_OK)
+    {
+    sqlite3_close(src);
+    return false;
+    }
+  sqlite3 * dst{};
+  if(sqlite3_open(partial.string().c_str(), &dst) != SQLITE_OK)
+    {
+    sqlite3_close(dst);
+    sqlite3_close(src);
+    return false;
+    }
+
+  // the online backup API copies a consistent snapshot even while another connection is writing the
+  // source through its own WAL - a plain file copy could catch it mid-write
+  bool ok{false};
+  if(sqlite3_backup * const b{sqlite3_backup_init(dst, "main", src, "main")}; b != nullptr)
+    {
+    ok = sqlite3_backup_step(b, -1) == SQLITE_DONE;
+    sqlite3_backup_finish(b);
+    }
+  sqlite3_close(dst);
+  sqlite3_close(src);
+
+  if(ok)
+    std::filesystem::rename(partial, target, ec);
+  else
+    std::filesystem::remove(partial, ec);
+  return ok and not ec;
+  }
+
 auto expand_home(std::string_view path) -> std::filesystem::path
   {
   if(path == "~" or path.starts_with("~/"))
@@ -187,11 +228,15 @@ auto run(
   std::filesystem::path const & destination,
   std::filesystem::path const & journal_dir,
   std::filesystem::path const & codex_dir,
+  std::filesystem::path const & live_db_path,
   int level
 ) -> summary_t
   {
   summary_t summary;
   std::error_code ec;
+
+  if(summary.live_db_copied = backup_live_db(destination, live_db_path); not summary.live_db_copied)
+    summary.errors.push_back(std::format("live.sqlite could not be copied from {}", live_db_path.string()));
 
   // the journals by month, from their names: Journal.2026-09-28T213338.01.log
   std::map<std::string, std::vector<std::filesystem::path>> months;

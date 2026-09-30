@@ -8,10 +8,13 @@
 #include <string_view>
 #include <vector>
 
-///\brief a copy of what cannot be rebuilt - the journals and the codex's pictures - kept on this machine
+///\brief a copy of what cannot be rebuilt - the journals, the codex's pictures, and live.sqlite - kept on this machine
 ///
-/// The databases are rebuilt from the journals, and what the pictures show is described again out of
-/// them, so the journals and the pictures are all there is to keep. The journals are text that repeats
+/// `ehtdb.sqlite` and `galaxy.sqlite` are rebuilt from the journals, and what the pictures show is
+/// described again out of them, so the journals and the pictures are what a periodic backup packs. But
+/// `live.sqlite` (markets, carrier cargo) holds readings the journals never carry verbatim - a market
+/// overwrites the last one the moment you dock somewhere else - so it is copied whole instead, hot,
+/// using SQLite's own backup API rather than a plain file copy. The journals are text that repeats
 /// itself line after line and pack some seventy times smaller, one tar.zst a month: a month is packed
 /// again only when a journal of it changed. The pictures are JPGs already and are copied as they are, and
 /// nothing is ever deleted from the backup
@@ -33,15 +36,23 @@ struct summary_t
   ///\brief the months packed now, as 2026-09
   std::vector<std::string> months;
   size_t pictures_copied{};
+  bool live_db_copied{};
   std::vector<std::string> errors;
   };
 
-///\brief packs the months whose journals changed since their archive, and copies the pictures not in the backup yet
+///\brief a hot copy of a live sqlite database into "live.sqlite" under destination, safe to take while
+/// another connection has it open (SQLite's own backup API, not a plain file copy)
+[[nodiscard]]
+auto backup_live_db(std::filesystem::path const & destination, std::filesystem::path const & live_db_path) -> bool;
+
+///\brief packs the months whose journals changed since their archive, copies the pictures not in the
+/// backup yet, and refreshes the copy of live_db_path
 [[nodiscard]]
 auto run(
   std::filesystem::path const & destination,
   std::filesystem::path const & journal_dir,
   std::filesystem::path const & codex_dir,
+  std::filesystem::path const & live_db_path,
   int level
 ) -> summary_t;
 
