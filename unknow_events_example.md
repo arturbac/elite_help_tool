@@ -1567,7 +1567,7 @@ Kazda grupa ma inna przyczyne, warto je rozdzielic.
 
 ### Scanned (3657) i ScanOrganic (1292) - wspolna przyczyna
 
-`generic_event_t` (include/elite_events.h:371) parsuje pole `ScanType` **dla kazdej linii journala**:
+`generic_event_t` (include/events/event_kind.h) parsuje pole `ScanType` **dla kazdej linii journala**:
 
 ```cpp
 struct generic_event_t

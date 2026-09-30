@@ -2,7 +2,11 @@ target_sources(eht
   PRIVATE
   file_io.cc
   discover_logic.cc
-  json_io_events.cc
+  json_io_events_navigation.cc
+  json_io_events_exploration.cc
+  json_io_events_station.cc
+  json_io_events_ships.cc
+  json_io_events_missions.cc
   biology.cc
   surface_nav.cc
   picture_records.cc

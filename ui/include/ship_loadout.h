@@ -1,5 +1,5 @@
 #pragma once
-#include <elite_events.h>
+#include <events/ships.h>
 #include <qmdisubwindow.h>
 #include <qlabel.h>
 #include <qprogressbar.h>

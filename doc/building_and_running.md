@@ -111,9 +111,15 @@ of EHT includes it:
 
 - Types defined in headers (journal events, `Status.json`, `Market.json` and the like) are read
   through `include/json_io.h`: `eht::json::read_lenient()` and `read_file_lenient()`. Their
-  definitions are in `src/json_io_impl.h`, and each type is instantiated explicitly, once, in a
-  `src/json_io_*.cc` file. A new event type gets one line there. If the line is missing, the build
-  fails at link time.
+  definitions are in `src/json_io_impl.h`, and each type is instantiated explicitly, once, in the
+  `src/json_io_events_<domain>.cc` file of its domain. A new event type gets one line there. If the
+  line is missing, the build fails at link time.
+- The journal events live in `include/events/<domain>.h` (navigation, exploration, station,
+  missions, ships, carrier, combat, micro_resources, colonisation, companion_files, with the shared
+  bits in common.h, event_kind.h and system_info.h). `events/event_holder.h` puts them all in one
+  variant. EHT's own model is in `include/star_system.h`, `orbit.h`, `generic_state.h` and
+  `exploration_value.h`. `include/elite_events.h` includes all of them at once; a file that needs
+  only one domain should include just that header.
 - A `.cc` file that uses glaze directly (for its own local types, `glz::generic`, or reflection)
   includes `include/json_glaze.h`, never `<glaze/glaze.hpp>`. That header brings in simple_enum's
   adapter and the colour's meta. Without them glaze would silently write enums as numbers and

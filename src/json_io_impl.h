@@ -26,3 +26,8 @@ auto read_file_lenient(T & value, std::string const & path) -> error_t
   return {};
   }
   }  // namespace eht::json
+
+// one explicit instantiation per type, in the json_io_events_*.cc file of its domain
+#define EHT_JSON_READ(type) template auto eht::json::read_lenient(type & value, std::string const & text) -> eht::json::error_t;
+#define EHT_JSON_READ_FILE(type) \
+  template auto eht::json::read_file_lenient(type & value, std::string const & path) -> eht::json::error_t;
