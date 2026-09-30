@@ -143,6 +143,11 @@ auto main() -> int
       return;
     expect(judged->lit > 0.5f and judged->lit < 0.95f) << judged->lit;
     expect(judged->hud < 0.01f);
+    // the same ball as a sample shrunk to half: 80 px on the screen, still too far for a face
+    expect(not planet_face::judge_approach(view, 0.5f).has_value());
+    // twice as large on the screen is no better
+    auto const larger{planet_face::judge_approach(view, 2.f)};
+    expect(larger.has_value() and std::abs(larger->score - judged->score) < 1e-4f);
     auto const face{planet_face::approach_face(view, judged->disc, 64u)};
     // the lit middle, a point near the terminator and one on the night side all come out alike
     auto const at = [&](uint32_t x, uint32_t y) { return face.rgb.data() + (size_t{y} * 64u + x) * 3u; };

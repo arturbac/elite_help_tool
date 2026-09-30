@@ -156,11 +156,11 @@ auto approach_views_t::tick(planet_faces_t & faces) -> void
     return;
   judging_ = std::async(
     std::launch::async,
-    [target{*target_}, read{std::move(*sample)}]() -> std::optional<verdict_t>
+    [target{*target_}, read{std::move(*sample)}, full{cfg->exploration.approach_radius_px}]() -> std::optional<verdict_t>
     {
       overlay::sample_header_t const & h{read.header};
       float const screen_per_pixel{h.region_width * float(h.surface_width) / float(h.width)};
-      auto const judged{planet_face::judge_approach(read.image, screen_per_pixel)};
+      auto const judged{planet_face::judge_approach(read.image, screen_per_pixel, full)};
       // strictly better: a view as good as the one kept would only be the same face again, every interval
       if(not judged or judged->score <= planet_faces_t::best_score(target.body))
         return std::nullopt;

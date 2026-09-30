@@ -114,9 +114,12 @@ each step the mean of 2 x 2 pixels, to a few hundred pixels across, and written 
 sides share (`captures/<socket>_sample.bin` beside the socket). The game waits for none of it - a few
 microseconds a frame. Each sample is judged in a thread: the ball must be found whole in it - its
 night side's rim may be lost against the black, and the edges in the HUD's cyan and orange do not
-count, or the target's ring round its middle would be taken for a small ball - and the cockpit's frame must hide next to none of it;
-then the more of it in daylight and the larger it is on the screen, up to 200 px of radius, the
-better, and the ship's orange HUD over it counts against it. Only a sample better than the best face
+count, or the target's ring round its middle would be taken for a small ball - and the cockpit's frame must hide next to none of it.
+It must also be large enough on the screen, 110 px of radius (`exploration.approach_radius_px`): the
+size a planet has 1 Ls away, so a larger planet is taken from farther and a smaller one from nearer, in
+proportion to its radius - farther off, the game draws a ball without the face it shows up close.
+Larger than that is no better; the more of it in daylight the better, and the ship's orange HUD over it
+counts against it. Only a sample better than the best face
 kept asks for a real picture, and only of the rectangle the ball stands in, at most one every 2 s
 (`exploration.approach_faces`, `approach_interval_ms`). The picture is judged again at its own size and
 kept when it is at least as good. Its light is taken off before it is kept: the direction of the light

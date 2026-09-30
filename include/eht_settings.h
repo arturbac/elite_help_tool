@@ -238,6 +238,10 @@ struct exploration_settings_t
   /// kept for the planet's face on the system map - the one with most of the ball in daylight, largest
   bool approach_faces{true};
   uint32_t approach_interval_ms{2000u};
+  ///\brief the ball's radius on the screen, in pixels, from which a view is taken - the size a planet has
+  /// 1 Ls away. The same size on the screen is a larger planet farther away and a smaller one nearer, in
+  /// proportion to its radius
+  float approach_radius_px{110.f};
   float white_dwarf_danger_radii{78.f};
   ///\brief how many measurements the figure above rests on, said beside it so it is read for what it is
   uint32_t white_dwarf_measurements{1u};

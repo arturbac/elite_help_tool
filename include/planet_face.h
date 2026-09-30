@@ -88,15 +88,21 @@ struct approach_t
   float lit{};
   ///\brief the share of it under the ship's HUD, its saturated orange
   float hud{};
-  ///\brief higher is better: daylight, size up to 200 px of radius, little HUD, no streaks
+  ///\brief higher is better: daylight, little HUD, no streaks - the size counts no more once it is full
   float score{};
   };
 
-///\brief the ball in a view from the cockpit, judged; none when it is not whole and clear in it
+///\brief the radius on the screen from which a ball is large enough for a face, in screen pixels
+inline constexpr float full_radius{110.f};
+
+///\brief the ball in a view from the cockpit, judged; none when it is not whole and clear in it, or smaller
+/// on the screen than full_size
 ///\param pixel_scale screen pixels to a pixel of the view - above 1 for a small sample, so that its ball is
-/// scored at the size it has on the screen
+/// judged at the size it has on the screen
+///\param full_size the ball's radius on the screen from which it is taken; larger is no better
 [[nodiscard]]
-auto judge_approach(image_t const & view, float pixel_scale = 1.f) -> std::optional<approach_t>;
+auto judge_approach(image_t const & view, float pixel_scale = 1.f, float full_size = full_radius)
+  -> std::optional<approach_t>;
 
 ///\brief the ball of a cockpit view as a face, its light taken off: the direction of the light is fitted to
 /// the brightness over the ball, each pixel divided by how squarely it faced the light, and the night side

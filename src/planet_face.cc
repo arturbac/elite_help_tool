@@ -594,12 +594,15 @@ auto retint(image_t face, std::array<float, 3> colour) -> image_t
   return face;
   }
 
-auto judge_approach(image_t const & view, float pixel_scale) -> std::optional<approach_t>
+auto judge_approach(image_t const & view, float pixel_scale, float full_size) -> std::optional<approach_t>
   {
   // the night side's rim is lost against the black of space, so only the lit part of it shows
   // the target's cyan ring stands on the ball, near its middle, and would be taken for a small ball
   auto const disc{find_disc(view, true)};
   if(not disc or disc->rim < 0.3f or not disc->inside)
+    return std::nullopt;
+  // farther, the game draws the ball without the face it shows up close
+  if(disc->radius * pixel_scale < full_size)
     return std::nullopt;
   image_t const ball{sample_ball(view, *disc, 96u)};
   std::vector<float> lum;
@@ -632,8 +635,7 @@ auto judge_approach(image_t const & view, float pixel_scale) -> std::optional<ap
   // more than a little hidden, and the frame would be on the face
   if(hidden > 0.06f)
     return std::nullopt;
-  judged.score = judged.lit * std::min(disc->radius * pixel_scale, 200.f) / 200.f
-                 * std::max(0.f, 1.f - 8.f * judged.hud) * std::max(0.f, 1.f - 3.f * hidden)
+  judged.score = judged.lit * std::max(0.f, 1.f - 8.f * judged.hud) * std::max(0.f, 1.f - 3.f * hidden)
                  * (streaks > 0.03f ? 0.2f : 1.f);
   return judged;
   }

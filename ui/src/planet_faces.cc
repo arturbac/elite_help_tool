@@ -1,5 +1,6 @@
 #include <planet_faces.h>
 #include <codex.h>
+#include <eht_settings.h>
 #include <planet_face.h>
 
 #include <spdlog/spdlog.h>
@@ -161,7 +162,7 @@ auto make(std::string body, sources_t sources, uint32_t fallback, uint32_t side,
 auto judge(std::string body, QImage view, uint32_t side) -> void
   {
   planet_face::image_t const image{to_image(view)};
-  auto const judged{planet_face::judge_approach(image)};
+  auto const judged{planet_face::judge_approach(image, 1.f, eht::settings()->exploration.approach_radius_px)};
   if(not judged or judged->score <= 0.f)
     return;
   std::error_code ec;
