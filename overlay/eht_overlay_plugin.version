@@ -1,0 +1,9 @@
+/* the plugin shows the layer its one entry and nothing else - the standard library linked into it
+   stays hidden, as in the layer */
+EHT_OVERLAY_PLUGIN_1.0
+  {
+  global:
+    eht_overlay_plugin;
+  local:
+    *;
+  };

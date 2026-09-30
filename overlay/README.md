@@ -13,7 +13,8 @@ Vulkan, so the layer catches it.
 
 | file | role |
 |---|---|
-| `libeht_overlay.so` | the Vulkan layer; the loader puts it **into the game's process** |
+| `libeht_overlay.so` | the Vulkan layer; the loader puts it **into the game's process**. It only tracks the game's devices, queues and swapchains and hands them to the plugin |
+| `libeht_overlay_plugin.so` | the overlay itself - drawing, pictures, the sample, the faces, the screenshot key - loaded by the layer from beside itself |
 | `eht-overlay-run` | a wrapper for `%command%` in Steam: sets the variables and starts the game |
 | `eht-overlay-feed` | a test source, sends frames without the main application |
 | `eht-overlay-headless-check` | renders without a screen into a PPM file, for checking the layer |
@@ -28,7 +29,7 @@ in the game's process.
 ninja overlay-install
 ```
 
-Copies the layer to `~/.local/lib`, the wrapper to `~/.local/bin` and the manifest to
+Copies the layer and the plugin to `~/.local/lib`, the wrapper to `~/.local/bin` and the manifest to
 `~/.local/share/vulkan/implicit_layer.d`. It has to be the home directory, because the Steam Linux
 Runtime container does not see the build directory.
 
@@ -110,6 +111,22 @@ ENABLE_EHT_OVERLAY=1 ~/.local/share/Steam/steamapps/common/SteamLinuxRuntime_4/r
 A `VK_LAYER_EHT_overlay` line among the layers means the path under `$HOME` works, and the library
 is compatible with the C standard library in the container.
 
+## A new overlay without restarting the game
+
+The layer looks at the plugin's file once a second. When another file stands under its name - the
+install renames the new one over the old - the layer waits for the presenting queue, detaches every
+device and swapchain from the running plugin, has it stop and join its threads and free what it holds,
+unloads it, and attaches everything to the new one, which builds its resources at the next frame. A
+file that cannot be loaded, or is of another interface (`plugin_api.h`, `EHT_OVERLAY_PLUGIN_ABI`),
+leaves the running plugin in place. The plugin is copied into memory and loaded from there: the
+dynamic loader knows a library by its name, and would only hand the old one back.
+
+So a change in the overlay needs only `overlay-install`. A change in the layer itself (`vk_layer.cc`,
+`plugin_api.h`) still needs the game restarted. When the game destroys its last Vulkan instance, or
+the process ends without doing so, the plugin is shut down and unloaded the same way.
+
+`EHT_OVERLAY_PLUGIN` names another file for the plugin, for a test.
+
 ## Checking without the game
 
 ```
@@ -119,6 +136,12 @@ ENABLE_EHT_OVERLAY=1 eht-overlay-headless-check /tmp/check.ppm 8000 1440
 
 `VK_EXT_headless_surface` gives a swapchain nobody looks at. The layer draws exactly as in a real
 window, and the picture comes back into the file. Neither a desktop nor the game is needed.
+
+`EHT_CHECK_FRAME_MS=50` paces the frames, so the plugin's file can be replaced during the run and its
+reloading watched in the log (`EHT_OVERLAY_DEBUG=1`). Configured with `-DEHT_OVERLAY_SANITIZE=ON`,
+the layer, the plugin and the check are built with AddressSanitizer and LeakSanitizer; a run through
+loads, reloads and the end reports no leak of ours - the one of 256 bytes left is the driver's, and is
+there without the layer too.
 
 ## Measured
 

@@ -30,4 +30,7 @@ auto record_face_uploads(swapchain_data_t & data, frame_resources_t & frame, uin
 
 ///\brief frees the atlas; the device is idle by then, and its descriptor set goes with ImGui's pool
 auto destroy_faces(swapchain_data_t & data) noexcept -> void;
+
+///\brief stops the thread reading the faces, with whatever it read and nobody took
+auto stop_face_loader() noexcept -> void;
   }  // namespace eht_overlay

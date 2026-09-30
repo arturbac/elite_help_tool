@@ -10,9 +10,9 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <string>
 #include <fstream>
 #include <string>
+#include <thread>
 #include <vector>
 
 namespace
@@ -362,8 +362,12 @@ auto main(int argc, char ** argv) -> int
     if(round == 0u)
       std::printf("swapchain: %ux%u, %u images\n", width, height, image_count);
 
+    // EHT_CHECK_FRAME_MS paces the frames, so the plugin's file can be replaced while they are drawn
+    char const * const pace{std::getenv("EHT_CHECK_FRAME_MS")};
     for(uint32_t frame{}; frame != frames; ++frame)
       {
+      if(pace != nullptr)
+        std::this_thread::sleep_for(std::chrono::milliseconds{std::atoi(pace)});
       uint32_t index{};
       if(
         auto const result{vkAcquireNextImageKHR(device, swapchain, UINT64_MAX, acquired, VK_NULL_HANDLE, &index)};

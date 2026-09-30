@@ -11,7 +11,8 @@ EHT is made of three parts:
 |---|---|
 | `journal_tailer` | command-line importer: reads **all** your journals into the databases |
 | `ui/elite_help_tool` | the tool itself (Qt6): follows the newest journal live and feeds the overlay |
-| `libeht_overlay.so` | Vulkan layer loaded **into the game's process**, draws the overlay |
+| `libeht_overlay.so` | Vulkan layer loaded **into the game's process**, hands the game's swapchains to the plugin |
+| `libeht_overlay_plugin.so` | the overlay itself, loaded by the layer and reloaded when replaced |
 
 ## 1. Build
 
@@ -113,7 +114,7 @@ This copies:
 
 | file | to |
 |---|---|
-| `libeht_overlay.so` | `~/.local/lib/` |
+| `libeht_overlay.so`, `libeht_overlay_plugin.so` | `~/.local/lib/` |
 | `eht-overlay-run` (optional wrapper) | `~/.local/bin/` |
 | `eht_overlay.json` (layer manifest) | `~/.local/share/vulkan/implicit_layer.d/` |
 
@@ -121,8 +122,9 @@ It has to go under your home directory: the game runs inside the Steam Linux Run
 which sees `$HOME` but not your build directory. The layer does nothing until `ENABLE_EHT_OVERLAY=1`
 is set, so installing it does not affect other games.
 
-**After every change in `overlay/`, run `overlay-install` again and restart the game.** Changes
-only in the tool need only a restart of the tool.
+**After every change in `overlay/`, run `overlay-install` again.** A running game picks up the new
+plugin within a second; only a change of the layer itself (`vk_layer.cc`, `plugin_api.h`) needs the
+game restarted. Changes only in the tool need only a restart of the tool.
 
 To check that the game's container can see the layer, without starting the game:
 

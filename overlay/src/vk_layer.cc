@@ -1,17 +1,51 @@
-#include "vk_dispatch.h"
-#include "vk_draw.h"
+// the layer the Vulkan loader knows: it tracks the game's objects and hands them to the overlay plugin
+//
+// Nothing is drawn here. The plugin (libeht_overlay_plugin.so, beside this library) does all of it, and
+// is loaded again when its file is replaced - the old one is detached from everything, shut down and
+// unloaded first, so neither a thread nor a byte of it is left behind
+#include "plugin_api.h"
+#include "vk_log.h"
 
+// the Vulkan headers do not carry this macro, and the layer's symbols must break through hidden visibility
+#ifndef VK_LAYER_EXPORT
+#define VK_LAYER_EXPORT __attribute__((visibility("default")))
+#endif
+
+#include <dlfcn.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+
+#include <algorithm>
 #include <array>
+#include <atomic>
 #include <cctype>
+#include <chrono>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
+#include <memory>
+#include <mutex>
+#include <optional>
+#include <shared_mutex>
 #include <string>
+#include <unordered_map>
+#include <vector>
 
 namespace eht_overlay
   {
 namespace
   {
   constexpr char layer_name[]{"VK_LAYER_EHT_overlay"};
+  constexpr char plugin_file[]{"libeht_overlay_plugin.so"};
+  ///\brief how often the plugin's file is looked at for a new one
+  constexpr std::chrono::milliseconds reload_check{1000};
+
+  ///\brief the loader keeps the dispatch table in the first word of every dispatchable handle
+  [[nodiscard]]
+  auto dispatch_key(void * handle) noexcept -> void *
+    { return *static_cast<void **>(handle); }
 
   ///\brief the game's launcher draws through Vulkan too, and would get an overlay of its own
   ///\detail where it closes once the game starts that is only a flicker, but a launcher kept open beside
@@ -52,8 +86,379 @@ namespace
                               }()};
     return allowed;
     }
+
   ///\brief presenting several swapchains at once is another matter entirely - we simply do not draw them
   constexpr uint32_t max_swapchains_per_present{8u};
+
+  struct instance_data_t
+    {
+    VkInstance instance{};
+    PFN_vkGetInstanceProcAddr next_gipa{};
+    PFN_vkDestroyInstance DestroyInstance{};
+    PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR GetPhysicalDeviceSurfaceCapabilitiesKHR{};
+    uint32_t api_version{VK_API_VERSION_1_0};
+    };
+
+  struct device_data_t
+    {
+    instance_data_t * instance{};
+    VkPhysicalDevice physical_device{};
+    VkDevice device{};
+    PFN_vkGetDeviceProcAddr next_gdpa{};
+    PFN_vkSetDeviceLoaderData set_device_loader_data{};
+
+    PFN_vkDestroyDevice DestroyDevice{};
+    PFN_vkGetDeviceQueue GetDeviceQueue{};
+    PFN_vkGetDeviceQueue2 GetDeviceQueue2{};
+    PFN_vkCreateSwapchainKHR CreateSwapchainKHR{};
+    PFN_vkDestroySwapchainKHR DestroySwapchainKHR{};
+    PFN_vkGetSwapchainImagesKHR GetSwapchainImagesKHR{};
+    PFN_vkQueuePresentKHR QueuePresentKHR{};
+    PFN_vkQueueWaitIdle QueueWaitIdle{};
+    PFN_vkDeviceWaitIdle DeviceWaitIdle{};
+
+    ///\brief the queue family is only learned from vkGetDeviceQueue, and the plugin needs it at present time
+    std::mutex queues_mutex;
+    std::unordered_map<void *, uint32_t> queue_family_of;
+
+    ///\brief what the plugin keeps of it, once attached - the plugin's lock guards both
+    void * plugin{};
+    bool attached{};
+    };
+
+  struct swapchain_data_t
+    {
+    device_data_t * device{};
+    VkSwapchainKHR swapchain{};
+    VkFormat format{VK_FORMAT_UNDEFINED};
+    VkExtent2D extent{};
+    bool capturable{};
+    std::vector<VkImage> images;
+    void * plugin{};
+    bool attached{};
+    };
+
+  ///\brief the file a plugin was loaded from: another file under the same name is a new plugin
+  struct identity_t
+    {
+    dev_t device{};
+    ino_t inode{};
+    timespec modified{};
+    off_t size{};
+
+    [[nodiscard]]
+    auto operator==(identity_t const & other) const noexcept -> bool
+      {
+      return device == other.device and inode == other.inode and modified.tv_sec == other.modified.tv_sec
+             and modified.tv_nsec == other.modified.tv_nsec and size == other.size;
+      }
+    };
+
+  [[nodiscard]]
+  auto identity_of(struct stat const & status) noexcept -> identity_t
+    {
+    return identity_t{
+      .device = status.st_dev, .inode = status.st_ino, .modified = status.st_mtim, .size = status.st_size
+    };
+    }
+
+  ///\brief one plugin loaded: its code, and the copy of its file it was loaded from
+  struct plugin_t
+    {
+    void * library{};
+    ///\brief the file copied into memory - the loader knows a library by its name, and a new file under
+    /// the old name would only be given the old library back. Kept open while the library is loaded
+    int memory_fd{-1};
+    identity_t identity;
+    eht_plugin_t api{};
+
+    plugin_t() = default;
+    plugin_t(plugin_t const &) = delete;
+    auto operator=(plugin_t const &) -> plugin_t & = delete;
+
+    ~plugin_t()
+      {
+      if(library != nullptr)
+        ::dlclose(library);
+      if(memory_fd >= 0)
+        ::close(memory_fd);
+      }
+    };
+
+  ///\brief the plugin's file, beside this library unless EHT_OVERLAY_PLUGIN names another
+  [[nodiscard]]
+  auto plugin_path() -> std::string
+    {
+    if(char const * const path{std::getenv("EHT_OVERLAY_PLUGIN")}; path != nullptr and *path != '\0')
+      return path;
+    Dl_info info{};
+    if(::dladdr(reinterpret_cast<void *>(&process_skipped), &info) == 0 or info.dli_fname == nullptr)
+      return plugin_file;
+    std::string own{info.dli_fname};
+    size_t const slash{own.rfind('/')};
+    return slash == std::string::npos ? std::string{plugin_file} : own.substr(0u, slash + 1u) + plugin_file;
+    }
+
+  ///\brief the plugin in the file now, or nothing when it cannot be loaded - the reason goes to the log
+  [[nodiscard]]
+  auto load_plugin(std::string const & path) -> std::unique_ptr<plugin_t>
+    {
+    int const file{::open(path.c_str(), O_RDONLY | O_CLOEXEC)};
+    if(file < 0)
+      {
+      log("no plugin at {}", path);
+      return nullptr;
+      }
+    auto plugin{std::make_unique<plugin_t>()};
+    struct stat status{};
+    bool copied{::fstat(file, &status) == 0};
+    plugin->identity = identity_of(status);
+    if(copied)
+      {
+      plugin->memory_fd = ::memfd_create("eht_overlay_plugin", MFD_CLOEXEC);
+      copied = plugin->memory_fd >= 0;
+      }
+    std::array<char, 1u << 16u> chunk{};
+    for(ssize_t read; copied and (read = ::read(file, chunk.data(), chunk.size())) != 0;)
+      copied = read > 0 and ::write(plugin->memory_fd, chunk.data(), size_t(read)) == read;
+    ::close(file);
+    if(not copied)
+      {
+      log("plugin {} could not be copied into memory", path);
+      return nullptr;
+      }
+
+    std::string const name{std::format("/proc/self/fd/{}", plugin->memory_fd)};
+    plugin->library = ::dlopen(name.c_str(), RTLD_NOW | RTLD_LOCAL);
+    if(plugin->library == nullptr)
+      {
+      char const * const error{::dlerror()};
+      log("plugin {} not loaded: {}", path, error != nullptr ? error : "?");
+      return nullptr;
+      }
+    auto const entry{reinterpret_cast<eht_overlay_plugin_entry_t>(::dlsym(plugin->library, EHT_OVERLAY_PLUGIN_ENTRY))};
+    plugin->api.abi = EHT_OVERLAY_PLUGIN_ABI;
+    plugin->api.size = sizeof(eht_plugin_t);
+    if(entry == nullptr or entry(&plugin->api) == 0)
+      {
+      log("plugin {} refused: not of this layer's interface {}", path, EHT_OVERLAY_PLUGIN_ABI);
+      return nullptr;
+      }
+    log("plugin loaded from {}", path);
+    return plugin;
+    }
+
+  ///\brief everything the layer holds, destroyed only at the end of the process
+  struct layer_t
+    {
+    ///\brief guards the maps below
+    std::shared_mutex registry_mutex;
+    std::unordered_map<void *, std::unique_ptr<instance_data_t>> instances;
+    std::unordered_map<void *, std::unique_ptr<device_data_t>> devices;
+    std::unordered_map<VkSwapchainKHR, std::unique_ptr<swapchain_data_t>> swapchains;
+
+    ///\brief guards the plugin and every device's and swapchain's part of it: shared by the presents,
+    /// held alone to attach, detach and load. Taken before registry_mutex, never after
+    std::shared_mutex plugin_mutex;
+    std::unique_ptr<plugin_t> plugin;
+    ///\brief loaded once, at the first swapchain; a file that failed is not tried again until it changes
+    bool plugin_tried{};
+    std::optional<identity_t> refused;
+    std::string path;
+    std::atomic<int64_t> next_check_ms{};
+
+    layer_t() = default;
+    layer_t(layer_t const &) = delete;
+    auto operator=(layer_t const &) -> layer_t & = delete;
+
+    ///\brief a process ending without destroying its instance still gets its plugin shut down
+    ~layer_t()
+      {
+      std::unique_lock const lock{plugin_mutex};
+      for(auto & [key, device]: devices)
+        if(device->plugin != nullptr and device->DeviceWaitIdle != nullptr)
+          device->DeviceWaitIdle(device->device);
+      unload_locked();
+      }
+
+    [[nodiscard]]
+    auto find_instance(void * key) -> instance_data_t *
+      {
+      std::shared_lock const lock{registry_mutex};
+      auto const it{instances.find(key)};
+      return it != instances.end() ? it->second.get() : nullptr;
+      }
+
+    [[nodiscard]]
+    auto find_device(void * key) -> device_data_t *
+      {
+      std::shared_lock const lock{registry_mutex};
+      auto const it{devices.find(key)};
+      return it != devices.end() ? it->second.get() : nullptr;
+      }
+
+    [[nodiscard]]
+    auto find_swapchain(VkSwapchainKHR handle) -> swapchain_data_t *
+      {
+      std::shared_lock const lock{registry_mutex};
+      auto const it{swapchains.find(handle)};
+      return it != swapchains.end() ? it->second.get() : nullptr;
+      }
+
+    // --- everything below runs with plugin_mutex held alone
+
+    auto attach_locked(device_data_t & device) -> void
+      {
+      if(device.attached or not plugin)
+        return;
+      device.attached = true;
+      eht_plugin_device_t const host{
+        .instance = device.instance->instance,
+        .physical_device = device.physical_device,
+        .device = device.device,
+        .next_gipa = device.instance->next_gipa,
+        .next_gdpa = device.next_gdpa,
+        .set_device_loader_data = device.set_device_loader_data,
+        .api_version = device.instance->api_version,
+        .queue_family = &queue_family,
+        .host = &device
+      };
+      device.plugin = plugin->api.attach_device(&host);
+      }
+
+    auto attach_locked(swapchain_data_t & swapchain) -> void
+      {
+      if(swapchain.attached or not plugin)
+        return;
+      attach_locked(*swapchain.device);
+      swapchain.attached = true;
+      eht_plugin_swapchain_t const host{
+        .swapchain = swapchain.swapchain,
+        .format = swapchain.format,
+        .extent = swapchain.extent,
+        .image_count = uint32_t(swapchain.images.size()),
+        .images = swapchain.images.data(),
+        .capturable = swapchain.capturable ? 1u : 0u
+      };
+      swapchain.plugin = plugin->api.attach_swapchain(swapchain.device->plugin, &host);
+      }
+
+    auto detach_locked(swapchain_data_t & swapchain) -> void
+      {
+      if(swapchain.plugin != nullptr and plugin)
+        plugin->api.detach_swapchain(swapchain.plugin);
+      swapchain.plugin = nullptr;
+      swapchain.attached = false;
+      }
+
+    ///\brief the device's swapchains must have been detached already
+    auto detach_locked(device_data_t & device) -> void
+      {
+      if(device.plugin != nullptr and plugin)
+        plugin->api.detach_device(device.plugin);
+      device.plugin = nullptr;
+      device.attached = false;
+      }
+
+    ///\brief everything detached, the plugin shut down and unloaded; the device must be idle
+    auto unload_locked() -> void
+      {
+      if(not plugin)
+        return;
+        {
+        std::shared_lock const lock{registry_mutex};
+        for(auto & [handle, swapchain]: swapchains)
+          detach_locked(*swapchain);
+        for(auto & [key, device]: devices)
+          detach_locked(*device);
+        }
+      plugin->api.shutdown();
+      plugin.reset();
+      log("plugin unloaded");
+      }
+
+    auto attach_all_locked() -> void
+      {
+      std::shared_lock const lock{registry_mutex};
+      for(auto & [handle, swapchain]: swapchains)
+        attach_locked(*swapchain);
+      }
+
+    ///\brief the first plugin, loaded at the first swapchain rather than in every process using Vulkan
+    auto ensure_plugin_locked() -> void
+      {
+      if(plugin_tried)
+        return;
+      plugin_tried = true;
+      path = plugin_path();
+      plugin = load_plugin(path);
+      if(not plugin)
+        if(struct stat status{}; ::stat(path.c_str(), &status) == 0)
+          refused = identity_of(status);
+      }
+
+    ///\brief called at every present: at most once a check period, a look at the file; when it holds
+    /// another plugin, the one running is replaced by it
+    ///\detail the queue given is the one presenting, which the game synchronises for us: waiting for it to
+    /// go idle is the wait for every present that may still read the overlay's semaphores. The overlay's
+    /// own submissions are waited for by the plugin as it detaches
+    auto check_reload(VkQueue queue, device_data_t & presenting) -> void
+      {
+      int64_t const now{std::chrono::duration_cast<std::chrono::milliseconds>(
+                          std::chrono::steady_clock::now().time_since_epoch()
+      )
+                          .count()};
+      int64_t due{next_check_ms.load(std::memory_order_relaxed)};
+      if(now < due or not next_check_ms.compare_exchange_strong(due, now + reload_check.count()))
+        return;
+
+      identity_t current{};
+        {
+        std::shared_lock const lock{plugin_mutex};
+        if(not plugin_tried)
+          return;
+        struct stat status{};
+        if(::stat(path.c_str(), &status) != 0)
+          return;
+        current = identity_of(status);
+        if((plugin and plugin->identity == current) or (refused and *refused == current))
+          return;
+        }
+
+      std::unique_lock const lock{plugin_mutex};
+      auto next{load_plugin(path)};
+      if(not next)
+        {
+        // the one running goes on
+        refused = current;
+        return;
+        }
+      refused.reset();
+      if(presenting.QueueWaitIdle != nullptr)
+        presenting.QueueWaitIdle(queue);
+      unload_locked();
+      plugin = std::move(next);
+      attach_all_locked();
+      log("plugin reloaded");
+      }
+
+    [[nodiscard]]
+    static auto queue_family(void * host, VkQueue queue) -> uint32_t
+      {
+      auto & device{*static_cast<device_data_t *>(host)};
+      std::lock_guard const lock{device.queues_mutex};
+      auto const it{device.queue_family_of.find(static_cast<void *>(queue))};
+      return it != device.queue_family_of.end() ? it->second : VK_QUEUE_FAMILY_IGNORED;
+      }
+    };
+
+  [[nodiscard]]
+  auto layer() -> layer_t &
+    {
+    // destroyed at the end of the process, after the game destroyed its instances or not
+    static layer_t instance;
+    return instance;
+    }
 
   [[nodiscard]]
   auto instance_chain(VkInstanceCreateInfo const * info, VkLayerFunction function) -> VkLayerInstanceCreateInfo *
@@ -81,71 +486,6 @@ namespace
     return nullptr;
     }
 
-  [[nodiscard]]
-  auto find_instance(void * key) -> instance_data_t *
-    {
-    std::shared_lock const lock{registry().mutex};
-    auto const it{registry().instances.find(key)};
-    return it != registry().instances.end() ? it->second.get() : nullptr;
-    }
-
-  [[nodiscard]]
-  auto find_device(void * key) -> device_data_t *
-    {
-    std::shared_lock const lock{registry().mutex};
-    auto const it{registry().devices.find(key)};
-    return it != registry().devices.end() ? it->second.get() : nullptr;
-    }
-
-  [[nodiscard]]
-  auto find_swapchain(VkSwapchainKHR handle) -> swapchain_data_t *
-    {
-    std::shared_lock const lock{registry().mutex};
-    auto const it{registry().swapchains.find(handle)};
-    return it != registry().swapchains.end() ? it->second.get() : nullptr;
-    }
-  }  // namespace
-
-auto debug_enabled() noexcept -> bool
-  {
-  static bool const enabled{[]
-                            {
-                              char const * const value{std::getenv("EHT_OVERLAY_DEBUG")};
-                              return value != nullptr and *value != '\0' and *value != '0';
-                            }()};
-  return enabled;
-  }
-
-auto log_line(std::string_view text) -> void
-  {
-  std::fprintf(stderr, "[eht-overlay] %.*s\n", static_cast<int>(text.size()), text.data());
-  std::fflush(stderr);
-  }
-
-auto registry() -> registry_t &
-  {
-  // deliberately never destroyed - tidying globals while the game process winds down is asking for trouble
-  static registry_t * const instance{new registry_t{}};
-  return *instance;
-  }
-
-auto ipc_client() -> overlay::client_t &
-  {
-  // as above, and we also do not want to join the io thread once the game is already shutting down. the
-  // thread outlives vkDestroyInstance and the loader's dlclose - the layer is linked with -z nodelete for that
-  static overlay::client_t * const client{new overlay::client_t{overlay::default_socket_path()}};
-  return *client;
-  }
-
-auto device_data_t::family_of(VkQueue queue) -> uint32_t
-  {
-  std::lock_guard const lock{queues_mutex};
-  auto const it{queue_family_of.find(static_cast<void *>(queue))};
-  return it != queue_family_of.end() ? it->second : VK_QUEUE_FAMILY_IGNORED;
-  }
-
-namespace
-  {
   VKAPI_ATTR auto VKAPI_CALL overlay_CreateInstance(
     VkInstanceCreateInfo const * create_info, VkAllocationCallbacks const * allocator, VkInstance * instance
   ) -> VkResult
@@ -169,15 +509,6 @@ namespace
     data->instance = *instance;
     data->next_gipa = next_gipa;
     data->DestroyInstance = reinterpret_cast<PFN_vkDestroyInstance>(next_gipa(*instance, "vkDestroyInstance"));
-    data->GetPhysicalDeviceQueueFamilyProperties = reinterpret_cast<PFN_vkGetPhysicalDeviceQueueFamilyProperties>(
-      next_gipa(*instance, "vkGetPhysicalDeviceQueueFamilyProperties")
-    );
-    data->GetPhysicalDeviceMemoryProperties = reinterpret_cast<PFN_vkGetPhysicalDeviceMemoryProperties>(
-      next_gipa(*instance, "vkGetPhysicalDeviceMemoryProperties")
-    );
-    data->GetPhysicalDeviceFormatProperties = reinterpret_cast<PFN_vkGetPhysicalDeviceFormatProperties>(
-      next_gipa(*instance, "vkGetPhysicalDeviceFormatProperties")
-    );
     data->GetPhysicalDeviceSurfaceCapabilitiesKHR = reinterpret_cast<PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR>(
       next_gipa(*instance, "vkGetPhysicalDeviceSurfaceCapabilitiesKHR")
     );
@@ -190,8 +521,8 @@ namespace
     );
 
       {
-      std::unique_lock const lock{registry().mutex};
-      registry().instances[dispatch_key(*instance)] = std::move(data);
+      std::unique_lock const lock{layer().registry_mutex};
+      layer().instances[dispatch_key(*instance)] = std::move(data);
       }
     return VK_SUCCESS;
     }
@@ -204,13 +535,24 @@ namespace
 
     void * const key{dispatch_key(instance)};
     PFN_vkDestroyInstance destroy{};
+    bool last{};
       {
-      std::unique_lock const lock{registry().mutex};
-      if(auto const it{registry().instances.find(key)}; it != registry().instances.end())
+      std::unique_lock const lock{layer().registry_mutex};
+      if(auto const it{layer().instances.find(key)}; it != layer().instances.end())
         {
         destroy = it->second->DestroyInstance;
-        registry().instances.erase(it);
+        layer().instances.erase(it);
         }
+      last = layer().instances.empty() and layer().devices.empty();
+      }
+
+    // the game is done with Vulkan: the plugin goes, threads and all, rather than at the end of the process
+    if(last)
+      {
+      std::unique_lock const lock{layer().plugin_mutex};
+      layer().unload_locked();
+      layer().plugin_tried = false;
+      layer().refused.reset();
       }
 
     if(destroy != nullptr)
@@ -224,7 +566,7 @@ namespace
     VkDevice * device
   ) -> VkResult
     {
-    instance_data_t * const instance{find_instance(dispatch_key(physical_device))};
+    instance_data_t * const instance{layer().find_instance(dispatch_key(physical_device))};
     VkLayerDeviceCreateInfo * const chain{device_chain(create_info, VK_LAYER_LINK_INFO)};
     if(instance == nullptr or chain == nullptr or chain->u.pLayerInfo == nullptr)
       return VK_ERROR_INITIALIZATION_FAILED;
@@ -261,70 +603,15 @@ namespace
     EHT_LOAD(DestroySwapchainKHR);
     EHT_LOAD(GetSwapchainImagesKHR);
     EHT_LOAD(QueuePresentKHR);
-    EHT_LOAD(QueueSubmit);
     EHT_LOAD(QueueWaitIdle);
     EHT_LOAD(DeviceWaitIdle);
-    EHT_LOAD(CreateImageView);
-    EHT_LOAD(DestroyImageView);
-    EHT_LOAD(CreateFramebuffer);
-    EHT_LOAD(DestroyFramebuffer);
-    EHT_LOAD(CreateRenderPass);
-    EHT_LOAD(DestroyRenderPass);
-    EHT_LOAD(CreateCommandPool);
-    EHT_LOAD(DestroyCommandPool);
-    EHT_LOAD(AllocateCommandBuffers);
-    EHT_LOAD(BeginCommandBuffer);
-    EHT_LOAD(EndCommandBuffer);
-    EHT_LOAD(ResetCommandBuffer);
-    EHT_LOAD(CreateFence);
-    EHT_LOAD(DestroyFence);
-    EHT_LOAD(WaitForFences);
-    EHT_LOAD(ResetFences);
-    EHT_LOAD(CreateSemaphore);
-    EHT_LOAD(DestroySemaphore);
-    EHT_LOAD(CreateDescriptorPool);
-    EHT_LOAD(DestroyDescriptorPool);
-    EHT_LOAD(CmdBeginRenderPass);
-    EHT_LOAD(CmdEndRenderPass);
-    EHT_LOAD(CmdPipelineBarrier);
-    EHT_LOAD(CmdCopyImageToBuffer);
-    EHT_LOAD(CreateBuffer);
-    EHT_LOAD(DestroyBuffer);
-    EHT_LOAD(GetBufferMemoryRequirements);
-    EHT_LOAD(AllocateMemory);
-    EHT_LOAD(FreeMemory);
-    EHT_LOAD(BindBufferMemory);
-    EHT_LOAD(MapMemory);
-    EHT_LOAD(UnmapMemory);
-    EHT_LOAD(InvalidateMappedMemoryRanges);
-    EHT_LOAD(CreateShaderModule);
-    EHT_LOAD(DestroyShaderModule);
-    EHT_LOAD(CreateGraphicsPipelines);
-    EHT_LOAD(DestroyPipeline);
-    EHT_LOAD(CmdBindPipeline);
-    EHT_LOAD(CreateImage);
-    EHT_LOAD(DestroyImage);
-    EHT_LOAD(GetImageMemoryRequirements);
-    EHT_LOAD(BindImageMemory);
-    EHT_LOAD(CreateSampler);
-    EHT_LOAD(DestroySampler);
-    EHT_LOAD(CmdCopyBufferToImage);
-    EHT_LOAD(CmdBlitImage);
 #undef EHT_LOAD
 
-    if(instance->GetPhysicalDeviceQueueFamilyProperties != nullptr)
-      {
-      uint32_t count{};
-      instance->GetPhysicalDeviceQueueFamilyProperties(physical_device, &count, nullptr);
-      data->queue_families.resize(count);
-      instance->GetPhysicalDeviceQueueFamilyProperties(physical_device, &count, data->queue_families.data());
-      }
-
-    log("device created, {} queue families", data->queue_families.size());
+    log("device created");
 
       {
-      std::unique_lock const lock{registry().mutex};
-      registry().devices[dispatch_key(*device)] = std::move(data);
+      std::unique_lock const lock{layer().registry_mutex};
+      layer().devices[dispatch_key(*device)] = std::move(data);
       }
     return VK_SUCCESS;
     }
@@ -335,48 +622,44 @@ namespace
       return;
 
     void * const key{dispatch_key(device)};
-    PFN_vkDestroyDevice destroy{};
+    std::unique_ptr<device_data_t> data;
     std::vector<std::unique_ptr<swapchain_data_t>> orphans;
-    device_data_t * data{};
 
+    std::unique_lock const plugin_lock{layer().plugin_mutex};
       {
-      std::unique_lock const lock{registry().mutex};
-      if(auto const it{registry().devices.find(key)}; it != registry().devices.end())
+      std::unique_lock const lock{layer().registry_mutex};
+      if(auto const it{layer().devices.find(key)}; it != layer().devices.end())
         {
-        data = it->second.get();
-        destroy = data->DestroyDevice;
+        data = std::move(it->second);
+        layer().devices.erase(it);
         }
-
-      for(auto it{registry().swapchains.begin()}; it != registry().swapchains.end();)
-        if(it->second->device == data)
+      for(auto it{layer().swapchains.begin()}; it != layer().swapchains.end();)
+        if(it->second->device == data.get())
           {
           orphans.push_back(std::move(it->second));
-          it = registry().swapchains.erase(it);
+          it = layer().swapchains.erase(it);
           }
         else
           ++it;
       }
+    if(not data)
+      return;
 
     // the overlay's resources must go before the device does, otherwise the driver reports a leak
-    if(data != nullptr and data->DeviceWaitIdle != nullptr and not orphans.empty())
+    if(data->DeviceWaitIdle != nullptr and data->plugin != nullptr)
       data->DeviceWaitIdle(device);
     for(auto & orphan: orphans)
-      destroy_resources(*orphan);
-    orphans.clear();
+      layer().detach_locked(*orphan);
+    layer().detach_locked(*data);
 
-      {
-      std::unique_lock const lock{registry().mutex};
-      registry().devices.erase(key);
-      }
-
-    if(destroy != nullptr)
-      destroy(device, allocator);
+    if(data->DestroyDevice != nullptr)
+      data->DestroyDevice(device, allocator);
     }
 
   VKAPI_ATTR auto VKAPI_CALL overlay_GetDeviceQueue(VkDevice device, uint32_t family, uint32_t index, VkQueue * queue)
     -> void
     {
-    device_data_t * const data{find_device(dispatch_key(device))};
+    device_data_t * const data{layer().find_device(dispatch_key(device))};
     if(data == nullptr or data->GetDeviceQueue == nullptr)
       return;
 
@@ -391,7 +674,7 @@ namespace
   VKAPI_ATTR auto VKAPI_CALL overlay_GetDeviceQueue2(VkDevice device, VkDeviceQueueInfo2 const * info, VkQueue * queue)
     -> void
     {
-    device_data_t * const data{find_device(dispatch_key(device))};
+    device_data_t * const data{layer().find_device(dispatch_key(device))};
     if(data == nullptr or data->GetDeviceQueue2 == nullptr)
       return;
 
@@ -410,7 +693,7 @@ namespace
     VkSwapchainKHR * swapchain
   ) -> VkResult
     {
-    device_data_t * const data{find_device(dispatch_key(device))};
+    device_data_t * const data{layer().find_device(dispatch_key(device))};
     if(data == nullptr or data->CreateSwapchainKHR == nullptr)
       return VK_ERROR_INITIALIZATION_FAILED;
 
@@ -475,9 +758,6 @@ namespace
         data->GetSwapchainImagesKHR(device, *swapchain, &count, entry->images.data());
       }
 
-    if(entry->images.empty())
-      entry->broken = true;
-
     log(
       "swapchain {}x{} with {} images, usage {:#x} of the game's {:#x}",
       entry->extent.width,
@@ -487,13 +767,14 @@ namespace
       create_info->imageUsage
     );
 
-    // the ipc client is created only now - a process without a swapchain, a game launcher say, pays for nothing
-    (void)ipc_client();
-
+    std::unique_lock const plugin_lock{layer().plugin_mutex};
+    layer().ensure_plugin_locked();
+    swapchain_data_t & added{*entry};
       {
-      std::unique_lock const lock{registry().mutex};
-      registry().swapchains[*swapchain] = std::move(entry);
+      std::unique_lock const lock{layer().registry_mutex};
+      layer().swapchains[*swapchain] = std::move(entry);
       }
+    layer().attach_locked(added);
     return VK_SUCCESS;
     }
 
@@ -501,43 +782,51 @@ namespace
     overlay_DestroySwapchainKHR(VkDevice device, VkSwapchainKHR swapchain, VkAllocationCallbacks const * allocator)
       -> void
     {
-    device_data_t * const data{find_device(dispatch_key(device))};
+    device_data_t * const data{layer().find_device(dispatch_key(device))};
     if(data == nullptr or data->DestroySwapchainKHR == nullptr)
       return;
 
-    std::unique_ptr<swapchain_data_t> entry;
       {
-      std::unique_lock const lock{registry().mutex};
-      if(auto const it{registry().swapchains.find(swapchain)}; it != registry().swapchains.end())
+      std::unique_lock const plugin_lock{layer().plugin_mutex};
+      std::unique_ptr<swapchain_data_t> entry;
         {
-        entry = std::move(it->second);
-        registry().swapchains.erase(it);
+        std::unique_lock const lock{layer().registry_mutex};
+        if(auto const it{layer().swapchains.find(swapchain)}; it != layer().swapchains.end())
+          {
+          entry = std::move(it->second);
+          layer().swapchains.erase(it);
+          }
+        }
+      if(entry and entry->plugin != nullptr)
+        {
+        if(data->DeviceWaitIdle != nullptr)
+          data->DeviceWaitIdle(device);
+        layer().detach_locked(*entry);
         }
       }
-
-    if(entry and entry->ready)
-      {
-      if(data->DeviceWaitIdle != nullptr)
-        data->DeviceWaitIdle(device);
-      destroy_resources(*entry);
-      }
-    entry.reset();
 
     data->DestroySwapchainKHR(device, swapchain, allocator);
     }
 
   VKAPI_ATTR auto VKAPI_CALL overlay_QueuePresentKHR(VkQueue queue, VkPresentInfoKHR const * present_info) -> VkResult
     {
-    device_data_t * const data{find_device(dispatch_key(queue))};
+    device_data_t * const data{layer().find_device(dispatch_key(queue))};
     if(data == nullptr or data->QueuePresentKHR == nullptr)
       return VK_ERROR_INITIALIZATION_FAILED;
 
     if(present_info == nullptr or present_info->swapchainCount == 0u)
       return data->QueuePresentKHR(queue, present_info);
 
+    layer().check_reload(queue, *data);
+
+    std::shared_lock const plugin_lock{layer().plugin_mutex};
+    if(not layer().plugin)
+      return data->QueuePresentKHR(queue, present_info);
+    eht_plugin_t const & plugin{layer().plugin->api};
+
     std::array<VkSemaphore, max_swapchains_per_present> signalled{};
     // after a failed present we need to know whose semaphore to clean up
-    std::array<swapchain_data_t *, max_swapchains_per_present> owners{};
+    std::array<void *, max_swapchains_per_present> owners{};
     std::array<uint32_t, max_swapchains_per_present> owner_images{};
     uint32_t signalled_count{};
 
@@ -547,16 +836,16 @@ namespace
     uint32_t const count{std::min(present_info->swapchainCount, max_swapchains_per_present)};
     for(uint32_t index{}; index != count; ++index)
       {
-      swapchain_data_t * const entry{find_swapchain(present_info->pSwapchains[index])};
-      if(entry == nullptr or entry->broken)
+      swapchain_data_t * const entry{layer().find_swapchain(present_info->pSwapchains[index])};
+      if(entry == nullptr or entry->plugin == nullptr)
         continue;
 
-      VkSemaphore const semaphore{draw_overlay(*entry, queue, present_info->pImageIndices[index], wait, wait_count)};
+      VkSemaphore const semaphore{plugin.present(entry->plugin, queue, present_info->pImageIndices[index], wait, wait_count)};
       if(semaphore == VK_NULL_HANDLE)
         continue;
 
       signalled[signalled_count] = semaphore;
-      owners[signalled_count] = entry;
+      owners[signalled_count] = entry->plugin;
       owner_images[signalled_count] = present_info->pImageIndices[index];
       ++signalled_count;
       // our first submission consumes the original semaphores; the later ones have nothing left to wait on
@@ -577,7 +866,7 @@ namespace
     // any other error, OUT_OF_DATE after a window change above all, gives no such certainty
     if(result != VK_SUCCESS and result != VK_SUBOPTIMAL_KHR) [[unlikely]]
       for(uint32_t index{}; index != signalled_count; ++index)
-        renew_present_semaphore(*owners[index], owner_images[index]);
+        plugin.present_failed(owners[index], owner_images[index]);
 
     return result;
     }
@@ -629,7 +918,7 @@ namespace
       return VK_SUCCESS;
       }
 
-    instance_data_t * const instance{find_instance(dispatch_key(physical_device))};
+    instance_data_t * const instance{eht_overlay::layer().find_instance(dispatch_key(physical_device))};
     if(instance == nullptr)
       return VK_ERROR_INITIALIZATION_FAILED;
 
@@ -666,6 +955,20 @@ auto lookup_hook(char const * name) -> PFN_vkVoidFunction
 #undef EHT_HOOK
   return nullptr;
   }
+
+[[nodiscard]]
+auto next_instance_proc(VkInstance instance, char const * name) -> PFN_vkVoidFunction
+  {
+  instance_data_t const * const data{layer().find_instance(dispatch_key(instance))};
+  return data != nullptr ? data->next_gipa(instance, name) : nullptr;
+  }
+
+[[nodiscard]]
+auto next_device_proc(VkDevice device, char const * name) -> PFN_vkVoidFunction
+  {
+  device_data_t const * const data{layer().find_device(dispatch_key(device))};
+  return data != nullptr ? data->next_gdpa(device, name) : nullptr;
+  }
   }  // namespace eht_overlay
 
 extern "C"
@@ -682,16 +985,7 @@ extern "C"
     if(instance == VK_NULL_HANDLE)
       return nullptr;
 
-    eht_overlay::instance_data_t const * const data{
-      [instance]() -> eht_overlay::instance_data_t const *
-      {
-        std::shared_lock const lock{eht_overlay::registry().mutex};
-        auto const it{eht_overlay::registry().instances.find(eht_overlay::dispatch_key(instance))};
-        return it != eht_overlay::registry().instances.end() ? it->second.get() : nullptr;
-      }()
-    };
-
-    return data != nullptr ? data->next_gipa(instance, name) : nullptr;
+    return eht_overlay::next_instance_proc(instance, name);
     }
 
   VK_LAYER_EXPORT VKAPI_ATTR auto VKAPI_CALL eht_overlay_GetDeviceProcAddr(VkDevice device, char const * name)
@@ -706,16 +1000,7 @@ extern "C"
     if(device == VK_NULL_HANDLE)
       return nullptr;
 
-    eht_overlay::device_data_t const * const data{
-      [device]() -> eht_overlay::device_data_t const *
-      {
-        std::shared_lock const lock{eht_overlay::registry().mutex};
-        auto const it{eht_overlay::registry().devices.find(eht_overlay::dispatch_key(device))};
-        return it != eht_overlay::registry().devices.end() ? it->second.get() : nullptr;
-      }()
-    };
-
-    return data != nullptr ? data->next_gdpa(device, name) : nullptr;
+    return eht_overlay::next_device_proc(device, name);
     }
 
   VK_LAYER_EXPORT VKAPI_ATTR auto VKAPI_CALL vkNegotiateLoaderLayerInterfaceVersion(VkNegotiateLayerInterface * version)

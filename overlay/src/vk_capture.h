@@ -33,4 +33,7 @@ auto record_screenshot(swapchain_data_t & data, frame_resources_t & frame, uint3
 auto collect_capture(swapchain_data_t & data, frame_resources_t & frame) noexcept -> void;
 
 auto destroy_capture(swapchain_data_t & data) noexcept -> void;
+
+///\brief writes out the pictures still waiting for the disk and stops the thread writing them
+auto stop_capture_writer() noexcept -> void;
   }  // namespace eht_overlay

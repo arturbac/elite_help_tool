@@ -1,25 +1,19 @@
 #pragma once
 
-// the layer does not link the loader - every Vulkan function comes from the chain below us
+// the plugin's view of the game's Vulkan objects - the layer hands them over through plugin_api.h
+//
+// the plugin does not link the loader - every Vulkan function comes from the chain below the layer
 #define VK_NO_PROTOTYPES
 #include <vulkan/vk_layer.h>
 #include <vulkan/vulkan.h>
 
+#include "vk_log.h"
+
 #include <overlay_ipc.h>
 
-// the Vulkan headers do not carry this macro, and the layer's symbols must break through hidden visibility
-#ifndef VK_LAYER_EXPORT
-#define VK_LAYER_EXPORT __attribute__((visibility("default")))
-#endif
-
 #include <array>
-#include <format>
-#include <memory>
-#include <mutex>
 #include <optional>
-#include <shared_mutex>
-#include <string_view>
-#include <unordered_map>
+#include <string>
 #include <vector>
 
 struct ImGuiContext;
@@ -27,32 +21,13 @@ struct ImFont;
 
 namespace eht_overlay
   {
-///\brief the loader keeps the dispatch table in the first word of every dispatchable handle
-[[nodiscard]]
-inline auto dispatch_key(void * handle) noexcept -> void *
-  { return *static_cast<void **>(handle); }
-
-[[nodiscard]]
-auto debug_enabled() noexcept -> bool;
-
-auto log_line(std::string_view text) -> void;
-
-template<typename... args_t>
-auto log(std::format_string<args_t...> fmt, args_t &&... args) -> void
-  {
-  if(debug_enabled()) [[unlikely]]
-    log_line(std::format(fmt, std::forward<args_t>(args)...));
-  }
-
 struct instance_data_t
   {
   VkInstance instance{};
   PFN_vkGetInstanceProcAddr next_gipa{};
-  PFN_vkDestroyInstance DestroyInstance{};
   PFN_vkGetPhysicalDeviceQueueFamilyProperties GetPhysicalDeviceQueueFamilyProperties{};
   PFN_vkGetPhysicalDeviceMemoryProperties GetPhysicalDeviceMemoryProperties{};
   PFN_vkGetPhysicalDeviceFormatProperties GetPhysicalDeviceFormatProperties{};
-  PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR GetPhysicalDeviceSurfaceCapabilitiesKHR{};
   uint32_t api_version{VK_API_VERSION_1_0};
   };
 
@@ -64,13 +39,6 @@ struct device_data_t
   PFN_vkGetDeviceProcAddr next_gdpa{};
   PFN_vkSetDeviceLoaderData set_device_loader_data{};
 
-  PFN_vkDestroyDevice DestroyDevice{};
-  PFN_vkGetDeviceQueue GetDeviceQueue{};
-  PFN_vkGetDeviceQueue2 GetDeviceQueue2{};
-  PFN_vkCreateSwapchainKHR CreateSwapchainKHR{};
-  PFN_vkDestroySwapchainKHR DestroySwapchainKHR{};
-  PFN_vkGetSwapchainImagesKHR GetSwapchainImagesKHR{};
-  PFN_vkQueuePresentKHR QueuePresentKHR{};
   PFN_vkQueueSubmit QueueSubmit{};
   PFN_vkQueueWaitIdle QueueWaitIdle{};
   PFN_vkDeviceWaitIdle DeviceWaitIdle{};
@@ -127,12 +95,14 @@ struct device_data_t
 
   std::vector<VkQueueFamilyProperties> queue_families;
 
-  ///\brief the queue family is only learned from vkGetDeviceQueue, and it is needed at present time
-  std::mutex queues_mutex;
-  std::unordered_map<void *, uint32_t> queue_family_of;
+  ///\brief the queue family is only learned from vkGetDeviceQueue, which the layer sees, and it is needed
+  /// at present time
+  uint32_t (*queue_family)(void * host, VkQueue queue){};
+  void * host{};
 
   [[nodiscard]]
-  auto family_of(VkQueue queue) -> uint32_t;
+  auto family_of(VkQueue queue) const -> uint32_t
+    { return queue_family != nullptr ? queue_family(host, queue) : VK_QUEUE_FAMILY_IGNORED; }
   };
 
 ///\brief the resources of one swapchain image
@@ -280,17 +250,6 @@ struct swapchain_data_t
   report_t report;
   float fps{};
   };
-
-struct registry_t
-  {
-  std::shared_mutex mutex;
-  std::unordered_map<void *, std::unique_ptr<instance_data_t>> instances;
-  std::unordered_map<void *, std::unique_ptr<device_data_t>> devices;
-  std::unordered_map<VkSwapchainKHR, std::unique_ptr<swapchain_data_t>> swapchains;
-  };
-
-[[nodiscard]]
-auto registry() -> registry_t &;
 
 ///\brief one client per game process, created only once there is really something to draw
 [[nodiscard]]

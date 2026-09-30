@@ -1,5 +1,6 @@
 #include "vk_keyboard.h"
 #include "vk_dispatch.h"
+#include "vk_service.h"
 
 #include <xcb/xcb.h>
 #include <xcb/xproto.h>
@@ -10,6 +11,7 @@
 #include <atomic>
 #include <charconv>
 #include <chrono>
+#include <condition_variable>
 #include <cstdlib>
 #include <fstream>
 #include <iterator>
@@ -47,10 +49,22 @@ namespace
     EHT_XCB(xcb_get_property_value_length);
 #undef EHT_XCB
 
+    void * library{};
+
+    xcb_t() = default;
+    xcb_t(xcb_t const &) = delete;
+    auto operator=(xcb_t const &) -> xcb_t & = delete;
+
+    ~xcb_t()
+      {
+      if(library != nullptr)
+        ::dlclose(library);
+      }
+
     [[nodiscard]]
     auto load() -> bool
       {
-      void * const library{::dlopen("libxcb.so.1", RTLD_NOW | RTLD_LOCAL)};
+      library = ::dlopen("libxcb.so.1", RTLD_NOW | RTLD_LOCAL);
       if(library == nullptr)
         return false;
       bool complete{true};
@@ -79,7 +93,6 @@ namespace
       EHT_XCB(xcb_get_property_value);
       EHT_XCB(xcb_get_property_value_length);
 #undef EHT_XCB
-      // the library stays loaded for good - the thread using it is never stopped
       return complete;
       }
     };
@@ -185,27 +198,21 @@ namespace
   class watcher_t
     {
   public:
-    auto run() -> void
+    watcher_t() : thread_{[this] { run(); }} {}
+
+    watcher_t(watcher_t const &) = delete;
+    auto operator=(watcher_t const &) -> watcher_t & = delete;
+
+    ~watcher_t()
       {
-      if(not xcb_.load())
         {
-        log("screenshot key not watched, no libxcb in the game's process");
-        return;
+        std::scoped_lock const lock{mutex_};
+        stopping_ = true;
         }
-      for(;; std::this_thread::sleep_for(std::chrono::milliseconds{connection_ != nullptr ? 30 : 5000}))
-        {
-        if(connection_ == nullptr and not connect())
-          continue;
-        if(xcb_.xcb_connection_has_error(connection_) != 0)
-          {
-          log("the X connection watching the screenshot key broke, connecting again");
-          xcb_.xcb_disconnect(connection_);
-          connection_ = nullptr;
-          keycode_ = 0u;
-          continue;
-          }
-        poll();
-        }
+      wake_.notify_one();
+      thread_.join();
+      if(connection_ != nullptr)
+        xcb_.xcb_disconnect(connection_);
       }
 
     [[nodiscard]]
@@ -222,6 +229,43 @@ namespace
     xcb_keycode_t keycode_{};
     bool was_down_{};
     std::atomic<uint32_t> presses_{};
+    std::mutex mutex_;
+    std::condition_variable wake_;
+    bool stopping_{};
+    // last: it runs over everything above
+    std::thread thread_;
+
+    ///rief waits that long, or less when the watcher is being stopped - false then
+    [[nodiscard]]
+    auto pause(std::chrono::milliseconds length) -> bool
+      {
+      std::unique_lock lock{mutex_};
+      return not wake_.wait_for(lock, length, [this] { return stopping_; });
+      }
+
+    auto run() -> void
+      {
+      if(not xcb_.load())
+        {
+        log("screenshot key not watched, no libxcb in the game's process");
+        return;
+        }
+      do
+        {
+        if(connection_ == nullptr and not connect())
+          continue;
+        if(xcb_.xcb_connection_has_error(connection_) != 0)
+          {
+          log("the X connection watching the screenshot key broke, connecting again");
+          xcb_.xcb_disconnect(connection_);
+          connection_ = nullptr;
+          keycode_ = 0u;
+          continue;
+          }
+        poll();
+        }
+      while(pause(std::chrono::milliseconds{connection_ != nullptr ? 30 : 5000}));
+      }
 
     [[nodiscard]]
     auto connect() -> bool
@@ -346,29 +390,21 @@ namespace
       }
     };
 
-  [[nodiscard]]
-  auto watcher() -> watcher_t &
-    {
-    // never destroyed and never joined, like the ipc client - the game process ends it
-    static watcher_t * const instance{[]
-                                      {
-                                        auto * const created{new watcher_t{}};
-                                        std::thread{[created] { created->run(); }}.detach();
-                                        return created;
-                                      }()};
-    return *instance;
-    }
+  service_t<watcher_t> watcher;
   }  // namespace
 
 auto take_screenshot_press() noexcept -> bool
   {
   try
     {
-    return watcher().take();
+    return watcher.get([] { return std::make_unique<watcher_t>(); }).take();
     }
   catch(...)
     {
     return false;
     }
   }
+
+auto stop_keyboard() noexcept -> void
+  { watcher.stop(); }
   }  // namespace eht_overlay

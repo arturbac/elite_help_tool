@@ -75,34 +75,75 @@ file(WRITE ${EHT_OVERLAY_FONT_SOURCE}
   "  }\n")
 
 # ----------------------------------------------------------------
-# sama warstwa
+# sama warstwa i plugin z overlayem
 # ----------------------------------------------------------------
+# the layer the loader knows is thin: it tracks the game's objects and hands them to the plugin,
+# which it loads again whenever the plugin's file is replaced
+option(EHT_OVERLAY_SANITIZE "build the layer and the plugin with ASan and LSan, for the headless check" OFF)
+if(EHT_OVERLAY_SANITIZE)
+  set(eht_overlay_runtime_options -fsanitize=address -fno-omit-frame-pointer)
+  # the shared runtime lies beside the compiler, where the loader does not look
+  execute_process(
+    COMMAND ${CMAKE_CXX_COMPILER} -print-file-name=libclang_rt.asan-x86_64.so
+    OUTPUT_VARIABLE eht_asan_runtime
+    OUTPUT_STRIP_TRAILING_WHITESPACE)
+  get_filename_component(eht_asan_runtime_dir ${eht_asan_runtime} DIRECTORY)
+  set(eht_overlay_runtime_link -fsanitize=address -shared-libasan -Wl,-rpath,${eht_asan_runtime_dir})
+else()
+  # the game's process has a libstdc++ of its own, older or newer - ours goes in whole and hidden
+  set(eht_overlay_runtime_options)
+  set(eht_overlay_runtime_link -static-libstdc++ -static-libgcc -Wl,--exclude-libs,ALL)
+endif()
+
 add_library(eht_overlay SHARED
   src/vk_layer.cc
+  src/vk_log.cc)
+target_include_directories(eht_overlay PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(eht_overlay PRIVATE Vulkan::Headers)
+target_compile_options(eht_overlay PRIVATE ${eht_overlay_runtime_options})
+set_target_properties(eht_overlay PROPERTIES
+  OUTPUT_NAME eht_overlay
+  CXX_VISIBILITY_PRESET hidden
+  VISIBILITY_INLINES_HIDDEN ON)
+# the loader unloads the layer at vkDestroyInstance, while a game thread may still be inside a hook
+# of it; the plugin, whose threads are all joined, is what gets unloaded
+target_link_options(eht_overlay PRIVATE
+  -Wl,-z,nodelete
+  ${eht_overlay_runtime_link}
+  -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/eht_overlay.version
+  -Wl,--no-undefined)
+
+add_library(eht_overlay_plugin SHARED
+  src/vk_plugin.cc
+  src/vk_log.cc
   src/vk_draw.cc
   src/vk_capture.cc
   src/vk_faces.cc
   src/vk_sample.cc
   src/vk_keyboard.cc
   ${EHT_OVERLAY_FONT_SOURCE})
-target_include_directories(eht_overlay PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
-target_link_libraries(eht_overlay PRIVATE
+target_include_directories(eht_overlay_plugin PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(eht_overlay_plugin PRIVATE
   eht_overlay_ipc
   eht_imgui
   Vulkan::Headers)
-set_target_properties(eht_overlay PROPERTIES
-  OUTPUT_NAME eht_overlay
+target_compile_options(eht_overlay_plugin PRIVATE ${eht_overlay_runtime_options})
+set_target_properties(eht_overlay_plugin PROPERTIES
+  OUTPUT_NAME eht_overlay_plugin
   CXX_VISIBILITY_PRESET hidden
   VISIBILITY_INLINES_HIDDEN ON)
-# loader Vulkana robi dlclose przy vkDestroyInstance, a watki warstwy (klient IPC, klawiatura, zapis
-# zrzutow) celowo nie sa nigdy zatrzymywane - bez nodelete wykonywalyby kod zwolnionej biblioteki
-target_link_options(eht_overlay PRIVATE
-  -Wl,-z,nodelete
-  -static-libstdc++
-  -static-libgcc
-  -Wl,--exclude-libs,ALL
-  -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/eht_overlay.version
+target_link_options(eht_overlay_plugin PRIVATE
+  ${eht_overlay_runtime_link}
+  -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/eht_overlay_plugin.version
   -Wl,--no-undefined)
+if(EHT_OVERLAY_SANITIZE)
+  target_compile_options(eht_imgui PRIVATE ${eht_overlay_runtime_options})
+  target_compile_options(eht_overlay_ipc PRIVATE ${eht_overlay_runtime_options})
+  # the tool's side links it too
+  target_link_options(eht_overlay_ipc INTERFACE ${eht_overlay_runtime_link})
+endif()
+# the layer finds the plugin beside itself
+add_dependencies(eht_overlay eht_overlay_plugin)
 
 # ----------------------------------------------------------------
 # opakowanie do %command% i zrodlo testowe
@@ -115,6 +156,11 @@ target_link_libraries(eht-overlay-run PRIVATE simple_enum::simple_enum glaze::gl
 # jedyny cel ktory naprawde linkuje loader - reszta overlaya go nie dotyka
 add_executable(eht-overlay-headless-check tools/headless_check.cc)
 target_link_libraries(eht-overlay-headless-check PRIVATE Vulkan::Vulkan)
+# the process must start with the sanitizer for the layer's and the plugin's leaks to be reported
+if(EHT_OVERLAY_SANITIZE)
+  target_compile_options(eht-overlay-headless-check PRIVATE ${eht_overlay_runtime_options})
+  target_link_options(eht-overlay-headless-check PRIVATE ${eht_overlay_runtime_link})
+endif()
 
 add_executable(eht-overlay-feed src/feed.cc)
 target_link_libraries(eht-overlay-feed PRIVATE eht_overlay_ipc)
@@ -140,7 +186,10 @@ add_custom_target(overlay-install
   # writing into that same file would pull it from under the game
   COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:eht_overlay> ${EHT_OVERLAY_HOME_LIB}/libeht_overlay.so.new
   COMMAND ${CMAKE_COMMAND} -E rename ${EHT_OVERLAY_HOME_LIB}/libeht_overlay.so.new ${EHT_OVERLAY_HOME_LIB}/libeht_overlay.so
+  # the same for the plugin: a running game sees the new file within a second and loads it
+  COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:eht_overlay_plugin> ${EHT_OVERLAY_HOME_LIB}/libeht_overlay_plugin.so.new
+  COMMAND ${CMAKE_COMMAND} -E rename ${EHT_OVERLAY_HOME_LIB}/libeht_overlay_plugin.so.new ${EHT_OVERLAY_HOME_LIB}/libeht_overlay_plugin.so
   COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:eht-overlay-run> ${EHT_OVERLAY_HOME_BIN}/eht-overlay-run
   COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_CURRENT_BINARY_DIR}/eht_overlay.json ${EHT_OVERLAY_HOME_MANIFEST}/eht_overlay.json
-  DEPENDS eht_overlay eht-overlay-run
+  DEPENDS eht_overlay eht_overlay_plugin eht-overlay-run
   COMMENT "instalacja warstwy do ~/.local - tylko stamtad widzi ja kontener Steam Linux Runtime")

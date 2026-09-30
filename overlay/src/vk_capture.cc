@@ -1,7 +1,10 @@
 #include "vk_capture.h"
+#include "vk_service.h"
 
 #include <algorithm>
 #include <chrono>
+#include <condition_variable>
+#include <deque>
 #include <format>
 #include <utility>
 #include <cmath>
@@ -177,6 +180,75 @@ namespace
       log("picture not written to {}", path);
       }
     }
+
+  ///\brief one picture copied out of the card and waiting for the disk
+  struct picture_t
+    {
+    std::vector<uint8_t> pixels;
+    layout_e layout{};
+    uint32_t width{};
+    uint32_t height{};
+    std::string path;
+    };
+
+  ///\brief the thread that writes the pictures, one after another
+  ///\detail stopping it writes out what is still waiting first - the tool is waiting for those files
+  class writer_t final
+    {
+  public:
+    writer_t() : thread_{[this] { run(); }} {}
+
+    writer_t(writer_t const &) = delete;
+    auto operator=(writer_t const &) -> writer_t & = delete;
+
+    ~writer_t()
+      {
+        {
+        std::scoped_lock const lock{mutex_};
+        stopping_ = true;
+        }
+      wake_.notify_one();
+      thread_.join();
+      }
+
+    auto write(picture_t picture) -> void
+      {
+        {
+        std::scoped_lock const lock{mutex_};
+        waiting_.push_back(std::move(picture));
+        }
+      wake_.notify_one();
+      }
+
+  private:
+    std::mutex mutex_;
+    std::condition_variable wake_;
+    std::deque<picture_t> waiting_;
+    bool stopping_{};
+    // last: it runs over everything above
+    std::thread thread_;
+
+    auto run() -> void
+      {
+      for(;;)
+        {
+        picture_t picture;
+          {
+          std::unique_lock lock{mutex_};
+          wake_.wait(lock, [this] { return stopping_ or not waiting_.empty(); });
+          if(waiting_.empty())
+            return;
+          picture = std::move(waiting_.front());
+          waiting_.pop_front();
+          }
+        write_picture(
+          std::move(picture.pixels), picture.layout, picture.width, picture.height, std::move(picture.path)
+        );
+        }
+      }
+    };
+
+  service_t<writer_t> writers;
   }  // namespace
 
 auto take_capture_request() -> std::optional<overlay::capture_t>
@@ -445,15 +517,14 @@ auto collect_capture(swapchain_data_t & data, frame_resources_t & frame) noexcep
     // one copy on the frame path, a few megabytes; the conversion and the disk go to a thread of their own
     std::vector<uint8_t> pixels(static_cast<size_t>(bytes));
     std::memcpy(pixels.data(), data.capture.mapped, pixels.size());
-    std::thread{
-      write_picture,
-      std::move(pixels),
-      pixel_layout(data.format),
-      frame.capture_width,
-      frame.capture_height,
-      std::move(frame.capture_path)
-    }
-      .detach();
+    writers.get([] { return std::make_unique<writer_t>(); })
+      .write(picture_t{
+        .pixels = std::move(pixels),
+        .layout = pixel_layout(data.format),
+        .width = frame.capture_width,
+        .height = frame.capture_height,
+        .path = std::move(frame.capture_path)
+      });
     if(std::exchange(frame.capture_release, false) and not copy_in_flight(data))
       destroy_capture(data);
     }
@@ -476,4 +547,7 @@ auto destroy_capture(swapchain_data_t & data) noexcept -> void
     device.FreeMemory(device.device, data.capture.memory, nullptr);
   data.capture = {};
   }
+
+auto stop_capture_writer() noexcept -> void
+  { writers.stop(); }
   }  // namespace eht_overlay

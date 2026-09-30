@@ -1,4 +1,5 @@
 #include "vk_faces.h"
+#include "vk_service.h"
 
 #include <backends/imgui_impl_vulkan.h>
 
@@ -25,10 +26,24 @@ namespace
   constexpr uint32_t uploads_per_frame{4u};
 
   ///\brief reads the faces off the game's frame: the frame asks for a name, a later frame takes the pixels
-  ///\detail never destroyed and never joined, like the keyboard's watcher - the game process ends it
   class loader_t final
     {
   public:
+    loader_t() : thread_{[this] { run(); }} {}
+
+    loader_t(loader_t const &) = delete;
+    auto operator=(loader_t const &) -> loader_t & = delete;
+
+    ~loader_t()
+      {
+        {
+        std::scoped_lock const lock{mutex_};
+        stopping_ = true;
+        }
+      wake_.notify_one();
+      thread_.join();
+      }
+
     auto ask(std::string const & name) -> void
       {
       std::scoped_lock const lock{mutex_};
@@ -59,6 +74,16 @@ namespace
       asked_.erase(name);
       }
 
+  private:
+    std::mutex mutex_;
+    std::condition_variable wake_;
+    std::deque<std::string> wanted_;
+    std::set<std::string> asked_;
+    std::deque<std::pair<std::string, std::vector<uint8_t>>> loaded_;
+    bool stopping_{};
+    // last: it runs over everything above
+    std::thread thread_;
+
     auto run() -> void
       {
       for(;;)
@@ -66,7 +91,9 @@ namespace
         std::string name;
           {
           std::unique_lock lock{mutex_};
-          wake_.wait(lock, [this] { return not wanted_.empty(); });
+          wake_.wait(lock, [this] { return stopping_ or not wanted_.empty(); });
+          if(stopping_)
+            return;
           name = std::move(wanted_.front());
           wanted_.pop_front();
           }
@@ -77,13 +104,6 @@ namespace
         loaded_.emplace_back(std::move(name), std::move(rgba));
         }
       }
-
-  private:
-    std::mutex mutex_;
-    std::condition_variable wake_;
-    std::deque<std::string> wanted_;
-    std::set<std::string> asked_;
-    std::deque<std::pair<std::string, std::vector<uint8_t>>> loaded_;
 
     ///\brief a binary PPM of exactly the face's size, as RGBA
     [[nodiscard]]
@@ -112,17 +132,11 @@ namespace
       }
     };
 
+  service_t<loader_t> loaders;
+
   [[nodiscard]]
   auto loader() -> loader_t &
-    {
-    static loader_t * const instance{[]
-                                     {
-                                       auto * const created{new loader_t{}};
-                                       std::thread{[created] { created->run(); }}.detach();
-                                       return created;
-                                     }()};
-    return *instance;
-    }
+    { return loaders.get([] { return std::make_unique<loader_t>(); }); }
 
   [[nodiscard]]
   auto memory_type(device_data_t const & device, uint32_t type_bits, VkMemoryPropertyFlags wanted)
@@ -462,10 +476,15 @@ auto destroy_faces(swapchain_data_t & data) noexcept -> void
     device.DestroyBuffer(device.device, atlas.staging, nullptr);
   if(atlas.staging_memory != VK_NULL_HANDLE)
     device.FreeMemory(device.device, atlas.staging_memory, nullptr);
-  // the names go back to the loader, so a new swapchain reads its faces again
-  for(std::string const & name: atlas.names)
-    if(not name.empty())
-      loader().forget(name);
+  // the names go back to the loader, so a new swapchain reads its faces again - a loader already stopped
+  // is not started for that
+  if(loader_t * const running{loaders.peek()}; running != nullptr)
+    for(std::string const & name: atlas.names)
+      if(not name.empty())
+        running->forget(name);
   atlas = {};
   }
+
+auto stop_face_loader() noexcept -> void
+  { loaders.stop(); }
   }  // namespace eht_overlay

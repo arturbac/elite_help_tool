@@ -8,4 +8,7 @@ namespace eht_overlay
 /// ever blocks: no X server, no libxcb or no key asked for simply means no screenshots
 [[nodiscard]]
 auto take_screenshot_press() noexcept -> bool;
+
+///\brief stops the watching thread and lets the X connection go; a later press starts it again
+auto stop_keyboard() noexcept -> void;
   }  // namespace eht_overlay
