@@ -235,11 +235,11 @@ namespace
     return face;
     }
 
-  ///\brief the ship's HUD over the ball: its saturated orange, which no surface comes near
+  ///\brief the ship's HUD over the ball: its saturated orange and yellow, which no surface comes near
   [[nodiscard]]
   auto is_hud(uint8_t const * p) -> bool
     {
-    return p[0] > 140u and int(p[2]) * 4 < int(p[0]) and int(p[1]) * 5 < int(p[0]) * 4 and int(p[1]) * 5 > int(p[0]);
+    return p[0] > 140u and int(p[2]) * 4 < int(p[0]) and int(p[1]) * 20 < int(p[0]) * 19 and int(p[1]) * 5 > int(p[0]);
     }
 
   [[nodiscard]]
@@ -248,7 +248,10 @@ namespace
 
   ///\brief the scanner's marks filled from around them: its white dot and needle - much brighter than the
   /// ball and nearly colourless - and, where no filter paints the ball, its thin cyan rings
-  auto clear_marks(image_t & face, bool cyan_rings) -> void
+  ///\param strokes also the thin bright strokes of the HUD's words - a pixel well above the median of the 5 x 5
+  /// around it - and the marks grown by two pixels rather than one: a view from the cockpit has the target's
+  /// name and distance written over the ball
+  auto clear_marks(image_t & face, bool cyan_rings, bool strokes = false) -> void
     {
     uint32_t const side{face.width};
     size_t const pixels{size_t{side} * side};
@@ -288,14 +291,38 @@ namespace
       bool const cyan{cyan_rings and is_cyan(face.rgb.data() + at * 3u)};
       mark[at] = white or cyan or is_hud(face.rgb.data() + at * 3u);
       }
-    // a pixel more around each mark, for its soft edge
+    if(strokes)
+      for(uint32_t y{2u}; y + 2u < side; ++y)
+        for(uint32_t x{2u}; x + 2u < side; ++x)
+          {
+          size_t const at{size_t{y} * side + x};
+          if(not inside[at])
+            continue;
+          std::array<float, 25> around{};
+          size_t n{};
+          for(uint32_t dy{}; dy != 5u; ++dy)
+            for(uint32_t dx{}; dx != 5u; ++dx)
+              {
+              size_t const near{size_t{y + dy - 2u} * side + x + dx - 2u};
+              around[n++] = (colour[near * 3u] + colour[near * 3u + 1u] + colour[near * 3u + 2u]) / 3.f;
+              }
+          std::nth_element(around.begin(), around.begin() + 12, around.end());
+          float const lum{(colour[at * 3u] + colour[at * 3u + 1u] + colour[at * 3u + 2u]) / 3.f};
+          if(lum > around[12] + 0.1f)
+            mark[at] = true;
+          }
+    // a pixel more around each mark, for its soft edge - two for the words and rings of the HUD
     std::vector<bool> grown{mark};
-    for(uint32_t y{1u}; y + 1u < side; ++y)
-      for(uint32_t x{1u}; x + 1u < side; ++x)
-        {
-        size_t const at{size_t{y} * side + x};
-        grown[at] = mark[at] or mark[at - 1u] or mark[at + 1u] or mark[at - side] or mark[at + side];
-        }
+    for(int round{}; round != (strokes ? 2 : 1); ++round)
+      {
+      std::vector<bool> const before{grown};
+      for(uint32_t y{1u}; y + 1u < side; ++y)
+        for(uint32_t x{1u}; x + 1u < side; ++x)
+          {
+          size_t const at{size_t{y} * side + x};
+          grown[at] = before[at] or before[at - 1u] or before[at + 1u] or before[at - side] or before[at + side];
+          }
+      }
 
     // filled from the edge of each mark inwards, a ring of pixels at a time
     std::vector<bool> good(inside.size(), false);
@@ -536,7 +563,7 @@ auto retint(image_t face, std::array<float, 3> colour) -> image_t
   return face;
   }
 
-auto judge_approach(image_t const & view) -> std::optional<approach_t>
+auto judge_approach(image_t const & view, float pixel_scale) -> std::optional<approach_t>
   {
   // the night side's rim is lost against the black of space, so only the lit part of it shows
   auto const disc{find_disc(view)};
@@ -573,8 +600,9 @@ auto judge_approach(image_t const & view) -> std::optional<approach_t>
   // more than a little hidden, and the frame would be on the face
   if(hidden > 0.06f)
     return std::nullopt;
-  judged.score = judged.lit * std::min(disc->radius, 200.f) / 200.f * std::max(0.f, 1.f - 8.f * judged.hud)
-                 * std::max(0.f, 1.f - 3.f * hidden) * (streaks > 0.03f ? 0.2f : 1.f);
+  judged.score = judged.lit * std::min(disc->radius * pixel_scale, 200.f) / 200.f
+                 * std::max(0.f, 1.f - 8.f * judged.hud) * std::max(0.f, 1.f - 3.f * hidden)
+                 * (streaks > 0.03f ? 0.2f : 1.f);
   return judged;
   }
 
@@ -582,7 +610,7 @@ auto approach_face(image_t const & view, disc_t const & disc, uint32_t side) -> 
   {
   image_t face{sample_ball(view, disc, side)};
   // the target's ring and its words stand on the ball; a ring is cyan, which a ball seldom is
-  clear_marks(face, look_of(face).cyan <= 0.1f);
+  clear_marks(face, look_of(face).cyan <= 0.1f, true);
   size_t const pixels{size_t{side} * side};
   float const half{float(side) / 2.f};
   auto const normal = [&](size_t at) -> std::array<float, 3>
@@ -602,7 +630,8 @@ auto approach_face(image_t const & view, disc_t const & disc, uint32_t side) -> 
     return face;
   std::array<float, 3> const light{*fitted};
 
-  // each pixel divided by how squarely it faced the light, never by less than a quarter
+  // each pixel divided by how squarely it faced the light, never by less than 0.45 - the limb is hazy
+  // rather than dark, and dividing it by its small cosine would light a bright ring round the face
   constexpr float night{0.2f};
   std::vector<float> albedo(pixels * 3u, 0.f);
   std::vector<bool> day(pixels, false);
@@ -616,7 +645,7 @@ auto approach_face(image_t const & view, disc_t const & disc, uint32_t side) -> 
       continue;
     day[at] = true;
     for(size_t c{}; c != 3u; ++c)
-      albedo[at * 3u + c] = float(face.rgb[at * 3u + c]) / 255.f / std::max(facing, 0.25f);
+      albedo[at * 3u + c] = float(face.rgb[at * 3u + c]) / 255.f / std::max(facing, 0.45f);
     }
   std::array<double, 3> mean{};
   size_t count{};

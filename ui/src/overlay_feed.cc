@@ -4070,8 +4070,8 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
     if(auto entry{planet_entry(destination)}; entry)
       sky_.offer(std::move(*entry));
   // flying at a planet set as the destination, in any mode, the view is judged for the planet's face
-  approach_.collect(faces_);
   approach_.observe(ship_view, state.system.name, planet_entry(destination) ? destination : std::string{});
+  approach_.tick(faces_);
   if(sky_focus_ != 10u and gui_focus_ == 10u)
     {
     spdlog::info("sky: the scanner opened, destination {}", destination.empty() ? std::string{"none"} : destination);
@@ -4571,6 +4571,7 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
     capture_ = asked;
     }
   frame.capture = capture_;
+  frame.sample = approach_.sample_request();
   frame.screenshot.key = eht::settings()->screenshots.key;
 
   // The panel of a jump being charged stands in the middle of the screen while the hyperdrive charges - a

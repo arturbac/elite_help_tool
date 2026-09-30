@@ -30,6 +30,11 @@ public:
   /// face when it is at least as good as the one kept - the view comes while one is still judged is let go
   auto offer_view(std::string const & system, std::string const & body, QImage view) -> void;
 
+  ///\brief how good the best view from the cockpit kept of the body was, -1 for none - read from its file,
+  /// so any thread may ask
+  [[nodiscard]]
+  static auto best_score(std::string const & body) -> float;
+
   ///\brief the side of a face in pixels - the layer's atlas holds squares of this size
   static constexpr uint32_t side{128u};
 

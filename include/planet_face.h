@@ -91,8 +91,10 @@ struct approach_t
   };
 
 ///\brief the ball in a view from the cockpit, judged; none when it is not whole and clear in it
+///\param pixel_scale screen pixels to a pixel of the view - above 1 for a small sample, so that its ball is
+/// scored at the size it has on the screen
 [[nodiscard]]
-auto judge_approach(image_t const & view) -> std::optional<approach_t>;
+auto judge_approach(image_t const & view, float pixel_scale = 1.f) -> std::optional<approach_t>;
 
 ///\brief the ball of a cockpit view as a face, its light taken off: the direction of the light is fitted to
 /// the brightness over the ball, each pixel divided by how squarely it faced the light, and the night side

@@ -175,6 +175,9 @@ namespace
     data->GetPhysicalDeviceMemoryProperties = reinterpret_cast<PFN_vkGetPhysicalDeviceMemoryProperties>(
       next_gipa(*instance, "vkGetPhysicalDeviceMemoryProperties")
     );
+    data->GetPhysicalDeviceFormatProperties = reinterpret_cast<PFN_vkGetPhysicalDeviceFormatProperties>(
+      next_gipa(*instance, "vkGetPhysicalDeviceFormatProperties")
+    );
     data->GetPhysicalDeviceSurfaceCapabilitiesKHR = reinterpret_cast<PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR>(
       next_gipa(*instance, "vkGetPhysicalDeviceSurfaceCapabilitiesKHR")
     );
@@ -306,6 +309,7 @@ namespace
     EHT_LOAD(CreateSampler);
     EHT_LOAD(DestroySampler);
     EHT_LOAD(CmdCopyBufferToImage);
+    EHT_LOAD(CmdBlitImage);
 #undef EHT_LOAD
 
     if(instance->GetPhysicalDeviceQueueFamilyProperties != nullptr)

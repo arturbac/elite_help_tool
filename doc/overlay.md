@@ -39,6 +39,11 @@ process carries no state of ours.
 - **Readable over anything.** The ground under each block darkens by how bright the game is
   beneath it, so the text stays legible over an ice planet as over black space.
 - **F11** saves a screenshot of the whole screen, overlay included.
+- **A small sample of the screen** for the tool to watch: when asked, the layer shrinks the middle of
+  the game's image on the graphics card - halving it blit after blit, each step the mean of 2 x 2
+  pixels - to a few hundred pixels across and writes it into a file shared with the tool, read out
+  only once the frame's fence has passed. The tool looks for what it wants in the sample and then asks
+  for a real picture of just the rectangle that holds it. It costs the game a few microseconds a frame.
 - **Temperatures.** Under the frame rate at the top of the right band stand the graphics card's and
   the processor's temperatures in degrees Celsius, orange from 10 degrees below the driver's
   critical level and red at it (3 degrees of hysteresis). They are read from `/sys/class/hwmon`,

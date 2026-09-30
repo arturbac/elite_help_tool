@@ -192,6 +192,14 @@ auto judge(std::string body, QImage view, uint32_t side) -> void
   }
   }  // namespace
 
+auto planet_faces_t::best_score(std::string const & body) -> float
+  {
+  float best{-1.f};
+  if(std::ifstream in{score_path(body)}; in)
+    in >> best;
+  return best;
+  }
+
 auto planet_faces_t::offer_view(std::string const & system, std::string const & body, QImage view) -> void
   {
   (void)system;

@@ -366,11 +366,27 @@ auto record_capture(
   )};
   float const aspect{std::clamp(request.aspect, 0.25f, 4.f)};
   uint32_t const width{std::min(static_cast<uint32_t>(std::lround(float(side) * aspect)), data.extent.width)};
-  VkRect2D const area{
+  VkRect2D area{
     .offset
     = {static_cast<int32_t>((data.extent.width - width) / 2u), static_cast<int32_t>((data.extent.height - side) / 2u)},
     .extent = {width, side}
   };
+  // or the rectangle the tool names, kept within the surface
+  if(request.region_width > 0.f and request.region_height > 0.f)
+    {
+    auto const to_pixels = [](float share, uint32_t whole)
+    { return static_cast<uint32_t>(std::lround(std::clamp(share, 0.f, 1.f) * float(whole))); };
+    uint32_t const left{to_pixels(request.region_left, data.extent.width)};
+    uint32_t const top{to_pixels(request.region_top, data.extent.height)};
+    uint32_t const right{std::max(left + 1u, to_pixels(request.region_left + request.region_width, data.extent.width))};
+    uint32_t const bottom{std::max(top + 1u, to_pixels(request.region_top + request.region_height, data.extent.height))};
+    area = VkRect2D{
+      .offset = {static_cast<int32_t>(left), static_cast<int32_t>(top)},
+      .extent = {std::min(right, data.extent.width) - left, std::min(bottom, data.extent.height) - top}
+    };
+    if(left >= data.extent.width or top >= data.extent.height)
+      return false;
+    }
   try
     {
     return record_copy(data, frame, image_index, area, request.path);

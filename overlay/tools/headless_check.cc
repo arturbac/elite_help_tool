@@ -11,6 +11,8 @@
 #include <cstdlib>
 #include <cstring>
 #include <string>
+#include <fstream>
+#include <string>
 #include <vector>
 
 namespace
@@ -272,6 +274,71 @@ auto main(int argc, char ** argv) -> int
                        );
                      }};
 
+  // EHT_CHECK_BACKGROUND names a binary PPM of the swapchain's size drawn under the overlay instead of the
+  // plain shade - a real view of the game, for what the layer reads of the screen
+  VkBuffer background{};
+  VkDeviceMemory background_memory{};
+  if(char const * const path{std::getenv("EHT_CHECK_BACKGROUND")}; path != nullptr)
+    {
+    std::ifstream in{path, std::ios::binary};
+    std::string magic;
+    uint32_t pw{};
+    uint32_t ph{};
+    uint32_t maximum{};
+    in >> magic >> pw >> ph >> maximum;
+    in.get();
+    std::vector<uint8_t> rgb(size_t{pw} * ph * 3u);
+    in.read(reinterpret_cast<char *>(rgb.data()), std::streamsize(rgb.size()));
+    if(not in or magic != "P6" or pw != width or ph != height)
+      return fail("EHT_CHECK_BACKGROUND must be a binary PPM of the swapchain's size");
+    VkBufferCreateInfo const info{
+      .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+      .pNext = nullptr,
+      .flags = 0u,
+      .size = VkDeviceSize{width} * height * 4u,
+      .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+      .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+      .queueFamilyIndexCount = 0u,
+      .pQueueFamilyIndices = nullptr
+    };
+    vkCreateBuffer(device, &info, nullptr, &background);
+    VkMemoryRequirements needs{};
+    vkGetBufferMemoryRequirements(device, background, &needs);
+    VkPhysicalDeviceMemoryProperties properties{};
+    vkGetPhysicalDeviceMemoryProperties(physical, &properties);
+    uint32_t type{UINT32_MAX};
+    for(uint32_t index{}; index != properties.memoryTypeCount and type == UINT32_MAX; ++index)
+      if(
+        (needs.memoryTypeBits & (1u << index)) != 0u
+        and (properties.memoryTypes[index].propertyFlags
+             & (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))
+              == (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)
+      )
+        type = index;
+    if(type == UINT32_MAX)
+      return fail("no host visible memory for the background");
+    VkMemoryAllocateInfo const allocate{
+      .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+      .pNext = nullptr,
+      .allocationSize = needs.size,
+      .memoryTypeIndex = type
+    };
+    vkAllocateMemory(device, &allocate, nullptr, &background_memory);
+    vkBindBufferMemory(device, background, background_memory, 0u);
+    void * mapped{};
+    vkMapMemory(device, background_memory, 0u, needs.size, 0u, &mapped);
+    bool const bgra{chosen.format == VK_FORMAT_B8G8R8A8_UNORM or chosen.format == VK_FORMAT_B8G8R8A8_SRGB};
+    auto * const out{static_cast<uint8_t *>(mapped)};
+    for(size_t at{}; at != size_t{width} * height; ++at)
+      {
+      out[at * 4u + 0u] = rgb[at * 3u + (bgra ? 2u : 0u)];
+      out[at * 4u + 1u] = rgb[at * 3u + 1u];
+      out[at * 4u + 2u] = rgb[at * 3u + (bgra ? 0u : 2u)];
+      out[at * 4u + 3u] = 255u;
+      }
+    vkUnmapMemory(device, background_memory);
+    }
+
   VkSwapchainKHR swapchain{};
   std::vector<VkImage> images;
   uint32_t last_index{};
@@ -333,7 +400,21 @@ auto main(int argc, char ** argv) -> int
         .baseArrayLayer = 0u,
         .layerCount = 1u
       };
-      vkCmdClearColorImage(command, images[index], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &colour, 1u, &range);
+      if(background != VK_NULL_HANDLE)
+        {
+        VkBufferImageCopy const whole{
+          .bufferOffset = 0u,
+          .bufferRowLength = 0u,
+          .bufferImageHeight = 0u,
+          .imageSubresource
+          = {.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT, .mipLevel = 0u, .baseArrayLayer = 0u, .layerCount = 1u},
+          .imageOffset = {0, 0, 0},
+          .imageExtent = {width, height, 1u}
+        };
+        vkCmdCopyBufferToImage(command, background, images[index], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1u, &whole);
+        }
+      else
+        vkCmdClearColorImage(command, images[index], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &colour, 1u, &range);
 
       barrier(
         images[index],

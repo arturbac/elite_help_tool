@@ -2,6 +2,7 @@
 
 #include <simple_enum/glaze_json_enum_name.hpp>
 
+#include <array>
 #include <cstdint>
 #include <cstdlib>
 #include <string>
@@ -345,7 +346,56 @@ struct capture_t
   ///\brief the picture's width to its height - 1 a square, 16/9 the shape of the middle screen. A field an older
   /// layer skips, taking a square of the same height
   float aspect{1.f};
+  ///\brief a rectangle of the whole surface instead of the middle, as shares of its width and height - taken
+  /// when region_width is above 0. Fields an older layer skips, taking the middle
+  float region_left{};
+  float region_top{};
+  float region_width{};
+  float region_height{};
   };
+
+///\brief a small copy of the middle of the screen the layer keeps fresh in a file shared with the tool
+///\detail Shrunk on the graphics card by halving it again and again, each step the mean of 2 x 2 pixels, and
+/// read out once the frame's fence has passed - the game waits for none of it. The tool watches the copy
+/// for what it looks for and asks for a real picture of the part that holds it. See sample_header_t
+struct sample_t
+  {
+  ///\brief how often a new copy is made; 0 makes none
+  uint32_t every_ms{};
+  ///\brief the part of the screen, as capture_t has it: its height as a share of the screen's, its shape
+  float size{0.8f};
+  float aspect{16.f / 9.f};
+  ///\brief about how wide the copy is - the halving stops at the first width not above twice this
+  uint32_t width{256u};
+  };
+
+///\brief the head of the shared file of the sample, the pixels right after it as RGBA
+///\detail seq is odd while the layer writes and even once it is done; the tool copies the pixels and takes
+/// them only when seq was the same even number before and after
+struct sample_header_t
+  {
+  uint32_t magic{0x53544845u};
+  uint32_t version{1u};
+  uint64_t seq{};
+  uint32_t width{};
+  uint32_t height{};
+  ///\brief the milliseconds of the system clock when the frame was drawn
+  uint64_t taken_ms{};
+  ///\brief where the sample lies on the whole surface, as shares of its width and height
+  float left{};
+  float top{};
+  float region_width{};
+  float region_height{};
+  ///\brief the whole surface in pixels
+  uint32_t surface_width{};
+  uint32_t surface_height{};
+  std::array<uint32_t, 4> reserved{};
+  };
+
+///\brief the largest sample the file holds, and the file's size
+inline constexpr uint32_t sample_max_side{512u};
+inline constexpr size_t sample_file_size{sizeof(sample_header_t) + size_t{sample_max_side} * sample_max_side * 4u};
+inline constexpr std::string_view sample_file_name{"sample.bin"};
 
 ///\brief a picture of the whole screen, overlay and all, taken by the layer when the player presses a key
 ///\detail The layer watches the key itself - the tool never sees the game's keyboard. It writes the picture
@@ -391,6 +441,8 @@ struct frame_t
   screenshot_t screenshot;
   ///\brief a field an older layer skips, and simply leaves the game's interface as it is
   std::vector<cover_t> covers;
+  ///\brief a field an older layer skips, and simply keeps no sample
+  sample_t sample;
   };
 
 ///\brief the socket lives under $HOME, the only place visible on both sides of the pressure-vessel container

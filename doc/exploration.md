@@ -108,17 +108,22 @@ them. When every view is painted by a filter, only the relief is kept and the co
 lit side of the body in its sky album photo, or from its class when there is no photo.
 
 The way to a body gives faces too, and in the body's true colours. With a planet of this system set as
-the destination and the ship's own view in supercruise, the layer quietly takes the middle of the
-screen every 2 s (`exploration.approach_faces`, `approach_interval_ms`). Each view is judged: the ball
-must be found whole in it - its night side's rim may be lost against the black - and the cockpit's frame
-must hide next to none of it; then the more of it in daylight and the larger it is, up to 200 px of
-radius, the better, and the ship's orange HUD over it counts against it. A view at least as good as the
-best kept so far replaces it. Its light is taken off before it is kept: the direction of the light is
-fitted to the brightness over the ball, each pixel is divided by how squarely it faced the light, and
-the night side is filled from the day side mirrored across the terminator. The target's ring is filled
-from around it like the scanner's marks. It is kept in `codex/approach/<body>.png`, its score beside it.
-A scanner view in the body's own colours still comes first; the cockpit's face comes before a scanner
-view painted by a filter.
+the destination and the ship's own view in supercruise, the layer is asked for a small sample of the
+middle of the screen four times a second: shrunk on the graphics card by halving it again and again,
+each step the mean of 2 x 2 pixels, to a few hundred pixels across, and written into a file both
+sides share (`captures/sample.bin` beside the socket). The game waits for none of it - a few
+microseconds a frame. Each sample is judged in a thread: the ball must be found whole in it - its
+night side's rim may be lost against the black - and the cockpit's frame must hide next to none of it;
+then the more of it in daylight and the larger it is on the screen, up to 200 px of radius, the
+better, and the ship's orange HUD over it counts against it. Only a sample better than the best face
+kept asks for a real picture, and only of the rectangle the ball stands in, at most one every 2 s
+(`exploration.approach_faces`, `approach_interval_ms`). The picture is judged again at its own size and
+kept when it is at least as good. Its light is taken off before it is kept: the direction of the light
+is fitted to the brightness over the ball, each pixel is divided by how squarely it faced the light,
+and the night side is filled from the day side mirrored across the terminator. The target's ring, its
+dot and the words written beside it are filled from around them like the scanner's marks. It is kept
+in `codex/approach/<body>.png`, its score beside it. A scanner view in the body's own colours still
+comes first; the cockpit's face comes before a scanner view painted by a filter.
 
 The face is made in a thread of its own the first time the map shows the body, and made again when a
 newer view comes in; it is kept in `codex/faces/<body>.png` and handed to the overlay beside the

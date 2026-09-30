@@ -2,6 +2,7 @@
 #include "vk_capture.h"
 #include "vk_keyboard.h"
 #include "vk_faces.h"
+#include "vk_sample.h"
 #include "overlay_font.h"
 #include "ground_shaders.h"
 #include "sphere_shaders.h"
@@ -1721,6 +1722,7 @@ auto destroy_resources(swapchain_data_t & data) -> void
   data.frames.clear();
   destroy_capture(data);
   destroy_faces(data);
+  destroy_sample(data);
 
   if(data.command_pool != VK_NULL_HANDLE)
     {
@@ -2066,6 +2068,7 @@ auto draw_overlay(
       }
     // the fence is behind us, so a picture copied out by this frame's last submission is complete
     collect_capture(data, frame);
+    collect_sample(data, frame);
 
     auto const now{now_seconds()};
     auto const delta{std::max(1.0 / 10000.0, now - data.last_draw_seconds)};
@@ -2159,6 +2162,8 @@ auto draw_overlay(
     };
     // the faces read since the last frame go into their atlas before anything is drawn with it
     record_face_uploads(data, frame, image_index);
+    // the small sample of the game, before the overlay is drawn over it
+    bool const sampling{record_sample(data, frame, image_index)};
 
     // the picture comes before the overlay is drawn over the image - it is of the game, not of us
     bool const capturing{request and record_capture(data, frame, image_index, *request)};
@@ -2193,7 +2198,7 @@ auto draw_overlay(
     std::array<VkPipelineStageFlags, max_wait_semaphores> stages{};
     // the copy reads the game's image too, so it waits for the game like the drawing does
     stages.fill(
-      capturing or screenshot ? VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT
+      capturing or screenshot or sampling ? VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT
                 : VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
     );
 

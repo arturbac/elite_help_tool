@@ -51,6 +51,7 @@ struct instance_data_t
   PFN_vkDestroyInstance DestroyInstance{};
   PFN_vkGetPhysicalDeviceQueueFamilyProperties GetPhysicalDeviceQueueFamilyProperties{};
   PFN_vkGetPhysicalDeviceMemoryProperties GetPhysicalDeviceMemoryProperties{};
+  PFN_vkGetPhysicalDeviceFormatProperties GetPhysicalDeviceFormatProperties{};
   PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR GetPhysicalDeviceSurfaceCapabilitiesKHR{};
   uint32_t api_version{VK_API_VERSION_1_0};
   };
@@ -121,6 +122,8 @@ struct device_data_t
   PFN_vkCreateSampler CreateSampler{};
   PFN_vkDestroySampler DestroySampler{};
   PFN_vkCmdCopyBufferToImage CmdCopyBufferToImage{};
+  // for the small sample of the middle of the screen
+  PFN_vkCmdBlitImage CmdBlitImage{};
 
   std::vector<VkQueueFamilyProperties> queue_families;
 
@@ -148,6 +151,8 @@ struct frame_resources_t
   std::string capture_path;
   ///\brief the copy is of the whole screen, and its large buffer is freed once read out
   bool capture_release{};
+  ///\brief this frame's submission made the small sample - read it once the fence says done
+  bool sample_pending{};
   };
 
 ///\brief the buffer the middle of the screen is copied into, made at the first picture and kept
@@ -180,6 +185,29 @@ struct face_atlas_t
   std::vector<std::string> names;
   std::vector<uint64_t> used;
   std::vector<bool> ready;
+  };
+
+///\brief the small copy of the middle of the screen: its image of halvings, the buffer read out, the file
+struct sample_state_t
+  {
+  VkImage image{};
+  VkDeviceMemory memory{};
+  uint32_t levels{};
+  uint32_t final_width{};
+  uint32_t final_height{};
+  ///\brief the part of the game's image it is made of
+  VkRect2D area{};
+  VkBuffer buffer{};
+  VkDeviceMemory buffer_memory{};
+  void * mapped{};
+  bool coherent{};
+  ///\brief the file shared with the tool, mapped
+  void * file{};
+  bool broken{};
+  ///\brief a copy recorded and not yet read out - no other is made meanwhile
+  bool in_flight{};
+  uint64_t last_ms{};
+  uint64_t taken_ms{};
   };
 
 struct swapchain_data_t
@@ -218,6 +246,7 @@ struct swapchain_data_t
   VkPipeline sphere_pipeline{};
   bool sphere_broken{};
   face_atlas_t faces;
+  sample_state_t sample;
   VkCommandPool command_pool{};
   std::vector<VkImage> images;
   std::vector<frame_resources_t> frames;
