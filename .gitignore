@@ -48,3 +48,17 @@ _sgbak
 ~*
 /build*
 clang_debug/*
+
+# KDevelop project files - local, per-machine
+*.kdev4
+.kdev4/
+
+# a unit test binary run from the wrong CWD writes these here - never the real databases
+/*.sqlite
+/*.sqlite-wal
+/*.sqlite-shm
+
+# stray output of CLI tools run from the repo root instead of a scratch dir
+/Market.json
+/colonisation.json
+/neutron-*.json
