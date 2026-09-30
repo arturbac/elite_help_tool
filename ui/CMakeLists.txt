@@ -7,8 +7,18 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
 add_executable(elite_help_tool)
+# Qt's code generators wait for every library the target links, so moc and rcc of this target would start
+# only after libeht.a, and with them every object of the tool. moc needs nothing from those libraries
+set_target_properties(elite_help_tool PROPERTIES AUTOGEN_ORIGIN_DEPENDS OFF)
+
+# the window's icon; eht.png is eht.svg drawn at 256 px (rsvg-convert -w 256 -h 256). A target of its own,
+# because rcc run for elite_help_tool would wait for libeht.a
+add_library(eht_icons OBJECT icons/eht.qrc)
+set_target_properties(eht_icons PROPERTIES AUTOMOC OFF AUTOUIC OFF)
+target_link_libraries(eht_icons PRIVATE Qt6::Core)
 
 target_link_libraries(elite_help_tool PRIVATE
+  eht_icons
   eht
   eht_overlay_ipc
   Qt6::Widgets 

@@ -28,6 +28,4 @@ target_sources(elite_help_tool
   sensor_watch.cc
   netstate_watch.cc
   eddn_sender.cc
-  # the window's icon; eht.png is eht.svg drawn at 256 px (rsvg-convert -w 256 -h 256)
-  ../icons/eht.qrc
   )
