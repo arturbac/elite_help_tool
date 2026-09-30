@@ -1,9 +1,13 @@
 cpmaddpackage(
-  ut
+  NAME
+  ut-ext
   GITHUB_REPOSITORY
   arturbac/ut-ext
+  VERSION
+  2.0.1
+  # tag v2.0.1_5, pinned to its commit - a tag can be moved
   GIT_TAG
-  v2.0.1_5)
+  6309cc3da0daf21626ceb9f91a803d0aedceb769)
 find_package(ut-ext REQUIRED)
 
 function(add_ut_test source_file_name)

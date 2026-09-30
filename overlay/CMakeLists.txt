@@ -11,8 +11,11 @@ cpmaddpackage(
   imgui
   GITHUB_REPOSITORY
   ocornut/imgui
+  VERSION
+  1.91.9
+  # tag v1.91.9b, pinned to its commit - a tag can be moved
   GIT_TAG
-  v1.91.9b
+  f5befd2d29e66809cd1110a152e375a7f1981f06
   DOWNLOAD_ONLY
   YES)
 

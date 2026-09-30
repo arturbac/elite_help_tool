@@ -1,5 +1,6 @@
-cmake_minimum_required(VERSION 3.20..4.1.20)
-project(EliteHelpTool VERSION 1.10.1 LANGUAGES CXX)
+# 3.24: find_package finds what CPM added through its package redirects
+cmake_minimum_required(VERSION 3.24..4.1.20)
+project(EliteHelpTool VERSION 1.10.2 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -18,12 +19,15 @@ find_package(
   QUIET)
 if(NOT simple_enum_FOUND)
   cpmaddpackage(
-    Name
+    NAME
     simple_enum
     GITHUB_REPOSITORY
     arturbac/simple_enum
+    VERSION
+    0.9.4
+    # tag v0.9.4, pinned to its commit - a tag can be moved
     GIT_TAG
-    v0.9.4)
+    44d89a3c54db481d0b2203709049d485b13c16cb)
   add_library(
     simple_enum::simple_enum
     ALIAS
@@ -44,11 +48,15 @@ find_package(
   QUIET)
 if(NOT small_vectors_FOUND)
   cpmaddpackage(
+    NAME
     small_vectors
     GITHUB_REPOSITORY
     arturbac/small_vectors
+    VERSION
+    3.3.6
+    # tag v3.3.6, pinned to its commit - a tag can be moved
     GIT_TAG
-    v3.3.6)
+    642904df68d9c931a3e36c36b08b8d4d3bc61ae2)
 
   add_library(
     small_vectors::small_vectors
@@ -69,11 +77,15 @@ find_package(
   QUIET)
 if(NOT stralgo_FOUND)
   cpmaddpackage(
+    NAME
     stralgo
     GITHUB_REPOSITORY
     arturbac/stralgo
+    VERSION
+    1.4.1
+    # tag v1.4.1, pinned to its commit - a tag can be moved
     GIT_TAG
-    v1.4.1
+    348d45b07f40253e365873b57e32b90e8b9269f6
     OPTIONS
     "STRALGO_ENABLE_UNIT_TESTS OFF")
 
@@ -93,11 +105,15 @@ find_package(
 find_package(glaze QUIET)
 if(NOT glaze_FOUND)
   cpmaddpackage(
+    NAME
     glaze
     GITHUB_REPOSITORY
     stephenberry/glaze
+    VERSION
+    6.5.0
+    # tag v6.5.0, pinned to its commit - a tag can be moved
     GIT_TAG
-    v6.5.0
+    69684df2e0cd836cb23fcff75c9a23eddc48611c
     OPTIONS
     "glaze_DISABLE_SIMD_WHEN_SUPPORTED ON")
 endif()
@@ -115,8 +131,11 @@ cpmaddpackage(
   spdlog
   GITHUB_REPOSITORY
   arturbac/spdlog
+  VERSION
+  1.14.1
+  # tag v1.14.1_1, pinned to its commit - a tag can be moved
   GIT_TAG
-  v1.14.1_1
+  6150282230dd5f02b9074b6c4a2f7bd32c5f0f2a
   OPTIONS
   "SPDLOG_USE_STD_FORMAT ON"
   "SPDLOG_BUILD_SHARED ${BUILD_SHARED_LIBS}"
