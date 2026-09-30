@@ -26,7 +26,10 @@ process carries no state of ours.
   in light years when its system's position is known. Only ports count: not on-foot settlements,
   fleet carriers, construction sites or the colonisation ship.
 - **System map:** the bodies and ports of the current system, drawn in the game's colours, with
-  arrows at the places open missions send you to.
+  arrows at the places open missions send you to. Stars and planets are small lit balls: each planet
+  and moon is lit from its star's side, water and ice shine a little, bare rock does not, and a star
+  lights itself with only a darker limb. The balls are shaded on the graphics card as they are drawn,
+  which costs the game a few microseconds a frame.
 - **Readable over anything.** The ground under each block darkens by how bright the game is
   beneath it, so the text stays legible over an ice planet as over black space.
 - **F11** saves a screenshot of the whole screen, overlay included.

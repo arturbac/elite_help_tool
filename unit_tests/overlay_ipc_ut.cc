@@ -56,7 +56,23 @@ auto sample_frame(uint64_t sequence) -> overlay::frame_t
       },
       .charts = {},
       .text = overlay::text_e::normal,
-      .diagrams = {},
+      .diagrams = {overlay::diagram_t{
+        .width = 100.f,
+        .height = 40.f,
+        .discs = {
+          overlay::disc_t{.x = 10.f, .y = 20.f, .radius = 8.f, .color = 0x4a88e0u},
+          overlay::disc_t{
+            .x = 30.f,
+            .y = 20.f,
+            .radius = 6.f,
+            .color = 0x4a88e0u,
+            .sphere = true,
+            .light_x = -20.f,
+            .light_y = 5.f,
+            .gloss = 0.8f
+          }
+        }
+      }},
       .pictures = {},
       .picture_columns = 3u,
       .beside = true,
@@ -119,6 +135,21 @@ auto main() -> int
         expect(cover.y == -0.1808f);
         expect(cover.ground == 0x020304u) << "the panel's black is the default ground";
         }
+      auto const & diagrams{received->frame.blocks.front().diagrams};
+      expect(diagrams.size() == 1_ul);
+      if(diagrams.size() == 1u and diagrams.front().discs.size() == 2u)
+        {
+        overlay::disc_t const & flat{diagrams.front().discs[0]};
+        expect(not flat.sphere) << "a disc stays flat unless asked";
+        expect(flat.light_x == -1.f and flat.light_y == 0.f) << "the light comes from the left by default";
+        expect(not flat.glows);
+        overlay::disc_t const & ball{diagrams.front().discs[1]};
+        expect(ball.sphere);
+        expect(ball.light_x == -20.f and ball.light_y == 5.f);
+        expect(ball.gloss == 0.8f);
+        }
+      else
+        expect(false) << "the diagram's discs did not arrive";
       auto const & lines{received->frame.blocks.front().lines};
       expect(lines.size() == 4_ul);
       expect(lines.front().text == std::string{"Bleia Eohn QT-O d7-43"});

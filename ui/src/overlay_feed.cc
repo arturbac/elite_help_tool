@@ -413,6 +413,51 @@ auto planet_colour(planet_details_t const & details) -> uint32_t
     return 0xb07a40u;
   return 0x808080u;
   }
+
+///\brief how much the body shines on the map: open water most, ice and clouds less, bare rock hardly
+[[nodiscard]]
+auto planet_gloss(planet_details_t const & details) -> float
+  {
+  std::string_view const pc{details.planet_class};
+  if(pc == "Water world")
+    return 0.8f;
+  if(pc == "Earthlike body")
+    return 0.6f;
+  if(pc == "Water giant" or pc == "Icy body")
+    return 0.5f;
+  if(pc == "Metal rich body" or pc == "High metal content body" or pc == "Rocky ice body" or pc == "Ammonia world")
+    return 0.3f;
+  if(pc.contains("gas giant"))
+    return 0.2f;
+  return 0.1f;
+  }
+
+///\brief a planet or moon drawn as a ball lit from the star at (sx, sy), or from the left without one
+[[nodiscard]]
+auto planet_disc(planet_details_t const & details, float x, float y, float radius, float sx, float sy) -> overlay::disc_t
+  {
+  float const dx{sx - x};
+  float const dy{sy - y};
+  bool const beside{dx * dx + dy * dy > 1.f};
+  return overlay::disc_t{
+    .x = x,
+    .y = y,
+    .radius = radius,
+    .color = planet_colour(details),
+    .sphere = true,
+    .light_x = beside ? dx : -1.f,
+    .light_y = beside ? dy : 0.f,
+    .gloss = planet_gloss(details)
+  };
+  }
+
+[[nodiscard]]
+auto star_disc(star_details_t const & details, float x, float y, float radius) -> overlay::disc_t
+  {
+  return overlay::disc_t{
+    .x = x, .y = y, .radius = radius, .color = star_colour(details.star_type), .sphere = true, .glows = true
+  };
+  }
   }  // namespace system_map
 
 ///\brief where a mission is owed: a done one goes back to whoever redirected it, an open one to the
@@ -743,7 +788,7 @@ auto build_system_diagram(
         auto const & sd{std::get<star_details_t>(star->details)};
         float const x{(static_cast<float>(ix) + 0.5f) * star_column};
         diagram.discs.push_back(
-          overlay::disc_t{.x = x, .y = line_y, .radius = star_radius, .color = star_colour(sd.star_type)}
+          star_disc(sd, x, line_y, star_radius)
         );
         diagram.labels.push_back(
           overlay::label_t{
@@ -794,7 +839,7 @@ auto build_system_diagram(
       {
       auto const & sd{std::get<star_details_t>(row->star->details)};
       diagram.discs.push_back(
-        overlay::disc_t{.x = lead_x, .y = line_y, .radius = star_radius, .color = star_colour(sd.star_type)}
+        star_disc(sd, lead_x, line_y, star_radius)
       );
       diagram.labels.push_back(
         overlay::label_t{
@@ -845,7 +890,7 @@ auto build_system_diagram(
       float const x{star_column + (static_cast<float>(ix) + 0.5f) * column};
       float const r{is_giant(pd.planet_class) ? giant_radius : planet_radius};
 
-      diagram.discs.push_back(overlay::disc_t{.x = x, .y = line_y, .radius = r, .color = planet_colour(pd)});
+      diagram.discs.push_back(planet_disc(pd, x, line_y, r, lead_x, line_y));
       diagram.labels.push_back(
         overlay::label_t{
           .x = x, .y = line_y - giant_radius - 9.f, .text = std::string{last_word(planet->name)}, .color = label_colour,
@@ -870,7 +915,7 @@ auto build_system_diagram(
           planet_details_t const & md{*planet_of(moon)};
           float const mr{depth == 1 ? (is_giant(md.planet_class) ? planet_radius : moon_radius) : submoon_radius};
           y += mr;
-          diagram.discs.push_back(overlay::disc_t{.x = x, .y = y, .radius = mr, .color = planet_colour(md)});
+          diagram.discs.push_back(planet_disc(md, x, y, mr, lead_x, line_y));
           diagram.labels.push_back(
             overlay::label_t{
               .x = x + mr + 5.5f, .y = y, .text = std::string{last_word(moon->name)}, .color = label_colour, .align = 0.f

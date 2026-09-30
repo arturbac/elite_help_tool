@@ -184,6 +184,9 @@ struct swapchain_data_t
   ///\brief the ground pipeline, made at the first draw from ImGui's own pipeline layout; broken when that failed
   VkPipeline ground_pipeline{};
   bool ground_broken{};
+  ///\brief the same for the lit balls of the diagrams; broken leaves them flat discs
+  VkPipeline sphere_pipeline{};
+  bool sphere_broken{};
   VkCommandPool command_pool{};
   std::vector<VkImage> images;
   std::vector<frame_resources_t> frames;

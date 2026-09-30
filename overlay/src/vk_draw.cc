@@ -3,6 +3,7 @@
 #include "vk_keyboard.h"
 #include "overlay_font.h"
 #include "ground_shaders.h"
+#include "sphere_shaders.h"
 
 #include <backends/imgui_impl_vulkan.h>
 #include <imgui.h>
@@ -17,6 +18,7 @@
 #include <cstdlib>
 #include <fstream>
 #include <optional>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -786,6 +788,98 @@ namespace
       }
     }
 
+  [[nodiscard]]
+  auto make_pipeline(
+    swapchain_data_t const & data,
+    VkPipelineLayout layout,
+    std::span<uint32_t const> vert_code,
+    std::span<uint32_t const> frag_code,
+    VkPipelineColorBlendAttachmentState const & blend
+  ) -> VkPipeline;
+
+  ///\brief draw callbacks for the lit balls, as for the ground: the pipeline is made from ImGui's layout
+  /// while it records, and bound for the balls that follow. Blended as ImGui blends its own shapes
+  auto make_spheres(ImDrawList const *, ImDrawCmd const * cmd) -> void
+    {
+    auto & data{*static_cast<swapchain_data_t *>(cmd->UserCallbackData)};
+    auto const * state{static_cast<ImGui_ImplVulkan_RenderState const *>(ImGui::GetPlatformIO().Renderer_RenderState)};
+    if(data.sphere_pipeline != VK_NULL_HANDLE or data.sphere_broken or state == nullptr)
+      return;
+    VkPipelineColorBlendAttachmentState const blend{
+      .blendEnable = VK_TRUE,
+      .srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
+      .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+      .colorBlendOp = VK_BLEND_OP_ADD,
+      .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+      .dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+      .alphaBlendOp = VK_BLEND_OP_ADD,
+      .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT
+                      | VK_COLOR_COMPONENT_A_BIT
+    };
+    data.sphere_pipeline = make_pipeline(data, state->PipelineLayout, sphere_vert_spv, sphere_frag_spv, blend);
+    data.sphere_broken = data.sphere_pipeline == VK_NULL_HANDLE;
+    if(data.sphere_broken)
+      log("sphere pipeline failed, the bodies stay flat discs");
+    else
+      log("sphere pipeline ready");
+    }
+
+  auto bind_spheres(ImDrawList const *, ImDrawCmd const * cmd) -> void
+    {
+    auto & data{*static_cast<swapchain_data_t *>(cmd->UserCallbackData)};
+    auto const * state{static_cast<ImGui_ImplVulkan_RenderState const *>(ImGui::GetPlatformIO().Renderer_RenderState)};
+    if(state != nullptr)
+      data.device->CmdBindPipeline(state->CommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, data.sphere_pipeline);
+    }
+
+  ///\brief binds the ball pipeline unless it is bound already; false while there is none yet - the first
+  /// frame only asks for it to be made - or when it could not be made, and the disc is then drawn flat
+  [[nodiscard]]
+  auto begin_spheres(swapchain_data_t & data, ImDrawList * draw, bool bound) -> bool
+    {
+    if(data.sphere_pipeline == VK_NULL_HANDLE)
+      {
+      if(not data.sphere_broken)
+        draw->AddCallback(&make_spheres, &data);
+      return false;
+      }
+    if(not bound)
+      draw->AddCallback(&bind_spheres, &data);
+    return true;
+    }
+
+  ///\brief a ball as a quad whose uv is the ball's own frame - -1..1 over the disc - turned so the light
+  /// the shader always takes from -u comes from where the tool says; the vertex alpha carries the shine
+  auto add_sphere(ImDrawList * draw, ImVec2 centre, float radius, ImVec2 light, overlay::disc_t const & disc) -> void
+    {
+    if(radius <= 0.f)
+      return;
+    // a pixel and a half beyond the rim, for the edge the shader smooths
+    float const reach{(radius + 1.5f) / radius};
+    float const angle{light.x == 0.f and light.y == 0.f ? std::numbers::pi_v<float> : std::atan2(light.y, light.x)};
+    float const turn{std::numbers::pi_v<float> - angle};
+    float const c{std::cos(turn) * reach};
+    float const s{std::sin(turn) * reach};
+    auto const uv = [&](float x, float y) { return ImVec2{x * c - y * s, x * s + y * c}; };
+    float const half{radius * reach};
+    auto const alpha{
+      disc.glows ? 255u : static_cast<uint32_t>(std::clamp(disc.gloss, 0.f, 1.f) * 127.f + 0.5f)
+    };
+    ImU32 const colour{(alpha << IM_COL32_A_SHIFT) | (ImGui::ColorConvertFloat4ToU32(to_color(disc.color)) & ~IM_COL32_A_MASK)};
+    draw->PrimReserve(6, 4);
+    draw->PrimQuadUV(
+      ImVec2{centre.x - half, centre.y - half},
+      ImVec2{centre.x + half, centre.y - half},
+      ImVec2{centre.x + half, centre.y + half},
+      ImVec2{centre.x - half, centre.y + half},
+      uv(-1.f, -1.f),
+      uv(1.f, -1.f),
+      uv(1.f, 1.f),
+      uv(-1.f, 1.f),
+      colour
+    );
+    }
+
   ///\brief draws a picture the tool laid out, shrunk to the room there is when it would not fit
   ///\param room how tall the picture may be at most, 0 when there is no limit
   auto draw_diagram(swapchain_data_t & data, overlay::diagram_t const & diagram, float available, float room) -> void
@@ -828,14 +922,29 @@ namespace
       draw->AddLine(a, b, ImGui::GetColorU32(to_color(segment.color)), 1.2f * k);
       }
 
+    // the balls go through a pipeline of their own, bound for each run of them and let go after, so the
+    // discs keep the order the tool gave them - a marker ring still lies over its body
+    bool balls{};
     for(overlay::disc_t const & disc: diagram.discs)
       {
+      bool const ball{disc.sphere and not disc.outline and begin_spheres(data, draw, balls)};
+      if(balls and not ball)
+        draw->AddCallback(ImDrawCallback_ResetRenderState, nullptr);
+      balls = ball;
+      if(ball)
+        {
+        // the light's direction on the screen, where the picture is stretched across more than upright
+        add_sphere(draw, at(disc.x, disc.y), disc.radius * k, ImVec2{disc.light_x * kx, disc.light_y * k}, disc);
+        continue;
+        }
       ImU32 const colour{ImGui::GetColorU32(to_color(disc.color))};
       if(disc.outline)
         draw->AddCircle(at(disc.x, disc.y), disc.radius * k, colour, 24, 1.6f * k);
       else
         draw->AddCircleFilled(at(disc.x, disc.y), disc.radius * k, colour, 24);
       }
+    if(balls)
+      draw->AddCallback(ImDrawCallback_ResetRenderState, nullptr);
 
     // the labels follow the picture's own scale, so a shrunk picture keeps its numbers beside their discs
     ImFont * const font{data.small_font != nullptr ? data.small_font : ImGui::GetFont()};
@@ -1072,24 +1181,25 @@ namespace
     draw->AddText(at, IM_COL32(134, 217, 134, 230), text);
     }
 
-  ///\brief the pipeline the ground under the blocks is drawn with
-  ///\detail ImGui's own vertex stage and layout, so the draw list feeds it as it feeds ImGui, but a blend
-  /// that reads the game beneath: colour = src*dst + dst*(1-dst). With the ground's grey k as src that is
-  /// g*(1+k) - g*g - dark space kept as it is, a bright ice body pulled down to dark grey. Nothing of
-  /// the game is read back to decide it: the blend does it for every pixel, at once, with no flicker
-  auto make_ground_pipeline(swapchain_data_t & data, VkPipelineLayout layout) -> void
+  ///\brief a pipeline fed like ImGui's own - its vertex layout and pipeline layout, so the draw list's
+  /// buffers serve it - with shaders and a blend of its own; null when it could not be made
+  [[nodiscard]]
+  auto make_pipeline(
+    swapchain_data_t const & data,
+    VkPipelineLayout layout,
+    std::span<uint32_t const> vert_code,
+    std::span<uint32_t const> frag_code,
+    VkPipelineColorBlendAttachmentState const & blend
+  ) -> VkPipeline
     {
     device_data_t & device{*data.device};
     if(
       device.CreateShaderModule == nullptr or device.DestroyShaderModule == nullptr
       or device.CreateGraphicsPipelines == nullptr or device.CmdBindPipeline == nullptr
     )
-      {
-      data.ground_broken = true;
-      return;
-      }
+      return VK_NULL_HANDLE;
 
-    auto const module = [&](auto const & code) -> VkShaderModule
+    auto const module = [&](std::span<uint32_t const> code) -> VkShaderModule
     {
       VkShaderModuleCreateInfo const info{
         .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
@@ -1101,8 +1211,9 @@ namespace
       VkShaderModule made{};
       return device.CreateShaderModule(device.device, &info, nullptr, &made) == VK_SUCCESS ? made : VK_NULL_HANDLE;
     };
-    VkShaderModule const vert{module(ground_vert_spv)};
-    VkShaderModule const frag{module(ground_frag_spv)};
+    VkShaderModule const vert{module(vert_code)};
+    VkShaderModule const frag{module(frag_code)};
+    VkPipeline pipeline{};
 
     if(vert != VK_NULL_HANDLE and frag != VK_NULL_HANDLE)
       {
@@ -1191,18 +1302,6 @@ namespace
         .alphaToCoverageEnable = VK_FALSE,
         .alphaToOneEnable = VK_FALSE
       };
-      // the game's alpha is left as it is - only the colour is pulled down
-      VkPipelineColorBlendAttachmentState const blend{
-        .blendEnable = VK_TRUE,
-        .srcColorBlendFactor = VK_BLEND_FACTOR_DST_COLOR,
-        .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR,
-        .colorBlendOp = VK_BLEND_OP_ADD,
-        .srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
-        .dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
-        .alphaBlendOp = VK_BLEND_OP_ADD,
-        .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT
-                        | VK_COLOR_COMPONENT_A_BIT
-      };
       VkPipelineColorBlendStateCreateInfo const blend_state{
         .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
         .pNext = nullptr,
@@ -1242,14 +1341,37 @@ namespace
         .basePipelineHandle = VK_NULL_HANDLE,
         .basePipelineIndex = -1
       };
-      if(device.CreateGraphicsPipelines(device.device, VK_NULL_HANDLE, 1u, &info, nullptr, &data.ground_pipeline) != VK_SUCCESS)
-        data.ground_pipeline = VK_NULL_HANDLE;
+      if(device.CreateGraphicsPipelines(device.device, VK_NULL_HANDLE, 1u, &info, nullptr, &pipeline) != VK_SUCCESS)
+        pipeline = VK_NULL_HANDLE;
       }
 
     if(vert != VK_NULL_HANDLE)
       device.DestroyShaderModule(device.device, vert, nullptr);
     if(frag != VK_NULL_HANDLE)
       device.DestroyShaderModule(device.device, frag, nullptr);
+    return pipeline;
+    }
+
+  ///\brief the pipeline the ground under the blocks is drawn with
+  ///\detail ImGui's own vertex stage and layout, so the draw list feeds it as it feeds ImGui, but a blend
+  /// that reads the game beneath: colour = src*dst + dst*(1-dst). With the ground's grey k as src that is
+  /// g*(1+k) - g*g - dark space kept as it is, a bright ice body pulled down to dark grey. Nothing of
+  /// the game is read back to decide it: the blend does it for every pixel, at once, with no flicker
+  auto make_ground_pipeline(swapchain_data_t & data, VkPipelineLayout layout) -> void
+    {
+    // the game's alpha is left as it is - only the colour is pulled down
+    VkPipelineColorBlendAttachmentState const blend{
+      .blendEnable = VK_TRUE,
+      .srcColorBlendFactor = VK_BLEND_FACTOR_DST_COLOR,
+      .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR,
+      .colorBlendOp = VK_BLEND_OP_ADD,
+      .srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
+      .dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+      .alphaBlendOp = VK_BLEND_OP_ADD,
+      .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT
+                      | VK_COLOR_COMPONENT_A_BIT
+    };
+    data.ground_pipeline = make_pipeline(data, layout, ground_vert_spv, ground_frag_spv, blend);
     data.ground_broken = data.ground_pipeline == VK_NULL_HANDLE;
     if(data.ground_broken)
       log("ground pipeline failed, the blocks keep a plain ground");
@@ -1574,6 +1696,12 @@ auto destroy_resources(swapchain_data_t & data) -> void
     data.ground_pipeline = VK_NULL_HANDLE;
     }
   data.ground_broken = false;
+  if(data.sphere_pipeline != VK_NULL_HANDLE)
+    {
+    device.DestroyPipeline(device.device, data.sphere_pipeline, nullptr);
+    data.sphere_pipeline = VK_NULL_HANDLE;
+    }
+  data.sphere_broken = false;
   if(data.render_pass != VK_NULL_HANDLE)
     {
     device.DestroyRenderPass(device.device, data.render_pass, nullptr);

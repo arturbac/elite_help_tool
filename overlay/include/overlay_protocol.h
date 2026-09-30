@@ -175,6 +175,15 @@ struct disc_t
   float radius{};
   uint32_t color{0xffffffu};
   bool outline{};
+  ///\brief drawn as a lit ball rather than a flat disc - fields an older layer skips, drawing the flat disc
+  bool sphere{};
+  ///\brief where the light comes from, a direction in the picture's own coordinates - towards the star
+  float light_x{-1.f};
+  float light_y{};
+  ///\brief how much the surface shines, 0 matte rock to 1 open water
+  float gloss{};
+  ///\brief lights itself, as a star does: no night side, only a darker limb
+  bool glows{};
   };
 
 ///\brief a straight stroke between two points
