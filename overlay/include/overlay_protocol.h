@@ -184,6 +184,9 @@ struct disc_t
   float gloss{};
   ///\brief lights itself, as a star does: no night side, only a darker limb
   bool glows{};
+  ///\brief the body's face - a square binary PPM the tool wrote where the layer can read it, the ball
+  /// filling it; a new name is a new face. The ball is drawn in color until the face is in
+  std::string face;
   };
 
 ///\brief a straight stroke between two points

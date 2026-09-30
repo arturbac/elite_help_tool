@@ -1,6 +1,7 @@
 #include "vk_draw.h"
 #include "vk_capture.h"
 #include "vk_keyboard.h"
+#include "vk_faces.h"
 #include "overlay_font.h"
 #include "ground_shaders.h"
 #include "sphere_shaders.h"
@@ -850,17 +851,23 @@ namespace
 
   ///\brief a ball as a quad whose uv is the ball's own frame - -1..1 over the disc - turned so the light
   /// the shader always takes from -u comes from where the tool says; the vertex alpha carries the shine
-  auto add_sphere(ImDrawList * draw, ImVec2 centre, float radius, ImVec2 light, overlay::disc_t const & disc) -> void
+  ///\param tile 0 for a ball of the disc's colour, else 1 + the atlas tile of its face - it travels in the
+  /// uv as a whole multiple of 8 added to u, which the shader takes back off; the ball's own frame never
+  /// reaches 4 from its middle, so the two cannot mix
+  auto add_sphere(
+    ImDrawList * draw, ImVec2 centre, float radius, ImVec2 light, overlay::disc_t const & disc, uint32_t tile
+  ) -> void
     {
     if(radius <= 0.f)
       return;
-    // a pixel and a half beyond the rim, for the edge the shader smooths
-    float const reach{(radius + 1.5f) / radius};
+    // a pixel and a half beyond the rim, for the edge the shader smooths - never so far as to reach 4
+    float const reach{std::min((radius + 1.5f) / radius, 2.5f)};
     float const angle{light.x == 0.f and light.y == 0.f ? std::numbers::pi_v<float> : std::atan2(light.y, light.x)};
     float const turn{std::numbers::pi_v<float> - angle};
     float const c{std::cos(turn) * reach};
     float const s{std::sin(turn) * reach};
-    auto const uv = [&](float x, float y) { return ImVec2{x * c - y * s, x * s + y * c}; };
+    float const shift{8.f * float(tile)};
+    auto const uv = [&](float x, float y) { return ImVec2{x * c - y * s + shift, x * s + y * c}; };
     float const half{radius * reach};
     auto const alpha{
       disc.glows ? 255u : static_cast<uint32_t>(std::clamp(disc.gloss, 0.f, 1.f) * 127.f + 0.5f)
@@ -934,7 +941,15 @@ namespace
       if(ball)
         {
         // the light's direction on the screen, where the picture is stretched across more than upright
-        add_sphere(draw, at(disc.x, disc.y), disc.radius * k, ImVec2{disc.light_x * kx, disc.light_y * k}, disc);
+        ImVec2 const light{disc.light_x * kx, disc.light_y * k};
+        if(auto const tile{face_tile(data, disc.face)}; tile)
+          {
+          draw->PushTextureID(static_cast<ImTextureID>(reinterpret_cast<uintptr_t>(face_texture(data))));
+          add_sphere(draw, at(disc.x, disc.y), disc.radius * k, light, disc, *tile + 1u);
+          draw->PopTextureID();
+          }
+        else
+          add_sphere(draw, at(disc.x, disc.y), disc.radius * k, light, disc, 0u);
         continue;
         }
       ImU32 const colour{ImGui::GetColorU32(to_color(disc.color))};
@@ -1679,6 +1694,7 @@ auto destroy_resources(swapchain_data_t & data) -> void
     destroy_frame(device, frame);
   data.frames.clear();
   destroy_capture(data);
+  destroy_faces(data);
 
   if(data.command_pool != VK_NULL_HANDLE)
     {
@@ -2115,6 +2131,9 @@ auto draw_overlay(
       .clearValueCount = 0u,
       .pClearValues = nullptr
     };
+    // the faces read since the last frame go into their atlas before anything is drawn with it
+    record_face_uploads(data, frame, image_index);
+
     // the picture comes before the overlay is drawn over the image - it is of the game, not of us
     bool const capturing{request and record_capture(data, frame, image_index, *request)};
     if(capturing and not request->quiet)

@@ -20,6 +20,7 @@ target_sources(elite_help_tool
   overlay_exploration.cc
   codex.cc
   scanner_sheet.cc
+  planet_faces.cc
   screenshots.cc
   sky_album.cc
   glare_watch.cc

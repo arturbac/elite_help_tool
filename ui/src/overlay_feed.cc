@@ -372,12 +372,10 @@ auto has_bio(planet_details_t const & details) -> bool
          );
   }
 
-///\brief metal grey, rock yellow, ice white - and green over all of it where there is life to sample
+///\brief metal grey, rock yellow, ice white - by the class alone
 [[nodiscard]]
-auto planet_colour(planet_details_t const & details) -> uint32_t
+auto class_colour(planet_details_t const & details) -> uint32_t
   {
-  if(has_bio(details))
-    return eht::settings()->overlay.system_map.bio.rgb;
   std::string_view const pc{details.planet_class};
   if(pc.contains("water based life"))
     return 0x6fb6c8u;
@@ -414,6 +412,15 @@ auto planet_colour(planet_details_t const & details) -> uint32_t
   return 0x808080u;
   }
 
+///\brief the class's colour - and green over all of it where there is life to sample
+[[nodiscard]]
+auto planet_colour(planet_details_t const & details) -> uint32_t
+  {
+  if(has_bio(details))
+    return eht::settings()->overlay.system_map.bio.rgb;
+  return class_colour(details);
+  }
+
 ///\brief how much the body shines on the map: open water most, ice and clouds less, bare rock hardly
 [[nodiscard]]
 auto planet_gloss(planet_details_t const & details) -> float
@@ -434,7 +441,9 @@ auto planet_gloss(planet_details_t const & details) -> float
 
 ///\brief a planet or moon drawn as a ball lit from the star at (sx, sy), or from the left without one
 [[nodiscard]]
-auto planet_disc(planet_details_t const & details, float x, float y, float radius, float sx, float sy) -> overlay::disc_t
+auto planet_disc(
+  planet_details_t const & details, float x, float y, float radius, float sx, float sy, std::string face
+) -> overlay::disc_t
   {
   float const dx{sx - x};
   float const dy{sy - y};
@@ -447,7 +456,8 @@ auto planet_disc(planet_details_t const & details, float x, float y, float radiu
     .sphere = true,
     .light_x = beside ? dx : -1.f,
     .light_y = beside ? dy : 0.f,
-    .gloss = planet_gloss(details)
+    .gloss = planet_gloss(details),
+    .face = std::move(face)
   };
   }
 
@@ -508,7 +518,8 @@ auto build_system_diagram(
   std::span<info::station_t const> stations,
   std::string_view here,
   std::optional<events::status_file_t::destination_t> const & destination,
-  std::span<info::mission_t const> missions
+  std::span<info::mission_t const> missions,
+  planet_faces_t & faces
 ) -> std::optional<overlay::diagram_t>
   {
   using namespace system_map;
@@ -636,6 +647,23 @@ auto build_system_diagram(
         overlay::segment_t{
           .x0 = x0, .y0 = y0, .x1 = x1, .y1 = y1, .color = colour, .relative = true, .ax = tip, .ay = y
         }
+      );
+  };
+
+  // where the star of the row being drawn stands - the light comes from there
+  float star_x{};
+  float star_y{};
+  // a planet or moon as a ball, with its face once the scanner has shown it; a face hides the colour
+  // that said there is life, so a ring around the ball says it instead
+  auto const body_disc = [&](body_t const * body, planet_details_t const & details, float x, float y, float r)
+  {
+    std::string const full{body->name.empty() ? system.name : system.name + " " + body->name};
+    std::string face{faces.face(system.name, full, class_colour(details))};
+    bool const ringed{not face.empty() and has_bio(details)};
+    diagram.discs.push_back(planet_disc(details, x, y, r, star_x, star_y, std::move(face)));
+    if(ringed)
+      diagram.discs.push_back(
+        overlay::disc_t{.x = x, .y = y, .radius = r + 1.5f, .color = sm.bio.rgb, .outline = true}
       );
   };
 
@@ -890,7 +918,9 @@ auto build_system_diagram(
       float const x{star_column + (static_cast<float>(ix) + 0.5f) * column};
       float const r{is_giant(pd.planet_class) ? giant_radius : planet_radius};
 
-      diagram.discs.push_back(planet_disc(pd, x, line_y, r, lead_x, line_y));
+      star_x = lead_x;
+      star_y = line_y;
+      body_disc(planet, pd, x, line_y, r);
       diagram.labels.push_back(
         overlay::label_t{
           .x = x, .y = line_y - giant_radius - 9.f, .text = std::string{last_word(planet->name)}, .color = label_colour,
@@ -915,7 +945,7 @@ auto build_system_diagram(
           planet_details_t const & md{*planet_of(moon)};
           float const mr{depth == 1 ? (is_giant(md.planet_class) ? planet_radius : moon_radius) : submoon_radius};
           y += mr;
-          diagram.discs.push_back(planet_disc(md, x, y, mr, lead_x, line_y));
+          body_disc(moon, md, x, y, mr);
           diagram.labels.push_back(
             overlay::label_t{
               .x = x + mr + 5.5f, .y = y, .text = std::string{last_word(moon->name)}, .color = label_colour, .align = 0.f
@@ -4187,7 +4217,7 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
     auto loaded{db_.load_stations(stations_system_)};
     stations_ = loaded ? std::move(*loaded) : std::vector<info::station_t>{};
     }
-  if(auto map{build_system_diagram(state.system, stations_, status_body_, status_destination_, state.active_missions)}; map)
+  if(auto map{build_system_diagram(state.system, stations_, status_body_, status_destination_, state.active_missions, faces_)}; map)
     frame.blocks.push_back(
       overlay::block_t{.corner = overlay::corner_e::bottom_right, .ttl_ms = block_ttl_ms(), .diagrams = {std::move(*map)}}
     );

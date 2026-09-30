@@ -113,6 +113,14 @@ struct device_data_t
   PFN_vkCreateGraphicsPipelines CreateGraphicsPipelines{};
   PFN_vkDestroyPipeline DestroyPipeline{};
   PFN_vkCmdBindPipeline CmdBindPipeline{};
+  // for the faces of the planets
+  PFN_vkCreateImage CreateImage{};
+  PFN_vkDestroyImage DestroyImage{};
+  PFN_vkGetImageMemoryRequirements GetImageMemoryRequirements{};
+  PFN_vkBindImageMemory BindImageMemory{};
+  PFN_vkCreateSampler CreateSampler{};
+  PFN_vkDestroySampler DestroySampler{};
+  PFN_vkCmdCopyBufferToImage CmdCopyBufferToImage{};
 
   std::vector<VkQueueFamilyProperties> queue_families;
 
@@ -152,6 +160,28 @@ struct capture_buffer_t
   bool coherent{};
   };
 
+///\brief the faces of the planets, squares side by side in one texture - made at the first face
+struct face_atlas_t
+  {
+  VkImage image{};
+  VkDeviceMemory memory{};
+  VkImageView view{};
+  VkSampler sampler{};
+  ///\brief the texture as ImGui knows it
+  VkDescriptorSet set{};
+  VkBuffer staging{};
+  VkDeviceMemory staging_memory{};
+  void * mapped{};
+  size_t staging_frames{};
+  ///\brief nothing copied in yet, the image's contents undefined
+  bool fresh{true};
+  bool broken{};
+  ///\brief per tile: the face in it, empty for a free one; the frame that last drew it; its pixels in
+  std::vector<std::string> names;
+  std::vector<uint64_t> used;
+  std::vector<bool> ready;
+  };
+
 struct swapchain_data_t
   {
   device_data_t * device{};
@@ -187,6 +217,7 @@ struct swapchain_data_t
   ///\brief the same for the lit balls of the diagrams; broken leaves them flat discs
   VkPipeline sphere_pipeline{};
   bool sphere_broken{};
+  face_atlas_t faces;
   VkCommandPool command_pool{};
   std::vector<VkImage> images;
   std::vector<frame_resources_t> frames;

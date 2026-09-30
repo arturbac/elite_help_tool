@@ -299,6 +299,13 @@ namespace
     EHT_LOAD(CreateGraphicsPipelines);
     EHT_LOAD(DestroyPipeline);
     EHT_LOAD(CmdBindPipeline);
+    EHT_LOAD(CreateImage);
+    EHT_LOAD(DestroyImage);
+    EHT_LOAD(GetImageMemoryRequirements);
+    EHT_LOAD(BindImageMemory);
+    EHT_LOAD(CreateSampler);
+    EHT_LOAD(DestroySampler);
+    EHT_LOAD(CmdCopyBufferToImage);
 #undef EHT_LOAD
 
     if(instance->GetPhysicalDeviceQueueFamilyProperties != nullptr)

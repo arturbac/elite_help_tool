@@ -28,8 +28,11 @@ process carries no state of ours.
 - **System map:** the bodies and ports of the current system, drawn in the game's colours, with
   arrows at the places open missions send you to. Stars and planets are small lit balls: each planet
   and moon is lit from its star's side, water and ice shine a little, bare rock does not, and a star
-  lights itself with only a darker limb. The balls are shaded on the graphics card as they are drawn,
-  which costs the game a few microseconds a frame.
+  lights itself with only a darker limb. A body the surface scanner has been on wears its own face,
+  cut out of the scanner's views (see [Faces of the planets](exploration.md#faces-of-the-planets)), and
+  a face with life on it gets a green ring. The balls are shaded on the graphics card as they are
+  drawn, the faces read on a thread of their own and copied into one texture a few at a time, which
+  together costs the game a few microseconds a frame.
 - **Readable over anything.** The ground under each block darkens by how bright the game is
   beneath it, so the text stays legible over an ice planet as over black space.
 - **F11** saves a screenshot of the whole screen, overlay included.
