@@ -175,6 +175,10 @@ it can take the game down: [overlay/README.md](overlay/README.md).
   there (not a taxi ride, not an on-foot arrival), a second, wide reminder across the top middle of
   the screen in the ordinary overlay size: *open the Commodities Market to record it*
   (`overlay.market_reminder`, its own place and width, on by default).
+- **"controlling faction changed since last reading - reopen the market"** (`market_stale` colour):
+  the market has a reading, but the station's controlling faction has since changed and the market
+  itself was never reopened. The game gives no notice when this happens, and what is legal to trade
+  can depend on who runs the place, so the old reading may no longer be trustworthy.
 - **Best known trades**: what to bring here and what to take from here, against every market you
   have ever opened. Each line gives the margin per tonne, the tonnes (capped by your hold, the stock
   and the demand), the profit of the run and the station. With a route plotted, it looks for what to

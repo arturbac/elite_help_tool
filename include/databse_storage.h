@@ -574,7 +574,8 @@ struct database_storage_t
     uint64_t market_id,
     std::chrono::sys_seconds updated,
     std::span<info::commodity_t const> commodities,
-    std::span<info::market_item_t const> items
+    std::span<info::market_item_t const> items,
+    std::string_view controlling_faction
   ) -> expected_ec<void>;
 
   [[nodiscard]]

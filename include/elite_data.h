@@ -467,6 +467,9 @@ struct market_info_t
   {
   uint64_t market_id;
   std::chrono::sys_seconds updated;
+  ///\brief the controlling faction seen at the moment of this reading, to notice a takeover since -
+  /// what is legal to trade here can depend on who runs the place, and the game never warns of it
+  std::string controlling_faction{};
   };
 
 ///\brief the commodity dictionary; mean_price is the galactic average, a constant of the commodity

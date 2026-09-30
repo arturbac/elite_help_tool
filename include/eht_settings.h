@@ -38,6 +38,9 @@ struct overlay_colours_t
   colour_t plain{0xddddddu};
   ///\brief what asks for attention without being lost yet
   colour_t alert{0xd9a34au};
+  ///\brief a market's controlling faction may have turned over since we last read it - what is legal
+  /// to trade there can depend on who runs the place, and the game gives no warning of its own
+  colour_t market_stale{0xd9d34au};
   ///\brief the good news - a mission ready to hand in, the best offer
   colour_t first{0x3cb371u};
   ///\brief a mission about to run out

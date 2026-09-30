@@ -1048,7 +1048,14 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
             );
             }
 
-          if(auto res{db_.replace_market(event.MarketID, market->timestamp, commodities, items)}; not res)
+          // the faction running the place now, snapshotted with this reading - Market.json never says
+          // whose it is, and only station_t tracks it, from the Docked/Location events kept elsewhere
+          std::string controlling_faction;
+          if(auto loaded{db_.load_station(event.MarketID)}; loaded and *loaded)
+            controlling_faction = (*loaded)->controlling_faction;
+
+          if(auto res{db_.replace_market(event.MarketID, market->timestamp, commodities, items, controlling_faction)};
+             not res)
             spdlog::error("failed to store market {}", event.MarketID);
           else
             spdlog::info("market {} at {}: {} items", event.MarketID, event.StationName, items.size());

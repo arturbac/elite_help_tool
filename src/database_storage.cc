@@ -1210,6 +1210,9 @@ auto database_storage_t::migrate_live_schema() -> expected_ec<void>
   for(addition_t const & add:
       {addition_t{sql_iface::tables::market_item, "producer"sv, "INTEGER DEFAULT 0"sv},
        addition_t{sql_iface::tables::market_item, "consumer"sv, "INTEGER DEFAULT 0"sv},
+       // the faction running the place when we last read it - rows written before it was kept stay
+       // empty, so a takeover since is never flagged for a reading taken before this was added
+       addition_t{sql_iface::tables::market, "controlling_faction"sv, "TEXT DEFAULT ''"sv},
        addition_t{sql_iface::tables::station, "controlling_faction"sv, "TEXT DEFAULT ''"sv},
        addition_t{sql_iface::tables::station, "dist_from_star_ls"sv, "REAL DEFAULT 0"sv},
        addition_t{sql_iface::tables::station, "body_id"sv, "INTEGER"sv},
@@ -4396,7 +4399,8 @@ auto database_storage_t::replace_market(
   uint64_t market_id,
   std::chrono::sys_seconds updated,
   std::span<info::commodity_t const> commodities,
-  std::span<info::market_item_t const> items
+  std::span<info::market_item_t const> items,
+  std::string_view controlling_faction
 ) -> expected_ec<void>
   {
   // the commodity dictionary is shared by every market; only the unknown ones are added
@@ -4456,7 +4460,12 @@ auto database_storage_t::replace_market(
     return res;
 
   return sqlite::insert_into<info::market_info_t, true>(
-    db_->db, "market_id"sv, sql_iface::tables::market, info::market_info_t{.market_id = market_id, .updated = updated}
+    db_->db,
+    "market_id"sv,
+    sql_iface::tables::market,
+    info::market_info_t{
+      .market_id = market_id, .updated = updated, .controlling_faction = std::string{controlling_faction}
+    }
   );
   }
 

@@ -35,6 +35,8 @@ constexpr uint32_t galaxy_map_focus{6u};
 auto colour_heading() -> uint32_t { return eht::settings()->overlay.colours.heading.rgb; }
 auto colour_plain() -> uint32_t { return eht::settings()->overlay.colours.plain.rgb; }
 auto colour_alert() -> uint32_t { return eht::settings()->overlay.colours.alert.rgb; }
+///\brief a market whose controlling faction may have turned over since we last read it
+auto colour_market_stale() -> uint32_t { return eht::settings()->overlay.colours.market_stale.rgb; }
 ///\brief undiscovered by anyone - that is the case worth stopping for
 auto colour_first() -> uint32_t { return eht::settings()->overlay.colours.first.rgb; }
 auto colour_expiring() -> uint32_t { return eht::settings()->overlay.colours.expiring.rgb; }
@@ -1845,6 +1847,17 @@ auto overlay_feed_t::refresh_market(
     market_lines_.push_back(overlay::line_t{.text = "  open the commodity market to record it", .color = colour_plain()});
     return;
     }
+
+  // Market.json itself never says whose the place is; a takeover since our last reading can flip
+  // what is legal to sell here, and the game gives no warning of its own
+  if(auto info{db_.load_market_info(market_id)}; info and *info)
+    if(std::string const & seen{(*info)->controlling_faction}; not seen.empty() and not owner.empty() and seen != owner)
+      market_lines_.push_back(
+        overlay::line_t{
+          .text = std::format("{}: controlling faction changed since last reading - reopen the market", name),
+          .color = colour_market_stale()
+        }
+      );
 
   // the departure from the galactic average is the only number saying whether a price is a bargain
   auto const sell_gain{
