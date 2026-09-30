@@ -2685,9 +2685,13 @@ auto overlay_feed_t::refresh_neutron_route(current_state_t const & state) -> voi
     }
   }
 
-auto overlay_feed_t::build_neutron_checklist_lines() const -> std::vector<overlay::line_t>
+auto overlay_feed_t::build_neutron_checklist_lines(current_state_t const & state, plotted_route_t const & plotted) const
+  -> std::vector<overlay::line_t>
   {
-  if(neutron_route_.empty() or neutron_reached_ >= neutron_route_.size())
+  // a route loaded once in the Route window is never remembered, yet it is the one being flown
+  std::span<info::neutron_waypoint_t const> const route{plotted.waypoints.empty() ? neutron_route_ : plotted.waypoints};
+  size_t const reached{plotted.waypoints.empty() ? neutron_reached_ : plotted.reached};
+  if(route.empty() or reached >= route.size())
     return {};
 
   // only in flight, supercruise, the main ship - a docked or on-foot state has nothing to do with the
@@ -2698,16 +2702,29 @@ auto overlay_feed_t::build_neutron_checklist_lines() const -> std::vector<overla
   if((status_flags_ & supercruise_flag) == 0u or (status_flags_ & main_ship_flag) == 0u)
     return {};
 
-  info::neutron_waypoint_t const & next{neutron_route_[neutron_reached_]};
+  info::neutron_waypoint_t const & next{route[reached]};
+  info::neutron_waypoint_t const * const here{
+    reached > 0u and route[reached - 1u].system_address == state.current_system_address_ ? &route[reached - 1u]
+                                                                                          : nullptr
+  };
+  bool const supercharged{state.supercharged_in_ != 0u and state.supercharged_in_ == state.current_system_address_};
+  bool const plotted_to_next{
+    (not state.route_.empty() and state.route_.back().system_address == next.system_address)
+    or (status_destination_ and status_destination_->System == next.system_address)
+  };
 
   std::string step;
   if((status_flags2_ & hyperdrive_charging_flag) != 0u)
     step = std::format("jumping to {}...", next.system);
-  else if(status_destination_ and status_destination_->System == next.system_address)
-    step = std::format("approach {}, then jump", next.system);
+  else if(here != nullptr and here->neutron and not supercharged)
+    step = "supercharge: fly into the neutron star's cone";
+  else if(plotted_to_next)
+    step = std::format("{}jump to {}", supercharged ? "supercharged - " : "", next.system);
+  else if(not extension_hint_.empty())
+    step = extension_hint_;
   else
     step = std::format(
-      "go to {} neutron star: {}", neutron_reached_ == 0u ? "your first" : "the next", next.system
+      "{}open the galaxy map and plot {}", supercharged ? "supercharged - " : "", next.system
     );
 
   return {
@@ -4014,7 +4031,7 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
 
   overlay::frame_t frame{};
 
-  if(auto neutron{build_neutron_checklist_lines()}; not neutron.empty())
+  if(auto neutron{build_neutron_checklist_lines(state, plotted)}; not neutron.empty())
     frame.blocks.push_back(
       overlay::block_t{.corner = overlay::corner_e::top_left, .ttl_ms = block_ttl_ms(), .lines = std::move(neutron)}
     );

@@ -184,6 +184,7 @@ auto main_window_t::publish_overlay() -> void
     surface_view_->refresh_ui();
     overlay_feed_->set_surface_target(surface_view_->target());
     }
+  overlay_feed_->set_extension_hint(extension_ ? extension_->overlay_hint() : std::string{});
   overlay_feed_->publish(state_, plotted);
   // a backup running is looked at with every frame, so its end is written down when it comes
   if(backup_.valid())

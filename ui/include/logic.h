@@ -135,6 +135,8 @@ struct current_state_t : public generic_state_t
   
   std::vector<info::route_item_t> route_;
   uint64_t current_system_address_{};
+  ///\brief the system whose star's cone supercharged the drive, until the next jump - 0 for none
+  uint64_t supercharged_in_{};
   ///\brief the settlement we are in - collected micro resources get its market_id
   uint64_t settlement_market_id_{};
 

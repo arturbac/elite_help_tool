@@ -45,6 +45,11 @@ public:
 
   ///\brief the commander asked for this system as the destination, from the GUI thread
   virtual auto set_destination(std::string const & system) -> void { (void)system; }
+
+  ///\brief what the commander is to do next as the extension sees it, shown as the neutron highway's step on the
+  /// overlay in place of the tool's own - empty to leave the tool's; from the GUI thread
+  [[nodiscard]]
+  virtual auto overlay_hint() const -> std::string { return {}; }
   };
 
 ///\brief the extension built in, or nullptr when there is none

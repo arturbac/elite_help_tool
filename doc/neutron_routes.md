@@ -10,7 +10,9 @@
   A double click on a row makes that waypoint the next one.
 - **Remember** keeps the route across restarts, **Forget** drops it. **Clear** drops a route loaded
   for one trip only; a remembered route, if there is one, is shown again.
-- **On the overlay, in flight**: a small reminder of what to do right now with the remembered route -
-  go to the next waypoint, approach it and jump, or that a jump is under way - so the ritual can be
-  followed without the Route window open. Shown only in supercruise, in the main ship; docked or on
+- **On the overlay, in flight**: a small reminder of what to do right now with the route being flown -
+  the one loaded in the Route window, or else the remembered one. At a neutron waypoint: supercharge in
+  the star's cone first (the journal's `JetConeBoost` says when it is done), then open the galaxy map
+  and plot the next waypoint, then jump - or that a jump is under way - so the ritual can be followed
+  without the Route window in sight. Shown only in supercruise, in the main ship; docked or on
   foot it goes quiet, since neither has anything to do with the next jump.

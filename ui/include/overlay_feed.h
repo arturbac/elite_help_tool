@@ -49,6 +49,9 @@ public:
   ///\brief the construction site chosen in the Construction window while that window is the active one, 0 for none
   auto set_construction_focus(uint64_t market_id) -> void { construction_focus_ = market_id; }
 
+  ///\brief the next step of the neutron highway as a built-in extension sees it, empty for the tool's own
+  auto set_extension_hint(std::string hint) -> void { extension_hint_ = std::move(hint); }
+
   ///\brief the point on a body's surface chosen in the Surface window, or none
   auto set_surface_target(std::optional<nav::target_t> target) -> void { surface_target_ = std::move(target); }
 
@@ -100,9 +103,11 @@ private:
   ///\brief keeps neutron_route_/neutron_reached_ current with the remembered route and the system we
   /// are actually in - independent of whether the Route window happens to be open
   auto refresh_neutron_route(current_state_t const & state) -> void;
-  ///\brief what to do right now, flying the remembered neutron route - empty off it, or not flying
+  ///\brief what to do right now, flying the Route window's neutron route or else the remembered one - empty off
+  /// it, or not flying
   [[nodiscard]]
-  auto build_neutron_checklist_lines() const -> std::vector<overlay::line_t>;
+  auto build_neutron_checklist_lines(current_state_t const & state, plotted_route_t const & plotted) const
+    -> std::vector<overlay::line_t>;
 
   ///\brief who holds the places the open missions point at - the journal does not say
   auto refresh_mission_places(current_state_t const & state) -> void;
@@ -194,6 +199,7 @@ private:
   size_t neutron_reached_{};
   uint64_t neutron_progress_system_{};
   std::chrono::steady_clock::time_point neutron_route_loaded_{};
+  std::string extension_hint_;
 
   ///\brief the faction holding each place a mission points at, keyed by system and name
   std::map<std::pair<std::string, std::string>, std::string> place_owner_;

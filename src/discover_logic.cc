@@ -819,6 +819,7 @@ auto generic_state_t::discovery(std::string_view input) -> void
   switch(type)
     {
     case FSDJump:   parse_and_handle.template operator()<events::fsd_jump_t>(); break;
+    case JetConeBoost: parse_and_handle.template operator()<events::jet_cone_boost_t>(); break;
     case FSDTarget: parse_and_handle.template operator()<events::fsd_target_t>(); break;
     case StartJump: parse_and_handle.template operator()<events::start_jump_t>(); break;
 

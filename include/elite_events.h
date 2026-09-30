@@ -985,6 +985,12 @@ struct touchdown_t
   bool PlayerControlled;
   };
 
+///\brief the frame shift drive supercharged in a neutron star's or a white dwarf's cone
+struct jet_cone_boost_t
+  {
+  double BoostValue{};
+  };
+
 ///\brief a kill in a conflict zone - who pays for it and whom it was against. The reward also says the
 /// intensity of a zone on foot: the game pays from fixed tables, one per intensity
 struct faction_kill_bond_t
@@ -1585,6 +1591,7 @@ using event_holder_t = std::variant<
   disembark_t,
   supercruise_entry_t,
   touchdown_t,
+  jet_cone_boost_t,
   backpack_change_t,
   fss_all_bodies_found_t,
   scan_bary_centre_t,

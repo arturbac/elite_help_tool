@@ -245,7 +245,7 @@ constexpr bool rebuilds_present_state{
   or std::same_as<event_t, events::approach_settlement_t> or std::same_as<event_t, events::disembark_t>
   or std::same_as<event_t, events::cargo_t> or std::same_as<event_t, events::missions_t>
   or std::same_as<event_t, events::commander_t> or std::same_as<event_t, events::nav_route_t>
-  or std::same_as<event_t, events::nav_route_clear_t>
+  or std::same_as<event_t, events::nav_route_clear_t> or std::same_as<event_t, events::jet_cone_boost_t>
   // a sample half taken when the tool was closed is still half taken - and the handler only repeats the
   // species already written, in the same order
   or std::same_as<event_t, events::scan_organic_t>
@@ -450,9 +450,12 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           f_route_progress(event.SystemAddress);
           update_system = true;
           }
+        else if constexpr(std::same_as<T, events::jet_cone_boost_t>)
+          supercharged_in_ = system.system_address;
         else if constexpr(std::same_as<T, events::fsd_jump_t>)
           {
           in_witchspace_ = false;
+          supercharged_in_ = 0u;
           ground_cz_.jumped(event.SystemAddress);
           if(system.system_address != event.SystemAddress)
             {
