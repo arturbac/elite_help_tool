@@ -231,6 +231,13 @@ namespace
     return face;
     }
 
+  ///\brief the ship's HUD over the ball: its saturated orange, which no surface comes near
+  [[nodiscard]]
+  auto is_hud(uint8_t const * p) -> bool
+    {
+    return p[0] > 140u and int(p[2]) * 4 < int(p[0]) and int(p[1]) * 5 < int(p[0]) * 4 and int(p[1]) * 5 > int(p[0]);
+    }
+
   [[nodiscard]]
   auto is_cyan(uint8_t const * p) -> bool
     { return int(p[2]) - int(p[0]) > 51 and int(p[1]) - int(p[0]) > 25; }
@@ -275,7 +282,7 @@ namespace
       float const saturation{(most - least) / std::max(most, 1e-3f)};
       bool const white{least > usual + 0.2f and saturation < 0.2f};
       bool const cyan{cyan_rings and is_cyan(face.rgb.data() + at * 3u)};
-      mark[at] = white or cyan;
+      mark[at] = white or cyan or is_hud(face.rgb.data() + at * 3u);
       }
     // a pixel more around each mark, for its soft edge
     std::vector<bool> grown{mark};
@@ -324,6 +331,98 @@ namespace
       if(inside[at])
         for(size_t c{}; c != 3u; ++c)
           face.rgb[at * 3u + c] = uint8_t(std::clamp(std::lround(colour[at * 3u + c] * 255.f), 1l, 255l));
+    }
+
+  ///\brief the normal of the ball at a pixel of a face side x side
+  [[nodiscard]]
+  auto ball_normal(size_t at, uint32_t side) -> std::array<float, 3>
+    {
+    float const half{float(side) / 2.f};
+    float const u{(float(at % side) + 0.5f - half) / half};
+    float const v{(float(at / side) + 0.5f - half) / half};
+    return {u, v, std::sqrt(std::max(0.f, 1.f - u * u - v * v))};
+    }
+
+  [[nodiscard]]
+  auto on_ball(image_t const & face, size_t at) -> bool
+    {
+    uint8_t const * const p{face.rgb.data() + at * 3u};
+    return p[0] != 0u or p[1] != 0u or p[2] != 0u;
+    }
+
+  ///\brief where the light comes from: brightness = normal . w over the lit pixels, w fitted by least squares
+  [[nodiscard]]
+  auto fit_light(image_t const & face) -> std::optional<std::array<float, 3>>
+    {
+    uint32_t const side{face.width};
+    size_t const pixels{size_t{side} * side};
+    float bright{};
+    for(size_t at{}; at != pixels; ++at)
+      if(on_ball(face, at))
+        bright = std::max(bright, luminance(face.rgb.data() + at * 3u));
+    std::array<std::array<double, 3>, 3> m{};
+    std::array<double, 3> rhs{};
+    for(size_t at{}; at != pixels; ++at)
+      {
+      if(not on_ball(face, at))
+        continue;
+      float const l{luminance(face.rgb.data() + at * 3u)};
+      if(l < bright * 0.15f)
+        continue;
+      auto const n{ball_normal(at, side)};
+      for(size_t i{}; i != 3u; ++i)
+        {
+        rhs[i] += double(n[i]) * l;
+        for(size_t j{}; j != 3u; ++j)
+          m[i][j] += double(n[i]) * n[j];
+        }
+      }
+    // Cramer's rule for the 3 x 3 system
+    auto const det = [](std::array<std::array<double, 3>, 3> const & a)
+    {
+      return a[0][0] * (a[1][1] * a[2][2] - a[1][2] * a[2][1]) - a[0][1] * (a[1][0] * a[2][2] - a[1][2] * a[2][0])
+             + a[0][2] * (a[1][0] * a[2][1] - a[1][1] * a[2][0]);
+    };
+    double const d{det(m)};
+    if(std::abs(d) < 1e-9)
+      return std::nullopt;
+    std::array<float, 3> light{};
+    for(size_t k{}; k != 3u; ++k)
+      {
+      auto mk{m};
+      for(size_t i{}; i != 3u; ++i)
+        mk[i][k] = rhs[i];
+      light[k] = float(det(mk) / d);
+      }
+    float const length{std::hypot(light[0], light[1], light[2])};
+    if(length < 1e-6f)
+      return std::nullopt;
+    for(float & c: light)
+      c /= length;
+    return light;
+    }
+
+  ///\brief the share of the ball that should be in daylight and is dark - the cockpit's frame across it
+  [[nodiscard]]
+  auto occluded(image_t const & face, std::array<float, 3> const & light) -> float
+    {
+    uint32_t const side{face.width};
+    size_t const pixels{size_t{side} * side};
+    std::vector<float> lit;
+    for(size_t at{}; at != pixels; ++at)
+      if(on_ball(face, at))
+        {
+        auto const n{ball_normal(at, side)};
+        if(n[0] * light[0] + n[1] * light[1] + n[2] * light[2] > 0.4f)
+          lit.push_back(luminance(face.rgb.data() + at * 3u));
+        }
+    if(lit.empty())
+      return 1.f;
+    std::vector<float> sorted{lit};
+    auto const median{sorted.begin() + std::ptrdiff_t(sorted.size() / 2u)};
+    std::nth_element(sorted.begin(), median, sorted.end());
+    float const usual{*median};
+    return float(std::ranges::count_if(lit, [&](float l) { return l < usual * 0.3f; })) / float(lit.size());
     }
   }  // namespace
 
@@ -433,9 +532,142 @@ auto retint(image_t face, std::array<float, 3> colour) -> image_t
   return face;
   }
 
-auto make_face(std::span<image_t const> views, image_t const * photo, std::array<float, 3> fallback, uint32_t side)
-  -> image_t
+auto judge_approach(image_t const & view) -> std::optional<approach_t>
   {
+  // the night side's rim is lost against the black of space, so only the lit part of it shows
+  auto const disc{find_disc(view)};
+  if(not disc or disc->rim < 0.3f or not disc->inside)
+    return std::nullopt;
+  image_t const ball{sample_ball(view, *disc, 96u)};
+  std::vector<float> lum;
+  size_t hud{};
+  for(size_t at{}; at != size_t{ball.width} * ball.height; ++at)
+    if(uint8_t const * const p{ball.rgb.data() + at * 3u}; p[0] != 0u or p[1] != 0u or p[2] != 0u)
+      {
+      lum.push_back(luminance(p));
+      hud += is_hud(p) ? 1u : 0u;
+      }
+  if(lum.size() < 64u)
+    return std::nullopt;
+  std::vector<float> sorted{lum};
+  auto const p95{sorted.begin() + std::ptrdiff_t(sorted.size() * 95u / 100u)};
+  std::nth_element(sorted.begin(), p95, sorted.end());
+  float const bright{*p95};
+  // a ball in the dark, or a black disc against the stars, is no face
+  if(bright < 0.08f)
+    return std::nullopt;
+  approach_t judged{
+    .disc = *disc,
+    .lit = float(std::ranges::count_if(lum, [&](float l) { return l > bright * 0.25f; })) / float(lum.size()),
+    .hud = float(hud) / float(lum.size()),
+    .score = 0.f
+  };
+  float const streaks{look_of(ball).streaks};
+  // what the cockpit's frame hides counts against the view as much as three times its share
+  auto const light{fit_light(ball)};
+  float const hidden{light ? occluded(ball, *light) : 1.f};
+  // more than a little hidden, and the frame would be on the face
+  if(hidden > 0.06f)
+    return std::nullopt;
+  judged.score = judged.lit * std::min(disc->radius, 200.f) / 200.f * std::max(0.f, 1.f - 8.f * judged.hud)
+                 * std::max(0.f, 1.f - 3.f * hidden) * (streaks > 0.03f ? 0.2f : 1.f);
+  return judged;
+  }
+
+auto approach_face(image_t const & view, disc_t const & disc, uint32_t side) -> image_t
+  {
+  image_t face{sample_ball(view, disc, side)};
+  // the target's ring and its words stand on the ball; a ring is cyan, which a ball seldom is
+  clear_marks(face, look_of(face).cyan <= 0.1f);
+  size_t const pixels{size_t{side} * side};
+  float const half{float(side) / 2.f};
+  auto const normal = [&](size_t at) -> std::array<float, 3>
+  {
+    float const u{(float(at % side) + 0.5f - half) / half};
+    float const v{(float(at / side) + 0.5f - half) / half};
+    return {u, v, std::sqrt(std::max(0.f, 1.f - u * u - v * v))};
+  };
+  auto const inside = [&](size_t at)
+  {
+    uint8_t const * const p{face.rgb.data() + at * 3u};
+    return p[0] != 0u or p[1] != 0u or p[2] != 0u;
+  };
+
+  auto const fitted{fit_light(face)};
+  if(not fitted)
+    return face;
+  std::array<float, 3> const light{*fitted};
+
+  // each pixel divided by how squarely it faced the light, never by less than a quarter
+  constexpr float night{0.2f};
+  std::vector<float> albedo(pixels * 3u, 0.f);
+  std::vector<bool> day(pixels, false);
+  for(size_t at{}; at != pixels; ++at)
+    {
+    if(not inside(at))
+      continue;
+    auto const n{normal(at)};
+    float const facing{n[0] * light[0] + n[1] * light[1] + n[2] * light[2]};
+    if(facing <= night)
+      continue;
+    day[at] = true;
+    for(size_t c{}; c != 3u; ++c)
+      albedo[at * 3u + c] = float(face.rgb[at * 3u + c]) / 255.f / std::max(facing, 0.25f);
+    }
+  std::array<double, 3> mean{};
+  size_t count{};
+  for(size_t at{}; at != pixels; ++at)
+    if(day[at])
+      {
+      for(size_t c{}; c != 3u; ++c)
+        mean[c] += albedo[at * 3u + c];
+      ++count;
+      }
+  if(count == 0u)
+    return face;
+  for(double & c: mean)
+    c /= double(count);
+  // brought to the brightness a ball shows in full light, never brighter than it was
+  float const scale{std::min(1.f, 0.6f / std::max(float((mean[0] + mean[1] + mean[2]) / 3.0), 1e-3f))};
+
+  image_t out{.width = side, .height = side, .rgb = std::vector<uint8_t>(pixels * 3u, 0u)};
+  for(size_t at{}; at != pixels; ++at)
+    {
+    if(not inside(at))
+      continue;
+    size_t from{at};
+    if(not day[at])
+      {
+      // the night side mirrored across the terminator onto the day side, or the day's mean where that
+      // lands behind the ball
+      auto n{normal(at)};
+      float const facing{n[0] * light[0] + n[1] * light[1] + n[2] * light[2]};
+      for(size_t c{}; c != 3u; ++c)
+        n[c] -= 2.f * facing * light[c];
+      auto const x{int(std::lround(n[0] * half + half - 0.5f))};
+      auto const y{int(std::lround(n[1] * half + half - 0.5f))};
+      size_t const mirrored{size_t(std::clamp(y, 0, int(side) - 1)) * side + size_t(std::clamp(x, 0, int(side) - 1))};
+      from = n[2] > 0.f and day[mirrored] ? mirrored : pixels;
+      }
+    for(size_t c{}; c != 3u; ++c)
+      {
+      float const value{from == pixels ? float(mean[c]) : albedo[from * 3u + c]};
+      out.rgb[at * 3u + c] = uint8_t(std::clamp(std::lround(value * scale * 255.f), 1l, 255l));
+      }
+    }
+  return out;
+  }
+
+auto make_face(
+  std::span<image_t const> views,
+  image_t const * photo,
+  image_t const * approach,
+  std::array<float, 3> fallback,
+  uint32_t side
+) -> image_t
+  {
+  bool const from_cockpit{approach != nullptr and approach->width == side and not approach->empty()};
+
   struct candidate_t
     {
     image_t face;
@@ -460,12 +692,14 @@ auto make_face(std::span<image_t const> views, image_t const * photo, std::array
       best = candidate_t{.face = std::move(face), .look = look, .radius = disc->radius};
     }
   if(not best)
-    return {};
+    return from_cockpit ? *approach : image_t{};
   bool const own_colours{best->look.cyan <= 0.04f};
   clear_marks(best->face, own_colours);
-  // a view in its own colours is taken as it is
+  // a view in its own colours is taken as it is; a painted one gives way to the cockpit's true colours
   if(own_colours)
     return std::move(best->face);
+  if(from_cockpit)
+    return *approach;
   std::optional<std::array<float, 3>> colour;
   if(photo != nullptr)
     colour = lit_colour(*photo);

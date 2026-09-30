@@ -70,7 +70,7 @@ auto main() -> int
     // greyish-violet, not blue enough to be taken for a filter
     auto const picture{ball_on_stars(800u, 600u, 400.f, 300.f, 160.f, {150u, 140u, 150u})};
     std::array const views{picture};
-    auto const face{planet_face::make_face(views, nullptr, {0.5f, 0.5f, 0.5f}, 64u)};
+    auto const face{planet_face::make_face(views, nullptr, nullptr, {0.5f, 0.5f, 0.5f}, 64u)};
     expect(face.width == 64_u and face.height == 64_u);
     expect(not face.empty());
     if(not face.empty())
@@ -88,7 +88,7 @@ auto main() -> int
     auto const tinted{ball_on_stars(800u, 600u, 400.f, 300.f, 160.f, {40u, 140u, 220u})};
     auto const photo{ball_on_stars(800u, 600u, 400.f, 300.f, 100.f, {200u, 120u, 80u})};
     std::array const views{tinted};
-    auto const face{planet_face::make_face(views, &photo, {0.5f, 0.5f, 0.5f}, 64u)};
+    auto const face{planet_face::make_face(views, &photo, nullptr, {0.5f, 0.5f, 0.5f}, 64u)};
     expect(not face.empty());
     if(not face.empty())
       {
@@ -97,11 +97,51 @@ auto main() -> int
       }
   };
 
+  "a ball lit from the side is judged by its daylight, and its face loses the shadow"_test = []
+  {
+    // albedo of one colour, lit from the upper left and a little from the front, the night side black
+    uint32_t const w{800u};
+    uint32_t const h{600u};
+    planet_face::image_t view{.width = w, .height = h, .rgb = std::vector<uint8_t>(size_t{w} * h * 3u, 6u)};
+    float const lx{-0.6f};
+    float const ly{-0.3f};
+    float const lz{0.74f};
+    for(uint32_t py{}; py != h; ++py)
+      for(uint32_t px{}; px != w; ++px)
+        {
+        float const u{(float(px) - 400.f) / 160.f};
+        float const v{(float(py) - 300.f) / 160.f};
+        if(u * u + v * v > 1.f)
+          continue;
+        float const z{std::sqrt(1.f - u * u - v * v)};
+        float const facing{std::max(0.f, u * lx + v * ly + z * lz)};
+        uint8_t * const p{view.rgb.data() + (size_t{py} * w + px) * 3u};
+        std::array<float, 3> const albedo{200.f, 150.f, 120.f};
+        for(size_t c{}; c != 3u; ++c)
+          p[c] = uint8_t(std::lround(albedo[c] * facing));
+        }
+    auto const judged{planet_face::judge_approach(view)};
+    expect(judged.has_value()) << "the lit ball is found";
+    if(not judged)
+      return;
+    expect(judged->lit > 0.5f and judged->lit < 0.95f) << judged->lit;
+    expect(judged->hud < 0.01f);
+    auto const face{planet_face::approach_face(view, judged->disc, 64u)};
+    // the lit middle, a point near the terminator and one on the night side all come out alike
+    auto const at = [&](uint32_t x, uint32_t y) { return face.rgb.data() + (size_t{y} * 64u + x) * 3u; };
+    int const lit_red{at(24u, 28u)[0]};
+    int const edge_red{at(44u, 36u)[0]};
+    int const night_red{at(52u, 44u)[0]};
+    expect(std::abs(edge_red - lit_red) < lit_red / 4) << lit_red << edge_red;
+    expect(std::abs(night_red - lit_red) < lit_red / 4) << lit_red << night_red;
+    expect(at(24u, 28u)[0] > at(24u, 28u)[2]) << "the colour stays warm";
+  };
+
   "no ball, no face"_test = []
   {
     planet_face::image_t const stars{ball_on_stars(400u, 300u, -500.f, -500.f, 10.f, {0u, 0u, 0u})};
     std::array const views{stars};
-    auto const face{planet_face::make_face(views, nullptr, {0.5f, 0.5f, 0.5f}, 64u)};
+    auto const face{planet_face::make_face(views, nullptr, nullptr, {0.5f, 0.5f, 0.5f}, 64u)};
     expect(face.empty());
   };
   }

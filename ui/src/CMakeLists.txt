@@ -21,6 +21,7 @@ target_sources(elite_help_tool
   codex.cc
   scanner_sheet.cc
   planet_faces.cc
+  approach_views.cc
   screenshots.cc
   sky_album.cc
   glare_watch.cc

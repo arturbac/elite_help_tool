@@ -107,6 +107,19 @@ scanner's own marks on it - the white dot, the needle, the thin cyan rings - are
 them. When every view is painted by a filter, only the relief is kept and the colour comes from the
 lit side of the body in its sky album photo, or from its class when there is no photo.
 
+The way to a body gives faces too, and in the body's true colours. With a planet of this system set as
+the destination and the ship's own view in supercruise, the layer quietly takes the middle of the
+screen every 2 s (`exploration.approach_faces`, `approach_interval_ms`). Each view is judged: the ball
+must be found whole in it - its night side's rim may be lost against the black - and the cockpit's frame
+must hide next to none of it; then the more of it in daylight and the larger it is, up to 200 px of
+radius, the better, and the ship's orange HUD over it counts against it. A view at least as good as the
+best kept so far replaces it. Its light is taken off before it is kept: the direction of the light is
+fitted to the brightness over the ball, each pixel is divided by how squarely it faced the light, and
+the night side is filled from the day side mirrored across the terminator. The target's ring is filled
+from around it like the scanner's marks. It is kept in `codex/approach/<body>.png`, its score beside it.
+A scanner view in the body's own colours still comes first; the cockpit's face comes before a scanner
+view painted by a filter.
+
 The face is made in a thread of its own the first time the map shows the body, and made again when a
 newer view comes in; it is kept in `codex/faces/<body>.png` and handed to the overlay beside the
 socket. A body with life, whose flat ball is green, keeps its face and gets a green ring instead.

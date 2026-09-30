@@ -220,6 +220,10 @@ struct exploration_settings_t
   std::vector<uint32_t> sky_star_delays_ms{1000u, 2000u, 3000u};
   ///\brief how long after the scanner closes the planet is taken - the cockpit comes back round it first
   uint32_t sky_planet_delay_ms{1500u};
+  ///\brief on the way to a planet set as the destination, the view is taken now and then and the best one
+  /// kept for the planet's face on the system map - the one with most of the ball in daylight, largest
+  bool approach_faces{true};
+  uint32_t approach_interval_ms{2000u};
   float white_dwarf_danger_radii{78.f};
   ///\brief how many measurements the figure above rests on, said beside it so it is read for what it is
   uint32_t white_dwarf_measurements{1u};

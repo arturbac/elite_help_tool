@@ -4069,6 +4069,9 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
   if(ship_view and (status_flags_ & analysis_flag) != 0u and not destination.empty())
     if(auto entry{planet_entry(destination)}; entry)
       sky_.offer(std::move(*entry));
+  // flying at a planet set as the destination, in any mode, the view is judged for the planet's face
+  approach_.collect(faces_);
+  approach_.observe(ship_view, state.system.name, planet_entry(destination) ? destination : std::string{});
   if(sky_focus_ != 10u and gui_focus_ == 10u)
     {
     spdlog::info("sky: the scanner opened, destination {}", destination.empty() ? std::string{"none"} : destination);
@@ -4541,6 +4544,12 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
   // the layout rides with every frame: the layer keeps nothing of its own, so a saved settings file shows
   // in the game at the next frame
   frame.layout = eht::settings()->overlay.layout;
+  // the views for the faces ask first, so any other picture asked for at the same moment takes the turn
+  if(auto const & asked{approach_.capture_request()}; asked.id != approach_capture_id_)
+    {
+    approach_capture_id_ = asked.id;
+    capture_ = asked;
+    }
   if(auto const & asked{codex_.capture_request()}; asked.id != codex_capture_id_)
     {
     codex_capture_id_ = asked.id;

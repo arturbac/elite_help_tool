@@ -7,6 +7,8 @@
 #include <map>
 #include <string>
 
+class QImage;
+
 ///\brief the faces of the bodies for the overlay's balls, made from the pictures the codex keeps
 ///
 /// A body gets a face once the surface scanner has been on it: its views under codex/scanner, and the
@@ -23,6 +25,10 @@ public:
   ///\param fallback the colour for a face whose views are all tinted by a filter and whose photo is missing
   [[nodiscard]]
   auto face(std::string const & system, std::string const & body, uint32_t fallback) -> std::string;
+
+  ///\brief a view of the body from the cockpit, judged in a thread of its own and kept as the body's cockpit
+  /// face when it is at least as good as the one kept - the view comes while one is still judged is let go
+  auto offer_view(std::string const & system, std::string const & body, QImage view) -> void;
 
   ///\brief the side of a face in pixels - the layer's atlas holds squares of this size
   static constexpr uint32_t side{128u};
@@ -41,4 +47,5 @@ private:
     };
 
   std::map<std::string, entry_t> entries_;
+  std::future<void> judging_;
   };

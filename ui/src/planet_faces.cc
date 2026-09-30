@@ -22,10 +22,20 @@ using codex_files::spool_dir;
 ///\brief how often a body's pictures are looked at again for one newer than its face
 constexpr std::chrono::seconds recheck{10};
 
+///\brief the best face from the cockpit and how good its view was, beside it
+[[nodiscard]]
+auto approach_path(std::string const & body) -> std::filesystem::path
+  { return codex_dir() / "approach" / (file_safe(body) + ".png"); }
+
+[[nodiscard]]
+auto score_path(std::string const & body) -> std::filesystem::path
+  { return codex_dir() / "approach" / (file_safe(body) + ".score"); }
+
 struct sources_t
   {
   std::vector<std::filesystem::path> views;
   std::optional<std::filesystem::path> photo;
+  std::optional<std::filesystem::path> approach;
   std::filesystem::file_time_type newest{std::filesystem::file_time_type::min()};
   };
 
@@ -54,6 +64,11 @@ auto sources_of(std::string const & system, std::string const & body) -> sources
         sources.photo = entry.path();
   if(sources.photo)
     note(*sources.photo);
+  if(std::filesystem::path const approach{approach_path(body)}; std::filesystem::exists(approach, ec))
+    {
+    sources.approach = approach;
+    note(approach);
+    }
   return sources;
   }
 
@@ -107,10 +122,15 @@ auto make(std::string body, sources_t sources, uint32_t fallback, uint32_t side,
   std::optional<planet_face::image_t> photo;
   if(sources.photo)
     photo = load(*sources.photo);
+  std::optional<planet_face::image_t> approach;
+  if(sources.approach)
+    approach = load(*sources.approach);
   std::array const colour{
     float((fallback >> 16u) & 0xffu) / 255.f, float((fallback >> 8u) & 0xffu) / 255.f, float(fallback & 0xffu) / 255.f
   };
-  planet_face::image_t const face{planet_face::make_face(views, photo ? &*photo : nullptr, colour, side)};
+  planet_face::image_t const face{
+    planet_face::make_face(views, photo ? &*photo : nullptr, approach ? &*approach : nullptr, colour, side)
+  };
   if(face.empty())
     {
     spdlog::info("faces: no clear view of {} among {}", body, views.size());
@@ -127,10 +147,58 @@ auto make(std::string body, sources_t sources, uint32_t fallback, uint32_t side,
   std::filesystem::create_directories(spool.parent_path(), ec);
   if(not write_ppm(face, spool))
     return {};
-  spdlog::info("faces: {} made from {} views{}", body, views.size(), photo ? " and its photo" : "");
+  spdlog::info(
+    "faces: {} made from {} views{}{}",
+    body,
+    views.size(),
+    photo ? ", its photo" : "",
+    approach ? ", the cockpit's" : ""
+  );
   return spool.string();
   }
+
+///\brief the view judged; kept when at least as good as the best so far - the newer wins a tie
+auto judge(std::string body, QImage view, uint32_t side) -> void
+  {
+  planet_face::image_t const image{to_image(view)};
+  auto const judged{planet_face::judge_approach(image)};
+  if(not judged or judged->score <= 0.f)
+    return;
+  std::error_code ec;
+  float best{-1.f};
+  if(std::ifstream in{score_path(body)}; in)
+    in >> best;
+  if(judged->score < best)
+    return;
+  planet_face::image_t const face{planet_face::approach_face(image, judged->disc, side)};
+  std::filesystem::create_directories(approach_path(body).parent_path(), ec);
+  QImage const png{face.rgb.data(), int(face.width), int(face.height), int(face.width * 3u), QImage::Format_RGB888};
+  std::filesystem::path const partial{approach_path(body).string() + ".partial.png"};
+  if(not png.save(QString::fromStdString(partial.string())))
+    return;
+  std::filesystem::rename(partial, approach_path(body), ec);
+  if(ec)
+    return;
+  if(std::ofstream out{score_path(body), std::ios::trunc}; out)
+    out << judged->score << '\n';
+  spdlog::info(
+    "faces: {} seen from the cockpit, {:.2f} ({:.0f} px, {:.0f}% in daylight) - kept, the best was {:.2f}",
+    body,
+    judged->score,
+    judged->disc.radius,
+    judged->lit * 100.f,
+    best
+  );
+  }
   }  // namespace
+
+auto planet_faces_t::offer_view(std::string const & system, std::string const & body, QImage view) -> void
+  {
+  (void)system;
+  if(judging_.valid() and judging_.wait_for(std::chrono::seconds{0}) != std::future_status::ready)
+    return;
+  judging_ = std::async(std::launch::async, judge, body, std::move(view), side);
+  }
 
 auto planet_faces_t::face(std::string const & system, std::string const & body, uint32_t fallback) -> std::string
   {
@@ -151,7 +219,7 @@ auto planet_faces_t::face(std::string const & system, std::string const & body, 
   entry.checked = now;
 
   sources_t sources{sources_of(system, body)};
-  if(sources.views.empty() or sources.newest <= entry.made_from)
+  if((sources.views.empty() and not sources.approach) or sources.newest <= entry.made_from)
     return entry.spool;
   entry.making_from = sources.newest;
   // named after the newest picture, so a face made again is a new name to the layer, and the same after a restart

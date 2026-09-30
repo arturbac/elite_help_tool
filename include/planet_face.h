@@ -78,9 +78,37 @@ auto lit_colour(image_t const & photo) -> std::optional<std::array<float, 3>>;
 [[nodiscard]]
 auto retint(image_t face, std::array<float, 3> colour) -> image_t;
 
-///\brief the face made of a body's scanner views, the photo of it giving the colour when the views are
-/// all tinted, the fallback when there is no photo either; empty when no view shows the ball clear
+///\brief a view from the cockpit on the way to the body, as good as it is for a face
+struct approach_t
+  {
+  disc_t disc;
+  ///\brief the share of the ball in daylight - the star behind the ship lights it all
+  float lit{};
+  ///\brief the share of it under the ship's HUD, its saturated orange
+  float hud{};
+  ///\brief higher is better: daylight, size up to 200 px of radius, little HUD, no streaks
+  float score{};
+  };
+
+///\brief the ball in a view from the cockpit, judged; none when it is not whole and clear in it
 [[nodiscard]]
-auto make_face(std::span<image_t const> views, image_t const * photo, std::array<float, 3> fallback, uint32_t side)
-  -> image_t;
+auto judge_approach(image_t const & view) -> std::optional<approach_t>;
+
+///\brief the ball of a cockpit view as a face, its light taken off: the direction of the light is fitted to
+/// the brightness over the ball, each pixel divided by how squarely it faced the light, and the night side
+/// filled from the day side mirrored across the terminator
+[[nodiscard]]
+auto approach_face(image_t const & view, disc_t const & disc, uint32_t side) -> image_t;
+
+///\brief the face made of what there is, best first: a scanner view in the body's own colours; a face from
+/// the cockpit (approach, already side x side, may be null); a scanner view tinted by a filter, its colour
+/// from the photo or else the fallback. Empty when nothing shows the ball clear
+[[nodiscard]]
+auto make_face(
+  std::span<image_t const> views,
+  image_t const * photo,
+  image_t const * approach,
+  std::array<float, 3> fallback,
+  uint32_t side
+) -> image_t;
   }  // namespace planet_face

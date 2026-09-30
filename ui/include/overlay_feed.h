@@ -9,6 +9,7 @@
 #include "screenshots.h"
 #include "sky_album.h"
 #include "planet_faces.h"
+#include "approach_views.h"
 #include "glare_watch.h"
 #include "sensor_watch.h"
 #include "netstate_watch.h"
@@ -237,6 +238,8 @@ private:
   scanner_sheet_t scanner_;
   sky_album_t sky_;
   planet_faces_t faces_;
+  approach_views_t approach_;
+  uint64_t approach_capture_id_{};
   ///\brief the system the album last saw us arrive in - 0 until the first, which is where the tool started, not a jump
   uint64_t sky_system_{};
   bool sky_started_{};
