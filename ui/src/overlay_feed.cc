@@ -1633,6 +1633,9 @@ auto overlay_feed_t::refresh_factions(
     info::allegiance_e allegiance;
     info::government_e government;
     std::string active;
+    ///\brief the cooldown after an Expansion, before the faction is eligible to expand again - not an
+    /// alert, just a lower-urgency note shown when there is no active state to report instead
+    std::string recovering;
     double influence;
     };
 
@@ -1649,6 +1652,7 @@ auto overlay_feed_t::refresh_factions(
       // systems - a retreat from where it is weak shows in every system it is in, at 20% as well - and the one
       // state the game does give every system of the faction, Expansion, is in ActiveStates already
       .active = entry->active_states,
+      .recovering = entry->recovering_states,
       .influence = entry->influence
     };
 
@@ -1757,7 +1761,11 @@ auto overlay_feed_t::refresh_factions(
 
     charted.push_back(charted_t{.oid = item.oid, .name = item.name, .color = colour, .marker = marker});
 
-    std::string suffix{item.active};
+    std::string suffix{
+      not item.active.empty() ? item.active
+      : not item.recovering.empty() ? std::format("{} (cooldown)", item.recovering)
+                                     : std::string{}
+    };
     for(std::string const & push: state_pushes(item))
       suffix += (suffix.empty() ? "" : "  ") + push;
 

@@ -5,7 +5,9 @@
 - **Influence at a glance.** In a system, the overlay shows the factions with their influence and
   states, a chart of the last 20 days of influence, and the last tick. The states are the system's own:
   the journal's FactionState is a state of the faction taken from one of its systems, so a retreat
-  from where it is weak would show in every system it is in.
+  from where it is weak would show in every system it is in. Once an Expansion ends, the faction
+  enters a cooldown before it can expand again; while nothing is active, that cooldown is shown as
+  `Expansion (cooldown)` instead of leaving the line blank.
 - **Economy and security pushes.** The game shows each faction's economy and security as a bar
   with a trend, but writes neither to the journal. It does write which way each handed-in mission
   pushed them, so after a faction's states the overlay shows your own pushes since the last tick,
