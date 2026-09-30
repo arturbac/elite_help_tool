@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <optional>
 #include <span>
+#include <string>
 #include <vector>
 
 ///\brief the face of a planet for the overlay's balls, dug out of the pictures the tool already takes
@@ -100,8 +101,9 @@ inline constexpr float full_radius{110.f};
 ///\param pixel_scale screen pixels to a pixel of the view - above 1 for a small sample, so that its ball is
 /// judged at the size it has on the screen
 ///\param full_size the ball's radius on the screen from which it is taken; larger is no better
+///\param why when given, says what a view was turned down for - for the log, which otherwise shows only views kept
 [[nodiscard]]
-auto judge_approach(image_t const & view, float pixel_scale = 1.f, float full_size = full_radius)
+auto judge_approach(image_t const & view, float pixel_scale = 1.f, float full_size = full_radius, std::string * why = nullptr)
   -> std::optional<approach_t>;
 
 ///\brief the ball of a cockpit view as a face, its light taken off: the direction of the light is fitted to

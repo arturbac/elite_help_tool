@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <format>
 #include <numbers>
 
 namespace planet_face
@@ -594,16 +595,27 @@ auto retint(image_t face, std::array<float, 3> colour) -> image_t
   return face;
   }
 
-auto judge_approach(image_t const & view, float pixel_scale, float full_size) -> std::optional<approach_t>
+auto judge_approach(image_t const & view, float pixel_scale, float full_size, std::string * why)
+  -> std::optional<approach_t>
   {
+  auto const refuse = [why](std::string reason) -> std::optional<approach_t>
+  {
+    if(why != nullptr)
+      *why = std::move(reason);
+    return std::nullopt;
+  };
   // the night side's rim is lost against the black of space, so only the lit part of it shows
   // the target's cyan ring stands on the ball, near its middle, and would be taken for a small ball
   auto const disc{find_disc(view, true)};
-  if(not disc or disc->rim < 0.3f or not disc->inside)
-    return std::nullopt;
+  if(not disc)
+    return refuse("no ball found");
+  if(disc->rim < 0.3f)
+    return refuse(std::format("rim {:.2f} under 0.30, {:.0f} px", disc->rim, disc->radius * pixel_scale));
+  if(not disc->inside)
+    return refuse(std::format("not whole in the view, {:.0f} px", disc->radius * pixel_scale));
   // farther, the game draws the ball without the face it shows up close
   if(disc->radius * pixel_scale < full_size)
-    return std::nullopt;
+    return refuse(std::format("{:.0f} px, under {:.0f}", disc->radius * pixel_scale, full_size));
   image_t const ball{sample_ball(view, *disc, 96u)};
   std::vector<float> lum;
   size_t hud{};
@@ -614,14 +626,14 @@ auto judge_approach(image_t const & view, float pixel_scale, float full_size) ->
       hud += is_hud(p) ? 1u : 0u;
       }
   if(lum.size() < 64u)
-    return std::nullopt;
+    return refuse("hardly any of the ball lit");
   std::vector<float> sorted{lum};
   auto const p95{sorted.begin() + std::ptrdiff_t(sorted.size() * 95u / 100u)};
   std::nth_element(sorted.begin(), p95, sorted.end());
   float const bright{*p95};
   // a ball in the dark, or a black disc against the stars, is no face
   if(bright < 0.08f)
-    return std::nullopt;
+    return refuse(std::format("too dark, {:.2f}", bright));
   approach_t judged{
     .disc = *disc,
     .lit = float(std::ranges::count_if(lum, [&](float l) { return l > bright * 0.25f; })) / float(lum.size()),
@@ -634,7 +646,7 @@ auto judge_approach(image_t const & view, float pixel_scale, float full_size) ->
   float const hidden{light ? occluded(ball, *light) : 1.f};
   // more than a little hidden, and the frame would be on the face
   if(hidden > 0.06f)
-    return std::nullopt;
+    return refuse(std::format("{:.0f}% hidden by the frame, {:.0f} px", hidden * 100.f, disc->radius * pixel_scale));
   judged.score = judged.lit * std::max(0.f, 1.f - 8.f * judged.hud) * std::max(0.f, 1.f - 3.f * hidden)
                  * (streaks > 0.03f ? 0.2f : 1.f);
   return judged;

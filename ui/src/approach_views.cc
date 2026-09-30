@@ -65,9 +65,13 @@ auto approach_views_t::observe(bool ship_view, std::string const & system, std::
   auto const cfg{eht::settings()};
   if(not cfg->exploration.approach_faces or not ship_view or body.empty())
     {
+    if(target_)
+      spdlog::info("faces: no more views of {} from the cockpit", target_->body);
     target_.reset();
     return;
     }
+  if(not target_ or target_->body != body)
+    spdlog::info("faces: looking at {} from the cockpit", body);
   target_ = target_t{.system = system, .body = body};
   }
 
@@ -109,7 +113,16 @@ auto approach_views_t::tick(planet_faces_t & faces) -> void
 
   // a sample judged: worth a picture of the ball's rectangle, at most one an interval
   if(judging_.valid() and judging_.wait_for(std::chrono::seconds{0}) == std::future_status::ready)
-    if(auto verdict{judging_.get()}; verdict and not pending_ and target_ and verdict->target.body == target_->body)
+    if(auto [verdict, why]{judging_.get()}; not verdict)
+      {
+      // turned down, which the log says every few seconds - enough to see why no face comes on the way in
+      if(not why.empty() and now - last_why_ >= std::chrono::seconds{3})
+        {
+        last_why_ = now;
+        spdlog::info("faces: a view of {} turned down - {}", target_ ? target_->body : std::string{}, why);
+        }
+      }
+    else if(not pending_ and target_ and verdict->target.body == target_->body)
       if(now - last_asked_ >= std::chrono::milliseconds{cfg->exploration.approach_interval_ms})
         {
         std::error_code ec;
@@ -153,17 +166,27 @@ auto approach_views_t::tick(planet_faces_t & faces) -> void
     - int64_t(sample->header.taken_ms)
   };
   if(age_ms > 2000)
+    {
+    if(now - last_why_ >= std::chrono::seconds{3})
+      {
+      last_why_ = now;
+      spdlog::info("faces: the sample is {} ms old, not judged", age_ms);
+      }
     return;
+    }
   judging_ = std::async(
     std::launch::async,
-    [target{*target_}, read{std::move(*sample)}, full{cfg->exploration.approach_radius_px}]() -> std::optional<verdict_t>
+    [target{*target_}, read{std::move(*sample)}, full{cfg->exploration.approach_radius_px}]() -> judged_t
     {
       overlay::sample_header_t const & h{read.header};
       float const screen_per_pixel{h.region_width * float(h.surface_width) / float(h.width)};
-      auto const judged{planet_face::judge_approach(read.image, screen_per_pixel, full)};
+      std::string why;
+      auto const judged{planet_face::judge_approach(read.image, screen_per_pixel, full, &why)};
+      if(not judged)
+        return {.verdict = std::nullopt, .why = std::move(why)};
       // strictly better: a view as good as the one kept would only be the same face again, every interval
-      if(not judged or judged->score <= planet_faces_t::best_score(target.body))
-        return std::nullopt;
+      if(judged->score <= planet_faces_t::best_score(target.body))
+        return {};
       // the ball's rectangle, a little larger, from the sample's pixels to shares of the whole surface
       float const r{judged->disc.radius * margin};
       auto const across = [&](float x) { return h.left + x / float(h.width) * h.region_width; };
@@ -173,8 +196,8 @@ auto approach_views_t::tick(planet_faces_t & faces) -> void
       float const right{std::min(h.left + h.region_width, across(judged->disc.x + r))};
       float const bottom{std::min(h.top + h.region_height, down(judged->disc.y + r))};
       if(right <= left or bottom <= top)
-        return std::nullopt;
-      return verdict_t{.target = target, .left = left, .top = top, .width = right - left, .height = bottom - top};
+        return {};
+      return {.verdict = verdict_t{.target = target, .left = left, .top = top, .width = right - left, .height = bottom - top}};
     }
   );
   }

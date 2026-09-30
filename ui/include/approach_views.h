@@ -62,10 +62,19 @@ private:
     float height{};
     };
 
+  ///\brief a sample's verdict, and when there is none, what the sample was turned down for
+  struct judged_t
+    {
+    std::optional<verdict_t> verdict;
+    std::string why;
+    };
+
   std::optional<target_t> target_;
   overlay::capture_t request_;
   std::optional<pending_t> pending_;
   uint64_t seen_seq_{};
-  std::future<std::optional<verdict_t>> judging_;
+  std::future<judged_t> judging_;
   std::chrono::steady_clock::time_point last_asked_{};
+  ///\brief the log says why views are turned down, but not for every sample
+  std::chrono::steady_clock::time_point last_why_{};
   };
