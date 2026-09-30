@@ -58,6 +58,23 @@ auto main() -> int
       }
   };
 
+  "the target's cyan ring on the ball is not taken for a small ball"_test = []
+  {
+    auto picture{ball_on_stars(800u, 600u, 400.f, 300.f, 200.f, {150u, 140u, 150u})};
+    // a thin cyan ring near the middle, as the HUD draws round the target
+    for(uint32_t py{}; py != 600u; ++py)
+      for(uint32_t px{}; px != 800u; ++px)
+        if(float const d{std::hypot(float(px) - 405.f, float(py) - 300.f)}; std::abs(d - 30.f) < 1.5f)
+          {
+          uint8_t * const p{picture.rgb.data() + (size_t{py} * 800u + px) * 3u};
+          p[0] = 30u;
+          p[1] = 160u;
+          p[2] = 255u;
+          }
+    auto const disc{planet_face::find_disc(picture, true)};
+    expect(disc.has_value() and std::abs(disc->radius - 200.f) < 8.f) << (disc ? disc->radius : 0.f);
+  };
+
   "a ball cut by the edge is not inside"_test = []
   {
     auto const picture{ball_on_stars(600u, 600u, 80.f, 300.f, 150.f, {150u, 130u, 170u})};

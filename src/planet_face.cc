@@ -69,9 +69,39 @@ namespace
   [[nodiscard]]
   auto luminance(uint8_t const * px) -> float
     { return float(px[0] + px[1] + px[2]) / (3.f * 255.f); }
+
+  [[nodiscard]]
+  auto is_hud(uint8_t const * p) -> bool;
+  [[nodiscard]]
+  auto is_cyan(uint8_t const * p) -> bool;
+
+  ///\brief the pixels of the working copy the HUD's colours fall on, and those around them
+  [[nodiscard]]
+  auto hud_mask(image_t const & picture, grey_t const & grey, float scale) -> std::vector<bool>
+    {
+    std::vector<bool> marked(grey.value.size(), false);
+    for(uint32_t y{}; y != picture.height; ++y)
+      for(uint32_t x{}; x != picture.width; ++x)
+        if(uint8_t const * const p{picture.rgb.data() + (size_t{y} * picture.width + x) * 3u}; is_hud(p) or is_cyan(p))
+          marked
+            [size_t{std::min(grey.height - 1u, uint32_t(float(y) * scale))} * grey.width
+             + std::min(grey.width - 1u, uint32_t(float(x) * scale))]
+            = true;
+    // grown by two, for the soft edge the ring leaves on the pixels beside it
+    for(int pass{}; pass != 2; ++pass)
+      {
+      std::vector<bool> const source{marked};
+      for(uint32_t y{1u}; y + 1u < grey.height; ++y)
+        for(uint32_t x{1u}; x + 1u < grey.width; ++x)
+          if(size_t const at{size_t{y} * grey.width + x};
+             source[at - 1u] or source[at + 1u] or source[at - grey.width] or source[at + grey.width])
+            marked[at] = true;
+      }
+    return marked;
+    }
   }  // namespace
 
-auto find_disc(image_t const & picture) -> std::optional<disc_t>
+auto find_disc(image_t const & picture, bool past_hud) -> std::optional<disc_t>
   {
   if(picture.empty())
     return std::nullopt;
@@ -81,6 +111,7 @@ auto find_disc(image_t const & picture) -> std::optional<disc_t>
   uint32_t const h{grey.height};
   if(w < 16u or h < 16u)
     return std::nullopt;
+  std::vector<bool> const hud{past_hud ? hud_mask(picture, grey, scale) : std::vector<bool>{}};
   soften(grey.value, w, h);
 
   // Sobel
@@ -114,7 +145,7 @@ auto find_disc(image_t const & picture) -> std::optional<disc_t>
   std::vector<edge_t> edges;
   for(uint32_t y{1u}; y + 1u < h; ++y)
     for(uint32_t x{1u}; x + 1u < w; ++x)
-      if(size_t const at{size_t{y} * w + x}; magnitude[at] > threshold)
+      if(size_t const at{size_t{y} * w + x}; magnitude[at] > threshold and (hud.empty() or not hud[at]))
         edges.push_back(edge_t{float(x), float(y), gx[at] / magnitude[at], gy[at] / magnitude[at]});
 
   int const shorter{int(std::min(w, h))};
@@ -566,7 +597,8 @@ auto retint(image_t face, std::array<float, 3> colour) -> image_t
 auto judge_approach(image_t const & view, float pixel_scale) -> std::optional<approach_t>
   {
   // the night side's rim is lost against the black of space, so only the lit part of it shows
-  auto const disc{find_disc(view)};
+  // the target's cyan ring stands on the ball, near its middle, and would be taken for a small ball
+  auto const disc{find_disc(view, true)};
   if(not disc or disc->rim < 0.3f or not disc->inside)
     return std::nullopt;
   image_t const ball{sample_ball(view, *disc, 96u)};

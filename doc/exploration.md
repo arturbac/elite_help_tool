@@ -113,7 +113,8 @@ middle of the screen four times a second: shrunk on the graphics card by halving
 each step the mean of 2 x 2 pixels, to a few hundred pixels across, and written into a file both
 sides share (`captures/<socket>_sample.bin` beside the socket). The game waits for none of it - a few
 microseconds a frame. Each sample is judged in a thread: the ball must be found whole in it - its
-night side's rim may be lost against the black - and the cockpit's frame must hide next to none of it;
+night side's rim may be lost against the black, and the edges in the HUD's cyan and orange do not
+count, or the target's ring round its middle would be taken for a small ball - and the cockpit's frame must hide next to none of it;
 then the more of it in daylight and the larger it is on the screen, up to 200 px of radius, the
 better, and the ship's orange HUD over it counts against it. Only a sample better than the best face
 kept asks for a real picture, and only of the rectangle the ball stands in, at most one every 2 s

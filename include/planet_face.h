@@ -43,8 +43,10 @@ struct disc_t
 ///\brief the largest clear circle in the picture - the ball, where there is one
 ///\detail looked for on a copy about 400 pixels across: every edge votes for the centres its gradient
 /// points at, the best centre takes the radius most of its edges stand at
+///\param past_hud edges in or beside the HUD's cyan and orange do not vote - for views from the cockpit, where
+/// the target's ring stands on the ball
 [[nodiscard]]
-auto find_disc(image_t const & picture) -> std::optional<disc_t>;
+auto find_disc(image_t const & picture, bool past_hud = false) -> std::optional<disc_t>;
 
 ///\brief what a ball looks like in a picture, over the ball's middle
 struct look_t
