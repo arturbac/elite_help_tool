@@ -11,6 +11,7 @@
 #include <format>
 #include <fstream>
 #include <map>
+#include <mutex>
 
 // named, not anonymous - glaze's reflection needs the types to have linkage
 namespace backup::detail
@@ -142,6 +143,10 @@ auto file_time(std::filesystem::path const & path) -> std::filesystem::file_time
 
 auto backup_live_db(std::filesystem::path const & destination, std::filesystem::path const & live_db_path) -> bool
   {
+  // the journal thread copies it after a market reading while a full backup may be copying it too - both
+  // through the same partial file
+  static std::mutex copying;
+  std::lock_guard const lock{copying};
   std::error_code ec;
   std::filesystem::create_directories(destination, ec);
   std::filesystem::path const target{destination / "live.sqlite"};

@@ -246,6 +246,24 @@ int main()
     expect(genuses.size() == 2u) << "genus rows duplicated on replay, got:" << genuses.size();
   };
 
+  "mapping after a sample keeps the species and drops a genus no longer listed"_test = [&]
+  {
+    expect(bool(dbs.store_genus_species(address, body, "Bacterium", "Bacterium Aurasus", true, true)));
+    std::vector<::events::genus_t> const mapped{
+      ::events::genus_t{.Genus_Localised = "Bacterium", .Species_Localised = "", .Sampled = false},
+      ::events::genus_t{.Genus_Localised = "Tussock", .Species_Localised = "", .Sampled = false}
+    };
+    expect(bool(dbs.store(address, body, std::span{mapped})));
+
+    auto reloaded{dbs.load_system(address)};
+    expect(bool(reloaded) and reloaded->has_value());
+    auto const & genuses{std::get<planet_details_t>((**reloaded).bodies[0].details).genuses_};
+    expect(genuses.size() == 2u) << "got:" << genuses.size();
+    auto const bacterium{std::ranges::find(genuses, "Bacterium"sv, &::events::genus_t::Genus_Localised)};
+    expect(bacterium != genuses.end() and bacterium->Species_Localised == "Bacterium Aurasus"sv) << "species lost";
+    expect(std::ranges::find(genuses, "Stratum"sv, &::events::genus_t::Genus_Localised) == genuses.end());
+  };
+
   // this is the whole point of the split: the shared knowledge of the galaxy can be rebuilt by the second
   // account, and this character's progress has to survive that - hence natural keys rather than oids
   // the rule Artur pointed out: when a faction's retreat completes it leaves the system, and every

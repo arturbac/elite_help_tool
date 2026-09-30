@@ -34,6 +34,7 @@ struct star_details_t
   double mean_anomaly;
   std::optional<events::body_id_t> parent_star;
   std::optional<events::body_id_t> parent_barycenter;
+  uint8_t nearest_parent;
   };
 
 [[nodiscard]]
@@ -52,7 +53,8 @@ auto to_db_fromat(uint64_t ref_body_oid, ::star_details_t const & v) noexcept ->
     .ascending_node = v.ascending_node,
     .mean_anomaly = v.mean_anomaly,
     .parent_star = v.parent_star,
-    .parent_barycenter = v.parent_barycenter
+    .parent_barycenter = v.parent_barycenter,
+    .nearest_parent = v.nearest_parent
   };
   }
 
@@ -71,7 +73,8 @@ auto to_native_fromat(sql_iface::star_details_t const & v) noexcept -> ::star_de
     .ascending_node = v.ascending_node,
     .mean_anomaly = v.mean_anomaly,
     .parent_star = v.parent_star,
-    .parent_barycenter = v.parent_barycenter
+    .parent_barycenter = v.parent_barycenter,
+    .nearest_parent = v.nearest_parent
   };
   }
 
@@ -202,6 +205,7 @@ struct planet_details_t
   bool tidal_lock;
   bool was_mapped;
   bool was_footfalled;
+  uint8_t nearest_parent;
   };
 
 [[nodiscard]]
@@ -228,7 +232,8 @@ auto to_db_fromat(uint64_t ref_body_oid, ::planet_details_t const & v) noexcept 
     .landable = v.landable,
     .tidal_lock = v.tidal_lock,
     .was_mapped = v.was_mapped,
-    .was_footfalled = v.was_footfalled
+    .was_footfalled = v.was_footfalled,
+    .nearest_parent = v.nearest_parent
   };
   }
 
@@ -258,7 +263,8 @@ auto to_native_fromat(sql_iface::planet_details_t const & v) noexcept -> ::plane
     .was_mapped = v.was_mapped,
     .was_footfalled = v.was_footfalled,
     .mapped = {},
-    .footfalled = {}
+    .footfalled = {},
+    .nearest_parent = v.nearest_parent
   };
   }
 
@@ -1231,6 +1237,10 @@ auto database_storage_t::migrate_live_schema() -> expected_ec<void>
        // what a star orbits - stars written before it was kept stay NULL until a rebuild or a rescan
        addition_t{sql_iface::tables::star_details, "parent_star"sv, "INTEGER"sv},
        addition_t{sql_iface::tables::star_details, "parent_barycenter"sv, "INTEGER"sv},
+       // which of the parents is the nearest - rows written before it was kept say 0, unknown, and are
+       // placed by the nearest kind guessed
+       addition_t{sql_iface::tables::star_details, "nearest_parent"sv, "INTEGER DEFAULT 0"sv},
+       addition_t{sql_iface::tables::planet_details, "nearest_parent"sv, "INTEGER DEFAULT 0"sv},
        // a star's own phase on the orbit it is written above - rows written before it was kept stay 0,
        // as if the star sat still at the moment of every scan
        addition_t{sql_iface::tables::star_details, "ascending_node"sv, "REAL DEFAULT 0"sv},
@@ -2383,19 +2393,43 @@ auto database_storage_t::store(
   if(not boid_oid)
     return {};
 
-  // same reasoning as the signal_t overload above: the event carries the body's whole list, so it
-  // replaces what was there rather than adding to it
+  // the event carries the body's whole list, so a genus not on it goes - but a row already there keeps its
+  // species, which a sample wrote and the mapping's list never has
+  std::string listed;
+  for(events::genus_t const & gen: genuses)
+    listed += std::format("{}'{}'", listed.empty() ? "" : ",", sqlite::escape_sql_quotes(gen.Genus_Localised));
   if(
     auto res{sqlite::execute_query_no_result(
-      db_->db, std::format("DELETE FROM {} WHERE ref_body_oid={}", sql_iface::tables::genus, *boid_oid)
+      db_->db,
+      std::format(
+        "DELETE FROM {} WHERE ref_body_oid={}{}",
+        sql_iface::tables::genus,
+        *boid_oid,
+        listed.empty() ? std::string{} : std::format(" AND genus NOT IN ({})", listed)
+      )
     )};
     not res
   ) [[unlikely]]
     return res;
 
   for(events::genus_t const & gen: genuses)
+    {
+    auto known{sqlite::select_signle_from<uint64_t>(
+      db_->db,
+      std::format(
+        "SELECT count(*) FROM {} WHERE ref_body_oid={} AND genus='{}'",
+        sql_iface::tables::genus,
+        *boid_oid,
+        sqlite::escape_sql_quotes(gen.Genus_Localised)
+      )
+    )};
+    if(not known) [[unlikely]]
+      return cxx23::unexpected{known.error()};
+    if(*known != 0u)
+      continue;
     if(auto res{store(*boid_oid, gen)}; not res)
       return cxx23::unexpected{res.error()};
+    }
 
   return {};
   }
@@ -3271,21 +3305,30 @@ auto database_storage_t::load_neutron_route() -> expected_ec<std::vector<info::n
   );
   }
 
-auto database_storage_t::store(info::network_incident_t const & value) -> expected_ec<void>
+auto database_storage_t::network_incident_known(std::chrono::sys_seconds occurred, std::string_view category)
+  -> expected_ec<bool>
   {
-  // rescanning the same netLog/journal files must not duplicate what they already gave
   auto known{sqlite::select_signle_from<uint64_t>(
     db_->db,
     std::format(
       "SELECT count(*) FROM {} WHERE occurred='{:%Y-%m-%dT%H:%M:%SZ}' AND category='{}'",
       sql_iface::tables::network_incident,
-      value.occurred,
-      sqlite::escape_sql_quotes(value.category)
+      occurred,
+      sqlite::escape_sql_quotes(category)
     )
   )};
   if(not known) [[unlikely]]
     return cxx23::unexpected{known.error()};
-  if(*known and **known != 0)
+  return *known and **known != 0;
+  }
+
+auto database_storage_t::store(info::network_incident_t const & value) -> expected_ec<void>
+  {
+  // rescanning the same netLog/journal files must not duplicate what they already gave
+  auto known{network_incident_known(value.occurred, value.category)};
+  if(not known) [[unlikely]]
+    return cxx23::unexpected{known.error()};
+  if(*known)
     return {};
   return sqlite::insert_into(db_->db, "oid"sv, sql_iface::tables::network_incident, value);
   }
@@ -5020,7 +5063,7 @@ auto database_storage_t::load_system(uint64_t system_address)
         db_->db, sql_iface::tables::body, std::format(" WHERE ref_system_address='{}'", system_address)
       )};
       if(not res2) [[unlikely]]
-        return cxx23::unexpected{res.error()};
+        return cxx23::unexpected{res2.error()};
 
       std::vector<sql_iface::body_t> bodies{std::move(*res2)};
       for(sql_iface::body_t & body: bodies)
@@ -5034,7 +5077,7 @@ auto database_storage_t::load_system(uint64_t system_address)
             db_->db, sql_iface::tables::planet_details, std::format(" WHERE ref_body_oid='{}'", body.oid)
           )};
           if(not res3) [[unlikely]]
-            return cxx23::unexpected{res.error()};
+            return cxx23::unexpected{res3.error()};
           assert(res3->size() == 1);
           out_body.details = sql_iface::to_native_fromat((*res3)[0]);
           planet_details_t & details{std::get<planet_details_t>(out_body.details)};
@@ -5051,7 +5094,7 @@ auto database_storage_t::load_system(uint64_t system_address)
               db_->db, sql_iface::tables::signal, std::format(" WHERE ref_body_oid='{}'", body.oid)
             )};
             if(not res4) [[unlikely]]
-              return cxx23::unexpected{res.error()};
+              return cxx23::unexpected{res4.error()};
             if(not res4->empty())
               std::ranges::transform(
                 *res4,
@@ -5065,7 +5108,7 @@ auto database_storage_t::load_system(uint64_t system_address)
               db_->db, sql_iface::tables::genus, std::format(" WHERE ref_body_oid='{}'", body.oid)
             )};
             if(not res4) [[unlikely]]
-              return cxx23::unexpected{res.error()};
+              return cxx23::unexpected{res4.error()};
             if(not res4->empty())
               std::ranges::transform(
                 *res4,
@@ -5090,7 +5133,7 @@ auto database_storage_t::load_system(uint64_t system_address)
             db_->db, sql_iface::tables::star_details, std::format(" WHERE ref_body_oid='{}'", body.oid)
           )};
           if(not res3) [[unlikely]]
-            return cxx23::unexpected{res.error()};
+            return cxx23::unexpected{res3.error()};
           assert(res3->size() == 1);
           out_body.details = sql_iface::to_native_fromat((*res3)[0]);
           }
@@ -5104,7 +5147,7 @@ auto database_storage_t::load_system(uint64_t system_address)
         db_->db, sql_iface::tables::bary_centre, std::format(" WHERE ref_system_address='{}'", system_address)
       )};
       if(not res5) [[unlikely]]
-        return cxx23::unexpected{res.error()};
+        return cxx23::unexpected{res5.error()};
       for(sql_iface::bary_centre_t const & bc: *res5)
         system.bary_centre.push_back(sql_iface::to_native_fromat(bc));
       }
@@ -5114,7 +5157,7 @@ auto database_storage_t::load_system(uint64_t system_address)
         db_->db, sql_iface::tables::ring, std::format(" WHERE ref_system_address='{}'", system_address)
       )};
       if(not res4) [[unlikely]]
-        return cxx23::unexpected{res.error()};
+        return cxx23::unexpected{res4.error()};
       if(not res4->empty())
         {
         for(sql_iface::ring_t & db_ring: *res4)
@@ -5124,7 +5167,7 @@ auto database_storage_t::load_system(uint64_t system_address)
             db_->db, sql_iface::tables::signal, std::format(" WHERE ref_body_oid='{}'", db_ring.oid)
           )};
           if(not res4) [[unlikely]]
-            return cxx23::unexpected{res.error()};
+            return cxx23::unexpected{res4.error()};
           if(not res4->empty())
             std::ranges::transform(
               *res4,

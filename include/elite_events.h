@@ -1690,6 +1690,11 @@ consteval auto adl_enum_bounds(body_type_e)
 // - Sudarsky class V gas giant
 // - Water giant
 // - Water world
+inline constexpr uint8_t parent_kind_unknown{0u};
+inline constexpr uint8_t parent_kind_planet{1u};
+inline constexpr uint8_t parent_kind_star{2u};
+inline constexpr uint8_t parent_kind_barycentre{3u};
+
 struct star_details_t
   {
   uint64_t system_address;
@@ -1709,6 +1714,9 @@ struct star_details_t
   /// which is what pairs them in a picture of the system; empty for rows written before it was kept
   std::optional<events::body_id_t> parent_star;
   std::optional<events::body_id_t> parent_barycenter;
+  ///\brief what kind of body the nearest parent is - the first of the journal's Parents, which one parent
+  /// of each kind cannot tell; parent_kind_unknown for rows written before it was kept
+  uint8_t nearest_parent{};
   };
 
 struct ring_t
@@ -1757,6 +1765,9 @@ struct planet_details_t
   bool was_footfalled;
   bool mapped;
   bool footfalled;
+  ///\brief what kind of body the nearest parent is - the first of the journal's Parents, which one parent
+  /// of each kind cannot tell; parent_kind_unknown for rows written before it was kept
+  uint8_t nearest_parent{};
   };
 
 using body_variant_t = std::variant<star_details_t, planet_details_t>;

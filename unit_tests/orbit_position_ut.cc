@@ -263,6 +263,52 @@ auto main() -> int
     expect(dist2 > 1e18);
   };
 
+  "a planet round the second star of a binary circles that star, not the barycentre"_test = []
+  {
+    auto star_b{make_star(
+      3,
+      "Bleia Eohn LQ-F b31-7",
+      16060895865097,
+      "L",
+      33401755690.574646,
+      0.268665,
+      40.144267,
+      86.013054,
+      22511249.780655,
+      -127.255853,
+      315.109137,
+      {::events::parent_t{.Null = 2}, ::events::parent_t{.Null = 0}}
+    )};
+    // the nearest parent is the star, the barycentres come after it - one of each kind kept loses that
+    auto planet{make_planet(
+      5,
+      "Bleia Eohn LQ-F b31-7",
+      16060895865097,
+      1'000'000'000.0,
+      0.01,
+      0.0,
+      10.0,
+      1'000'000.0,
+      0.0,
+      90.0,
+      {::events::parent_t{.Star = 3}, ::events::parent_t{.Null = 2}, ::events::parent_t{.Null = 0}}
+    )};
+    auto body_b{to_body(std::move(star_b))};
+    auto body_p{to_body(std::move(planet))};
+    expect(std::get<planet_details_t>(body_p.details).nearest_parent == parent_kind_star);
+    body_b.scanned_at = epoch;
+    body_p.scanned_at = epoch;
+    std::vector<body_t const *> scans{&body_b, &body_p};
+    auto const positions{order_calculation({}, scans, epoch)};
+    expect(fatal(positions.size() == 2_ul));
+    auto const & pb{positions[0]};
+    auto const & pp{positions[1]};
+    double const apart{std::sqrt(
+      (pp.x - pb.x) * (pp.x - pb.x) + (pp.y - pb.y) * (pp.y - pb.y) + (pp.z - pb.z) * (pp.z - pb.z)
+    )};
+    expect(apart < 2e9) << "the planet is" << apart << "m from its own star";
+  };
+
   "a nested barycentre's own offset from the root is not lost"_test = []
   {
     // the full trinary: star A orbits root barycentre 0 directly; B and C share the closer barycentre

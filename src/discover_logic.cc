@@ -185,7 +185,15 @@ auto body_positions_now(
           {
           reg.ascending_node = det.ascending_node;
           reg.mean_anomaly = det.mean_anomaly;
-          if(det.parent_planet)
+          if(det.nearest_parent == parent_kind_planet and det.parent_planet)
+            reg.parents.emplace_back(events::parent_t{.Planet = det.parent_planet});
+          else if(det.nearest_parent == parent_kind_star and det.parent_star)
+            reg.parents.emplace_back(events::parent_t{.Star = det.parent_star});
+          else if(det.nearest_parent == parent_kind_barycentre and det.parent_barycenter)
+            reg.parents.emplace_back(events::parent_t{.Null = det.parent_barycenter});
+          // written before the nearest was kept: a moon's planet is always nearer than anything else, and
+          // a barycentre is nearer than a star more often than not
+          else if(det.parent_planet)
             reg.parents.emplace_back(events::parent_t{.Planet = det.parent_planet});
           else if(det.parent_barycenter)
             reg.parents.emplace_back(events::parent_t{.Null = det.parent_barycenter});
@@ -196,7 +204,9 @@ auto body_positions_now(
           {
           reg.ascending_node = det.ascending_node;
           reg.mean_anomaly = det.mean_anomaly;
-          if(det.parent_barycenter)
+          if(det.nearest_parent == parent_kind_star and det.parent_star)
+            reg.parents.emplace_back(events::parent_t{.Star = det.parent_star});
+          else if(det.parent_barycenter)
             reg.parents.emplace_back(events::parent_t{.Null = det.parent_barycenter});
           else if(det.parent_star)
             reg.parents.emplace_back(events::parent_t{.Star = det.parent_star});
@@ -952,6 +962,18 @@ auto generic_state_t::discovery(std::string_view input) -> void
     }
   }
 
+[[nodiscard]]
+static auto nearest_parent_kind(events::parent_t const & nearest) noexcept -> uint8_t
+  {
+  if(nearest.Planet)
+    return parent_kind_planet;
+  if(nearest.Star)
+    return parent_kind_star;
+  if(nearest.Null)
+    return parent_kind_barycentre;
+  return parent_kind_unknown;
+  }
+
 auto to_body(events::scan_detailed_scan_t && event) -> body_t
   {
   body_t b{
@@ -993,6 +1015,8 @@ auto to_body(events::scan_detailed_scan_t && event) -> body_t
     if(auto it{std::ranges::find_if(event.Parents, [](events::parent_t const & p) { return p.Null.has_value(); })};
        it != event.Parents.end())
       star.parent_barycenter = *it->Null;
+    if(not event.Parents.empty())
+      star.nearest_parent = nearest_parent_kind(event.Parents.front());
 
     b.value = exploration::aprox_value(b);
     }
@@ -1049,6 +1073,8 @@ auto to_body(events::scan_detailed_scan_t && event) -> body_t
        };
        it != event.Parents.end())
       details.parent_barycenter = *it->Null;
+    if(not event.Parents.empty())
+      details.nearest_parent = nearest_parent_kind(event.Parents.front());
 
     b.value = exploration::aprox_value(b);
     }

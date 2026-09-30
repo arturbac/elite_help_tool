@@ -263,6 +263,9 @@ struct database_storage_t
   /// this point; skipped when one at the same moment and category is already known, so a rescan is harmless
   [[nodiscard]]
   auto store(info::network_incident_t const & value) -> expected_ec<void>;
+  ///\brief whether an incident of this category at this moment is stored already
+  [[nodiscard]]
+  auto network_incident_known(std::chrono::sys_seconds occurred, std::string_view category) -> expected_ec<bool>;
 
   ///\brief the incidents found so far, newest first
   [[nodiscard]]

@@ -99,11 +99,19 @@ auto resolve_netlog_dir(std::filesystem::path const & journal_dir) -> std::files
   }
 
 ///\brief correlates a find against net-monitor and stores it, quietly skipping one already known
-auto store_found(database_storage_t & db, network_incident::detected_incident_t const & found) -> void
+///\returns false for one too fresh yet - the net-monitor window after it has not passed, and a verdict
+/// taken now would be frozen half empty, since a stored incident is never looked at again
+auto store_found(database_storage_t & db, network_incident::detected_incident_t const & found) -> bool
   {
+  auto const occurred{std::chrono::floor<std::chrono::seconds>(found.occurred)};
+  // the current netLog is read again every pass - journald is asked only about what is new
+  if(auto known{db.network_incident_known(occurred, found.category)}; known and *known)
+    return true;
+  if(std::chrono::system_clock::now() < found.occurred + correlation_span)
+    return false;
   std::string const log{network_incident::net_monitor_log(found.occurred, correlation_span, correlation_span)};
   info::network_incident_t incident{
-    .occurred = std::chrono::floor<std::chrono::seconds>(found.occurred),
+    .occurred = occurred,
     .category = found.category,
     .detail = found.detail,
     .verdict = network_incident::classify(log),
@@ -111,6 +119,7 @@ auto store_found(database_storage_t & db, network_incident::detected_incident_t 
   };
   if(auto res{db.store(incident)}; not res)
     spdlog::error("network incident scan: failed to store an incident");
+  return true;
   }
   }  // namespace
 
@@ -196,11 +205,10 @@ auto network_incident_window_t::setup_ui() -> void
     this,
     [this]
     {
-      auto const row{history_view_->currentRow()};
-      detail_view_->setPlainText(
-        row >= 0 and size_t(row) < rows_.size() ? QString::fromStdString(rows_[size_t(row)].net_monitor_log)
-                                                 : QString{}
-      );
+      // the table sorts on a header click, so the view's row is not the index into rows_
+      QTableWidgetItem const * const first{history_view_->item(history_view_->currentRow(), 0)};
+      size_t const ix{first != nullptr ? first->data(Qt::UserRole).value<size_t>() : rows_.size()};
+      detail_view_->setPlainText(ix < rows_.size() ? QString::fromStdString(rows_[ix].net_monitor_log) : QString{});
     }
   );
 
@@ -241,7 +249,9 @@ auto network_incident_window_t::reload() -> void
   history_view_->setRowCount(int(rows_.size()));
   for(int ix{}; info::network_incident_t const & row: rows_)
     {
-    history_view_->setItem(ix, 0, text_cell(qformat("{:%Y-%m-%d %H:%M:%S}", row.occurred)));
+    QTableWidgetItem * const when{text_cell(qformat("{:%Y-%m-%d %H:%M:%S}", row.occurred))};
+    when->setData(Qt::UserRole, QVariant::fromValue(size_t(ix)));
+    history_view_->setItem(ix, 0, when);
     history_view_->setItem(ix, 1, text_cell(QString::fromStdString(row.category)));
     history_view_->setItem(ix, 2, text_cell(verdict_text(row.verdict)));
     history_view_->setItem(ix, 3, text_cell(QString::fromStdString(row.detail)));
@@ -283,9 +293,10 @@ auto network_incident_window_t::run_scanner(std::stop_token stoken, std::string 
         std::string const text{whole_file(netlog_files[ix])};
         if(text.empty())
           continue;
+        bool settled{true};
         for(network_incident::detected_incident_t const & found: network_incident::scan_netlog(name, utc_offset, text))
-          store_found(db, found);
-        if(not is_current)
+          settled = store_found(db, found) and settled;
+        if(not is_current and settled)
           netlog_through = name;
         }
 
@@ -300,8 +311,9 @@ auto network_incident_window_t::run_scanner(std::stop_token stoken, std::string 
         std::string const name{journal_files[ix].filename().string()};
         if(name <= progress->journal_through)
           continue;
-        if(auto const found{network_incident::scan_journal_for_crash(whole_file(journal_files[ix]))}; found)
-          store_found(db, *found);
+        if(auto const found{network_incident::scan_journal_for_crash(whole_file(journal_files[ix]))};
+           found and not store_found(db, *found))
+          break;
         journal_through = name;
         }
 

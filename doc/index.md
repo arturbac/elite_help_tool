@@ -56,7 +56,6 @@
 
 ## Known issues
 
-- [Inara: accept EDDN data from Elite Help Tool](inara-issue.md)
 
 ## Project
 

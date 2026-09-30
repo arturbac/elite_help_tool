@@ -465,8 +465,15 @@ auto main(int argc, char ** argv) -> int
     }
   database_import_state_t dbimport{path.string()};
   database_import_state_t::state_t state{"ehtdb.sqlite"};
-  if(not state.db_.open(storage_mode_e::bulk_import))
+  if(auto const res{state.db_.open(storage_mode_e::bulk_import)}; not res)
+    {
+    if(res.error() == std::errc::not_supported)
+      std::println(
+        "live.sqlite was written by a newer EHT than this build understands - it cannot be rebuilt, "
+        "run the newer EHT"
+      );
     return EXIT_FAILURE;
+    }
   dbimport.state = &state;
   std::vector<fs::path> journals{find_all_journals(path)};
 

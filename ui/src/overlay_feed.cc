@@ -1633,7 +1633,7 @@ auto overlay_feed_t::refresh_factions(
     info::allegiance_e allegiance;
     info::government_e government;
     std::string active;
-    ///\brief the cooldown after an Expansion, before the faction is eligible to expand again - not an
+    ///\brief the states the faction is recovering from, an Expansion's cooldown among them - not an
     /// alert, just a lower-urgency note shown when there is no active state to report instead
     std::string recovering;
     double influence;
@@ -1763,7 +1763,7 @@ auto overlay_feed_t::refresh_factions(
 
     std::string suffix{
       not item.active.empty() ? item.active
-      : not item.recovering.empty() ? std::format("{} (cooldown)", item.recovering)
+      : not item.recovering.empty() ? std::format("{} (recovering)", item.recovering)
                                      : std::string{}
     };
     for(std::string const & push: state_pushes(item))
@@ -2880,7 +2880,9 @@ auto overlay_feed_t::build_settlement_owners(star_system_t const & system) const
         }
       // on the body we already stand on, a real surface distance means more than a Ls figure sized for
       // between stars; off it, the distance is between two scanned bodies' own positions right now
-      if(here_point and info.body_id and info.body_id == here_body_id and info.latitude and info.longitude)
+      if(name == here)
+        ;
+      else if(here_point and info.body_id and info.body_id == here_body_id and info.latitude and info.longitude)
         {
         if(auto const body_it{std::ranges::find(system.bodies, *info.body_id, body_body_id_proj)};
            body_it != system.bodies.end())
@@ -4040,9 +4042,14 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
   // side band already says so, easy to miss among everything else there; this repeats it where it
   // cannot be, until the commodities screen is opened or the ship leaves
   {
+  constexpr uint64_t docked_flag{1u << 0u};
   constexpr uint64_t on_foot_flag{1u << 0u};
+  constexpr uint64_t taxi_flag{1u << 1u};
   eht::market_reminder_t const & reminder{eht::settings()->overlay.market_reminder};
-  if(reminder.enabled and market_unknown_ and (status_flags2_ & on_foot_flag) == 0u)
+  if(
+    reminder.enabled and market_unknown_ and (status_flags_ & docked_flag) != 0u
+    and (status_flags2_ & (on_foot_flag | taxi_flag)) == 0u
+  )
     frame.blocks.push_back(
       overlay::block_t{
         .corner = overlay::corner_e::top_left,

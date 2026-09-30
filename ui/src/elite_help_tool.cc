@@ -617,9 +617,12 @@ auto main(int argc, char * argv[]) -> int
                    ? QString{
                        "This database was written by a newer version of EHT than this build "
                        "understands. Continuing could lose data, so EHT is stopping here instead.\n\n"
-                       "Back up ehtdb.sqlite and galaxy.sqlite, then rebuild them from your journals:\n\n"
+                       "The log names the file. Best: run the newer EHT that wrote it.\n\n"
+                       "ehtdb.sqlite and galaxy.sqlite can be backed up and rebuilt from your journals:\n\n"
                        "journal_tailer --dir \"<your journal folder>\" --commander <your FID>\n\n"
-                       "(see the journal's own LoadGame event for the FID, and README.md for details)"
+                       "(see the journal's own LoadGame event for the FID, and README.md for details). "
+                       "live.sqlite - markets and carrier readings - cannot be rebuilt; only the newer EHT "
+                       "opens it."
                      }
                    : QString::fromStdString(std::format("Could not open the database: {}", res.error().message()))};
     QMessageBox box{QMessageBox::Critical, "EHT: database", text, QMessageBox::Ok};
