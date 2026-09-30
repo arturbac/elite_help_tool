@@ -187,6 +187,10 @@ struct disc_t
   ///\brief the body's face - a square binary PPM the tool wrote where the layer can read it, the ball
   /// filling it; a new name is a new face. The ball is drawn in color until the face is in
   std::string face;
+  ///\brief the air around the ball: its colour, and how far it reaches above the surface as a part of the
+  /// radius - 0 for a body without one
+  uint32_t atmosphere{};
+  float atmosphere_depth{};
   };
 
 ///\brief a straight stroke between two points

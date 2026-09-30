@@ -2,8 +2,8 @@
 // a ball lit from -u, a little towards the viewer, so most of the face is lit and the terminator runs
 // along the far side. The vertex alpha says how: below one half a planet whose shine is twice the alpha,
 // above it a star, which lights itself and only darkens towards its limb.
-// The uv carries the face too: u shifted by 8 times (1 + the atlas tile) - 0 for a ball of the vertex
-// colour. The texture bound is ImGui's, set 0 binding 0, the atlas of faces for a ball that has one
+// The uv carries the kind too: u shifted by 8 times (1 + the atlas tile) - 0 for a ball of the vertex
+// colour, 100 for the air around a ball. The texture bound is ImGui's, set 0 binding 0, the atlas of faces for a ball that has one
 layout(location = 0) in vec4 col;
 layout(location = 1) in vec2 uv;
 layout(location = 0) out vec4 out_col;
@@ -18,10 +18,37 @@ const float wrap = 0.2;
 const float across = 8.0;
 const float side = 128.0;
 
+// the air over a ball, alpha-blended after it. The vertex alpha is its depth over the surface, up to half
+// the radius. How much air a ray crosses decides how much it shows: over the face only the near half of
+// the shell, thin in the middle and most at the limb; past the rim the whole chord, fading to nothing
+// where the depth ends. Lit from the same side as the ball, a little way past its terminator
+void air(vec2 ball)
+{
+  float depth = max(col.a * 0.5, 1e-3);
+  float outer_r = 1.0 + depth;
+  float p = length(ball);
+  if(p >= outer_r)
+    discard;
+  float outer = sqrt(max(outer_r * outer_r - p * p, 0.0));
+  float path = p < 1.0 ? outer - sqrt(max(1.0 - p * p, 0.0)) : 2.0 * outer;
+  float most = 2.0 * sqrt(outer_r * outer_r - 1.0);
+  float thick = clamp(path / most, 0.0, 1.0);
+  vec3 n = vec3(ball, outer) / outer_r;
+  float lit = clamp((dot(n, light) + 0.5) / 1.5, 0.0, 1.0);
+  // denser air is seen more, but never covers the face
+  float strength = 0.45 + depth;
+  out_col = vec4(col.rgb, strength * pow(thick, 0.8) * lit);
+}
+
 void main()
 {
   float tile = floor((uv.x + 4.0) / 8.0);
   vec2 ball = vec2(uv.x - 8.0 * tile, uv.y);
+  if(tile > 99.5)
+    {
+    air(ball);
+    return;
+    }
   float r = length(ball);
   float cover = clamp((1.0 - r) / max(fwidth(r), 1e-4) + 0.5, 0.0, 1.0);
   // how far one screen pixel reaches across the face, taken before any pixel leaves

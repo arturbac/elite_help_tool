@@ -135,7 +135,10 @@ add_custom_target(overlay-install
   COMMAND ${CMAKE_COMMAND} -E make_directory ${EHT_OVERLAY_HOME_LIB}
   COMMAND ${CMAKE_COMMAND} -E make_directory ${EHT_OVERLAY_HOME_BIN}
   COMMAND ${CMAKE_COMMAND} -E make_directory ${EHT_OVERLAY_HOME_MANIFEST}
-  COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:eht_overlay> ${EHT_OVERLAY_HOME_LIB}/libeht_overlay.so
+  # copied beside and renamed over the old one: a game running keeps the library it loaded, where
+  # writing into that same file would pull it from under the game
+  COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:eht_overlay> ${EHT_OVERLAY_HOME_LIB}/libeht_overlay.so.new
+  COMMAND ${CMAKE_COMMAND} -E rename ${EHT_OVERLAY_HOME_LIB}/libeht_overlay.so.new ${EHT_OVERLAY_HOME_LIB}/libeht_overlay.so
   COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:eht-overlay-run> ${EHT_OVERLAY_HOME_BIN}/eht-overlay-run
   COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_CURRENT_BINARY_DIR}/eht_overlay.json ${EHT_OVERLAY_HOME_MANIFEST}/eht_overlay.json
   DEPENDS eht_overlay eht-overlay-run

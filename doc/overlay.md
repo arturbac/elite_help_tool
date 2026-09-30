@@ -30,7 +30,10 @@ process carries no state of ours.
   and moon is lit from its star's side, water and ice shine a little, bare rock does not, and a star
   lights itself with only a darker limb. A body the surface scanner has been on wears its own face,
   cut out of the scanner's views (see [Faces of the planets](exploration.md#faces-of-the-planets)), and
-  a face with life on it gets a green ring. The balls are shaded on the graphics card as they are
+  a face with life on it gets a green ring. A body with an atmosphere wears it as a veil in the
+  colour of its main gas - nitrogen pale blue, oxygen blue, sulphur dioxide yellow, methane
+  turquoise, argon violet, neon pink, vapours orange - faint over the face, thickest at the limb
+  and glowing a little past it, reaching further for thick air than for thin. The balls are shaded on the graphics card as they are
   drawn, the faces read on a thread of their own and copied into one texture a few at a time, which
   together costs the game a few microseconds a frame.
 - **Readable over anything.** The ground under each block darkens by how bright the game is

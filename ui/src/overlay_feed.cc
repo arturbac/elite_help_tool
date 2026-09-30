@@ -439,6 +439,49 @@ auto planet_gloss(planet_details_t const & details) -> float
   return 0.1f;
   }
 
+///\brief the colour of the air over a body, by its main gas - roughly the tint the game gives it
+[[nodiscard]]
+auto air_colour(std::string_view type) -> uint32_t
+  {
+  if(type.starts_with("Nitrogen"))
+    return 0x9fc4ffu;
+  if(type.starts_with("Oxygen") or type == "EarthLike" or type == "AmmoniaOxygen")
+    return 0x6aa8ffu;
+  if(type.starts_with("CarbonDioxide"))
+    return 0xd8c8a0u;
+  if(type.starts_with("SulphurDioxide"))
+    return 0xe8d060u;
+  if(type.starts_with("Ammonia"))
+    return 0xd8a060u;
+  if(type.starts_with("Methane"))
+    return 0x7fd8d0u;
+  if(type.starts_with("Water"))
+    return 0xc8e0ffu;
+  if(type.starts_with("Helium"))
+    return 0xe8e8d8u;
+  if(type.starts_with("Neon"))
+    return 0xe0a0c0u;
+  if(type.starts_with("Argon"))
+    return 0xb0b0ffu;
+  if(type.ends_with("Vapour"))
+    return 0xff9060u;
+  return 0xc0c8d0u;
+  }
+
+///\brief how far the air reaches over the surface, as a part of the radius: thin, plain or thick air
+[[nodiscard]]
+auto air_depth(planet_details_t const & details) -> float
+  {
+  if(details.atmosphere.empty() or details.atmosphere_type.empty() or details.atmosphere_type == "None")
+    return 0.f;
+  std::string_view const air{details.atmosphere};
+  if(air.contains("thick"))
+    return 0.24f;
+  if(air.contains("thin"))
+    return 0.1f;
+  return 0.16f;
+  }
+
 ///\brief a planet or moon drawn as a ball lit from the star at (sx, sy), or from the left without one
 [[nodiscard]]
 auto planet_disc(
@@ -457,7 +500,9 @@ auto planet_disc(
     .light_x = beside ? dx : -1.f,
     .light_y = beside ? dy : 0.f,
     .gloss = planet_gloss(details),
-    .face = std::move(face)
+    .face = std::move(face),
+    .atmosphere = air_colour(details.atmosphere_type),
+    .atmosphere_depth = air_depth(details)
   };
   }
 

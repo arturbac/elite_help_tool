@@ -849,30 +849,20 @@ namespace
     return true;
     }
 
-  ///\brief a ball as a quad whose uv is the ball's own frame - -1..1 over the disc - turned so the light
-  /// the shader always takes from -u comes from where the tool says; the vertex alpha carries the shine
-  ///\param tile 0 for a ball of the disc's colour, else 1 + the atlas tile of its face - it travels in the
-  /// uv as a whole multiple of 8 added to u, which the shader takes back off; the ball's own frame never
-  /// reaches 4 from its middle, so the two cannot mix
-  auto add_sphere(
-    ImDrawList * draw, ImVec2 centre, float radius, ImVec2 light, overlay::disc_t const & disc, uint32_t tile
+  ///\brief a quad over the ball, its uv the ball's own frame - -1..1 over the disc, beyond it for the air -
+  /// turned so the light the shader always takes from -u comes from where the tool says, and shifted
+  /// along u by 8 times the kind: 0 a ball of its colour, 1 + tile a ball with its face, air_kind the air
+  auto add_ball_quad(
+    ImDrawList * draw, ImVec2 centre, float radius, float reach, ImVec2 light, uint32_t kind, ImU32 colour
   ) -> void
     {
-    if(radius <= 0.f)
-      return;
-    // a pixel and a half beyond the rim, for the edge the shader smooths - never so far as to reach 4
-    float const reach{std::min((radius + 1.5f) / radius, 2.5f)};
     float const angle{light.x == 0.f and light.y == 0.f ? std::numbers::pi_v<float> : std::atan2(light.y, light.x)};
     float const turn{std::numbers::pi_v<float> - angle};
     float const c{std::cos(turn) * reach};
     float const s{std::sin(turn) * reach};
-    float const shift{8.f * float(tile)};
+    float const shift{8.f * float(kind)};
     auto const uv = [&](float x, float y) { return ImVec2{x * c - y * s + shift, x * s + y * c}; };
     float const half{radius * reach};
-    auto const alpha{
-      disc.glows ? 255u : static_cast<uint32_t>(std::clamp(disc.gloss, 0.f, 1.f) * 127.f + 0.5f)
-    };
-    ImU32 const colour{(alpha << IM_COL32_A_SHIFT) | (ImGui::ColorConvertFloat4ToU32(to_color(disc.color)) & ~IM_COL32_A_MASK)};
     draw->PrimReserve(6, 4);
     draw->PrimQuadUV(
       ImVec2{centre.x - half, centre.y - half},
@@ -885,6 +875,41 @@ namespace
       uv(-1.f, 1.f),
       colour
     );
+    }
+
+  ///\brief the kind the shader takes for the air around a ball
+  constexpr uint32_t air_kind{100u};
+  ///\brief the thickest air drawn, as a part of the radius - the vertex alpha carries the depth up to it
+  constexpr float deepest_air{0.5f};
+
+  ///\brief a ball: the vertex alpha carries the shine, or says it is a star
+  ///\param tile 0 for a ball of the disc's colour, else 1 + the atlas tile of its face
+  auto add_sphere(
+    ImDrawList * draw, ImVec2 centre, float radius, ImVec2 light, overlay::disc_t const & disc, uint32_t tile
+  ) -> void
+    {
+    if(radius <= 0.f)
+      return;
+    // a pixel and a half beyond the rim, for the edge the shader smooths - the frame never reaches 4
+    float const reach{std::min((radius + 1.5f) / radius, 2.5f)};
+    auto const alpha{
+      disc.glows ? 255u : static_cast<uint32_t>(std::clamp(disc.gloss, 0.f, 1.f) * 127.f + 0.5f)
+    };
+    ImU32 const colour{(alpha << IM_COL32_A_SHIFT) | (ImGui::ColorConvertFloat4ToU32(to_color(disc.color)) & ~IM_COL32_A_MASK)};
+    add_ball_quad(draw, centre, radius, reach, light, tile, colour);
+    }
+
+  ///\brief the air over a ball, drawn after it: a veil over the face, thickest at the limb, and a glow
+  /// past the rim as far as the depth reaches - its colour the gas's, the vertex alpha its depth
+  auto add_air(ImDrawList * draw, ImVec2 centre, float radius, ImVec2 light, overlay::disc_t const & disc) -> void
+    {
+    if(radius <= 0.f or disc.atmosphere_depth <= 0.f)
+      return;
+    float const depth{std::min(disc.atmosphere_depth, deepest_air)};
+    float const reach{std::min(1.f + depth + 1.5f / radius, 2.5f)};
+    auto const alpha{static_cast<uint32_t>(depth / deepest_air * 255.f + 0.5f)};
+    ImU32 const colour{(alpha << IM_COL32_A_SHIFT) | (ImGui::ColorConvertFloat4ToU32(to_color(disc.atmosphere)) & ~IM_COL32_A_MASK)};
+    add_ball_quad(draw, centre, radius, reach, light, air_kind, colour);
     }
 
   ///\brief draws a picture the tool laid out, shrunk to the room there is when it would not fit
@@ -950,6 +975,7 @@ namespace
           }
         else
           add_sphere(draw, at(disc.x, disc.y), disc.radius * k, light, disc, 0u);
+        add_air(draw, at(disc.x, disc.y), disc.radius * k, light, disc);
         continue;
         }
       ImU32 const colour{ImGui::GetColorU32(to_color(disc.color))};
