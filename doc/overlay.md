@@ -35,7 +35,12 @@ process carries no state of ours.
   turquoise, argon violet, neon pink, vapours orange - faint over the face, thickest at the limb
   and glowing a little past it, reaching further for thick air than for thin. The balls are shaded on the graphics card as they are
   drawn, the faces read on a thread of their own and copied into one texture a few at a time, which
-  together costs the game a few microseconds a frame.
+  together costs the game a few microseconds a frame. The orbital ports you have docked at are small
+  models lit from the same star: a Coriolis is a cuboctahedron and a Dodec a dodecahedron, each with
+  its dark docking slot, an Ocellus a large ball on a spindle, an Orbis (Artemis and Apollo alike) a
+  small core in a large ring on three spokes, an outpost a few boxes on a spine over its pad, an
+  asteroid base a lump of rock with a box on it. The tool turns and shades them and sends only the
+  flat polygons; the layer fills them in the order given.
 - **Readable over anything.** The ground under each block darkens by how bright the game is
   beneath it, so the text stays legible over an ice planet as over black space.
 - **F11** saves a screenshot of the whole screen, overlay included.

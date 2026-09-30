@@ -2,6 +2,7 @@
 #include <backup.h>
 #include <evidence_log.h>
 #include <picture_records.h>
+#include <port_model.h>
 #include <commodity_facts.h>
 #include <construction_window.h>
 #include <eht_settings.h>
@@ -289,6 +290,35 @@ auto port_shape(std::string_view type) -> port_e
   if(type == "AsteroidBase")
     return port_e::asteroid;
   return port_e::none;
+  }
+
+[[nodiscard]]
+auto port_model_of(port_e shape) -> std::optional<port_model::kind_e>
+  {
+  switch(shape)
+    {
+    case port_e::coriolis: return port_model::kind_e::coriolis;
+    case port_e::orbis:    return port_model::kind_e::orbis;
+    case port_e::ocellus:  return port_model::kind_e::ocellus;
+    case port_e::dodec:    return port_model::kind_e::dodec;
+    case port_e::outpost:  return port_model::kind_e::outpost;
+    case port_e::asteroid: return port_model::kind_e::asteroid;
+    case port_e::none:     break;
+    }
+  return std::nullopt;
+  }
+
+///\brief a polygon's colour: the hull in the port colour, the rock of an asteroid base brown-grey, both as lit
+/// as the polygon is; the slot stays near black whatever the light
+[[nodiscard]]
+auto facet_colour(port_model::facet_t const & facet, uint32_t hull) -> uint32_t
+  {
+  if(facet.part == port_model::part_e::slot)
+    return 0x0c1014u;
+  uint32_t const base{facet.part == port_model::part_e::rock ? 0x9a8c7cu : hull};
+  auto const channel = [&](uint32_t shift) -> uint32_t
+  { return uint32_t(std::lround(float((base >> shift) & 0xffu) * std::clamp(facet.shade, 0.f, 1.f))) << shift; };
+  return channel(16u) | channel(8u) | channel(0u);
   }
 
 ///\brief the order the game numbers bodies in - "A 10" after "A 9", not after "A 1"
@@ -767,45 +797,18 @@ auto build_system_diagram(
   auto const draw_port = [&](info::station_t const & station, float x, float y)
   {
     float const s{port_size};
-    // drawn relative to the port's centre, so the outline keeps its shape however far the band stretches
-    auto const line = [&](float x0, float y0, float x1, float y1)
-    {
-      diagram.segments.push_back(
-        overlay::segment_t{
-          .x0 = x0 - x, .y0 = y0 - y, .x1 = x1 - x, .y1 = y1 - y, .color = port_colour, .relative = true, .ax = x, .ay = y
-        }
-      );
-    };
-    auto const polygon = [&](int sides, float turn)
-    {
-      for(int i{}; i != sides; ++i)
+    // a small model of the port, lit from the row's star; the layer only fills what it is sent
+    if(auto const kind{port_model_of(port_shape(station.station_type))}; kind)
+      for(port_model::facet_t const & facet: port_model::facets(*kind, s, star_x - x, star_y - y))
         {
-        float const a0{turn + 6.2831853f * static_cast<float>(i) / static_cast<float>(sides)};
-        float const a1{turn + 6.2831853f * static_cast<float>(i + 1) / static_cast<float>(sides)};
-        line(x + s * std::cos(a0), y + s * std::sin(a0), x + s * std::cos(a1), y + s * std::sin(a1));
+        overlay::facet_t out{.ax = x, .ay = y, .points = {}, .color = facet_colour(facet, port_colour)};
+        // two decimals are a hundredth of a pixel at scale 1, and keep the frame short
+        for(auto const & [px, py]: facet.points)
+          out.points.push_back(
+            overlay::point_t{.x = std::round(px * 100.f) / 100.f, .y = std::round(py * 100.f) / 100.f}
+          );
+        diagram.facets.push_back(std::move(out));
         }
-    };
-    switch(port_shape(station.station_type))
-      {
-      case port_e::coriolis: polygon(4, 0.7853982f); break;
-      case port_e::dodec:    polygon(5, -1.5707963f); break;
-      case port_e::orbis:
-        diagram.discs.push_back(overlay::disc_t{.x = x, .y = y, .radius = s, .color = port_colour, .outline = true});
-        diagram.discs.push_back(overlay::disc_t{.x = x, .y = y, .radius = 1.f, .color = port_colour});
-        break;
-      case port_e::ocellus:
-        diagram.discs.push_back(overlay::disc_t{.x = x, .y = y, .radius = s, .color = port_colour, .outline = true});
-        diagram.discs.push_back(
-          overlay::disc_t{.x = x, .y = y, .radius = s * 0.45f, .color = port_colour, .outline = true}
-        );
-        break;
-      case port_e::outpost:
-        line(x - s * 0.5f, y - s, x - s * 0.5f, y + s);
-        line(x - s * 0.5f, y + s, x + s * 0.8f, y + s);
-        break;
-      case port_e::asteroid: polygon(3, -1.5707963f); break;
-      case port_e::none:     break;
-      }
     if(not here.empty() and station.name == here)
       diagram.discs.push_back(
         overlay::disc_t{.x = x, .y = y, .radius = s + 3.5f, .color = here_colour, .outline = true}
@@ -927,6 +930,8 @@ auto build_system_diagram(
       if(auto const it{ports.find(row->star->body_id)}; it != ports.end())
         {
         float py{line_y + star_radius + 4.f + port_size};
+        star_x = lead_x;
+        star_y = line_y;
         for(info::station_t const * station: it->second)
           {
           draw_port(*station, lead_x, py);

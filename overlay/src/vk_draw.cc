@@ -955,6 +955,18 @@ namespace
       draw->AddLine(a, b, ImGui::GetColorU32(to_color(segment.color)), 1.2f * k);
       }
 
+    std::vector<ImVec2> corners;
+    for(overlay::facet_t const & facet: diagram.facets)
+      {
+      if(facet.points.size() < 3u)
+        continue;
+      ImVec2 const anchor{at(facet.ax, facet.ay)};
+      corners.clear();
+      for(overlay::point_t const & p: facet.points)
+        corners.push_back(ImVec2{anchor.x + p.x * k, anchor.y + p.y * k});
+      draw->AddConvexPolyFilled(corners.data(), static_cast<int>(corners.size()), ImGui::GetColorU32(to_color(facet.color)));
+      }
+
     // the balls go through a pipeline of their own, bound for each run of them and let go after, so the
     // discs keep the order the tool gave them - a marker ring still lies over its body
     bool balls{};

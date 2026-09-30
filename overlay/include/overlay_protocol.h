@@ -209,6 +209,17 @@ struct segment_t
   float ay{};
   };
 
+///\brief a filled polygon of a small model - convex, clockwise with y growing downwards, its points offsets
+/// from (ax, ay) that keep their shape as a relative segment does. Facets are painted in the order given, the
+/// farthest first, so the tool alone decides what hides what
+struct facet_t
+  {
+  float ax{};
+  float ay{};
+  std::vector<point_t> points;
+  uint32_t color{0xffffffu};
+  };
+
 ///\brief a piece of text anchored at a point - align 0 puts the point at its left edge, 0.5 in its
 /// middle, 1 at its right; vertically the text is always centred on the point
 struct label_t
@@ -237,6 +248,9 @@ struct diagram_t
   std::vector<segment_t> segments;
   std::vector<disc_t> discs;
   std::vector<label_t> labels;
+  ///\brief painted after the segments and before the discs, so the rings round a port lie over it - a field an
+  /// older layer skips, and the models are simply missing there
+  std::vector<facet_t> facets;
   };
 
 ///\brief how large a block's text is set

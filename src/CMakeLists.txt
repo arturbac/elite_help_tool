@@ -14,6 +14,7 @@ target_sources(eht
   territory.cc
   glare.cc
   planet_face.cc
+  port_model.cc
   sensors.cc
   netstate.cc
   evidence_log.cc
