@@ -19,6 +19,15 @@ using spdlog::error;
 using spdlog::warn;
 using namespace std::string_view_literals;
 
+namespace color_codes_t
+  {
+inline constexpr std::string_view reset = "\033[m";
+inline constexpr std::string_view red = "\033[31m";
+inline constexpr std::string_view green = "\033[32m";
+inline constexpr std::string_view blue = "\033[34m";
+inline constexpr std::string_view yellow = "\033[33m";
+  }  // namespace color_codes_t
+
 using utc_time_point_t = std::chrono::sys_time<std::chrono::milliseconds>;
 
 using events::body_id_t;

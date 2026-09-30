@@ -14,15 +14,6 @@
 #include <variant>
 #include <vector>
 
-namespace color_codes_t
-  {
-inline constexpr std::string_view reset = "\033[m";
-inline constexpr std::string_view red = "\033[31m";
-inline constexpr std::string_view green = "\033[32m";
-inline constexpr std::string_view blue = "\033[34m";
-inline constexpr std::string_view yellow = "\033[33m";
-  };  // namespace color_codes_t
-
 namespace events
   {
 
@@ -223,27 +214,6 @@ consteval auto adl_enum_bounds(station_type)
   using enum station_type;
   return simple_enum::adl_info{AsteroidBase, SurfaceStation};
   }
-enum struct landing_pad_size_t : uint8_t
-  {
-  none,
-  small,
-  medium,
-  large
-  };
-
-consteval auto adl_enum_bounds(landing_pad_size_t)
-  {
-  using enum landing_pad_size_t;
-  return simple_enum::adl_info{none, large};
-  }
-
-struct docking_requested_t
-  {
-  uint64_t MarketID;
-  std::string StationName;
-  station_type StationType;
-  };
-
 struct cargo_t
   {
   ///\brief Ship or SRV - only what stays on the ship counts
@@ -473,11 +443,6 @@ struct generic_event_t
   std::optional<scan_type_e> ScanType;
   };
 
-using utc_time_point_t = std::chrono::sys_time<std::chrono::milliseconds>;
-
-[[nodiscard]]
-auto parse_timestamp_t(std::string_view input) -> std::optional<utc_time_point_t>;
-
 struct fuel_scoop_t
   {
   float Scooped;
@@ -549,12 +514,6 @@ struct start_jump_t
   };
 
 using body_id_t = uint32_t;
-
-struct faction_state_trend_t
-  {
-  std::string State;
-  int32_t Trend;
-  };
 
 // Allied	+75 do +100
 // Friendly	+35 do +74
@@ -774,57 +733,6 @@ struct ring_t
   double OuterRad;
   };
 
-enum struct meterial_type_e : uint8_t
-  {
-  Bromellite,
-  LithiumHydroxide,
-  MethaneClathrate,
-  MethanolMonohydrateCrystals,
-  Samarium,
-  antimony,
-  arsenic,
-  bauxite,
-  cadmium,
-  carbon,
-  chromium,
-  cobalt,
-  coltan,
-  gallite,
-  germanium,
-  haematite,
-  indite,
-  iron,
-  lepidolite,
-  liquidoxygen,
-  manganese,
-  mercury,
-  molybdenum,
-  nickel,
-  niobium,
-  phosphorus,
-  polonium,
-  ruthenium,
-  rutile,
-  selenium,
-  sulphur,
-  technetium,
-  tellurium,
-  tin,
-  tritium,
-  tungsten,
-  uraninite,
-  vanadium,
-  water,
-  yttrium,
-  zinc,
-  zirconium
-  };
-
-consteval auto adl_enum_bounds(meterial_type_e)
-  {
-  using enum meterial_type_e;
-  return simple_enum::adl_info{Bromellite, zirconium};
-  }
 enum struct terraform_state_e : uint8_t
   {
   none,
@@ -838,12 +746,6 @@ consteval auto adl_enum_bounds(terraform_state_e)
   using enum terraform_state_e;
   return simple_enum::adl_info{none, Terraformed};
   }
-
-struct maetrial_t
-  {
-  meterial_type_e Name;
-  float Percent;
-  };
 
 struct composition_t
   {
@@ -951,7 +853,6 @@ struct scan_organic_t
   body_id_t Body;
   };
 
-///\brief a signal found by an FSS scan - a station, an installation, a POI, a phenomenon
 ///\brief approaching a settlement - this is where the context for collecting comes from: the economy and government of the place
 struct approach_settlement_t
   {
@@ -1384,7 +1285,6 @@ struct market_commodity_t
   bool Consumer;
   };
 
-///\brief the contents of Market.json, a file overwritten at every docking
 ///\brief what the game is showing right now, from the Status.json it keeps beside the journals
 ///\detail the file is rewritten whenever anything in it changes, so it answers questions the journal
 /// never does - among them which interface is open, which no amount of reading events can tell
@@ -1425,6 +1325,7 @@ struct status_file_t
   std::string LegalState;
   };
 
+///\brief the contents of Market.json, a file overwritten at every docking
 struct market_file_t
   {
   std::chrono::sys_seconds timestamp;
@@ -1435,6 +1336,7 @@ struct market_file_t
   std::vector<market_commodity_t> Items;
   };
 
+///\brief a signal found by an FSS scan - a station, an installation, a POI, a phenomenon
 struct fss_signal_discovered_t
   {
   uint64_t SystemAddress;
@@ -1982,7 +1884,7 @@ struct organic_value_t
   };
 
 ///\brief the species price list, names as in Species_Localised of the ScanOrganic event
-static constexpr std::array<organic_value_t, 96> organic_values{
+inline constexpr std::array<organic_value_t, 96> organic_values{
   {
    {"Aleoida Arcus", 7'252'500},
    {"Aleoida Coronamus", 6'284'600},
@@ -2113,7 +2015,7 @@ auto body_short_name(std::string_view system, std::string_view name) -> std::str
 [[nodiscard]]
 auto planet_name_from_ring_name(std::string_view system, std::string_view name) -> std::string_view;
 
-static constexpr std::array<planet_value_info_t, 19> exploration_values{
+inline constexpr std::array<planet_value_info_t, 19> exploration_values{
   {{"Metal rich body", 21'790.0},
    {"High metal content body", 9'693.0, 93'328.0},  // the bonus added when terraformable
    {"Rocky body", 300.0, 93'328.0},
