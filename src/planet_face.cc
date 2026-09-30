@@ -98,11 +98,15 @@ auto find_disc(image_t const & picture) -> std::optional<disc_t>
       magnitude[at] = std::hypot(gx[at], gy[at]);
       }
 
-  // the strongest eighth of the edges
+  // the strongest eighth of the edges, and only sharp ones: the smooth shading of a ball lit from the side
+  // is a gradient too, and every bit of it points at the spot under the star, not at the middle
   std::vector<float> sorted{magnitude};
   auto const nth{sorted.begin() + std::ptrdiff_t(sorted.size() * 92u / 100u)};
   std::nth_element(sorted.begin(), nth, sorted.end());
-  float const threshold{std::max(*nth, 1e-3f)};
+  float const eighth{*nth};
+  auto const top{sorted.begin() + std::ptrdiff_t(sorted.size() * 995u / 1000u)};
+  std::nth_element(sorted.begin(), top, sorted.end());
+  float const threshold{std::max({eighth, *top * 0.3f, 1e-3f})};
 
   struct edge_t
     { float x, y, ux, uy; };
