@@ -163,6 +163,19 @@ struct market_reminder_t
   float width{0.6f};
   };
 
+///\brief the small sample of the screen the layer keeps in captures/sample.bin, beside the socket
+///\detail made anyway while flying at a planet for its face; always keeps it made the rest of the time too,
+/// for looking at what the game shows from outside - diagnostics, a tool reading the screen
+struct overlay_sample_t
+  {
+  bool always{false};
+  uint32_t every_ms{500u};
+  ///\brief its height as a share of the screen's, in the middle screen's 16:9 shape
+  float size{1.f};
+  ///\brief about how wide - the halving stops at the first width not above twice this
+  uint32_t width{256u};
+  };
+
 struct overlay_settings_t
   {
   overlay::layout_t layout;
@@ -191,6 +204,7 @@ struct overlay_settings_t
   system_map_t system_map;
   jump_emblem_t jump_emblem;
   market_reminder_t market_reminder;
+  overlay_sample_t sample;
   };
 
 ///\brief exploration - what is worth a landing and where the pictures of what was sampled go

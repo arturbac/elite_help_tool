@@ -44,6 +44,8 @@ process carries no state of ours.
   pixels - to a few hundred pixels across and writes it into a file shared with the tool, read out
   only once the frame's fence has passed. The tool looks for what it wants in the sample and then asks
   for a real picture of just the rectangle that holds it. It costs the game a few microseconds a frame.
+  `overlay.sample.always` keeps the sample made at all times (`every_ms`, `size`, `width`), for looking at
+  what the game shows from outside it; `overlay/tools/sample_to_png.py` turns the newest one into a PNG.
 - **Temperatures.** Under the frame rate at the top of the right band stand the graphics card's and
   the processor's temperatures in degrees Celsius, orange from 10 degrees below the driver's
   critical level and red at it (3 degrees of hysteresis). They are read from `/sys/class/hwmon`,

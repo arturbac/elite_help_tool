@@ -73,11 +73,17 @@ auto approach_views_t::observe(bool ship_view, std::string const & system, std::
 
 auto approach_views_t::sample_request() const -> overlay::sample_t
   {
-  if(not target_)
-    return {};
-  return overlay::sample_t{
-    .every_ms = sample_every_ms, .size = eht::settings()->exploration.sky_size, .aspect = 16.f / 9.f, .width = 256u
-  };
+  auto const cfg{eht::settings()};
+  if(target_)
+    return overlay::sample_t{
+      .every_ms = sample_every_ms, .size = cfg->exploration.sky_size, .aspect = 16.f / 9.f, .width = 256u
+    };
+  // kept the rest of the time too when the settings say so, for looking at what the game shows
+  if(eht::overlay_sample_t const & always{cfg->overlay.sample}; always.always and always.every_ms != 0u)
+    return overlay::sample_t{
+      .every_ms = always.every_ms, .size = always.size, .aspect = 16.f / 9.f, .width = always.width
+    };
+  return {};
   }
 
 auto approach_views_t::tick(planet_faces_t & faces) -> void
