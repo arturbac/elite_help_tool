@@ -173,6 +173,10 @@ auto scan_journal_for_crash(std::string_view text) -> std::optional<detected_inc
     if(std::string_view const line{part.begin(), part.end()}; not line.empty())
       last_line = line;
 
+  // a journal grown too long is closed with Continued and goes on in the next part - that is no stop
+  if(last_line.contains(R"("event":"Continued")"))
+    return std::nullopt;
+
   auto const moment{evidence::journal_moment(last_line)};
   if(not moment)
     return std::nullopt;

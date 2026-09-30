@@ -68,11 +68,15 @@ auto files_containing(std::filesystem::path const & dir, std::string_view needle
   return found;
   }
 
+///\brief the machine's offset from UTC when the netLog file began - its name is in local time, and a file
+/// from the other side of a daylight saving change has the other offset
 [[nodiscard]]
-auto local_utc_offset() -> std::chrono::seconds
+auto local_utc_offset(std::string_view netlog_name) -> std::chrono::seconds
   {
   try
     {
+    if(auto const local{evidence::netlog_local_start(netlog_name)}; local)
+      return std::chrono::current_zone()->get_info(*local).first.offset;
     return std::chrono::current_zone()->get_info(std::chrono::system_clock::now()).offset;
     }
   catch(...)
@@ -280,7 +284,6 @@ auto network_incident_window_t::run_scanner(std::stop_token stoken, std::string 
       {
       std::string netlog_through{progress->netlog_through};
       std::string journal_through{progress->journal_through};
-      auto const utc_offset{local_utc_offset()};
 
       // --- netLog: every completed file past the mark, and the current one on every tick ---
       auto const netlog_files{files_containing(resolve_netlog_dir(journal_path), "netLog")};
@@ -294,7 +297,7 @@ auto network_incident_window_t::run_scanner(std::stop_token stoken, std::string 
         if(text.empty())
           continue;
         bool settled{true};
-        for(network_incident::detected_incident_t const & found: network_incident::scan_netlog(name, utc_offset, text))
+        for(network_incident::detected_incident_t const & found: network_incident::scan_netlog(name, local_utc_offset(name), text))
           settled = store_found(db, found) and settled;
         if(not is_current and settled)
           netlog_through = name;

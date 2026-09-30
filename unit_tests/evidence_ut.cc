@@ -104,6 +104,16 @@ auto main() -> int
     expect(not evidence::netlog_clock_t{"Journal.log", 0s}.valid());
   };
 
+  "a netLog name is read as the local moment it began"_test = []
+  {
+    using namespace std::chrono;
+    expect(
+      evidence::netlog_local_start("netLog.2026-09-29T062302.01.log")
+      == std::optional{local_days{2026y / 9 / 29} + 6h + 23min + 2s}
+    );
+    expect(not evidence::netlog_local_start("Journal.log").has_value());
+  };
+
   "the summary sets the minute round the moment against the minutes before"_test = []
   {
     std::vector<std::string> const netstate{

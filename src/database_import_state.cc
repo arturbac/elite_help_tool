@@ -596,6 +596,18 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
       else if constexpr(std::same_as<T, events::disembark_t>)
         {
         state.ground_cz.disembark(event);
+        if(event.OnPlanet and event.SystemAddress == state.system.system_address)
+          if(auto it{state.system.body_by_id(event.BodyID)}; it != state.system.bodies.end())
+            if(std::holds_alternative<planet_details_t>(it->details))
+              {
+              std::get<planet_details_t>(it->details).footfalled = true;
+              if(state.personal)
+                if(auto res{state.db_.store_footfall_complete(state.system.system_address, event.BodyID)}; not res)
+                  [[unlikely]]
+                  critical_abort(
+                    "failed to update footfall complete for {}:{}", state.system.system_address, event.BodyID
+                  );
+              }
         // arriving by taxi is sometimes the only trace that we are at this settlement
         if(event.MarketID != 0)
           {
@@ -938,26 +950,6 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
           else
             spdlog::error("body {}:{} does not hold planet details ...", event.BodyID, it->name);
           }
-        }
-
-      else if constexpr(std::same_as<T, events::touchdown_t>)
-        {
-        if(event.PlayerControlled)
-          if(auto it{state.system.body_by_id(event.BodyID)}; it != state.system.bodies.end())
-            {
-            if(std::holds_alternative<planet_details_t>(it->details))
-              {
-              std::get<planet_details_t>(it->details).footfalled = true;
-              if(state.personal)
-                if(auto res{state.db_.store_footfall_complete(state.system.system_address, event.BodyID)};
-                   not res) [[unlikely]]
-                  critical_abort(
-                    "failed to update footfall complete for {}:{}", state.system.system_address, event.BodyID
-                  );
-              }
-            else
-              spdlog::error("body {}:{} does not hold planet details ...", event.BodyID, it->name);
-            }
         }
 
       else if constexpr(std::same_as<T, events::mission_accepted_t>)

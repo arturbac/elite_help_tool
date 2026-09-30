@@ -720,6 +720,18 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
         else if constexpr(std::same_as<T, events::disembark_t>)
           {
           ground_cz_.disembark(event);
+          if(event.OnPlanet and event.SystemAddress == system.system_address)
+            if(auto it{system.body_by_id(event.BodyID)}; it != system.bodies.end())
+              if(std::holds_alternative<planet_details_t>(it->details))
+                {
+                std::get<planet_details_t>(it->details).footfalled = true;
+                if(not personal_)
+                  {}
+                else if(auto res{db_.store_footfall_complete(system.system_address, event.BodyID)}; not res)
+                  [[unlikely]]
+                  spdlog::error("failed to update footfall complete for {}:{}", system.system_address, event.BodyID);
+                update_system = true;
+                }
           // arriving by taxi is sometimes the only trace that we are at this settlement
           if(event.MarketID != 0)
             {
@@ -1251,23 +1263,6 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
               spdlog::error("failed to update dss scan complete for {}:{}", system.system_address, event.BodyID);
             }
           update_system = true;
-          }
-        else if constexpr(std::same_as<T, events::touchdown_t>)
-          {
-          if(event.PlayerControlled)
-            if(auto it{system.body_by_id(event.BodyID)}; it != system.bodies.end())
-              {
-              if(std::holds_alternative<planet_details_t>(it->details))
-                {
-                std::get<planet_details_t>(it->details).footfalled = true;
-                if(not personal_)
-                  {}
-                else if(auto res{db_.store_footfall_complete(system.system_address, event.BodyID)}; not res)
-                  [[unlikely]]
-                  spdlog::error("failed to update footfall complete for {}:{}", system.system_address, event.BodyID);
-                update_system = true;
-                }
-              }
           }
         else if constexpr(std::same_as<T, events::fuel_scoop_t>)
           {

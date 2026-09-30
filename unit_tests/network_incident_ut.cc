@@ -120,4 +120,13 @@ auto main() -> int
     expect(found->category == std::string{"ended without Shutdown"});
     expect(found->detail.contains("ReservoirReplenished"));
   };
+
+  "a journal part closed with Continued is not flagged"_test = []
+  {
+    expect(not network_incident::scan_journal_for_crash(
+      R"({ "timestamp":"2026-09-29T23:41:41Z", "event":"Music", "MusicTrack":"NoTrack" })"
+      "\n"
+      R"({ "timestamp":"2026-09-29T23:41:42Z", "event":"Continued", "Part":2 })"
+    ).has_value());
+  };
   }

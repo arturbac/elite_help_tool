@@ -968,21 +968,15 @@ struct disembark_t
   uint64_t SystemAddress;
   std::string StationName;
   std::string StationType;
+  ///\brief the body stepped out onto - with OnPlanet it is the footfall, whether from the ship, an SRV or a taxi
+  body_id_t BodyID{};
+  bool OnPlanet{};
   };
 
 ///\brief entering supercruise - it ends the stay at a settlement
 struct supercruise_entry_t
   {
   uint64_t SystemAddress;
-  };
-
-///\brief the ship lands on a body's surface - marks it footfalled by this commander, same as an SAAScanComplete marks mapped
-struct touchdown_t
-  {
-  uint64_t SystemAddress;
-  body_id_t BodyID;
-  ///\brief false when an NPC crew member lands the ship on the commander's behalf
-  bool PlayerControlled;
   };
 
 ///\brief the frame shift drive supercharged in a neutron star's or a white dwarf's cone
@@ -1590,7 +1584,6 @@ using event_holder_t = std::variant<
   approach_settlement_t,
   disembark_t,
   supercruise_entry_t,
-  touchdown_t,
   jet_cone_boost_t,
   backpack_change_t,
   fss_all_bodies_found_t,

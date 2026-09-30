@@ -160,20 +160,32 @@ auto line_moment(std::string_view line) -> std::optional<sys_clock_t::time_point
 auto journal_moment(std::string_view line) -> std::optional<sys_clock_t::time_point>
   { return field_moment(line, "timestamp"); }
 
-netlog_clock_t::netlog_clock_t(std::string_view file_name, std::chrono::seconds utc_offset)
+auto netlog_local_start(std::string_view file_name) -> std::optional<std::chrono::local_seconds>
   {
   // netLog.2026-09-29T062302.01.log
   constexpr std::string_view prefix{"netLog."};
   if(not file_name.starts_with(prefix) or file_name.size() < prefix.size() + 17u)
-    return;
+    return std::nullopt;
   std::string_view const stamp{file_name.substr(prefix.size(), 17u)};
   auto const day{parse_iso(std::format("{}T00:00:00Z", stamp.substr(0u, 10u)))};
   auto const hour{number(stamp, 11u, 2u)};
   auto const minute{number(stamp, 13u, 2u)};
   auto const second{number(stamp, 15u, 2u)};
   if(not day or not hour or not minute or not second)
+    return std::nullopt;
+  auto const as_utc{
+    std::chrono::floor<std::chrono::seconds>(*day) + std::chrono::hours{*hour} + std::chrono::minutes{*minute}
+    + std::chrono::seconds{*second}
+  };
+  return std::chrono::local_seconds{as_utc.time_since_epoch()};
+  }
+
+netlog_clock_t::netlog_clock_t(std::string_view file_name, std::chrono::seconds utc_offset)
+  {
+  auto const local{netlog_local_start(file_name)};
+  if(not local)
     return;
-  start_ = *day + std::chrono::hours{*hour} + std::chrono::minutes{*minute} + std::chrono::seconds{*second} - utc_offset;
+  start_ = sys_clock_t::time_point{local->time_since_epoch() - utc_offset};
   last_ = *start_;
   }
 

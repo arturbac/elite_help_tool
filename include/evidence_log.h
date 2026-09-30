@@ -52,6 +52,10 @@ auto journal_moment(std::string_view line) -> std::optional<std::chrono::system_
 ///\detail {04:23:17GMT 16.568s} Cancelling request 13 - the day comes from the file's name,
 /// netLog.2026-09-29T062302.01.log, which is local time; a line earlier in the day than the file began is
 /// taken for the next day
+///\brief the local moment a netLog file's name says it began, nullopt for a name that is not one
+[[nodiscard]]
+auto netlog_local_start(std::string_view file_name) -> std::optional<std::chrono::local_seconds>;
+
 class netlog_clock_t final
   {
 public:
