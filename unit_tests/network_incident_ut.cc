@@ -100,6 +100,33 @@ auto main() -> int
     expect(found[0].category == std::string{"disconnect: WaitForLocationReadyActivity-timeout"});
   };
 
+  "a disconnect keeps how long the server was silent and when it was reached again"_test = []
+  {
+    auto const found{network_incident::scan_netlog(
+      "netLog.2026-09-15T201158.01.log",
+      std::chrono::seconds{0},
+      "{19:48:54GMT 5817.435s} Disconnect: type=1&reason=Lost server connection&primary=EDServer_6168\n"
+      "{19:48:54GMT 5817.442s} Releasing server on disconnection, in IDProvider: Y Disconnected --not ready-- none  none LastRx=42.29s LastTx=0.33s\n"
+      "{19:49:06GMT 5829.281s} ConnectToServerActivity: state=Init\n"
+      "{19:49:07GMT 5829.692s} Connected: 172564242047300 x 7 [0/2]((3.254.117.45:19364))EDServer#6160"
+    )};
+    expect(fatal(found.size() == 1u));
+    expect(found[0].last_rx_s == std::optional{42.29});
+    expect(found[0].reconnect_started_s == std::optional{12.0});
+    expect(found[0].reconnected_s == std::optional{13.0});
+  };
+
+  "a disconnect never followed by a connection leaves the times after it unknown"_test = []
+  {
+    auto const found{network_incident::scan_netlog(
+      "netLog.2026-09-15T201158.01.log",
+      std::chrono::seconds{0},
+      "{19:48:54GMT 5817.435s} Disconnect: type=1&reason=Lost server connection&primary=EDServer_6168"
+    )};
+    expect(fatal(found.size() == 1u));
+    expect(not found[0].last_rx_s.has_value() and not found[0].reconnected_s.has_value());
+  };
+
   "a journal file with a Shutdown event is not a crash"_test = []
   {
     expect(not network_incident::scan_journal_for_crash(

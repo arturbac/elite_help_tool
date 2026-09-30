@@ -1267,7 +1267,11 @@ auto database_storage_t::migrate_live_schema() -> expected_ec<void>
        addition_t{sql_iface::tables::mission_influence, "security"sv, "INTEGER DEFAULT 0"sv},
        // before purchases and barters were kept every transaction was a sale, and every item went away
        addition_t{sql_iface::tables::micro_sale, "kind"sv, "TEXT DEFAULT 'sold'"sv},
-       addition_t{sql_iface::tables::micro_sale_item, "received"sv, "INTEGER DEFAULT 0"sv}})
+       addition_t{sql_iface::tables::micro_sale_item, "received"sv, "INTEGER DEFAULT 0"sv},
+       // what followed a disconnect - rows found before it was read stay NULL until the rescan below fills them
+       addition_t{sql_iface::tables::network_incident, "last_rx_s"sv, "REAL"sv},
+       addition_t{sql_iface::tables::network_incident, "reconnect_started_s"sv, "REAL"sv},
+       addition_t{sql_iface::tables::network_incident, "reconnected_s"sv, "REAL"sv}})
     {
     auto known{sqlite::table_columns(db_->db, add.table)};
     if(not known) [[unlikely]]
@@ -1285,6 +1289,13 @@ auto database_storage_t::migrate_live_schema() -> expected_ec<void>
       not res
     ) [[unlikely]]
       return res;
+    // the disconnects already found get their aftermath only from netLog read again, from its start
+    if(add.table == sql_iface::tables::network_incident and add.column == "last_rx_s"sv)
+      if(auto res{sqlite::execute_query_no_result(
+           db_->db, std::format("UPDATE {} SET netlog_through=''", sql_iface::tables::incident_scan_progress)
+         )};
+         not res) [[unlikely]]
+        return res;
     }
 
   for(std::string_view const schema: {"main"sv, "galaxy"sv, "live"sv})
@@ -3320,6 +3331,26 @@ auto database_storage_t::network_incident_known(std::chrono::sys_seconds occurre
   if(not known) [[unlikely]]
     return cxx23::unexpected{known.error()};
   return *known and **known != 0;
+  }
+
+auto database_storage_t::fill_network_incident_times(info::network_incident_t const & value) -> expected_ec<void>
+  {
+  if(not value.last_rx_s and not value.reconnect_started_s and not value.reconnected_s)
+    return {};
+  auto const number = [](std::optional<double> v) { return v ? std::format("{}", *v) : std::string{"NULL"}; };
+  return sqlite::execute_query_no_result(
+    db_->db,
+    std::format(
+      "UPDATE {} SET last_rx_s=COALESCE(last_rx_s,{}), reconnect_started_s=COALESCE(reconnect_started_s,{}), "
+      "reconnected_s=COALESCE(reconnected_s,{}) WHERE occurred='{:%Y-%m-%dT%H:%M:%SZ}' AND category='{}'",
+      sql_iface::tables::network_incident,
+      number(value.last_rx_s),
+      number(value.reconnect_started_s),
+      number(value.reconnected_s),
+      value.occurred,
+      sqlite::escape_sql_quotes(value.category)
+    )
+  );
   }
 
 auto database_storage_t::store(info::network_incident_t const & value) -> expected_ec<void>

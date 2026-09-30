@@ -266,6 +266,8 @@ struct database_storage_t
   ///\brief whether an incident of this category at this moment is stored already
   [[nodiscard]]
   auto network_incident_known(std::chrono::sys_seconds occurred, std::string_view category) -> expected_ec<bool>;
+  ///\brief fills in the times after a disconnect on a row stored before they were read, leaving known ones be
+  auto fill_network_incident_times(info::network_incident_t const & value) -> expected_ec<void>;
 
   ///\brief the incidents found so far, newest first
   [[nodiscard]]

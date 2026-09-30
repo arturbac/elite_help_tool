@@ -46,6 +46,14 @@ struct detected_incident_t
   std::string category;
   ///\brief the raw line or two behind it, for whoever reads the row later
   std::string detail;
+  ///\brief how long the game had heard nothing from its server when it gave up - LastRx on netLog's
+  /// "Releasing server on disconnection"; the network went quiet this long before the disconnect itself
+  std::optional<double> last_rx_s;
+  ///\brief seconds from the disconnect to the next ConnectToServerActivity: state=Init - mostly the player
+  /// reading the dialog and clicking on, not the network
+  std::optional<double> reconnect_started_s;
+  ///\brief seconds from the disconnect to the first "Connected:" after that - the server reached again
+  std::optional<double> reconnected_s;
   };
 
 ///\brief netLog's lines that mark real trouble: bursts of checksum failures (several within a couple of

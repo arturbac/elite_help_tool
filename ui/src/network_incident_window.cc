@@ -108,9 +108,21 @@ auto resolve_netlog_dir(std::filesystem::path const & journal_dir) -> std::files
 auto store_found(database_storage_t & db, network_incident::detected_incident_t const & found) -> bool
   {
   auto const occurred{std::chrono::floor<std::chrono::seconds>(found.occurred)};
-  // the current netLog is read again every pass - journald is asked only about what is new
+  // the current netLog is read again every pass - journald is asked only about what is new; a row found
+  // before the times after a disconnect were read gets them now
   if(auto known{db.network_incident_known(occurred, found.category)}; known and *known)
+    {
+    if(auto res{db.fill_network_incident_times(info::network_incident_t{
+         .occurred = occurred,
+         .category = found.category,
+         .last_rx_s = found.last_rx_s,
+         .reconnect_started_s = found.reconnect_started_s,
+         .reconnected_s = found.reconnected_s
+       })};
+       not res)
+      spdlog::error("network incident scan: failed to fill in the times of an incident");
     return true;
+    }
   if(std::chrono::system_clock::now() < found.occurred + correlation_span)
     return false;
   std::string const log{network_incident::net_monitor_log(found.occurred, correlation_span, correlation_span)};
@@ -119,7 +131,10 @@ auto store_found(database_storage_t & db, network_incident::detected_incident_t 
     .category = found.category,
     .detail = found.detail,
     .verdict = network_incident::classify(log),
-    .net_monitor_log = log
+    .net_monitor_log = log,
+    .last_rx_s = found.last_rx_s,
+    .reconnect_started_s = found.reconnect_started_s,
+    .reconnected_s = found.reconnected_s
   };
   if(auto res{db.store(incident)}; not res)
     spdlog::error("network incident scan: failed to store an incident");
@@ -258,7 +273,12 @@ auto network_incident_window_t::reload() -> void
     history_view_->setItem(ix, 0, when);
     history_view_->setItem(ix, 1, text_cell(QString::fromStdString(row.category)));
     history_view_->setItem(ix, 2, text_cell(verdict_text(row.verdict)));
-    history_view_->setItem(ix, 3, text_cell(QString::fromStdString(row.detail)));
+    std::string detail{row.detail};
+    if(row.last_rx_s)
+      detail = std::format("silent {:.0f} s before - {}", *row.last_rx_s, detail);
+    if(row.reconnected_s)
+      detail = std::format("connected again {:.0f} s after - {}", *row.reconnected_s, detail);
+    history_view_->setItem(ix, 3, text_cell(QString::fromStdString(detail)));
     ++ix;
     }
   history_view_->setSortingEnabled(true);

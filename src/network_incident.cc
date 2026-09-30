@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <array>
+#include <charconv>
 #include <format>
 #include <memory>
 #include <ranges>
@@ -118,12 +119,38 @@ auto scan_netlog(std::string_view file_name, std::chrono::seconds utc_offset, st
     burst_count = 0;
     };
 
+  // the disconnect whose aftermath is still being read - how long the server had been silent, and when the
+  // game got through to one again; a file ending first leaves them unknown
+  std::optional<size_t> open_disconnect;
+  auto const seconds_since = [&result](size_t ix, std::chrono::system_clock::time_point at) -> double
+  { return std::chrono::duration<double>(at - result[ix].occurred).count(); };
+
   for(auto const part: std::views::split(text, '\n'))
     {
     std::string_view const line{part.begin(), part.end()};
     auto const moment{clock.moment(line)};
     if(not moment)
       continue;
+
+    if(open_disconnect)
+      {
+      detected_incident_t & open{result[*open_disconnect]};
+      if(not open.last_rx_s and line.contains("Releasing server on disconnection"))
+        if(auto const pos{line.find("LastRx=")}; pos != std::string_view::npos)
+          {
+          double seconds{};
+          auto const from{line.data() + pos + std::string_view{"LastRx="}.size()};
+          if(auto const [end, ec]{std::from_chars(from, line.data() + line.size(), seconds)}; ec == std::errc{})
+            open.last_rx_s = seconds;
+          }
+      if(not open.reconnect_started_s and line.contains("ConnectToServerActivity: state=Init"))
+        open.reconnect_started_s = seconds_since(*open_disconnect, *moment);
+      if(open.reconnect_started_s and line.contains("} Connected: "))
+        {
+        open.reconnected_s = seconds_since(*open_disconnect, *moment);
+        open_disconnect.reset();
+        }
+      }
 
     if(line.contains("checksum failure"))
       {
@@ -156,6 +183,7 @@ auto scan_netlog(std::string_view file_name, std::chrono::seconds utc_offset, st
         result.push_back(detected_incident_t{
           .occurred = *moment, .category = std::format("disconnect: {}", reason), .detail = std::string{line}
         });
+        open_disconnect = result.size() - 1u;
         }
     }
   flush_burst();

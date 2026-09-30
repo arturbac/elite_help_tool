@@ -10,7 +10,11 @@ sources that already sit on disk:
 - **netLog** (the game's own connection log, separate from the journal, kept beside the install in
   its `Logs` folder): bursts of checksum failures - several within a couple of seconds count as one
   incident - and structured `Disconnect: type=N&reason=...` lines naming things like `SaveFailed`,
-  `DockingSaveFailed` or a mission timeout.
+  `DockingSaveFailed` or a mission timeout. Each disconnect also keeps what followed it: how long the
+  game had heard nothing from its server when it gave up (`LastRx` on "Releasing server on
+  disconnection" - the network went quiet that long before the disconnect), and the seconds until the
+  next `ConnectToServerActivity: state=Init` (mostly the player clicking on) and the first `Connected:`
+  (the server reached again). A database from before these were kept gets them from netLog read again.
 - **the journal**: a completed session file with no `Shutdown` event in it. This is *not* read as a
   crash - on one commander's history checked while building this, about a fifth of all sessions ended
   this way, far more than real crashes would explain. Alt+F4, closing the window, or stopping the
