@@ -1,5 +1,7 @@
 # How EHT works out when the BGS tick happened
 
+![Tick times over 30 days, plotted by UTC hour, war ticks in red](images/bgs_tick.png)
+
 Elite Dangerous has no fixed tick hour. Frontier moves it every few days, and over a weekend the
 tick can fail to come for about 48 hours. EHT does not predict the tick. It reconstructs, from your
 own journals, when the tick has already happened.

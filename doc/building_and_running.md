@@ -168,7 +168,7 @@ It takes a while for months of journals. Options:
 | `--bgs [days]` | print mission effort against the influence it moved, day by day |
 | `--wars` | print how long after being announced the wars actually started |
 
-What goes where is described in the README, under *Three databases*.
+What goes where is described in [data_model.md](data_model.md), under *Three databases*.
 
 ## 5. Run EHT
 

@@ -10,7 +10,7 @@ a **virtual desktop**: a single window as large as all the monitors together, wh
 as one very wide screen. You then set the game's resolution to the desktop's size.
 
 This is also what the EHT overlay is laid out for. On a triple screen the middle belongs to the
-game, and the overlay stays in the side bands (see *In-game overlay* in the README).
+game, and the overlay stays in the side bands (see [overlay.md](overlay.md)).
 
 The author's setup, for reference: three 3840x2160 monitors at 125% scaling in KDE, and a Wine
 desktop of **9000x2160**, a little narrower than all three, centred.
