@@ -1,5 +1,6 @@
 #pragma once
 #include <elite_events.h>
+#include <network_incident.h>
 #include <algorithm>
 #include <array>
 #include <format>
@@ -1071,6 +1072,32 @@ struct neutron_waypoint_t
   bool neutron;
   ///\brief the distance from the previous waypoint in light years
   double distance;
+  };
+
+///\brief a disconnect, crash or technical failure found automatically - see network_incident.h for how.
+/// net_monitor_log and verdict are worked out once, right when the incident is found, since journald's own
+/// retention will not keep that window forever
+struct network_incident_t
+  {
+  int64_t oid{-1};
+  std::chrono::sys_seconds occurred;
+  ///\brief what kind of trouble - "checksum failure", "disconnect: SaveFailed", "ended without Shutdown", ...
+  std::string category;
+  ///\brief the raw evidence behind it - the netLog line(s), or the journal event running when it stopped
+  std::string detail;
+  network_incident::verdict_e verdict;
+  std::string net_monitor_log;
+  };
+
+///\brief how far the automatic scan for network_incident_t rows has gotten - a single row, so the whole of
+/// netLog's history (going back years) is not reread on every start
+struct incident_scan_progress_t
+  {
+  uint32_t id{1};
+  ///\brief the newest netLog file name fully scanned; empty before the first scan
+  std::string netlog_through;
+  ///\brief the newest completed journal file name checked for a missing Shutdown; empty before the first scan
+  std::string journal_through;
   };
 
 ///\brief a ship in transit between ports

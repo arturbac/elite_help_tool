@@ -52,6 +52,7 @@
 - [Privacy and your own galaxy](privacy.md): what EHT downloads (nothing) and sends (EDDN, opt-in)
 - [Backup](backup.md): what is backed up and how
 - [Evidence of the settlement glare](settlement_glare.md): the overexposure bug report tool
+- [Network incidents](network_incidents.md): noting the game's disconnect codes, correlated against the local network's own state
 
 ## Known issues
 

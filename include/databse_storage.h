@@ -259,6 +259,28 @@ struct database_storage_t
   [[nodiscard]]
   auto load_neutron_route() -> expected_ec<std::vector<info::neutron_waypoint_t>>;
 
+  ///\brief adds a network incident found automatically, correlated against net-monitor's log already at
+  /// this point; skipped when one at the same moment and category is already known, so a rescan is harmless
+  [[nodiscard]]
+  auto store(info::network_incident_t const & value) -> expected_ec<void>;
+
+  ///\brief the incidents found so far, newest first
+  [[nodiscard]]
+  auto load_network_incidents(uint32_t limit = 500u) -> expected_ec<std::vector<info::network_incident_t>>;
+
+  ///\brief the newest incident's oid, 0 when there are none - cheap enough to poll on a timer, unlike
+  /// rereading and redrawing the whole table just to find out that nothing changed
+  [[nodiscard]]
+  auto load_latest_incident_oid() -> expected_ec<int64_t>;
+
+  ///\brief how far the automatic scan has gotten; empty fields before the first scan
+  [[nodiscard]]
+  auto load_incident_scan_progress() -> expected_ec<info::incident_scan_progress_t>;
+
+  [[nodiscard]]
+  auto store_incident_scan_progress(std::string_view netlog_through, std::string_view journal_through)
+    -> expected_ec<void>;
+
   ///\brief stores an ordered ship transfer, skipping the ones already known
   [[nodiscard]]
   auto store(info::ship_transfer_t const & value) -> expected_ec<void>;

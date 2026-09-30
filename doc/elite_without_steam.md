@@ -95,7 +95,7 @@ ln -s "/games/ed-frontier/compatdata/359320/pfx/drive_c/users/steamuser/Saved Ga
 /path/to/elite_help_tool/build/eht-release/journal_tailer --dir journal-dir
 
 # optional: share market prices with the Steam account
-ln -s /path/to/elite_help_tool/build/eht-release/live.sqlite live.sqlite
+ln -s ~/eht/steam/live.sqlite live.sqlite
 ```
 
 Then start EHT from that directory, with the **same socket** as the game script:

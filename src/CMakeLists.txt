@@ -16,6 +16,7 @@ target_sources(eht
   sensors.cc
   netstate.cc
   evidence_log.cc
+  network_incident.cc
   database_storage.cc
   database_import_state.cc
   elite_data.cc

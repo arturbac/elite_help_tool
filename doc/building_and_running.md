@@ -23,6 +23,7 @@ EHT is made of three parts:
 - Qt6: Widgets, Charts
 - Boost ≥ 1.70: thread, program_options
 - SQLite3, OpenSSL, zlib, zstd (the backup packs the journals with it), pkg-config
+- libsystemd (reads net-monitor's log for the Network incidents window, no root needed)
 - Vulkan headers (for the overlay)
 
 - libxcb headers (the overlay loads libxcb at run time, from the game's process)
@@ -44,7 +45,7 @@ names and have not been tried.
 sudo apt install git cmake ninja-build clang-19 \
   qt6-base-dev libqt6charts6-dev \
   libboost-thread-dev libboost-program-options-dev \
-  libsqlite3-dev libssl-dev zlib1g-dev libzstd-dev pkg-config libvulkan-dev libxcb1-dev
+  libsqlite3-dev libssl-dev zlib1g-dev libzstd-dev libsystemd-dev pkg-config libvulkan-dev libxcb1-dev
 ```
 
 Debian 12 is too old: its CMake is 3.25 and it has no Qt6 Charts package.
@@ -57,7 +58,7 @@ Windows), Pop!_OS 24.04, Zorin OS 18. They share Ubuntu 24.04's packages. The de
 sudo apt install git cmake ninja-build clang-19 g++-14 \
   qt6-base-dev libqt6charts6-dev \
   libboost-thread-dev libboost-program-options-dev \
-  libsqlite3-dev libssl-dev zlib1g-dev libzstd-dev pkg-config libvulkan-dev libxcb1-dev
+  libsqlite3-dev libssl-dev zlib1g-dev libzstd-dev libsystemd-dev pkg-config libvulkan-dev libxcb1-dev
 ```
 
 If `clang-19` is not found, enable the *universe* repository, or take it from
@@ -68,7 +69,7 @@ CMake 3.22).
 
 ```sh
 sudo pacman -S --needed base-devel git cmake ninja clang \
-  qt6-base qt6-charts boost sqlite openssl zlib zstd vulkan-headers vulkan-icd-loader libxcb
+  qt6-base qt6-charts boost sqlite openssl zlib zstd systemd vulkan-headers vulkan-icd-loader libxcb
 ```
 
 Arch names its compiler plain `clang++`, so configure with
@@ -79,7 +80,7 @@ Arch names its compiler plain `clang++`, so configure with
 ```sh
 emerge --ask --noreplace dev-vcs/git dev-build/cmake dev-build/ninja llvm-core/clang:19 \
   dev-qt/qtbase:6 dev-qt/qtcharts:6 dev-libs/boost dev-db/sqlite app-arch/zstd dev-libs/openssl \
-  virtual/zlib dev-util/vulkan-headers media-libs/vulkan-loader x11-libs/libxcb
+  virtual/zlib sys-apps/systemd dev-util/vulkan-headers media-libs/vulkan-loader x11-libs/libxcb
 ```
 
 **Immutable gaming systems** (Bazzite, SteamOS) have no package manager for development
@@ -133,11 +134,13 @@ ENABLE_EHT_OVERLAY=1 ~/.local/share/Steam/steamapps/common/SteamLinuxRuntime_4/r
 ## 3. Prepare a working directory
 
 EHT keeps its databases and settings in the directory **it is started from**, and it looks for the
-journals through a link named `journal-dir` there. Pick one directory per game account. The build
-directory works fine:
+journals through a link named `journal-dir` there. Pick one directory per game account, **outside
+the build tree**: a test binary or a fresh build run with the build directory as its working
+directory writes its own `galaxy.sqlite`/`live.sqlite` there on start, silently wiping the live
+ones — not recoverable from journals.
 
 ```sh
-cd build/eht-release
+mkdir -p ~/eht/steam && cd ~/eht/steam
 ln -s "$HOME/.local/share/Steam/steamapps/compatdata/359320/pfx/drive_c/users/steamuser/Saved Games/Frontier Developments/Elite Dangerous" journal-dir
 ```
 
@@ -150,8 +153,8 @@ The tool itself follows only the **newest** journal. Your history (systems visit
 factions, missions, BGS influence) goes in once, with `journal_tailer`:
 
 ```sh
-cd build/eht-release
-./journal_tailer --dir journal-dir
+cd ~/eht/steam
+/path/to/elite_help_tool/build/eht-release/journal_tailer --dir journal-dir
 ```
 
 > **`journal_tailer` deletes and rebuilds `ehtdb.sqlite` and `galaxy.sqlite` in the current
@@ -173,8 +176,8 @@ What goes where is described in [data_model.md](data_model.md), under *Three dat
 ## 5. Run EHT
 
 ```sh
-cd build/eht-release
-./ui/elite_help_tool
+cd ~/eht/steam
+/path/to/elite_help_tool/build/eht-release/ui/elite_help_tool
 ```
 
 Start it from the working directory: `journal-dir`, the databases and `eht_settings.json` are all

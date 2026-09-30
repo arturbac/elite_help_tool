@@ -545,6 +545,10 @@ auto micro_resource_window_t::setup_ui() -> void
         spdlog::error("failed to mark carrier {}", chosen);
 
       reload_carriers();
+      // the Bar sales and Mission value tabs list only tracked carriers - marking one here would
+      // otherwise not show up there until something else caused a refresh
+      show_bar_sales();
+      show_mission_value();
     }
   );
 

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20..4.1.20)
-project(EliteHelpTool VERSION 1.8.1 LANGUAGES CXX)
+project(EliteHelpTool VERSION 1.9.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -144,6 +144,8 @@ find_package(SQLite3 REQUIRED)
 # the backup packs the journals with it
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(ZSTD REQUIRED IMPORTED_TARGET libzstd)
+# reads net-monitor.service's own log around a network incident marker - no root, the user's own journal access
+pkg_check_modules(SYSTEMD REQUIRED IMPORTED_TARGET libsystemd)
 
 set(PROJECT_CXX_FLAGS
   "-fPIC"
@@ -209,6 +211,7 @@ target_link_libraries(eht PUBLIC
   glaze::glaze
   SQLite3::SQLite3
   PkgConfig::ZSTD
+  PkgConfig::SYSTEMD
   )
 
 add_executable(journal_tailer)

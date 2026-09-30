@@ -36,6 +36,7 @@ target_sources(elite_help_tool
             include/micro_resource_window.h
             include/bgs_window.h
             include/construction_window.h
+            include/network_incident_window.h
             include/ships_window.h
             include/surface_window.h
             include/overlay_feed.h

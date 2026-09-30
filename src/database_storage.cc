@@ -550,6 +550,10 @@ namespace tables
   inline constexpr std::string_view neutron_route{"live.neutron_route"};
   // the commander's own choice, which no journal records - kept with what cannot be rebuilt
   inline constexpr std::string_view construction_abandoned{"live.construction_abandoned"};
+  // a disconnect/crash found by scanning netLog and the journal - neither is rebuilt from EHT's own database,
+  // so this stays in the live schema like the rest of what cannot be rebuilt
+  inline constexpr std::string_view network_incident{"live.network_incident"};
+  inline constexpr std::string_view incident_scan_progress{"live.incident_scan_progress"};
   // what is on our carriers - the game does not say for a squadron's, so it is kept here by hand and by
   // the balance of every docking; none of it can be rebuilt from journals
   inline constexpr std::string_view carrier_cargo{"live.carrier_cargo"};
@@ -1460,6 +1464,14 @@ auto database_storage_t::create_database() -> expected_ec<void>
      )};
      not res) [[unlikely]]
     return res;
+  if(auto res{sqlite::create_table<info::network_incident_t>(db_->db, "oid"sv, sql_iface::tables::network_incident)};
+     not res) [[unlikely]]
+    return res;
+  if(auto res{sqlite::create_table<info::incident_scan_progress_t>(
+       db_->db, "id"sv, sql_iface::tables::incident_scan_progress
+     )};
+     not res) [[unlikely]]
+    return res;
   if(auto res{sqlite::create_table<info::carrier_cargo_t>(db_->db, "oid"sv, sql_iface::tables::carrier_cargo)};
      not res) [[unlikely]]
     return res;
@@ -1578,6 +1590,13 @@ auto database_storage_t::create_database() -> expected_ec<void>
     auto res{sqlite::create_index(
       db_->db, sql_iface::tables::genus_progress, "system_address, body_id, genus", "key", true
     )};
+    not res
+  ) [[unlikely]]
+    return res;
+
+  // a rescan of netLog's whole history checks every incident it finds against what is already stored
+  if(
+    auto res{sqlite::create_index(db_->db, sql_iface::tables::network_incident, "occurred, category")};
     not res
   ) [[unlikely]]
     return res;
@@ -3249,6 +3268,71 @@ auto database_storage_t::load_neutron_route() -> expected_ec<std::vector<info::n
   {
   return sqlite::select_from<info::neutron_waypoint_t>(
     db_->db, sql_iface::tables::neutron_route, " ORDER BY position"
+  );
+  }
+
+auto database_storage_t::store(info::network_incident_t const & value) -> expected_ec<void>
+  {
+  // rescanning the same netLog/journal files must not duplicate what they already gave
+  auto known{sqlite::select_signle_from<uint64_t>(
+    db_->db,
+    std::format(
+      "SELECT count(*) FROM {} WHERE occurred='{:%Y-%m-%dT%H:%M:%SZ}' AND category='{}'",
+      sql_iface::tables::network_incident,
+      value.occurred,
+      sqlite::escape_sql_quotes(value.category)
+    )
+  )};
+  if(not known) [[unlikely]]
+    return cxx23::unexpected{known.error()};
+  if(*known and **known != 0)
+    return {};
+  return sqlite::insert_into(db_->db, "oid"sv, sql_iface::tables::network_incident, value);
+  }
+
+auto database_storage_t::load_network_incidents(uint32_t limit) -> expected_ec<std::vector<info::network_incident_t>>
+  {
+  return sqlite::select_from<info::network_incident_t>(
+    db_->db, sql_iface::tables::network_incident, std::format("ORDER BY occurred DESC LIMIT {}", limit)
+  );
+  }
+
+auto database_storage_t::load_latest_incident_oid() -> expected_ec<int64_t>
+  {
+  // a plain count, not max(oid) - rows are only ever inserted, never updated, so a rising count is exactly
+  // as good a sign of something new as the newest id would be, and count(*) is never NULL on an empty table
+  auto res{sqlite::select_signle_from<int64_t>(
+    db_->db, std::format("SELECT count(*) FROM {}", sql_iface::tables::network_incident)
+  )};
+  if(not res) [[unlikely]]
+    return cxx23::unexpected{res.error()};
+  return *res ? **res : int64_t{0};
+  }
+
+auto database_storage_t::load_incident_scan_progress() -> expected_ec<info::incident_scan_progress_t>
+  {
+  auto rows{sqlite::select_from<info::incident_scan_progress_t>(
+    db_->db, sql_iface::tables::incident_scan_progress, "WHERE id=1"
+  )};
+  if(not rows) [[unlikely]]
+    return cxx23::unexpected{rows.error()};
+  return rows->empty() ? info::incident_scan_progress_t{} : std::move((*rows)[0]);
+  }
+
+auto database_storage_t::store_incident_scan_progress(
+  std::string_view netlog_through, std::string_view journal_through
+) -> expected_ec<void>
+  {
+  return sqlite::execute_query_no_result(
+    db_->db,
+    std::format(
+      "INSERT INTO {0} (id, netlog_through, journal_through) VALUES (1, '{1}', '{2}')"
+      " ON CONFLICT(id) DO UPDATE SET netlog_through = excluded.netlog_through,"
+      " journal_through = excluded.journal_through",
+      sql_iface::tables::incident_scan_progress,
+      sqlite::escape_sql_quotes(netlog_through),
+      sqlite::escape_sql_quotes(journal_through)
+    )
   );
   }
 
