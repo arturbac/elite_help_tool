@@ -176,7 +176,7 @@ auto approach_views_t::tick(planet_faces_t & faces) -> void
     }
   judging_ = std::async(
     std::launch::async,
-    [target{*target_}, read{std::move(*sample)}, full{cfg->exploration.approach_radius_px}]() -> judged_t
+    [target{*target_}, read{std::move(*sample)}, full{cfg->exploration.approach_radius_px}, live_db{faces.live_db()}]() -> judged_t
     {
       overlay::sample_header_t const & h{read.header};
       float const screen_per_pixel{h.region_width * float(h.surface_width) / float(h.width)};
@@ -185,7 +185,7 @@ auto approach_views_t::tick(planet_faces_t & faces) -> void
       if(not judged)
         return {.verdict = std::nullopt, .why = std::move(why)};
       // strictly better: a view as good as the one kept would only be the same face again, every interval
-      if(judged->score <= planet_faces_t::best_score(target.body))
+      if(judged->score <= planet_faces_t::best_score(live_db, target.body))
         return {};
       // the ball's rectangle, a little larger, from the sample's pixels to shares of the whole surface
       float const r{judged->disc.radius * margin};

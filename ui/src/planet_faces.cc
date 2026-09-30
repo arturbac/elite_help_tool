@@ -1,5 +1,6 @@
 #include <planet_faces.h>
 #include <codex.h>
+#include <face_store.h>
 #include <eht_settings.h>
 #include <planet_face.h>
 
@@ -23,25 +24,25 @@ using codex_files::spool_dir;
 ///\brief how often a body's pictures are looked at again for one newer than its face
 constexpr std::chrono::seconds recheck{10};
 
-///\brief the best face from the cockpit and how good its view was, beside it
+///\brief where the builds before the views went into live.sqlite kept the best view from the cockpit, and beside
+/// it how good it was
 [[nodiscard]]
-auto approach_path(std::string const & body) -> std::filesystem::path
+auto old_approach_path(std::string const & body) -> std::filesystem::path
   { return codex_dir() / "approach" / (file_safe(body) + ".png"); }
-
-[[nodiscard]]
-auto score_path(std::string const & body) -> std::filesystem::path
-  { return codex_dir() / "approach" / (file_safe(body) + ".score"); }
 
 struct sources_t
   {
   std::vector<std::filesystem::path> views;
   std::optional<std::filesystem::path> photo;
-  std::optional<std::filesystem::path> approach;
+  ///\brief a view from the cockpit is kept in live.sqlite
+  bool approach{};
   std::filesystem::file_time_type newest{std::filesystem::file_time_type::min()};
   };
 
+auto adopt_old_view(std::filesystem::path const & live_db, std::string const & body) -> void;
+
 [[nodiscard]]
-auto sources_of(std::string const & system, std::string const & body) -> sources_t
+auto sources_of(std::string const & system, std::string const & body, std::filesystem::path const & live_db) -> sources_t
   {
   sources_t sources;
   std::error_code ec;
@@ -65,10 +66,11 @@ auto sources_of(std::string const & system, std::string const & body) -> sources
         sources.photo = entry.path();
   if(sources.photo)
     note(*sources.photo);
-  if(std::filesystem::path const approach{approach_path(body)}; std::filesystem::exists(approach, ec))
+  adopt_old_view(live_db, body);
+  if(auto const kept{face_store::stamp(live_db, body)}; kept)
     {
-    sources.approach = approach;
-    note(approach);
+    sources.approach = true;
+    sources.newest = std::max(sources.newest, std::chrono::clock_cast<std::chrono::file_clock>(kept->second));
     }
   return sources;
   }
@@ -93,6 +95,23 @@ auto load(std::filesystem::path const & file) -> std::optional<planet_face::imag
   return to_image(picture);
   }
 
+///\brief a view from the cockpit an older build kept as files, taken into live.sqlite the first time the body is asked
+/// about; the files stay where they are
+auto adopt_old_view(std::filesystem::path const & live_db, std::string const & body) -> void
+  {
+  std::error_code ec;
+  std::filesystem::path const png{old_approach_path(body)};
+  if(not std::filesystem::exists(png, ec) or face_store::stamp(live_db, body))
+    return;
+  std::filesystem::path score_file{png};
+  score_file.replace_extension(".score");
+  float score{};
+  if(std::ifstream in{score_file}; not in or not (in >> score))
+    return;
+  if(auto image{load(png)}; image and face_store::save(live_db, body, score, *image))
+    spdlog::info("faces: the view of {} from the cockpit moved from {} into {}", body, png.string(), live_db.string());
+  }
+
 ///\brief a binary PPM, the one format the layer reads without a library - put in place only whole
 auto write_ppm(planet_face::image_t const & image, std::filesystem::path const & path) -> bool
   {
@@ -113,8 +132,14 @@ auto write_ppm(planet_face::image_t const & image, std::filesystem::path const &
 
 ///\brief makes the face and writes it twice: the PNG the codex keeps and the PPM the layer reads
 [[nodiscard]]
-auto make(std::string body, sources_t sources, uint32_t fallback, uint32_t side, std::filesystem::path spool)
-  -> std::string
+auto make(
+  std::string body,
+  sources_t sources,
+  uint32_t fallback,
+  uint32_t side,
+  std::filesystem::path spool,
+  std::filesystem::path live_db
+) -> std::string
   {
   std::vector<planet_face::image_t> views;
   for(std::filesystem::path const & file: sources.views)
@@ -125,7 +150,8 @@ auto make(std::string body, sources_t sources, uint32_t fallback, uint32_t side,
     photo = load(*sources.photo);
   std::optional<planet_face::image_t> approach;
   if(sources.approach)
-    approach = load(*sources.approach);
+    if(auto kept{face_store::load(live_db, body)}; kept)
+      approach = std::move(kept->image);
   std::array const colour{
     float((fallback >> 16u) & 0xffu) / 255.f, float((fallback >> 8u) & 0xffu) / 255.f, float(fallback & 0xffu) / 255.f
   };
@@ -159,29 +185,21 @@ auto make(std::string body, sources_t sources, uint32_t fallback, uint32_t side,
   }
 
 ///\brief the view judged; kept when at least as good as the best so far - the newer wins a tie
-auto judge(std::string body, QImage view, uint32_t side) -> void
+auto judge(std::string body, QImage view, uint32_t side, std::filesystem::path live_db) -> void
   {
   planet_face::image_t const image{to_image(view)};
   auto const judged{planet_face::judge_approach(image, 1.f, eht::settings()->exploration.approach_radius_px)};
   if(not judged or judged->score <= 0.f)
     return;
-  std::error_code ec;
-  float best{-1.f};
-  if(std::ifstream in{score_path(body)}; in)
-    in >> best;
+  float const best{planet_faces_t::best_score(live_db, body)};
   if(judged->score < best)
     return;
   planet_face::image_t const face{planet_face::approach_face(image, judged->disc, side)};
-  std::filesystem::create_directories(approach_path(body).parent_path(), ec);
-  QImage const png{face.rgb.data(), int(face.width), int(face.height), int(face.width * 3u), QImage::Format_RGB888};
-  std::filesystem::path const partial{approach_path(body).string() + ".partial.png"};
-  if(not png.save(QString::fromStdString(partial.string())))
+  if(not face_store::save(live_db, body, judged->score, face))
+    {
+    spdlog::error("faces: the view of {} from the cockpit could not be kept in {}", body, live_db.string());
     return;
-  std::filesystem::rename(partial, approach_path(body), ec);
-  if(ec)
-    return;
-  if(std::ofstream out{score_path(body), std::ios::trunc}; out)
-    out << judged->score << '\n';
+    }
   spdlog::info(
     "faces: {} seen from the cockpit, {:.2f} ({:.0f} px, {:.0f}% in daylight) - kept, the best was {:.2f}",
     body,
@@ -193,20 +211,21 @@ auto judge(std::string body, QImage view, uint32_t side) -> void
   }
   }  // namespace
 
-auto planet_faces_t::best_score(std::string const & body) -> float
+auto planet_faces_t::best_score(std::filesystem::path const & live_db, std::string const & body) -> float
   {
-  float best{-1.f};
-  if(std::ifstream in{score_path(body)}; in)
-    in >> best;
-  return best;
+  adopt_old_view(live_db, body);
+  auto const kept{face_store::stamp(live_db, body)};
+  return kept ? kept->first : -1.f;
   }
+
+planet_faces_t::planet_faces_t(std::filesystem::path live_db) : live_db_{std::move(live_db)} {}
 
 auto planet_faces_t::offer_view(std::string const & system, std::string const & body, QImage view) -> void
   {
   (void)system;
   if(judging_.valid() and judging_.wait_for(std::chrono::seconds{0}) != std::future_status::ready)
     return;
-  judging_ = std::async(std::launch::async, judge, body, std::move(view), side);
+  judging_ = std::async(std::launch::async, judge, body, std::move(view), side, live_db_);
   }
 
 auto planet_faces_t::face(std::string const & system, std::string const & body, uint32_t fallback) -> std::string
@@ -227,7 +246,7 @@ auto planet_faces_t::face(std::string const & system, std::string const & body, 
     return entry.spool;
   entry.checked = now;
 
-  sources_t sources{sources_of(system, body)};
+  sources_t sources{sources_of(system, body, live_db_)};
   if((sources.views.empty() and not sources.approach) or sources.newest <= entry.made_from)
     return entry.spool;
   entry.making_from = sources.newest;
@@ -235,6 +254,6 @@ auto planet_faces_t::face(std::string const & system, std::string const & body, 
   std::filesystem::path spool{
     spool_dir() / "faces" / std::format("{}_{}.ppm", file_safe(body), sources.newest.time_since_epoch().count())
   };
-  entry.making = std::async(std::launch::async, make, body, std::move(sources), fallback, side, std::move(spool));
+  entry.making = std::async(std::launch::async, make, body, std::move(sources), fallback, side, std::move(spool), live_db_);
   return entry.spool;
   }

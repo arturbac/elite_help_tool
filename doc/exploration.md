@@ -126,9 +126,13 @@ kept when it is at least as good. Its light is taken off before it is kept: the 
 is fitted to the brightness over the ball, each pixel is divided by how squarely it faced the light,
 and the night side is filled from the day side mirrored across the terminator. The target's ring, its
 dot and the words written beside it are filled from around them like the scanner's marks. It is kept
-in `codex/approach/<body>.png`, its score beside it. A scanner view in the body's own colours still
+in `live.sqlite` (table `approach_view`), the pixels packed with zstd and the score in the same row,
+so the two are written together or not at all and travel with the backup's copy of `live.sqlite`: of
+all a face is made from, this view is the one nothing can give back. Views an older build kept under
+`codex/approach/` are taken in the first time their body is shown; the files stay. A scanner view in the body's own colours still
 comes first; the cockpit's face comes before a scanner view painted by a filter.
 
 The face is made in a thread of its own the first time the map shows the body, and made again when a
-newer view comes in; it is kept in `codex/faces/<body>.png` and handed to the overlay beside the
+newer view comes in; it is written to `codex/faces/<body>.png` to be looked at - it is made again at
+every start, never read back - and handed to the overlay beside the
 socket. A body with life, whose flat ball is green, keeps its face and gets a green ring instead.

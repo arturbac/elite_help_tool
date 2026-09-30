@@ -1582,7 +1582,8 @@ auto build_tick_chart(
 
 overlay_feed_t::overlay_feed_t(std::string socket_path, std::string db_path) :
     server_{std::make_unique<overlay::server_t>(std::move(socket_path))},
-    db_{db_path}
+    db_{db_path},
+    faces_{db_.live_db_path_}
   {
   if(auto res{db_.open()}; not res)
     spdlog::error("overlay feed: failed to open {}", db_path);
