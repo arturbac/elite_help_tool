@@ -3,7 +3,8 @@
 
     sample_to_png.py [sample.bin] [out.png]
 
-The sample is the file the layer keeps beside the socket, captures/sample.bin (see overlay::sample_header_t).
+The sample is the file the layer keeps beside the socket, captures/<socket>_sample.bin - overlay_sample.bin for
+the default socket, overlay-alt_sample.bin for EHT_OVERLAY_SOCKET=.../overlay-alt.sock (see sample_file_path()).
 Its seq is odd while the layer writes, so a copy is taken again until it was the same even number before
 and after. Nothing but the standard library.
 """
@@ -43,8 +44,11 @@ def png(path, w, h, rgba):
 
 
 def main():
-    spool = os.path.join(os.environ.get('HOME', '/tmp'), '.local/share/elite_help_tool/captures')
-    source = sys.argv[1] if len(sys.argv) > 1 else os.path.join(spool, 'sample.bin')
+    socket = os.environ.get('EHT_OVERLAY_SOCKET') or os.path.join(
+        os.environ.get('HOME', '/tmp'), '.local/share/elite_help_tool/overlay.sock')
+    stem = os.path.splitext(os.path.basename(socket))[0]
+    default = os.path.join(os.path.dirname(socket), 'captures', stem + '_sample.bin')
+    source = (sys.argv[1] if len(sys.argv) > 1 else '') or default
     target = sys.argv[2] if len(sys.argv) > 2 else 'sample.png'
     s = read(source)
     png(target, s['width'], s['height'], s['rgba'])

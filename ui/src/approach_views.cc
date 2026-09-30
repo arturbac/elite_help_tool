@@ -32,7 +32,7 @@ struct sample_read_t
 [[nodiscard]]
 auto read_sample(uint64_t seen) -> std::optional<sample_read_t>
   {
-  std::filesystem::path const path{codex_files::spool_dir() / overlay::sample_file_name};
+  std::filesystem::path const path{overlay::sample_file_path()};
   std::ifstream in{path, std::ios::binary};
   if(not in)
     return std::nullopt;

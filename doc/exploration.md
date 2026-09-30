@@ -111,7 +111,7 @@ The way to a body gives faces too, and in the body's true colours. With a planet
 the destination and the ship's own view in supercruise, the layer is asked for a small sample of the
 middle of the screen four times a second: shrunk on the graphics card by halving it again and again,
 each step the mean of 2 x 2 pixels, to a few hundred pixels across, and written into a file both
-sides share (`captures/sample.bin` beside the socket). The game waits for none of it - a few
+sides share (`captures/<socket>_sample.bin` beside the socket). The game waits for none of it - a few
 microseconds a frame. Each sample is judged in a thread: the ball must be found whole in it - its
 night side's rim may be lost against the black - and the cockpit's frame must hide next to none of it;
 then the more of it in daylight and the larger it is on the screen, up to 200 px of radius, the

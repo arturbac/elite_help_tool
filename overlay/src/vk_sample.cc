@@ -202,7 +202,7 @@ namespace
     {
     if(sample.file != nullptr)
       return true;
-    std::string const path{overlay::default_spool_path() + "/" + std::string{overlay::sample_file_name}};
+    std::string const path{overlay::sample_file_path()};
     int const fd{::open(path.c_str(), O_RDWR | O_CREAT | O_CLOEXEC, 0644)};
     if(fd < 0)
       return false;

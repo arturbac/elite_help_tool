@@ -163,7 +163,7 @@ struct market_reminder_t
   float width{0.6f};
   };
 
-///\brief the small sample of the screen the layer keeps in captures/sample.bin, beside the socket
+///\brief the small sample of the screen the layer keeps in captures/<socket>_sample.bin, beside the socket
 ///\detail made anyway while flying at a planet for its face; always keeps it made the rest of the time too,
 /// for looking at what the game shows from outside - diagnostics, a tool reading the screen
 struct overlay_sample_t

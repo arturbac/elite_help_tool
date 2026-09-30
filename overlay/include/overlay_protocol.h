@@ -395,7 +395,6 @@ struct sample_header_t
 ///\brief the largest sample the file holds, and the file's size
 inline constexpr uint32_t sample_max_side{512u};
 inline constexpr size_t sample_file_size{sizeof(sample_header_t) + size_t{sample_max_side} * sample_max_side * 4u};
-inline constexpr std::string_view sample_file_name{"sample.bin"};
 
 ///\brief a picture of the whole screen, overlay and all, taken by the layer when the player presses a key
 ///\detail The layer watches the key itself - the tool never sees the game's keyboard. It writes the picture
@@ -465,5 +464,17 @@ inline auto default_spool_path() -> std::string
   auto const slash{path.find_last_of('/')};
   path.resize(slash == std::string::npos ? 0u : slash);
   return path + "/captures";
+  }
+
+///\brief the shared file of the sample, named after the socket - two accounts playing at once each have their own
+[[nodiscard]]
+inline auto sample_file_path() -> std::string
+  {
+  std::string stem{default_socket_path()};
+  if(auto const slash{stem.find_last_of('/')}; slash != std::string::npos)
+    stem.erase(0, slash + 1u);
+  if(auto const dot{stem.find_last_of('.')}; dot != std::string::npos)
+    stem.resize(dot);
+  return default_spool_path() + "/" + stem + "_sample.bin";
   }
   }  // namespace overlay
