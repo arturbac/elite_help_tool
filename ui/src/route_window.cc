@@ -8,7 +8,7 @@
 #include <qfileinfo.h>
 #include <qguiapplication.h>
 #include <qclipboard.h>
-#include <glaze/glaze.hpp>
+#include <json_glaze.h>
 #include <spdlog/spdlog.h>
 route_model_t::route_model_t(std::vector<info::route_item_t> const & route, QObject * parent) :
     QAbstractTableModel(parent),

@@ -1,6 +1,6 @@
 #include <evidence_log.h>
 
-#include <glaze/glaze.hpp>
+#include <json_glaze.h>
 
 #include <algorithm>
 #include <charconv>

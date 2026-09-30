@@ -3,7 +3,7 @@
 
 #include <algorithm>
 #include <fstream>
-#include <glaze/glaze.hpp>
+#include <json_glaze.h>
 #include <array>
 #include <cmath>
 #include <map>

@@ -2,6 +2,7 @@ target_sources(eht
   PRIVATE
   file_io.cc
   discover_logic.cc
+  json_io_events.cc
   biology.cc
   surface_nav.cc
   picture_records.cc

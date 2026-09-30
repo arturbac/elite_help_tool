@@ -226,13 +226,13 @@ auto same_content(overlay::frame_t const & left, overlay::frame_t const & right)
   // The whole frame, not a chosen part of it: comparing only the text let a moved ring on the system
   // picture, a new colour or a new layout wait for the keep-alive before reaching the game. A frame
   // is a few kilobytes and is built a few times a second, so writing both out is nothing
-  std::string a;
-  std::string b;
   overlay::frame_t l{left};
   overlay::frame_t r{right};
   l.seq = 0u;
   r.seq = 0u;
-  if(glz::write_json(l, a) or glz::write_json(r, b)) [[unlikely]]
+  std::string const a{overlay::to_json(l)};
+  std::string const b{overlay::to_json(r)};
+  if(a.empty() or b.empty()) [[unlikely]]
     return false;
   return a == b;
   }

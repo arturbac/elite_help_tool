@@ -1,6 +1,6 @@
 #include <picture_records.h>
 
-#include <glaze/glaze.hpp>
+#include <json_glaze.h>
 
 #include <algorithm>
 #include <cstdint>

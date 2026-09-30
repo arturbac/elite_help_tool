@@ -1,8 +1,7 @@
 #pragma once
 
+#include <colour.h>
 #include <overlay_protocol.h>
-
-#include <glaze/glaze.hpp>
 
 #include <cstdint>
 #include <filesystem>
@@ -22,16 +21,6 @@
 /// only let them be wrong.
 namespace eht
   {
-///\brief a colour, written in the file as "#rrggbb" so that it can be read and picked by eye
-struct colour_t
-  {
-  uint32_t rgb{};
-
-  auto read(std::string const & text) -> void;
-  [[nodiscard]]
-  auto write() const -> std::string;
-  };
-
 struct overlay_colours_t
   {
   colour_t heading{0x9ad1ffu};
@@ -495,9 +484,3 @@ private:
   std::jthread worker_;
   };
   }  // namespace eht
-
-template<>
-struct glz::meta<eht::colour_t>
-  {
-  static constexpr auto value{glz::custom<&eht::colour_t::read, &eht::colour_t::write>};
-  };

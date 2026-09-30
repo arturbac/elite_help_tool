@@ -1,6 +1,6 @@
 #include <ground_cz.h>
 
-#include <glaze/glaze.hpp>
+#include <json_glaze.h>
 
 #include <algorithm>
 #include <fstream>

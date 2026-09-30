@@ -19,6 +19,11 @@ struct received_frame_t
   std::chrono::steady_clock::time_point at;
   };
 
+///\brief the frame as JSON, exactly as it goes down the socket - empty when glaze could not write it
+///\detail here and not in glaze's hands at the caller, so that nothing but this file needs to see glaze
+[[nodiscard]]
+auto to_json(frame_t const & frame) -> std::string;
+
 ///\brief the game-process side - reads in the background, the present thread only ever gets a ready pointer
 ///
 /// nothing here may block the present thread, because that thread counts the game's frames. the socket

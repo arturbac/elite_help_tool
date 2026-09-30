@@ -3,7 +3,7 @@
 #include <picture_records.h>
 #include <eht_settings.h>
 
-#include <glaze/glaze.hpp>
+#include <json_glaze.h>
 #include <spdlog/spdlog.h>
 
 #include <QImage>

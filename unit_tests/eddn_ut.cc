@@ -1,6 +1,7 @@
 #include <boost/ut.hpp>
 #include <eddn_publisher.h>
 #include <eht_settings.h>
+#include <json_glaze.h>
 
 #include <chrono>
 #include <filesystem>

@@ -1,6 +1,6 @@
 #include <legal.h>
 
-#include <glaze/glaze.hpp>
+#include <json_glaze.h>
 
 #include <algorithm>
 #include <fstream>

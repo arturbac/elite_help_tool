@@ -1,9 +1,18 @@
 #pragma once
-#include <variant>
-#include <string>
-#include <simple_enum/glaze_json_enum_name.hpp>
+#include <simple_enum/simple_enum.hpp>
+#include <simple_enum/expected.h>
+#include <algorithm>
+#include <array>
 #include <chrono>
+#include <cstdint>
+#include <optional>
 #include <span>
+#include <string>
+#include <string_view>
+#include <system_error>
+#include <utility>
+#include <variant>
+#include <vector>
 
 namespace color_codes_t
   {

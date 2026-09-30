@@ -17,7 +17,7 @@
 #include <iostream>
 #include <csignal>
 #include <system_error>
-#include <glaze/glaze.hpp>
+#include <json_io.h>
 #include <cstdlib>
 #include <exception>
 #include <boost/stacktrace.hpp>
@@ -376,8 +376,7 @@ auto main(int argc, char ** argv) -> int
       if(not line.contains(R"("event":"Commander")"))
         continue;
       events::commander_t who{};
-      if(auto res{glz::read<glz::opts{.error_on_unknown_keys = false, .error_on_missing_keys = false}>(who, line)};
-         not res)
+      if(auto res{eht::json::read_lenient(who, line)}; not res)
         return who;
       }
     return {};

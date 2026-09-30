@@ -1,6 +1,6 @@
 #include <surface_nav.h>
 
-#include <glaze/glaze.hpp>
+#include <json_glaze.h>
 
 #include <algorithm>
 #include <charconv>

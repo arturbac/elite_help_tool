@@ -1,6 +1,6 @@
 #pragma once
 
-#include <simple_enum/glaze_json_enum_name.hpp>
+#include <simple_enum/simple_enum.hpp>
 
 #include <array>
 #include <cstdint>

@@ -104,6 +104,21 @@ If your clang has a different name, override it:
 
 Other presets: `eht-debug`, `eht-release-asan`, `eht-release-tsan`, `eht-release-unit-tests`.
 
+### JSON and glaze in the code
+
+glaze is all headers, and a file that sees it takes about twice as long to compile. So no header
+of EHT includes it:
+
+- Types defined in headers (journal events, `Status.json`, `Market.json` and the like) are read
+  through `include/json_io.h`: `eht::json::read_lenient()` and `read_file_lenient()`. Their
+  definitions are in `src/json_io_impl.h`, and each type is instantiated explicitly, once, in a
+  `src/json_io_*.cc` file. A new event type gets one line there. If the line is missing, the build
+  fails at link time.
+- A `.cc` file that uses glaze directly (for its own local types, `glz::generic`, or reflection)
+  includes `include/json_glaze.h`, never `<glaze/glaze.hpp>`. That header brings in simple_enum's
+  adapter and the colour's meta. Without them glaze would silently write enums as numbers and
+  colours as objects.
+
 ## 2. Install the overlay layer
 
 ```sh

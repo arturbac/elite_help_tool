@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <cmath>
 #include <string_view>
 #include <span>
 #include <simple_enum/enum_cast.hpp>

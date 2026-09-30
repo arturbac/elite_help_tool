@@ -1,6 +1,7 @@
 #include <overlay_ipc.h>
 
-#include <glaze/glaze.hpp>
+// glaze with simple_enum's adapter - without it the enums of the protocol would go out as numbers
+#include <simple_enum/glaze_json_enum_name.hpp>
 
 #include <fcntl.h>
 #include <poll.h>
@@ -17,6 +18,14 @@
 
 namespace overlay
   {
+auto to_json(frame_t const & frame) -> std::string
+  {
+  std::string payload;
+  if(auto const err{glz::write_json(frame, payload)}; err)
+    return {};
+  return payload;
+  }
+
 namespace
   {
   ///\brief a frame is 4 little-endian length bytes and json, nothing more is needed
@@ -46,8 +55,8 @@ namespace
   [[nodiscard]]
   auto encode(frame_t const & frame) -> std::string
     {
-    std::string payload;
-    if(auto const err{glz::write_json(frame, payload)}; err)
+    std::string const payload{to_json(frame)};
+    if(payload.empty())
       return {};
 
     if(payload.size() > max_message_size)

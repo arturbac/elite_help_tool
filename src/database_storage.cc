@@ -4,7 +4,7 @@
 #include <set>
 #include <sqlite3.h>
 #include <filesystem>
-#include <glaze/glaze.hpp>
+#include <json_glaze.h>
 #include <elite_events.h>
 #include <map>
 #include <tuple>

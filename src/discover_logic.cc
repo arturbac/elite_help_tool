@@ -2,8 +2,8 @@
 #include <elite_events.h>
 #include <elite_data.h>
 #include <sstream>
-#include <glaze/glaze.hpp>
-#include <simple_enum/glaze_json_enum_name.hpp>
+#include <json_io.h>
+#include <simple_enum/enum_cast.hpp>
 #include <simple_enum/std_format.hpp>
 #include <spdlog/spdlog.h>
 #include <stralgo/stralgo.h>
@@ -711,12 +711,10 @@ namespace
 auto load_nav_route(std::string journal_dir_path) -> cxx23::expected<events::nav_route_t, std::error_code>
   {
   events::nav_route_t result{};
-  std::string buffer;
   std::filesystem::path navroute_json{journal_dir_path};
   navroute_json /= "NavRoute.json";
 
-  if(auto res{glz::read_file_json<glz::opts{.error_on_unknown_keys = false}>(result, navroute_json.string(), buffer)};
-     res) [[unlikely]]
+  if(auto res{eht::json::read_file_lenient(result, navroute_json.string())}; res) [[unlikely]]
     return cxx23::unexpected(std::make_error_code(std::errc::resource_unavailable_try_again));
 
   return result;
@@ -727,12 +725,10 @@ auto load_nav_route(std::string journal_dir_path) -> cxx23::expected<events::nav
   -> cxx23::expected<events::fcmaterials_t, std::error_code>
   {
   events::fcmaterials_t result;
-  std::string buffer;
   std::filesystem::path navroute_json{journal_dir_path};
   navroute_json /= "FCMaterials.json";
 
-  if(auto res{glz::read_file_json<glz::opts{.error_on_unknown_keys = false}>(result, navroute_json.string(), buffer)};
-     res) [[unlikely]]
+  if(auto res{eht::json::read_file_lenient(result, navroute_json.string())}; res) [[unlikely]]
     return cxx23::unexpected(std::make_error_code(std::errc::resource_unavailable_try_again));
 
   return result;
@@ -744,17 +740,13 @@ auto load_status(std::string journal_dir_path) -> cxx23::expected<events::status
   // on foot the game leaves GuiFocus out - a field the file lacks must read as 0, not as whatever the
   // stack held, which once told the overlay a map was open and took the head-up readouts away
   events::status_file_t result{};
-  std::string buffer;
   std::filesystem::path status_json{journal_dir_path};
   status_json /= "Status.json";
 
-  if(
-    auto res{glz::read_file_json<glz::opts{.error_on_unknown_keys = false}>(result, status_json.string(), buffer)};
-    res
-  ) [[unlikely]]
+  if(auto res{eht::json::read_file_lenient(result, status_json.string())}; res) [[unlikely]]
     {
     // the game rewrites the file while we read it now and then, so this is no error worth shouting about
-    debug("Status.json not read: {}", glz::format_error(res, buffer));
+    debug("Status.json not read: {}", res.what);
     return cxx23::unexpected(std::make_error_code(std::errc::resource_unavailable_try_again));
     }
 
@@ -764,14 +756,10 @@ auto load_status(std::string journal_dir_path) -> cxx23::expected<events::status
 auto load_market(std::string journal_dir_path) -> cxx23::expected<events::market_file_t, std::error_code>
   {
   events::market_file_t result{};
-  std::string buffer;
   std::filesystem::path market_json{journal_dir_path};
   market_json /= "Market.json";
 
-  if(
-    auto res{glz::read_file_json<glz::opts{.error_on_unknown_keys = false}>(result, market_json.string(), buffer)};
-    res
-  ) [[unlikely]]
+  if(auto res{eht::json::read_file_lenient(result, market_json.string())}; res) [[unlikely]]
     return cxx23::unexpected(std::make_error_code(std::errc::resource_unavailable_try_again));
 
   return result;
@@ -780,12 +768,10 @@ auto load_market(std::string journal_dir_path) -> cxx23::expected<events::market
 auto load_cargo(std::string journal_dir_path) -> cxx23::expected<events::cargo_file_t, std::error_code>
   {
   events::cargo_file_t result{};
-  std::string buffer;
   std::filesystem::path cargo_json{journal_dir_path};
   cargo_json /= "Cargo.json";
 
-  if(auto res{glz::read_file_json<glz::opts{.error_on_unknown_keys = false}>(result, cargo_json.string(), buffer)}; res)
-    [[unlikely]]
+  if(auto res{eht::json::read_file_lenient(result, cargo_json.string())}; res) [[unlikely]]
     return cxx23::unexpected(std::make_error_code(std::errc::resource_unavailable_try_again));
 
   return result;
@@ -796,7 +782,7 @@ auto generic_state_t::discovery(std::string_view input) -> void
   raw_line(input);
   std::string buffer{input};
   events::generic_event_t gevt;
-  auto parse_res{glz::read<glz::opts{.error_on_unknown_keys = false, .error_on_missing_keys = false}>(gevt, buffer)};
+  auto parse_res{eht::json::read_lenient(gevt, buffer)};
   if(parse_res) [[unlikely]]
     {
     warn("failed to parse {}", input);
@@ -806,8 +792,7 @@ auto generic_state_t::discovery(std::string_view input) -> void
   auto const parse_and_handle = [&]<typename event_t>() -> void
   {
     event_t obj{};
-    auto const parse_res
-      = glz::read<glz::opts{.error_on_unknown_keys = false, .error_on_missing_keys = false}>(obj, buffer);
+    auto const parse_res{eht::json::read_lenient(obj, buffer)};
 
     if(parse_res) [[unlikely]]
       {
@@ -936,8 +921,7 @@ auto generic_state_t::discovery(std::string_view input) -> void
         // the game writes FCMaterials.json exactly when the bartender is opened, which is this event
         // - before, the reading hung on CarrierStats and lost every third set of prices
         events::fcmaterials_t evt{};
-        if(auto res{glz::read<glz::opts{.error_on_unknown_keys = false, .error_on_missing_keys = false}>(evt, buffer)};
-           res) [[unlikely]]
+        if(auto res{eht::json::read_lenient(evt, buffer)}; res) [[unlikely]]
           {
           warn("failed to parse {}", input);
           return;
