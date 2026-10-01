@@ -134,7 +134,9 @@ and whether it was a first discovery. The *Sky* button opens it; `sky_pictures` 
 
 The balls of the overlay's system map get the faces of the bodies the surface scanner has been on,
 dug out of pictures already kept. The scanner shows a body as a ball lit evenly all over, close to its
-bare colours, and its views are kept under `codex/scanner/<body>/`. In each the ball is found - every
+bare colours, and its views are kept under `codex/scanner/<body>/`. A view is kept only once the scanner has
+stayed open a second after it (`scanner_hold_ms`): closing, the game fades the view out before the status
+file says it is closed, and a darkened view would make a black face. In each the ball is found - every
 strong edge votes for the centres its gradient points at, the best centre takes the radius most of its
 edges stand at - and a view is used only when the ball lies whole in it with most of its rim showing,
 and no probe streaks across it. Of those the one least painted cyan wins: a filter paints the regions

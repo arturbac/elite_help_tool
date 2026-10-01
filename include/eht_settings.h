@@ -255,6 +255,9 @@ struct exploration_settings_t
   bool scanner_pictures{true};
   ///\brief how often the open scanner is photographed
   uint32_t scanner_interval_ms{1000u};
+  ///\brief how long a picture waits for the scanner to stay open before it is kept: closing, the game fades the
+  /// view out before the status file says it is closed, and a darkened view makes a black face
+  uint32_t scanner_hold_ms{1000u};
   ///\brief the side of the square taken, as a share of the screen's height - the globe and the filter's name
   float scanner_size{0.75f};
   ///\brief how different, 0..255 on average, a view must be from every one kept to be kept as another

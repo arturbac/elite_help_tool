@@ -132,24 +132,47 @@ auto scanner_sheet_t::observe(bool scanner_open, std::string const & body) -> vo
 
 auto scanner_sheet_t::collect(bool scanner_open) -> void
   {
+  auto const now{std::chrono::steady_clock::now()};
+  if(held_)
+    {
+    if(not scanner_open)
+      {
+      spdlog::info("scanner: a view of {} dropped, the scanner closed right after it", held_->body);
+      held_.reset();
+      }
+    else if(now - held_->came >= std::chrono::milliseconds{eht::settings()->exploration.scanner_hold_ms})
+      {
+      file(held_->image, held_->body);
+      held_.reset();
+      }
+    }
+
   if(not pending_)
     return;
 
   std::error_code ec;
   if(not std::filesystem::exists(pending_->spool, ec))
     {
-    if(std::chrono::steady_clock::now() - pending_->asked > pending_limit)
+    if(now - pending_->asked > pending_limit)
       pending_.reset();
     return;
     }
 
-  QImage const image{QString::fromStdString(pending_->spool.string())};
+  QImage image{QString::fromStdString(pending_->spool.string())};
   std::filesystem::remove(pending_->spool, ec);
-  std::string const body{std::move(pending_->body)};
+  std::string body{std::move(pending_->body)};
   pending_.reset();
   if(image.isNull() or not scanner_open)
     return;
+  // the one held before is older than the hold by now, with the scanner open all along
+  if(held_)
+    file(held_->image, held_->body);
+  held_ = held_t{.image = std::move(image), .body = std::move(body), .came = now};
+  }
 
+auto scanner_sheet_t::file(QImage const & image, std::string const & body) -> void
+  {
+  std::error_code ec;
   auto const cfg{eht::settings()};
   std::vector<view_t> & views{views_of(body)};
   std::vector<uint8_t> signature{signature_of(image)};

@@ -2,6 +2,8 @@
 
 #include <overlay_protocol.h>
 
+#include <QImage>
+
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
@@ -31,8 +33,8 @@ public:
   auto capture_request() const -> overlay::capture_t const &
     { return request_; }
 
-  ///\brief files the picture the layer has finished, if there is one - unless the scanner closed before it came,
-  /// when it shows the cockpit instead
+  ///\brief files the picture the layer has finished once the scanner has stayed open a while after it - closed
+  /// before that, the picture shows the view fading out, or the cockpit, and is dropped
   auto collect(bool scanner_open) -> void;
 
   ///\brief the thumbnails of a body's views, in the order they were first seen
@@ -77,12 +79,24 @@ private:
     std::chrono::steady_clock::time_point asked;
     };
 
+  ///\brief a picture come from the layer, waiting to see the scanner still open
+  struct held_t
+    {
+    QImage image;
+    std::string body;
+    std::chrono::steady_clock::time_point came;
+    };
+
   overlay::capture_t request_;
   std::optional<pending_t> pending_;
+  std::optional<held_t> held_;
   std::chrono::steady_clock::time_point last_asked_{};
   std::map<std::string, std::vector<view_t>> views_;
   std::optional<news_t> news_;
 
   ///\brief the views of a body, read from its directory the first time the body comes up
   auto views_of(std::string const & body) -> std::vector<view_t> &;
+
+  ///\brief keeps a picture as a new view of the body, or in place of the view it is like
+  auto file(QImage const & image, std::string const & body) -> void;
   };
