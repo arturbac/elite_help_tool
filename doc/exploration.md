@@ -76,6 +76,9 @@ disagree with it:
 Over the single system sales of a station (not a carrier) from systems scanned in full, 69 of 83 agree
 within a tenth of a percent. The rest are systems sold more than once, where the journal cannot tell
 what was already paid for.
+A system not scanned in full sells for more than its scanned bodies: the game pays for every planet
+you did not scan as well, a quarter of its value - see
+[The bodies you never scanned are paid for too](unscanned_bodies.md).
 
 ## Codex
 

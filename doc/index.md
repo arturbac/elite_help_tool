@@ -40,6 +40,8 @@
 ## Exploration and exobiology
 
 - [Exploration and exobiology](exploration.md): the arrival/to-map/life panel, species prediction, the codex, the sky album
+- [The bodies you never scanned are paid for too](unscanned_bodies.md): why a system with only its
+  star scanned can sell for hundreds of thousands
 - [Surface navigation](surface_navigation.md): the Surface window and the on-foot navigation arrow
 
 ## Neutron routes
