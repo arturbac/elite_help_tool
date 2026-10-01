@@ -41,7 +41,8 @@ with a weapon.
 **The System window** lists the bodies of the current system. Your own deeds sit in *Mapped* and
 *Footfall* (you stepped onto the body - from the ship, an SRV or a taxi), the game's word on other
 commanders in *Was Discovered*, *Was Mapped* and *Was Footfalled*, the last three in their own colour
-(`gui.mapped_before_column`).
+(`gui.mapped_before_column`). A body worth more than 300k if mapped is in `gui.value_medium`, more
+than 600k in `gui.value_high`.
 
 Navigating on foot to a codex entry or a place tipped off by a guide is its own window, in
 [surface_navigation.md](surface_navigation.md).

@@ -552,9 +552,10 @@ auto aprox_value(body_t const & body, bool efficiency_bonus) noexcept -> uint32_
 
 auto value_class(uint32_t const sv) noexcept -> planet_value_e
   {
-  if(sv > 400000)
+  // set so that about as many bodies stand out as did under the old, lower formula - one in 23 high
+  if(sv > 600'000)
     return planet_value_e::high;
-  if(sv > 200000)
+  if(sv > 300'000)
     return planet_value_e::medium;
   return planet_value_e::low;
   }

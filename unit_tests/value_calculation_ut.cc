@@ -96,6 +96,14 @@ auto main() -> int
     };
   };
 
+  "value_class"_test = []
+  {
+    expect(value_class(600'000) == planet_value_e::medium);
+    expect(value_class(600'001) == planet_value_e::high);
+    expect(value_class(300'000) == planet_value_e::low);
+    expect(value_class(300'001) == planet_value_e::medium);
+  };
+
   "organic_values"_test = []
   {
     "a species hits the price list directly"_test = []
