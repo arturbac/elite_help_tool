@@ -84,7 +84,7 @@ auto system_bodies_model_t::rowCount(QModelIndex const & parent) const -> int
   return node ? static_cast<int>(node->children.size()) : 0;
   }
 
-auto system_bodies_model_t::columnCount(QModelIndex const &) const -> int { return 9; }
+auto system_bodies_model_t::columnCount(QModelIndex const &) const -> int { return 11; }
 
 auto system_bodies_model_t::data(QModelIndex const & index, int role) const -> QVariant
   {
@@ -99,13 +99,25 @@ auto system_bodies_model_t::data(QModelIndex const & index, int role) const -> Q
 
   if(role == Qt::CheckStateRole)
     {
-    if(index.column() == 8)  // Mapped
+    if(index.column() == 10)  // Was Footfalled
+      if(b.body_type() == body_type_e::star)
+        return {};
+      else
+        return std::get<planet_details_t>(b.details).was_footfalled ? Qt::Checked : Qt::Unchecked;
+    else if(index.column() == 9)  // Was Mapped
       if(b.body_type() == body_type_e::star)
         return {};
       else
         return std::get<planet_details_t>(b.details).was_mapped ? Qt::Checked : Qt::Unchecked;
-    else if(index.column() == 7)  // Discovered
+    else if(index.column() == 8)  // Discovered
       return b.was_discovered ? Qt::Checked : Qt::Unchecked;
+    else if(index.column() == 7)  // Footfall
+      {
+      if(b.body_type() == body_type_e::star)
+        return {};
+      else
+        return std::get<planet_details_t>(b.details).footfalled ? Qt::Checked : Qt::Unchecked;
+      }
     else if(index.column() == 5)
       {
       if(b.body_type() == body_type_e::star)
@@ -127,7 +139,7 @@ auto system_bodies_model_t::data(QModelIndex const & index, int role) const -> Q
   if(role == Qt::ForegroundRole)
     {
     auto const cfg{eht::settings()};
-    if(index.column() >= 8)
+    if(index.column() >= 9)
       return QColor::fromRgb(cfg->gui.mapped_before_column.rgb);
     if(index.column() >= 5)
       return QColor::fromRgb(cfg->gui.flag_column.rgb);
@@ -185,8 +197,19 @@ auto system_bodies_model_t::headerData(int section, Qt::Orientation orientation,
   {
   if(orientation == Qt::Horizontal and role == Qt::DisplayRole)
     {
-    static constexpr std::array const headers
-      = {"Body", "Class", "Gravity", "MassEM", "Value", "Terraformable", "Mapped", "Was Discovered", "Was Mapped"};
+    static constexpr std::array const headers = {
+      "Body",
+      "Class",
+      "Gravity",
+      "MassEM",
+      "Value",
+      "Terraformable",
+      "Mapped",
+      "Footfall",
+      "Was Discovered",
+      "Was Mapped",
+      "Was Footfalled"
+    };
     return headers.at(static_cast<size_t>(section));
     }
   return {};

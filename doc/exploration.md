@@ -38,6 +38,11 @@ counted live from `Status.json` — a green "sample" when you may take the next 
 grows on this body. It shows in analysis mode or with the sampler in hand, in an SRV always - not in combat mode nor on foot
 with a weapon.
 
+**The System window** lists the bodies of the current system. Your own deeds sit in *Mapped* and
+*Footfall* (you stepped onto the body - from the ship, an SRV or a taxi), the game's word on other
+commanders in *Was Discovered*, *Was Mapped* and *Was Footfalled*, the last three in their own colour
+(`gui.mapped_before_column`).
+
 Navigating on foot to a codex entry or a place tipped off by a guide is its own window, in
 [surface_navigation.md](surface_navigation.md).
 
