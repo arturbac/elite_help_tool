@@ -6,13 +6,20 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
+#include <cstdint>
 #include <format>
 #include <fstream>
+#include <optional>
+#include <set>
 #include <sstream>
+#include <vector>
 
 namespace eddn
   {
 using namespace std::string_view_literals;
+
+using json_t = glz::generic_u64;
 
 namespace
   {
@@ -164,6 +171,85 @@ auto exploration_schema(std::string_view event) -> std::string_view
   }
   }  // namespace
 
+///\brief removes every key ending in _Localised, at any depth - the gateway wants the game's own names
+auto filter_localised(json_t & value) -> void;
+
+class publisher_t::impl_t final
+  {
+public:
+  ///\brief a message held until its system's data is sold
+  struct held_t
+    {
+    std::string fid;
+    std::string system;
+    std::string schema;
+    std::string envelope;
+    };
+
+  impl_t(std::filesystem::path journal_dir, std::filesystem::path held_path, emit_t emit);
+
+  [[nodiscard]]
+  auto held_count() const noexcept -> size_t
+    { return held_.size(); }
+
+  auto feed(std::string_view line, bool live) -> void;
+
+private:
+  std::filesystem::path journal_dir_;
+  std::filesystem::path held_path_;
+  emit_t emit_;
+  std::vector<held_t> held_;
+  ///\brief set on the publisher that reads old journals for sold systems: it sends straight away, never
+  /// keeps anything, takes no account of age, and heeds only the wanted systems of the one commander
+  bool backfill_{};
+  std::vector<std::string> wanted_;
+  std::string only_fid_;
+
+  std::string game_version_;
+  std::string game_build_;
+  std::optional<bool> horizons_;
+  bool odyssey_{};
+  std::string commander_name_;
+  std::string commander_fid_;
+  bool crew_{};
+
+  std::string system_name_;
+  uint64_t system_address_{};
+  std::optional<json_t> star_pos_;
+
+  enum struct verdict_e : uint8_t
+    {
+    unknown,
+    send,
+    skip
+    };
+  verdict_e verdict_{verdict_e::unknown};
+  ///\brief the system's events waiting for the verdict, with their schemas
+  std::vector<std::pair<std::string, json_t>> waiting_;
+  ///\brief the messages of this system already on their way - the game writes some events two or three times
+  std::set<std::string> seen_;
+
+  ///\brief the last bar stock sent, so an unchanged one is not sent again
+  uint64_t last_market_id_{};
+  std::string last_items_;
+
+  auto learn(std::string_view event, json_t const & entry) -> void;
+  auto explore(std::string_view event, json_t entry, bool live) -> void;
+  auto bartender(json_t const & entry, bool live) -> void;
+  ///\brief the envelope around a message, as the gateway takes it
+  [[nodiscard]]
+  auto envelope(std::string_view schema, json_t message) const -> std::optional<message_t>;
+  auto hold(std::string_view schema, json_t message) -> void;
+  ///\brief sends what was held of the systems just sold
+  auto release(json_t const & sale, bool live) -> void;
+  auto save_held() const -> void;
+  ///\brief the sold systems nothing was held of, found again in the journals and sent
+  auto backfill(std::vector<std::string> const & systems) -> void;
+  ///\brief StarSystem, SystemAddress and StarPos where the event lacks them - false when they cannot be known
+  [[nodiscard]]
+  auto augment(json_t & entry) const -> bool;
+  };
+
 auto filter_localised(json_t & value) -> void
   {
   if(object_t * const object{object_of(value)}; object != nullptr)
@@ -177,7 +263,7 @@ auto filter_localised(json_t & value) -> void
       filter_localised(child);
   }
 
-publisher_t::publisher_t(std::filesystem::path journal_dir, std::filesystem::path held_path, emit_t emit) :
+publisher_t::impl_t::impl_t(std::filesystem::path journal_dir, std::filesystem::path held_path, emit_t emit) :
     journal_dir_{std::move(journal_dir)},
     held_path_{std::move(held_path)},
     emit_{std::move(emit)}
@@ -190,7 +276,7 @@ publisher_t::publisher_t(std::filesystem::path journal_dir, std::filesystem::pat
     spdlog::info("eddn: {} messages held until their systems' data is sold", held_.size());
   }
 
-auto publisher_t::save_held() const -> void
+auto publisher_t::impl_t::save_held() const -> void
   {
   std::filesystem::path const partial{held_path_.string() + ".partial"};
   {
@@ -210,7 +296,7 @@ auto publisher_t::save_held() const -> void
     spdlog::error("eddn: {} could not be put in place: {}", held_path_.string(), ec.message());
   }
 
-auto publisher_t::feed(std::string_view line, bool live) -> void
+auto publisher_t::impl_t::feed(std::string_view line, bool live) -> void
   {
   json_t entry;
   if(auto const err{glz::read_json(entry, line)}; err or object_of(entry) == nullptr)
@@ -234,7 +320,7 @@ auto publisher_t::feed(std::string_view line, bool live) -> void
     explore(event, std::move(entry), live);
   }
 
-auto publisher_t::learn(std::string_view event, json_t const & entry) -> void
+auto publisher_t::impl_t::learn(std::string_view event, json_t const & entry) -> void
   {
   if(event == "Fileheader" or event == "LoadGame")
     {
@@ -283,7 +369,7 @@ auto publisher_t::learn(std::string_view event, json_t const & entry) -> void
     }
   }
 
-auto publisher_t::explore(std::string_view event, json_t entry, bool live) -> void
+auto publisher_t::impl_t::explore(std::string_view event, json_t entry, bool live) -> void
   {
   auto const cfg{eht::settings()};
   if(not cfg->eddn.enabled or crew_ or not listed(cfg->eddn.exploration_commanders, commander_fid_))
@@ -361,7 +447,7 @@ auto publisher_t::explore(std::string_view event, json_t entry, bool live) -> vo
     waiting_.emplace_back(schema, std::move(entry));
   }
 
-auto publisher_t::augment(json_t & entry) const -> bool
+auto publisher_t::impl_t::augment(json_t & entry) const -> bool
   {
   if(not has(entry, "StarSystem") and not has(entry, "SystemName") and not has(entry, "System"))
     {
@@ -384,7 +470,7 @@ auto publisher_t::augment(json_t & entry) const -> bool
   return true;
   }
 
-auto publisher_t::bartender(json_t const & entry, bool live) -> void
+auto publisher_t::impl_t::bartender(json_t const & entry, bool live) -> void
   {
   auto const cfg{eht::settings()};
   if(not live or not cfg->eddn.enabled or crew_ or not listed(cfg->eddn.bartender_commanders, commander_fid_))
@@ -424,7 +510,7 @@ auto publisher_t::bartender(json_t const & entry, bool live) -> void
     emit_(std::move(*message));
   }
 
-auto publisher_t::hold(std::string_view schema, json_t message) -> void
+auto publisher_t::impl_t::hold(std::string_view schema, json_t message) -> void
   {
   // the same event written again is the same message - once is enough
   if(auto const text_of{message.dump()}; not text_of or not seen_.insert(*text_of).second)
@@ -445,7 +531,7 @@ auto publisher_t::hold(std::string_view schema, json_t message) -> void
   held_.push_back(std::move(item));
   }
 
-auto publisher_t::release(json_t const & sale, bool live) -> void
+auto publisher_t::impl_t::release(json_t const & sale, bool live) -> void
   {
   auto const cfg{eht::settings()};
   // nothing held is no reason to stop - the systems may still be in the journals
@@ -497,7 +583,7 @@ auto publisher_t::release(json_t const & sale, bool live) -> void
     backfill(missing);
   }
 
-auto publisher_t::backfill(std::vector<std::string> const & systems) -> void
+auto publisher_t::impl_t::backfill(std::vector<std::string> const & systems) -> void
   {
   std::vector<std::filesystem::path> journals;
   std::error_code ec;
@@ -511,7 +597,7 @@ auto publisher_t::backfill(std::vector<std::string> const & systems) -> void
     journals.erase(journals.begin(), journals.end() - std::ptrdiff_t{reach});
 
   size_t sent{};
-  publisher_t replay{journal_dir_, {}, [&](message_t && message) { emit_(std::move(message)); ++sent; }};
+  impl_t replay{journal_dir_, {}, [&](message_t && message) { emit_(std::move(message)); ++sent; }};
   replay.backfill_ = true;
   replay.wanted_ = systems;
   replay.only_fid_ = commander_fid_;
@@ -537,7 +623,7 @@ auto publisher_t::backfill(std::vector<std::string> const & systems) -> void
   spdlog::info("eddn: {} messages of {} sold systems found in the journals and sent", sent, systems.size());
   }
 
-auto publisher_t::envelope(std::string_view schema, json_t message) const -> std::optional<message_t>
+auto publisher_t::impl_t::envelope(std::string_view schema, json_t message) const -> std::optional<message_t>
   {
   auto const cfg{eht::settings()};
   if(horizons_)
@@ -567,4 +653,17 @@ auto publisher_t::envelope(std::string_view schema, json_t message) const -> std
     }
   return message_t{.schema = std::format("{}{}", schema, test ? "/test" : ""), .envelope = std::move(*text_out)};
   }
+  
+publisher_t::publisher_t(std::filesystem::path journal_dir, std::filesystem::path held_path, emit_t emit) :
+    impl_{std::make_unique<impl_t>(std::move(journal_dir), std::move(held_path), std::move(emit))}
+  {
+  }
+
+publisher_t::~publisher_t() = default;
+
+auto publisher_t::held_count() const noexcept -> size_t
+  { return impl_->held_count(); }
+
+auto publisher_t::feed(std::string_view line, bool live) -> void
+  { impl_->feed(line, live); }
   }  // namespace eddn
