@@ -5142,7 +5142,7 @@ auto overlay_feed_t::build_server_link_lines(current_state_t const & state) -> s
     lines.push_back(
       overlay::line_t{
         .text = warning.text,
-        .color = warning.level == server_link::level_e::server ? colour_expiring() : colour_alert()
+        .color = warning.level == server_link::level_e::failing ? colour_expiring() : colour_alert()
       }
     );
   return lines;

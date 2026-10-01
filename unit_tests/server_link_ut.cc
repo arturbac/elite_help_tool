@@ -33,7 +33,7 @@ auto main() -> int
     );
     auto const shown{warnings(state, std::nullopt, t0 + 45s)};
     expect(fatal(shown.size() == 2u));
-    expect(shown[0].level == level_e::api);
+    expect(shown[0].level == level_e::degraded);
     expect(shown[0].text == "Frontier API: 2 requests failed in the last minute (HTTP 502)") << shown[0].text;
     expect(shown[1].text == "Frontier API: commander/inventory/transferbackpack took 10 s") << shown[1].text;
 
@@ -60,7 +60,7 @@ auto main() -> int
     );
     auto shown{warnings(state, std::nullopt, t0 + 5s)};
     expect(fatal(shown.size() == 1u));
-    expect(shown[0].level == level_e::server);
+    expect(shown[0].level == level_e::degraded);
     expect(shown[0].text == "EDServer#6222: packets lost 5 s ago") << shown[0].text;
 
     feed(
@@ -71,6 +71,7 @@ auto main() -> int
     );
     shown = warnings(state, 33s, t0 + 40s);
     expect(fatal(shown.size() == 3u));
+    expect(shown[0].level == level_e::failing);
     expect(shown[0].text == "game server silent 33 s") << shown[0].text;
     expect(shown[1].text == "EDServer#6228 dropped 7 s ago - a disconnect may follow") << shown[1].text;
 
@@ -86,6 +87,22 @@ auto main() -> int
 
     feed(state, t0 + 70s, "{15:19:45GMT 8909.0s} Connected: 1234 x 1 [0/2]((1.2.3.4:19364))EDServer#6230");
     expect(warnings(state, std::nullopt, t0 + 71s).empty());
+  };
+
+  "a link to another player given up is told apart from Frontier's servers"_test = [t0]
+  {
+    server_link::netlog_state_t state;
+    feed(state, t0, "{23:10:49GMT 3935.921s} Disconnected: 260298145259691 x 2 [1/2]((Relay))Name Unknown (Too many retries)");
+    auto shown{warnings(state, std::nullopt, t0 + 3s)};
+    expect(fatal(shown.size() == 1u));
+    expect(shown[0].level == level_e::degraded);
+    expect(shown[0].text == "player link dropped 3 s ago (relay, Too many retries)") << shown[0].text;
+
+    // a player leaving in good order, or the game's own machine closing, is no trouble
+    server_link::netlog_state_t quiet;
+    feed(quiet, t0, "{23:10:49GMT 3935.921s} Disconnected: 260298145259691 x 4 [0/2]((1.2.3.4:5100))Name Unknown (shutdown)");
+    feed(quiet, t0, "{23:10:49GMT 3935.921s} Disconnected: 260298145259691 x 4 ThisMachine Name Unknown (shutdown)");
+    expect(warnings(quiet, std::nullopt, t0 + 1s).empty());
   };
 
   "a silence counts only after traffic, and only once it is long enough"_test = [t0]

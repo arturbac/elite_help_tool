@@ -18,7 +18,9 @@
 /// 55 seconds by then. Two things show the trouble earlier, both read without root:
 /// - the game's own netLog, its lines read as they are written: "Several LOST packet#" when a packet comes
 ///   after a gap, "Disconnected: ... (Too many retries)" when one of its servers (the missions' one first, as
-///   a rule) is given up, the disconnect itself with its reason, and the web API beside the game server -
+///   a rule) is given up - two times in three a disconnect followed within two minutes; the same words of
+///   a link to another player - through a relay or straight, in a wing or a fight - are no word of
+///   Frontier's servers and are told apart as the player's link; the disconnect itself with its reason, and the web API beside the game server -
 ///   "Webserver request failed: code N" (0 is no answer at all), and "HTTP Request took N sec", which the
 ///   game writes only for requests of 10 seconds or more;
 /// - the system's count of UDP datagrams received: the game server sends several a second all the time a
@@ -37,6 +39,10 @@ struct netlog_state_t
   ///\brief one of the game's servers given up after too many retries, the session itself still on
   std::optional<time_point_t> dropped_at;
   std::string dropped_server;
+  ///\brief the link to another player given up - through a relay or straight - with the reason; their
+  /// leaving the instance in good order ("shutdown") is no trouble and is not kept
+  std::optional<time_point_t> player_dropped_at;
+  std::string player_dropped_how;
   ///\brief the game's own disconnect, with the reason it names
   std::optional<time_point_t> disconnected_at;
   std::string disconnect_reason;
@@ -74,10 +80,11 @@ auto silent_for(udp_silence_t const & silence, time_point_t now, std::chrono::mi
 
 enum struct level_e : uint8_t
   {
-  ///\brief the web API beside the game server - the game goes on, slower, and some of its windows fail
-  api,
-  ///\brief the game server itself - the session is at stake
-  server
+  ///\brief the game goes on, worse: the web API failing or slow, packets lost on the way - in the history
+  /// checked, a third of the losses only were followed by a disconnect
+  degraded,
+  ///\brief the session itself at stake: the game server silent, given up, or the disconnect come
+  failing
   };
 
 struct warning_t

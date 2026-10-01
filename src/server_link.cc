@@ -83,10 +83,18 @@ auto feed(netlog_state_t & state, time_point_t at, std::string_view line) -> voi
     state.lost_at = at;
     state.lost_server = server_name(line);
     }
-  else if(line.contains("} Disconnected: ") and line.contains("(Too many retries)"))
+  else if(line.contains("} Disconnected: ") and line.contains("(Too many retries)") and line.contains("EDServer#"))
     {
     state.dropped_at = at;
     state.dropped_server = server_name(line);
+    }
+  else if(line.contains("} Disconnected: ") and not line.contains("ThisMachine") and not line.contains("(shutdown)"))
+    {
+    // [1/2]((Relay))Name Unknown (Too many retries) - another player, the name never given
+    auto const open{line.rfind('(')};
+    std::string_view const reason{open == std::string_view::npos ? "?" : after(line.substr(open), "(", ")")};
+    state.player_dropped_at = at;
+    state.player_dropped_how = std::format("{}{}", line.contains("((Relay))") ? "relay, " : "", reason);
     }
   else if(line.contains("Disconnect: type="))
     {
@@ -157,14 +165,14 @@ auto warnings(netlog_state_t const & state, std::optional<std::chrono::milliseco
   if(still_shown(state.disconnected_at, state.connected_at, now, disconnect_shown))
     result.push_back(
       warning_t{
-        .level = level_e::server,
+        .level = level_e::failing,
         .text = std::format("disconnected: {}, {} s ago", state.disconnect_reason, seconds_between(*state.disconnected_at, now))
       }
     );
   else if(silence)
     result.push_back(
       warning_t{
-        .level = level_e::server,
+        .level = level_e::failing,
         .text = std::format(
           "game server silent {} s",
           std::chrono::duration_cast<std::chrono::seconds>(*silence).count()
@@ -177,7 +185,7 @@ auto warnings(netlog_state_t const & state, std::optional<std::chrono::milliseco
   if(not disconnected and still_shown(state.dropped_at, state.connected_at, now, dropped_shown))
     result.push_back(
       warning_t{
-        .level = level_e::server,
+        .level = level_e::failing,
         .text = std::format(
           "{} dropped {} s ago - a disconnect may follow", state.dropped_server, seconds_between(*state.dropped_at, now)
         )
@@ -186,8 +194,18 @@ auto warnings(netlog_state_t const & state, std::optional<std::chrono::milliseco
   if(not disconnected and still_shown(state.lost_at, state.connected_at, now, lost_shown))
     result.push_back(
       warning_t{
-        .level = level_e::server,
+        .level = level_e::degraded,
         .text = std::format("{}: packets lost {} s ago", state.lost_server, seconds_between(*state.lost_at, now))
+      }
+    );
+
+  if(still_shown(state.player_dropped_at, std::nullopt, now, dropped_shown))
+    result.push_back(
+      warning_t{
+        .level = level_e::degraded,
+        .text = std::format(
+          "player link dropped {} s ago ({})", seconds_between(*state.player_dropped_at, now), state.player_dropped_how
+        )
       }
     );
 
@@ -195,7 +213,7 @@ auto warnings(netlog_state_t const & state, std::optional<std::chrono::milliseco
   if(recent != 0)
     result.push_back(
       warning_t{
-        .level = level_e::api,
+        .level = level_e::degraded,
         .text = std::format(
           "Frontier API: {} request{} failed in the last minute ({})",
           recent,
@@ -207,7 +225,7 @@ auto warnings(netlog_state_t const & state, std::optional<std::chrono::milliseco
   if(state.slow_at and now - *state.slow_at < api_shown)
     result.push_back(
       warning_t{
-        .level = level_e::api,
+        .level = level_e::degraded,
         .text = std::format("Frontier API: {} took {:.0f} s", state.slow_what, state.slow_s)
       }
     );

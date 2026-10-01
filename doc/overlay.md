@@ -75,10 +75,13 @@ process carries no state of ours.
   has as a rule been silent for 40 seconds or more. Red is the game server itself, the session at
   stake: `game server silent N s` (not one UDP datagram received for `overlay.server_silence_ms`,
   3000 by default, while a session runs - several come every second while all is well),
-  `EDServer#N: packets lost N s ago` (a packet arrived after a gap), `EDServer#N dropped N s ago - a
-  disconnect may follow` (one of the game's servers given up after too many retries) and, once it
-  happens, `disconnected: <reason>`. Amber is the web API beside it - the inventory, the journal
-  upload, colonisation and the like - where the game goes on, only slower: `Frontier API: N requests
+  `EDServer#N dropped N s ago - a disconnect may follow` (one of the game's servers given up after too
+  many retries) and, once it happens, `disconnected: <reason>`. Amber is trouble the game goes on
+  through, only worse: `EDServer#N: packets lost N s ago` (a packet arrived after a gap), `player link
+  dropped N s ago (relay, <reason>)` (the link to another player - a wingmate, an opponent in a
+  conflict zone - given up: their trouble or the way to them, not Frontier's), and the web
+  API beside the game server - the inventory, the journal upload, colonisation and the like:
+  `Frontier API: N requests
   failed in the last minute (no answer | HTTP 502 | ...)` and `Frontier API: <request> took N s` (the
   game writes down only requests of 10 s or more). See [network incidents](network_incidents.md#while-it-happens)
   for what is read and why.

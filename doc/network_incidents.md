@@ -33,12 +33,18 @@ The window above looks back; the overlay tells the same kind of trouble while it
 [the overlay](overlay.md)). Its sources, read without root:
 
 - **netLog, read as it grows** - the newest file, only the lines written since the last look:
-  - `Several LOST packet#` - a packet came from the game server after a gap. In the history checked
-    while building this it stood in every session that ended in a lost connection, at the very moment
-    the server went silent (it matched `LastRx` of the disconnect that followed 38 to 55 seconds later),
-    and in about a third of the sessions where it appeared the game carried on - a hiccup, not a loss;
-  - `Disconnected: ... (Too many retries)` - one of the game's servers given up, the missions' one as a
-    rule first, 9 to 18 seconds before the session itself;
+  - `Several LOST packet#` - a packet came from the game server after a gap (amber). Where a lost
+    connection followed, it stood at the very moment the server went silent (it matched `LastRx` of the
+    disconnect 38 to 55 seconds later) - but in the history checked only 12 of 40 such episodes were
+    followed by a disconnect within two minutes: mostly a hiccup the game carries on through;
+  - `Disconnected: ... (Too many retries)` naming an `EDServer#` - one of the game's servers given up,
+    the missions' one as a rule first, 9 to 18 seconds before the session itself (red: 63 of 92 were
+    followed by a disconnect within two minutes);
+  - `Disconnected: ...` with no `EDServer#` - the link to another player, through a `((Relay))` or
+    straight, given up for `Too many retries`, `timeout`, `Route request failed` or `dc-checksum`
+    (amber, told as the player's link: it never led to a disconnect from Frontier, 0 of 160, but in a
+    wing or a fight against another commander it is the game itself). A player leaving in good order
+    (`shutdown`) is passed over;
   - `Disconnect: type=N&reason=...` - the game's own disconnect;
   - `Webserver request failed: code N` (0 is no answer at all) and `HTTP Request took N sec` - the web
     API beside the game server, which the game writes down only for requests of 10 seconds or more.
