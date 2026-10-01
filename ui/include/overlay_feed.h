@@ -20,6 +20,8 @@
 #include "sensor_watch.h"
 #include "netstate_watch.h"
 #include <vision_shots.h>
+#include "hud_reader.h"
+#include <hot_drop.h>
 
 #include <overlay_ipc.h>
 
@@ -254,6 +256,29 @@ private:
   planet_faces_t faces_;
   approach_views_t approach_;
   uint64_t approach_capture_id_{};
+  ///\brief the hot drop: the approach to a port in space followed, the reader of the HUD's label - made once the
+  /// hot drop is switched on - and the approaches written down so far, read once from hot_drop.jsonl
+  hot_drop::tracker_t hot_drop_;
+  std::unique_ptr<hud_reader_t> hud_reader_;
+  uint64_t hot_drop_asked_ms_{};
+  uint64_t hot_drop_drops_seen_{};
+  bool hot_drop_loaded_{};
+  bool hot_drop_unreadable_told_{};
+  std::vector<hot_drop::record_t> hot_drop_records_;
+  ///\brief the approach ended last, shown for a while after
+  std::optional<hot_drop::record_t> hot_drop_last_;
+  std::chrono::steady_clock::time_point hot_drop_last_at_{};
+  ///\brief the port flown to as the hot drop needs it - none when not in supercruise towards a port in space,
+  /// or in a taxi or another's ship
+  [[nodiscard]]
+  auto hot_drop_port(current_state_t const & state) const -> std::optional<hot_drop::context_t>;
+  ///\brief follows the approach and asks for the next picture of the label - into capture_ when it is time
+  auto track_hot_drop(current_state_t const & state) -> void;
+  ///\brief what the approaches so far say of a hot drop here, in this ship
+  [[nodiscard]]
+  auto build_hot_drop_lines(current_state_t const & state) const -> std::vector<overlay::line_t>;
+  auto hot_drop_done(hot_drop::attempt_t const & attempt) -> void;
+
   ///\brief the whole-screen pictures for eht_vision's recorder, asked for last so any other picture goes first
   vision::shot_clock_t shot_clock_;
   ///\brief the last one asked for - still there at the next one, nobody took it, and it goes

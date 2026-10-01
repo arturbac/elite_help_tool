@@ -50,6 +50,7 @@
 
 ## Vision
 
+- [Hot drop](hot_drop.md): how far out overspeed still lets Supercruise Assist drop at a port, learnt from the HUD
 - [Vision](vision.md): `eht_vision`, recording pictures of the screen with the game's state as labels
 
 ## Data, privacy and backups

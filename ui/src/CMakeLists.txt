@@ -25,6 +25,7 @@ target_sources(elite_help_tool
   screenshots.cc
   sky_album.cc
   glare_watch.cc
+  hud_reader.cc
   sensor_watch.cc
   netstate_watch.cc
   eddn_sender.cc

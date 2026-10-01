@@ -30,6 +30,7 @@
 #include <functional>
 #include <cctype>
 #include <format>
+#include <fstream>
 #include <map>
 #include <set>
 #include <ranges>
@@ -3993,6 +3994,261 @@ auto overlay_feed_t::scanner_target(current_state_t const & state) const -> std:
   return {};
   }
 
+namespace
+  {
+///\brief where the approaches are written, in the directory the tool runs in - one file an account
+constexpr std::string_view hot_drop_file{"hot_drop.jsonl"};
+
+[[nodiscard]]
+auto now_ms() -> uint64_t
+  {
+  return uint64_t(
+    std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count()
+  );
+  }
+  }  // namespace
+
+auto overlay_feed_t::hot_drop_port(current_state_t const & state) const -> std::optional<hot_drop::context_t>
+  {
+  constexpr uint64_t supercruise_flag{1u << 4u};
+  constexpr uint64_t taxi_flag{1u << 1u};
+  constexpr uint64_t multicrew_flag{1u << 2u};
+  if(
+    (status_flags_ & supercruise_flag) == 0u or (status_flags2_ & (taxi_flag | multicrew_flag)) != 0u
+    or not status_destination_ or status_destination_->System != state.current_system_address_
+    or status_destination_->Name.empty()
+  )
+    return std::nullopt;
+  std::string const & name{status_destination_->Name};
+
+  hot_drop::context_t port{
+    .system = state.system.name, .system_address = state.current_system_address_, .station = name
+  };
+  // a port docked at before is known with its type and distance from the star; one never docked at only by its
+  // signal - a carrier, mostly. A star, a planet or a settlement on the ground is no port for a hot drop
+  info::station_t const * known{};
+  for(info::station_t const & station: stations_)
+    if(station.name == name)
+      known = &station;
+  if(known != nullptr)
+    {
+    if(info::is_ground_settlement(*known))
+      return std::nullopt;
+    port.market_id = known->market_id;
+    port.station_type = known->station_type;
+    }
+  else
+    {
+    auto const signal{std::ranges::find_if(
+      state.system.system_signals, [&name](system_signal_t const & s) { return s.is_station and s.name == name; }
+    )};
+    if(signal == state.system.system_signals.end())
+      return std::nullopt;
+    port.station_type = signal->signal_type;
+    }
+
+  // the body it circles, as the system map attaches it: at the same distance from the star, else the star
+  if(known != nullptr and known->dist_from_star_ls > 0.0)
+    {
+    double const ls{known->dist_from_star_ls};
+    auto const nearest_of = [&](bool stars_only) -> std::pair<body_t const *, double>
+    {
+      body_t const * nearest{};
+      double gap{std::numeric_limits<double>::max()};
+      for(body_t const & body: state.system.bodies)
+        if(stars_only and body.body_type() != body_type_e::star)
+          continue;
+        else if(double const g{std::abs(body.distance_from_arrival_ls - ls)}; g < gap)
+          {
+          gap = g;
+          nearest = &body;
+          }
+      return {nearest, gap};
+    };
+    auto [body, gap]{nearest_of(false)};
+    if(body == nullptr or gap > std::max(5.0, ls * 0.015))
+      std::tie(body, gap) = nearest_of(true);
+    if(body != nullptr)
+      {
+      port.body = body->name;
+      port.body_radius_km = body->radius / 1000.0;
+      port.port_from_body_ls = gap;
+      if(auto const * planet{std::get_if<planet_details_t>(&body->details)}; planet != nullptr)
+        {
+        port.body_kind = planet->parent_planet ? "moon" : "planet";
+        port.body_mass_em = planet->mass_em;
+        port.body_gravity_g = planet->surface_gravity / 9.80665;
+        }
+      else if(auto const * star{std::get_if<star_details_t>(&body->details)}; star != nullptr)
+        {
+        constexpr double earths_in_sun{332946.0};
+        port.body_kind = "star";
+        port.body_mass_em = star->stellar_mass * earths_in_sun;
+        }
+      }
+    }
+
+  ship_loadout_t const & ship{state.ship_loadout};
+  port.ship = ship.Ship;
+  port.ship_id = ship.ShipID;
+  port.ship_name = ship.ShipName;
+  if(ship.UnladenMass > 0.f)
+    port.ship_mass_t = double(ship.UnladenMass) + double(ship.FuelLevel) + double(ship.CargoUsed);
+  return port;
+  }
+
+auto overlay_feed_t::hot_drop_done(hot_drop::attempt_t const & attempt) -> void
+  {
+  hot_drop::record_t record{hot_drop::record_of(attempt)};
+  spdlog::info(
+    "hot drop: {} in {} - {}, overspeed {} from {:.2f} Ls at least {} s, {:.1f} Mm/s at the end, {} readings",
+    attempt.where.station,
+    attempt.where.ship,
+    hot_drop::outcome_name(attempt.outcome),
+    record.summary.overspeed,
+    record.summary.overspeed_from_ls,
+    record.summary.least_seconds,
+    record.summary.end_speed_mm_s,
+    attempt.readings.size()
+  );
+  if(std::ofstream out{std::string{hot_drop_file}, std::ios::app}; out)
+    out << hot_drop::attempt_line(attempt) << '\n';
+  else
+    spdlog::error("hot drop: cannot write {}", hot_drop_file);
+  hot_drop_records_.push_back(record);
+  hot_drop_last_ = std::move(record);
+  hot_drop_last_at_ = std::chrono::steady_clock::now();
+  }
+
+auto overlay_feed_t::track_hot_drop(current_state_t const & state) -> void
+  {
+  auto const & cfg{eht::settings()->hot_drop};
+  if(not cfg.record)
+    return;
+  if(not hud_reader_t::available())
+    {
+    if(not hot_drop_unreadable_told_)
+      spdlog::warn("hot drop: built without tesseract - the HUD cannot be read, nothing is recorded");
+    hot_drop_unreadable_told_ = true;
+    return;
+    }
+  if(not hud_reader_)
+    hud_reader_ = std::make_unique<hud_reader_t>();
+  if(not hot_drop_loaded_)
+    {
+    hot_drop_loaded_ = true;
+    std::ifstream in{std::string{hot_drop_file}};
+    for(std::string line; std::getline(in, line);)
+      if(auto record{hot_drop::parse_attempt_line(line)}; record)
+        hot_drop_records_.push_back(std::move(*record));
+    }
+
+  uint64_t const now{now_ms()};
+  // the journal's word of a drop at the destination ends the approach first - the status file says only that
+  // supercruise is over, and may say it before
+  if(state.destination_drops_seen_ != hot_drop_drops_seen_)
+    {
+    hot_drop_drops_seen_ = state.destination_drops_seen_;
+    auto const & drop{state.last_destination_drop_};
+    std::string_view const name{drop.Type_Localised.empty() ? drop.Type : drop.Type_Localised};
+    if(auto done{hot_drop_.dropped(now, name, drop.MarketID)}; done)
+      hot_drop_done(*done);
+    }
+  for(hud_reader_t::result_t const & read: hud_reader_->take())
+    if(read.label and hot_drop_.port() != nullptr and hot_drop_.port()->station == read.target)
+      if(auto done{hot_drop_.reading(
+           hot_drop::reading_t{
+             .ms = read.ms,
+             .distance_ls = read.label->distance_ls,
+             .seconds = read.label->seconds ? int32_t(*read.label->seconds) : -1
+           }
+         )};
+         done)
+        hot_drop_done(*done);
+  if(auto done{hot_drop_.approach(now, hot_drop_port(state))}; done)
+    hot_drop_done(*done);
+
+  if(not hot_drop_.active())
+    return;
+  auto const last{hot_drop_.last_distance()};
+  uint64_t const every{last and *last > cfg.near_ls ? cfg.far_every_ms : cfg.near_every_ms};
+  if(now - hot_drop_asked_ms_ < every)
+    return;
+  hot_drop_asked_ms_ = now;
+  std::filesystem::path const path{
+    std::filesystem::path{overlay::default_spool_path()} / std::format("{}_hud_{}.ppm", overlay::socket_stem(), now)
+  };
+  capture_ = overlay::capture_t{
+    .id = now * 2u + 1u, .path = path.string(), .size = cfg.size, .delay_ms = 0u, .quiet = true, .aspect = 16.f / 9.f
+  };
+  hud_reader_->submit(hud_reader_t::job_t{.path = path, .ms = now, .target = hot_drop_.port()->station});
+  }
+
+auto overlay_feed_t::build_hot_drop_lines(current_state_t const & state) const -> std::vector<overlay::line_t>
+  {
+  std::vector<overlay::line_t> lines;
+  if(not eht::settings()->hot_drop.record)
+    return lines;
+  auto const seconds_text = [](int32_t s) { return s < 0 ? std::string{"?"} : std::format("0:{:02}", s); };
+  if(hot_drop::context_t const * port{hot_drop_.port()}; port != nullptr and hot_drop_.active())
+    {
+    hot_drop::advice_t const advice{hot_drop::advise(hot_drop_records_, port->station, port->market_id, port->ship)};
+    std::string head{std::format("hot drop {}", port->station)};
+    if(not port->body.empty())
+      head += std::format(" ({} {}, {:.2f} g)", port->body_kind, port->body, port->body_gravity_g);
+    lines.push_back(overlay::line_t{.text = std::move(head), .color = colour_heading()});
+    // the furthest that worked, as long as nothing nearer passed the port
+    if(advice.dropped_from_ls and (not advice.overshot_from_ls or *advice.dropped_from_ls < *advice.overshot_from_ls))
+      lines.push_back(
+        overlay::line_t{
+          .text = std::format("  overspeed from {:.1f} Ls or nearer", *advice.dropped_from_ls), .color = colour_first()
+        }
+      );
+    if(advice.dropped_from_ls)
+      lines.push_back(
+        overlay::line_t{
+          .text = std::format(
+            "  dropped from {:.1f} Ls at {} ({}x)", *advice.dropped_from_ls, seconds_text(advice.dropped_seconds), advice.dropped
+          ),
+          .color = colour_plain()
+        }
+      );
+    if(advice.overshot_from_ls)
+      lines.push_back(
+        overlay::line_t{
+          .text = std::format(
+            "  overshot from {:.1f} Ls at {} ({}x)",
+            *advice.overshot_from_ls,
+            seconds_text(advice.overshot_seconds),
+            advice.overshot
+          ),
+          .color = colour_alert()
+        }
+      );
+    if(not advice.dropped_from_ls and not advice.overshot_from_ls)
+      lines.push_back(overlay::line_t{.text = std::format("  no hot drop here in {} yet", port->ship), .color = colour_plain()});
+    if(auto const last{hot_drop_.last_distance()}; last)
+      lines.push_back(overlay::line_t{.text = std::format("  read: {:.2f} Ls", *last), .color = colour_plain()});
+    }
+  else if(hot_drop_last_ and std::chrono::steady_clock::now() - hot_drop_last_at_ < std::chrono::seconds{30})
+    {
+    hot_drop::summary_t const & s{hot_drop_last_->summary};
+    std::string text{std::format("hot drop {}: {}", hot_drop_last_->station, hot_drop::outcome_name(hot_drop_last_->outcome))};
+    if(s.overspeed)
+      text += std::format(", overspeed from {:.1f} Ls at {}", s.overspeed_from_ls, seconds_text(s.least_seconds));
+    else
+      text += ", no overspeed";
+    lines.push_back(
+      overlay::line_t{
+        .text = std::move(text),
+        .color = hot_drop_last_->outcome == hot_drop::outcome_e::overshot ? colour_alert() : colour_plain()
+      }
+    );
+    }
+  (void)state;
+  return lines;
+  }
+
 auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t const & plotted) -> void
   {
   codex_.set_journal_dir(state.journal_dir_path_);
@@ -4357,6 +4613,11 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
       overlay::block_t{.corner = overlay::corner_e::centre_top_right, .ttl_ms = block_ttl_ms(), .lines = std::move(way)}
     );
 
+  // beside the enemies: read in supercruise, eyes on the port ahead
+  if(auto hot{interface_open ? std::vector<overlay::line_t>{} : build_hot_drop_lines(state)}; not hot.empty())
+    frame.blocks.push_back(
+      overlay::block_t{.corner = overlay::corner_e::centre_top_left, .ttl_ms = block_ttl_ms(), .lines = std::move(hot)}
+    );
   if(auto crew{interface_open ? std::vector<overlay::line_t>{} : build_crew_lines(state)}; not crew.empty())
     frame.blocks.push_back(
       overlay::block_t{.corner = overlay::corner_e::centre_top_right, .ttl_ms = block_ttl_ms(), .lines = std::move(crew)}
@@ -4636,6 +4897,9 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
       };
       }
     }
+  // the label of the port flown to, read off the screen while the approach lasts - it takes the turn from the
+  // vision's picture, and the views of planets take it from the label
+  track_hot_drop(state);
   // the views for the faces ask first, so any other picture asked for at the same moment takes the turn
   if(auto const & asked{approach_.capture_request()}; asked.id != approach_capture_id_)
     {

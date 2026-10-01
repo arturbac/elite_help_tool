@@ -165,6 +165,23 @@ struct supercruise_entry_t
   uint64_t SystemAddress;
   };
 
+///\brief leaving supercruise anywhere - at a destination, by hand, or thrown out of it
+struct supercruise_exit_t
+  {
+  uint64_t SystemAddress;
+  std::string Body;
+  std::string BodyType;
+  };
+
+///\brief leaving supercruise at the destination it was flown to - written just before SupercruiseExit, and only
+/// when the drop was the destination's own: a port's name in Type, with its MarketID
+struct supercruise_destination_drop_t
+  {
+  std::string Type;
+  std::string Type_Localised;
+  uint64_t MarketID;
+  };
+
 ///\brief the frame shift drive supercharged in a neutron star's or a white dwarf's cone
 struct jet_cone_boost_t
   {

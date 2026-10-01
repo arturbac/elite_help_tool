@@ -1308,6 +1308,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
             .ShipID = event.ShipID,
             .ShipName = std::move(event.ShipName),
             .ShipIdent = std::move(event.ShipIdent),
+            .UnladenMass = event.UnladenMass,
             .HullHealth = event.HullHealth,
             .CargoCapacity = event.CargoCapacity,
             .FuelCapacity = event.FuelCapacity,
@@ -1544,6 +1545,13 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
         {
         // every stage repeats what the earlier ones said, so the newest event is the whole truth
         target = event.TargetLocked ? event : events::ship_targeted_t{};
+        }
+      else if constexpr(std::same_as<T, events::supercruise_exit_t>)
+        ++supercruise_exits_seen_;
+      else if constexpr(std::same_as<T, events::supercruise_destination_drop_t>)
+        {
+        ++destination_drops_seen_;
+        last_destination_drop_ = std::move(event);
         }
       else if constexpr(std::same_as<T, events::bounty_t>)
         {

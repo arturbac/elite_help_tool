@@ -863,6 +863,10 @@ auto generic_state_t::discovery(std::string_view input) -> void
       break;
     case Disembark:        parse_and_handle.template operator()<events::disembark_t>(); break;
     case SupercruiseEntry: parse_and_handle.template operator()<events::supercruise_entry_t>(); break;
+    case SupercruiseExit:  parse_and_handle.template operator()<events::supercruise_exit_t>(); break;
+    case SupercruiseDestinationDrop:
+      parse_and_handle.template operator()<events::supercruise_destination_drop_t>();
+      break;
     case BackpackChange:   parse_and_handle.template operator()<events::backpack_change_t>(); break;
     case SellMicroResources:
       parse_and_handle.template operator()<events::sell_micro_resources_t>();

@@ -177,6 +177,8 @@ struct ship_loadout_t
   uint32_t ShipID;
   std::string ShipName;
   std::string ShipIdent;
+  ///\brief the ship without fuel and cargo, in tons
+  float UnladenMass;
   float HullHealth;
   uint16_t CargoCapacity;
   uint16_t CargoUsed;

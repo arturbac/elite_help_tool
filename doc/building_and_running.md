@@ -27,6 +27,7 @@ EHT is made of these parts:
 - SQLite3, OpenSSL, zlib, zstd (the backup packs the journals with it), pkg-config
 - libsystemd (reads net-monitor's log for the Network incidents window, no root needed)
 - libpng and libjpeg-turbo (the pictures `eht_vision` records)
+- optional: tesseract with its English data (the [hot drop](hot_drop.md) reads the HUD with it)
 - Vulkan headers (for the overlay)
 
 - libxcb headers (the overlay loads libxcb at run time, from the game's process)
