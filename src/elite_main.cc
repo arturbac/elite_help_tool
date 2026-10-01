@@ -12,7 +12,7 @@
 #include <print>
 #include <boost/program_options.hpp>
 #include <spdlog/spdlog.h>
-#include <elite_events.h>
+#include <generic_state.h>
 #include <database_import_state.h>
 #include <iostream>
 #include <csignal>

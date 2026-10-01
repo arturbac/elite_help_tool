@@ -5,6 +5,7 @@
 #include <format>
 #include <limits>
 #include <ranges>
+#include <exploration_value.h>
 
 namespace overlay_exploration
   {

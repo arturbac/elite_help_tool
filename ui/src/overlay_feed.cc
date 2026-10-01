@@ -22,6 +22,8 @@
 #include <map>
 #include <set>
 #include <ranges>
+#include <format_credits.h>
+#include <orbit.h>
 
 namespace
   {

@@ -11,6 +11,8 @@
 #include <qtreeview.h>
 #include "qformat.h"
 #include <qsplitter.h>
+#include <exploration_value.h>
+#include <format_credits.h>
 
 auto system_bodies_filter_proxy_t::filterAcceptsRow(int source_row, QModelIndex const & source_parent) const -> bool
   {

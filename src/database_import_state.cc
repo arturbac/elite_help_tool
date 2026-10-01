@@ -1,5 +1,6 @@
 #include <eht_settings.h>
 #include <database_import_state.h>
+#include <exploration_value.h>
 #include <fleet.h>
 #include <spdlog/spdlog.h>
 #include <simple_enum/std_format.hpp>

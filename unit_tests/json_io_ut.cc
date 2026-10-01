@@ -1,5 +1,6 @@
 #include <boost/ut.hpp>
-#include <elite_events.h>
+#include <events/companion_files.h>
+#include <events/navigation.h>
 #include <json_io.h>
 
 #include <filesystem>

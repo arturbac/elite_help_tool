@@ -1,5 +1,5 @@
 #include <biology.h>
-#include <elite_events.h>
+#include <exploration_value.h>
 
 #include <algorithm>
 #include <fstream>

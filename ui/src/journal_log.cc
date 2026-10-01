@@ -1,6 +1,7 @@
 #include "journal_log.h"
 #include <simple_enum/std_format.hpp>
 #include "qformat.h"
+#include <exploration_value.h>
 
 // ⁕🌐🌕🌍🔵🔴🏷🏱📡📢
 static constexpr auto value_color(planet_value_e value)

@@ -22,6 +22,7 @@
 #include <memory>
 #include <span>
 #include <vector>
+#include <events/companion_files.h>
 
 ///\brief feeds the layer that draws inside the game window
 ///

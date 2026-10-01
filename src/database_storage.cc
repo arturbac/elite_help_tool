@@ -5,7 +5,10 @@
 #include <sqlite3.h>
 #include <filesystem>
 #include <json_glaze.h>
-#include <elite_events.h>
+#include <events/carrier.h>
+#include <events/station.h>
+#include <events/system_info.h>
+#include <star_system.h>
 #include <map>
 #include <tuple>
 #include <spdlog/spdlog.h>

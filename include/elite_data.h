@@ -1,5 +1,9 @@
 #pragma once
-#include <elite_events.h>
+#include <events/carrier.h>
+#include <events/missions.h>
+#include <events/station.h>
+#include <events/system_info.h>
+#include <star_system.h>
 #include <network_incident.h>
 #include <algorithm>
 #include <array>

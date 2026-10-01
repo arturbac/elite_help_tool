@@ -1,6 +1,7 @@
 #pragma once
 #include <elite_data.h>
 #include <databse_storage.h>
+#include <events/micro_resources.h>
 #include <chrono>
 #include <optional>
 #include <deque>

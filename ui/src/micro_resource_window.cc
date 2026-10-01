@@ -19,6 +19,7 @@
 #include <qpushbutton.h>
 #include <spdlog/spdlog.h>
 #include <algorithm>
+#include <format_credits.h>
 
 namespace
   {

@@ -1,5 +1,5 @@
 #pragma once
-#include <elite_events.h>
+#include <events/event_holder.h>
 
 #include <QWidget>
 #include <QLabel>

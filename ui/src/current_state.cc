@@ -7,6 +7,7 @@
 #include <stralgo/stralgo.h>
 
 #include <filesystem>
+#include <exploration_value.h>
 using namespace std::string_view_literals;
 
 ///\brief refreshes the backup's copy of live.sqlite right away - a market's Market.json or a carrier's

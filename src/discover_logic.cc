@@ -593,28 +593,28 @@ auto to_system_signal(events::fss_signal_discovered_t const & signal, std::chron
   };
   }
 
-auto filter_current_visit(std::vector<system_signal_t> signals) -> std::vector<system_signal_t>
+auto filter_current_visit(std::vector<system_signal_t> seen_signals) -> std::vector<system_signal_t>
   {
-  if(signals.empty())
-    return signals;
+  if(seen_signals.empty())
+    return seen_signals;
 
   // a longer gap than this separates visits; a shorter one means further batches of the same stay
   constexpr auto visit_gap{std::chrono::hours{2}};
 
-  std::ranges::sort(signals, std::ranges::greater{}, &system_signal_t::last_seen);
+  std::ranges::sort(seen_signals, std::ranges::greater{}, &system_signal_t::last_seen);
 
-  auto cutoff{signals.front().last_seen};
-  for(system_signal_t const & signal: signals)
+  auto cutoff{seen_signals.front().last_seen};
+  for(system_signal_t const & signal: seen_signals)
     {
     if(cutoff - signal.last_seen > visit_gap)
       break;
     cutoff = signal.last_seen;
     }
 
-  auto const stale{std::ranges::remove_if(signals, [cutoff](system_signal_t const & signal)
+  auto const stale{std::ranges::remove_if(seen_signals, [cutoff](system_signal_t const & signal)
                                           { return signal.last_seen < cutoff; })};
-  signals.erase(stale.begin(), stale.end());
-  return signals;
+  seen_signals.erase(stale.begin(), stale.end());
+  return seen_signals;
   }
 
 auto classify_signal(std::string_view signal_type) noexcept -> signal_class_e

@@ -1,6 +1,7 @@
 #pragma once
 
-#include <elite_events.h>
+#include <generic_state.h>
+#include <star_system.h>
 #include <databse_storage.h>
 #include <ground_cz.h>
 #include <on_foot.h>

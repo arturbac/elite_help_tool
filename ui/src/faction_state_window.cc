@@ -21,6 +21,7 @@
 #include <set>
 #include <limits>
 #include <cmath>
+#include <format_credits.h>
 
 using namespace std::string_view_literals;
 

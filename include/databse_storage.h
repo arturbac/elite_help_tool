@@ -4,7 +4,9 @@
 #include <memory>
 #include <simple_enum/expected.h>
 #include <simple_enum/simple_enum.hpp>
-#include <elite_events.h>
+#include <events/carrier.h>
+#include <events/system_info.h>
+#include <star_system.h>
 #include <elite_data.h>
 #include <biology.h>
 #include <territory.h>

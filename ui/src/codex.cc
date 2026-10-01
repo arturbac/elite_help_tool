@@ -15,6 +15,7 @@
 #include <map>
 #include <set>
 #include <sstream>
+#include <exploration_value.h>
 
 namespace codex_files
   {

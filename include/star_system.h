@@ -209,7 +209,7 @@ struct system_signal_t
 ///\detail the game reports signals in batches that are sometimes incomplete - the same station can drop out
 /// in one batch and come back in the next - so a visit is the sum of the batches, not a single batch
 [[nodiscard]]
-auto filter_current_visit(std::vector<system_signal_t> signals) -> std::vector<system_signal_t>;
+auto filter_current_visit(std::vector<system_signal_t> seen_signals) -> std::vector<system_signal_t>;
 
 [[nodiscard]]
 auto to_system_signal(events::fss_signal_discovered_t const & signal, std::chrono::sys_seconds seen)

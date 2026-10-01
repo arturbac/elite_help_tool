@@ -1,6 +1,6 @@
 #pragma once
 
-#include <elite_events.h>
+#include <star_system.h>
 
 #include <chrono>
 #include <cstdint>

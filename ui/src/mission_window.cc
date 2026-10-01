@@ -7,6 +7,7 @@
 #include <qheaderview.h>
 #include <stralgo/stralgo.h>
 #include <unordered_map>
+#include <format_credits.h>
 
 mission_model_t::mission_model_t(std::vector<info::mission_t> const & missions, QObject * parent) :
     QAbstractItemModel(parent),

@@ -5,13 +5,15 @@
 #include <on_foot.h>
 #include <functional>
 #include <thread>
-#include <elite_events.h>
+#include <generic_state.h>
+#include <star_system.h>
 #include <elite_data.h>
 #include <simple_enum/simple_enum.hpp>
 #include <databse_storage.h>
 #include <biology.h>
 #include <fleet.h>
 #include <mutex>
+#include <events/companion_files.h>
 
 class main_window_t;
 

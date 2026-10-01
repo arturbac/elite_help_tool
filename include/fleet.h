@@ -1,7 +1,9 @@
 #pragma once
 #include <databse_storage.h>
 #include <elite_data.h>
-#include <elite_events.h>
+#include <events/combat.h>
+#include <events/ships.h>
+#include <events/station.h>
 #include <array>
 #include <chrono>
 #include <map>
