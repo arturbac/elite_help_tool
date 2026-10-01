@@ -141,3 +141,48 @@ A 480 × 270 PNG of the game's screen is 150-190 kB. At one picture a second tha
 screen is roughly 1-2 MB as a JPEG, so a minute's picture adds about 0.1 GB per hour, plus one per
 change of the state. `eht_vision` writes how much it
 recorded to its log every 10 minutes.
+
+## Training a first model
+
+`tools/ml/` holds the offline side: Python with PyTorch in its own virtual environment, never
+needed to run EHT. The first model is a probe. It tells the scene (supercruise, docked, on foot,
+the galaxy map, the DSS and so on) from the small picture alone. The scene is already known from
+`Status.json`, so the model adds nothing to EHT yet. It shows that the whole chain, from the
+recorded pictures to a model a C++ program can load, works with no hand work.
+
+```sh
+cd tools/ml
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
+.venv/bin/python scene_labels.py ~/ed/eht/vision ~/ed/eht-other/vision -o manifest.csv
+.venv/bin/python train_scene.py manifest.csv -o run/
+```
+
+`scene_labels.py` gives every picture its scene from the `status` beside it. `GuiFocus` comes first
+(panels, station services, the maps, the FSS, the DSS, the codex), then on foot, the SRV, the jump,
+docked, landed, supercruise, and normal space for the rest. It leaves out:
+
+- pictures with `Flags` 0, which is the main menu or a status left from an earlier session,
+- pictures within a second of a change in `status.jsonl`, which may show either side of it,
+- pictures of any region other than the most common one (the approach to a planet asks for a
+  different part of the screen).
+
+It prints how many pictures each scene has. A scene needs a couple of hundred to be learnt well.
+
+`train_scene.py` trains MobileNetV3-small, starting from the ImageNet weights, on the CPU. Each
+scene is drawn equally often, and the colours are shifted at random, because players recolour
+their HUD. Pictures are not mirrored, because the HUD is not symmetric. Validation holds out whole
+days. Pictures a few seconds apart look alike, so a random split would flatter the model. With a
+single day it holds out ten-minute blocks of each scene instead, and the report says the result is
+optimistic. A scene with fewer than 20 training pictures is left out and named in the report.
+
+In `run/` it writes `report.txt` (recall and precision per scene and a confusion matrix),
+`report.json`, `scene.pt`, `scene.onnx` and `classes.txt`. It then converts the model to ncnn
+(`scene.ncnn.param`, `scene.ncnn.bin`) with pnnx, runs the same pictures through both, and prints
+how far apart their answers are. The ncnn model takes RGB scaled to 0..1, 384 × 216; the
+normalisation is part of the graph.
+
+On a 9950X a training of about 2,000 pictures takes three minutes on four cores. It runs at the
+idle scheduling class, but that is not enough beside the game. The game spreads its threads over
+every core, and training on a sibling hyperthread or beside it in the same L3 makes the game
+stutter even with half the cores free. So train with the game off.

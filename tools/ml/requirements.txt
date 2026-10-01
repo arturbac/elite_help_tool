@@ -1,0 +1,9 @@
+# CPU wheels: pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.14.1
+torchvision==0.29.1
+pillow
+numpy
+onnx
+onnxscript
+pnnx
+ncnn
