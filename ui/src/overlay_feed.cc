@@ -4256,6 +4256,10 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
     frame.blocks.push_back(
       overlay::block_t{.corner = overlay::corner_e::bottom_right, .ttl_ms = block_ttl_ms(), .lines = std::move(arrival)}
     );
+  if(auto phenomena{overlay_exploration::describe_phenomena(state.system)}; not phenomena.empty())
+    frame.blocks.push_back(
+      overlay::block_t{.corner = overlay::corner_e::bottom_right, .ttl_ms = block_ttl_ms(), .lines = std::move(phenomena)}
+    );
   if(auto mapping{overlay_exploration::describe_mapping(state.system)}; not mapping.empty())
     frame.blocks.push_back(
       overlay::block_t{.corner = overlay::corner_e::bottom_right, .ttl_ms = block_ttl_ms(), .lines = std::move(mapping)}

@@ -16,7 +16,7 @@ EHT (Elite Help Tool) is a companion for Elite Dangerous that follows the game's
 - **[Trade](doc/trade.md)**: best known trades against every market you have opened, fleet carrier bars, bartender sales, which missions pay best at your own bar.
 - **[Colonisation](doc/colonisation.md)**: what a construction site still needs and who can supply it, tracked from every docking and delivery.
 - **[Fleet carriers](doc/fleet_carriers.md)** and **[your ships](doc/ships.md)**: where each one is, where it is going, what is on board.
-- **[Exploration and exobiology](doc/exploration.md)**: what is worth mapping, species prediction from your own sampling history, an automatic photo codex and sky album. And a curiosity from the game's own sales: [the bodies you never scanned are paid for too](doc/unscanned_bodies.md).
+- **[Exploration and exobiology](doc/exploration.md)**: what is worth mapping, species prediction from your own sampling history, notable stellar phenomena flagged on arrival, an automatic photo codex and sky album. And a curiosity from the game's own sales: [the bodies you never scanned are paid for too](doc/unscanned_bodies.md).
 - **[Surface navigation](doc/surface_navigation.md)** to a place given as coordinates, or to a codex entry.
 - **[Neutron routes](doc/neutron_routes.md)**: following a route plotted by Spansh.
 - **[Privacy](doc/privacy.md)**: nothing is downloaded from public databases; EDDN uploads are opt-in, exploration-only and only for empty, undiscovered systems.

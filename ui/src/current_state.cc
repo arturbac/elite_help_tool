@@ -1125,8 +1125,26 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
              it != system.system_signals.end())
             it->last_seen = signal.last_seen;
           else
+            {
+            if(signal.signal_type == phenomenon_signal_type)
+              load_phenomena();
             system.system_signals.emplace_back(std::move(signal));
+            }
 
+          update_system = true;
+          }
+        else if constexpr(std::same_as<T, events::codex_entry_t>)
+          {
+          // only a find in space says the commander was at a phenomenon
+          auto visit{to_system_signal(event, timestamp)};
+          if(not visit)
+            return;
+          if(auto res{db_.store(*visit)}; not res)
+            spdlog::error("failed to store codex visit for {}", event.SystemAddress);
+          if(system.system_address == event.SystemAddress
+             and not std::ranges::contains(system.system_signals, visit->name, &system_signal_t::name))
+            system.system_signals.emplace_back(std::move(*visit));
+          load_phenomena();
           update_system = true;
           }
         else if constexpr(std::same_as<T, events::fss_discovery_scan_t>)
@@ -1788,6 +1806,14 @@ void current_state_t::load_factions()
     spdlog::warn("failed to load factions");
   else
     known_factions = std::move(*res);
+  }
+
+void current_state_t::load_phenomena()
+  {
+  if(auto res{db_.load_unvisited_phenomena()}; not res) [[unlikely]]
+    spdlog::warn("failed to load unvisited phenomena");
+  else
+    unvisited_phenomena = std::move(*res);
   }
 
 void current_state_t::load_missions()

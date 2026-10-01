@@ -884,6 +884,13 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
         if(auto res{state.db_.store(to_system_signal(event, timestamp))}; not res) [[unlikely]]
           critical_abort("failed to store signal for {}", event.SystemAddress);
         }
+      else if constexpr(std::same_as<T, events::codex_entry_t>)
+        {
+        // only a find in space says the commander was at a phenomenon
+        if(auto visit{to_system_signal(event, timestamp)}; visit)
+          if(auto res{state.db_.store(*visit)}; not res) [[unlikely]]
+            critical_abort("failed to store codex visit for {}", event.SystemAddress);
+        }
       else if constexpr(std::same_as<T, events::commander_t>)
         {
         // from this moment to the end of the file it is known whose the entries are

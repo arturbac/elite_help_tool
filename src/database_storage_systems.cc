@@ -571,6 +571,23 @@ auto database_storage_t::load_system_signals(uint64_t system_address)
   return filter_current_visit(std::move(*res));
   }
 
+auto database_storage_t::load_unvisited_phenomena() -> expected_ec<std::vector<unvisited_phenomenon_t>>
+  {
+  // a system known only by its signals has no name of its own in star_system - it keeps its number then
+  std::string const source{std::format(
+    "(SELECT coalesce(y.name, s.system_address) AS system, max(s.last_seen) AS last_seen"
+    " FROM {0} s LEFT JOIN {1} y ON y.system_address = s.system_address"
+    " WHERE s.signal_type = '{2}' AND NOT EXISTS"
+    " (SELECT 1 FROM {0} v WHERE v.system_address = s.system_address AND v.signal_type = '{3}')"
+    " GROUP BY s.system_address)",
+    sql_iface::tables::system_signal,
+    sql_iface::tables::star_system,
+    phenomenon_signal_type,
+    phenomenon_visit_type
+  )};
+  return sqlite::select_from<unvisited_phenomenon_t>(db_->db, source, " ORDER BY last_seen DESC");
+  }
+
 auto database_storage_t::load_system(uint64_t system_address)
   -> cxx23::expected<std::optional<star_system_t>, std::error_code>
   {

@@ -38,6 +38,11 @@ auto short_credits(uint64_t value) -> std::string;
 [[nodiscard]]
 auto describe_arrival(star_system_t const & system) -> std::vector<overlay::line_t>;
 
+///\brief a notable stellar phenomenon in the system, and whether it was ever visited - lost among the
+/// mining sites and installations of the FSS otherwise; shown in inhabited space too
+[[nodiscard]]
+auto describe_phenomena(star_system_t const & system) -> std::vector<overlay::line_t>;
+
 ///\brief the bodies worth the probes, best first
 [[nodiscard]]
 auto describe_mapping(star_system_t const & system) -> std::vector<overlay::line_t>;

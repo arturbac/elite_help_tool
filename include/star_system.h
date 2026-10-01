@@ -215,6 +215,25 @@ auto filter_current_visit(std::vector<system_signal_t> seen_signals) -> std::vec
 auto to_system_signal(events::fss_signal_discovered_t const & signal, std::chrono::sys_seconds seen)
   -> system_signal_t;
 
+///\brief the type a notable stellar phenomenon - a Lagrange cloud and whatever lives in it - comes through as
+inline constexpr std::string_view phenomenon_signal_type{"Codex"};
+///\brief the type of a row that is not a signal but a visit - a codex find made in space in the system
+///\detail kept beside the signals so that it lasts as long as they do; filter_current_visit leaves it alone
+inline constexpr std::string_view phenomenon_visit_type{"CodexEntry"};
+
+///\brief a codex find made in space, as a row of the system's signals - none for a find on the ground or of a body
+[[nodiscard]]
+auto to_system_signal(events::codex_entry_t const & entry, std::chrono::sys_seconds seen)
+  -> std::optional<system_signal_t>;
+
+///\brief a system with a notable stellar phenomenon where no find in space was ever logged
+struct unvisited_phenomenon_t
+  {
+  std::string system;
+  ///\brief when the phenomenon was last reported
+  std::chrono::sys_seconds last_seen;
+  };
+
 ///\brief which window a signal belongs to
 enum struct signal_class_e : uint8_t
   {

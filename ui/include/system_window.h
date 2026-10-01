@@ -145,6 +145,7 @@ public:
   QLabel * fss_label_{};
   /// phenomena and landmarks from the FSS, stations excluded - those are in the system window
   QLabel * poi_label_{};
+  QLabel * phenomena_label_{};
   QTreeView * tree_view{};
   QTreeView *signals_view{};
 

@@ -45,6 +45,7 @@ struct body_t;
 struct ring_t;
 struct star_system_t;
 struct system_signal_t;
+struct unvisited_phenomenon_t;
 
 struct sqlite3_handle_t;
 
@@ -507,6 +508,10 @@ struct database_storage_t
 
   [[nodiscard]]
   auto load_system_signals(uint64_t system_address) -> expected_ec<std::vector<system_signal_t>>;
+
+  ///\brief the systems where a notable stellar phenomenon was reported and no find in space was logged
+  [[nodiscard]]
+  auto load_unvisited_phenomena() -> expected_ec<std::vector<unvisited_phenomenon_t>>;
 
   ///\brief a station's identity, rebuildable from journals
   [[nodiscard]]

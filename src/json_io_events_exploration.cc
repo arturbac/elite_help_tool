@@ -5,6 +5,7 @@
 EHT_JSON_READ(events::fss_discovery_scan_t)
 EHT_JSON_READ(events::fss_body_signals_t)
 EHT_JSON_READ(events::fss_signal_discovered_t)
+EHT_JSON_READ(events::codex_entry_t)
 EHT_JSON_READ(events::fss_all_bodies_found_t)
 EHT_JSON_READ(events::scan_bary_centre_t)
 EHT_JSON_READ(events::scan_detailed_scan_t)

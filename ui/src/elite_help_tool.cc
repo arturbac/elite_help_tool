@@ -493,6 +493,7 @@ auto main_window_t::background_worker(std::stop_token stoken) -> void
 
   // the first filling of the faction list - db_ is touched from this thread alone
   state_.load_factions();
+  state_.load_phenomena();
   QMetaObject::invokeMethod(
     this,
     [this]()

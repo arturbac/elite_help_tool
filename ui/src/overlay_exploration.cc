@@ -304,6 +304,28 @@ auto describe_arrival(star_system_t const & system) -> std::vector<overlay::line
   return lines;
   }
 
+auto describe_phenomena(star_system_t const & system) -> std::vector<overlay::line_t>
+  {
+  if(not std::ranges::contains(system.system_signals, phenomenon_signal_type, &system_signal_t::signal_type))
+    return {};
+
+  // the journal tells neither how many there are nor where - the FSS shows them, then the nav panel
+  std::vector<std::string_view> seen;
+  for(system_signal_t const & signal: system.system_signals)
+    if(signal.signal_type == phenomenon_visit_type)
+      seen.emplace_back(signal.name);
+
+  if(seen.empty())
+    return {overlay::line_t{.text = "Notable stellar phenomena - find in FSS, never visited", .color = colour_first()}};
+
+  std::vector<overlay::line_t> lines{
+    overlay::line_t{.text = "Notable stellar phenomena - visited", .color = colour_below()}
+  };
+  for(std::string_view const name: seen)
+    lines.push_back(overlay::line_t{.text = std::format("  {}", name), .color = colour_below()});
+  return lines;
+  }
+
 auto describe_mapping(star_system_t const & system) -> std::vector<overlay::line_t>
   {
   auto const cfg{eht::settings()};

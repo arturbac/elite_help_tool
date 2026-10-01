@@ -588,7 +588,22 @@ auto to_system_signal(events::fss_signal_discovered_t const & signal, std::chron
   };
   }
 
-auto filter_current_visit(std::vector<system_signal_t> seen_signals) -> std::vector<system_signal_t>
+auto to_system_signal(events::codex_entry_t const & entry, std::chrono::sys_seconds seen)
+  -> std::optional<system_signal_t>
+  {
+  // a find on the ground has its place; stars and planets go in under StellarBodies
+  if(entry.Latitude or entry.Category != "$Codex_Category_Biology;")
+    return std::nullopt;
+  return system_signal_t{
+    .system_address = entry.SystemAddress,
+    .name = entry.Name_Localised.empty() ? entry.Name : entry.Name_Localised,
+    .signal_type = std::string{phenomenon_visit_type},
+    .is_station = false,
+    .last_seen = seen
+  };
+  }
+
+static auto filter_seen_in_last_visit(std::vector<system_signal_t> seen_signals) -> std::vector<system_signal_t>
   {
   if(seen_signals.empty())
     return seen_signals;
@@ -609,6 +624,21 @@ auto filter_current_visit(std::vector<system_signal_t> seen_signals) -> std::vec
   auto const stale{std::ranges::remove_if(seen_signals, [cutoff](system_signal_t const & signal)
                                           { return signal.last_seen < cutoff; })};
   seen_signals.erase(stale.begin(), stale.end());
+  return seen_signals;
+  }
+
+auto filter_current_visit(std::vector<system_signal_t> seen_signals) -> std::vector<system_signal_t>
+  {
+  // a visit to a phenomenon stays true whatever later visits report
+  std::vector<system_signal_t> visits;
+  auto const visit_rows{std::ranges::partition(
+    seen_signals, [](system_signal_t const & signal) { return signal.signal_type != phenomenon_visit_type; }
+  )};
+  std::ranges::move(visit_rows, std::back_inserter(visits));
+  seen_signals.erase(visit_rows.begin(), visit_rows.end());
+
+  seen_signals = filter_seen_in_last_visit(std::move(seen_signals));
+  std::ranges::move(visits, std::back_inserter(seen_signals));
   return seen_signals;
   }
 
@@ -843,6 +873,7 @@ auto generic_state_t::discovery(std::string_view input) -> void
     case FSSSignalDiscovered:
       parse_and_handle.template operator()<events::fss_signal_discovered_t>();
       break;
+    case CodexEntry:        parse_and_handle.template operator()<events::codex_entry_t>(); break;
     case FSSAllBodiesFound: parse_and_handle.template operator()<events::fss_all_bodies_found_t>(); break;
     case ScanBaryCentre:    parse_and_handle.template operator()<events::scan_bary_centre_t>(); break;
     case Scan:              parse_and_handle.template operator()<events::scan_detailed_scan_t>(); break;

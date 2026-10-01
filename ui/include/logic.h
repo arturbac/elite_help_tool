@@ -53,6 +53,8 @@ struct current_state_t : public generic_state_t
   std::vector<info::faction_info_t> system_factions;
   std::vector<info::faction_info_t> known_factions;
   std::vector<info::mission_t> active_missions;
+  ///\brief the notable stellar phenomena reported somewhere and never visited, the newest first
+  std::vector<unvisited_phenomenon_t> unvisited_phenomena;
   
   ship_loadout_t ship_loadout;
   database_storage_t db_;
@@ -241,6 +243,7 @@ struct current_state_t : public generic_state_t
 
   // called from the worker thread; db_ is never touched from the GUI thread
   void load_factions();
+  void load_phenomena();
 
 private:
   void load_missions();

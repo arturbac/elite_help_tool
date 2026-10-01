@@ -513,6 +513,16 @@ auto system_window_t::update_labels() -> void
     }
 
   poi_label_->setText(points.empty() ? QString{"—"} : QString::fromStdString(points));
+
+  // the phenomena seen somewhere and never flown to - the journal knows of them, the game's lists bury them
+  std::string unvisited;
+  for(unvisited_phenomenon_t const & phenomenon: state_.unvisited_phenomena)
+    {
+    if(not unvisited.empty())
+      unvisited.append(", ");
+    unvisited.append(phenomenon.system);
+    }
+  phenomena_label_->setText(unvisited.empty() ? QString{"—"} : QString::fromStdString(unvisited));
   }
 
 system_window_t::system_window_t(current_state_t const & state, QWidget * parent) : QMdiSubWindow(parent), state_(state)
@@ -573,6 +583,10 @@ auto system_window_t::setup_ui() -> void
   form->addRow("Current System:", system_label_);
   form->addRow("FSS Status:", fss_label_);
   form->addRow("Points of interest:", poi_label_);
+  phenomena_label_ = new QLabel();
+  phenomena_label_->setWordWrap(true);
+  phenomena_label_->setToolTip("Systems where the FSS reported notable stellar phenomena and no codex find was made in space");
+  form->addRow("Phenomena never visited:", phenomena_label_);
   main_layout->addWidget(info_group);
 
   auto * splitter = new QSplitter(Qt::Vertical, central_widget);

@@ -24,6 +24,7 @@ using event_holder_t = std::variant<
   fss_discovery_scan_t,
   fss_body_signals_t,
   fss_signal_discovered_t,
+  codex_entry_t,
   market_t,
   undocked_t,
   docked_t,

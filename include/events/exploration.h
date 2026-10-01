@@ -209,6 +209,19 @@ struct fss_signal_discovered_t
   std::optional<double> TimeRemaining;
   };
 
+///\brief a find written into the codex - the one sign in the journal that a commander was at a phenomenon
+///\detail a Lagrange cloud or a space life form goes in as Biology under "Geology and Anomalies", the same as
+/// the geology on the ground - what tells them apart is the place, which a find in space does not have
+struct codex_entry_t
+  {
+  uint64_t SystemAddress;
+  std::string Name;
+  std::string Name_Localised;
+  std::string Category;
+  std::string SubCategory;
+  std::optional<double> Latitude;
+  };
+
 struct fss_body_signals_t
   {
   std::string BodyName;

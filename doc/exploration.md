@@ -13,6 +13,13 @@ The bottom right corner of the overlay follows the order of work in a new system
    heat comes too late to be one. The figure is the HUD distance at which the danger began at one DC
    dwarf, 78 of its radii (`exploration.white_dwarf_danger_radii`), scaled by this dwarf's radius,
    with the number of measurements it rests on (`exploration.white_dwarf_measurements`),
+   Under it, when the FSS reported **notable stellar phenomena** (a Lagrange cloud, sometimes with
+   space life in it), a line says so - in inhabited space too, where mining sites and installations
+   bury it in the game's own lists. The journal gives neither how many there are nor where, only
+   that the system has them (`FSSSignalDiscovered` with `SignalType` `Codex`); the FSS shows them, then
+   the nav panel. Once a codex find is made in space in that system (`CodexEntry` under Biology
+   without a latitude - geology on the ground has one), the line turns to "visited" with what was
+   logged. The Exploration window lists the systems where phenomena were reported and never visited,
 2. **to map** — bodies worth the probes, most valuable first, green when it is a first discovery,
 3. **life** — bodies with biological signals and, for each genus, the species it most likely is on
    this world, with its price; green when it is worth landing for (`bio_worth`, 5M).
