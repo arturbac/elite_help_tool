@@ -25,6 +25,10 @@
 
 - [Trade](trade.md): the station market, best known trades, fleet carrier bars, bartender, mission value
 
+## Credits
+
+- [Credits](credits.md): the balance, this session, history by period, and what the balance says that no event does
+
 ## Colonisation
 
 - [Colonisation](colonisation.md): construction sites, what they still need, who supplies them

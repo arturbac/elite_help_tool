@@ -14,6 +14,7 @@ EHT (Elite Help Tool) is a companion for Elite Dangerous that follows the game's
 - **[BGS](doc/bgs.md)** tick tracking, influence history, wars and settlement ownership, and a territory table of your own factions' systems.
 - **[Space missions](doc/missions_space.md)** and **[on-foot missions](doc/missions_on_foot.md)**: what is open, where to go, what a hand-in really pays, who probably holds a bounty on you, settlement job boards.
 - **[Trade](doc/trade.md)**: best known trades against every market you have opened, fleet carrier bars, bartender sales, which missions pay best at your own bar.
+- **[Credits](doc/credits.md)**: the balance now, what this session earned and spent per hour, and the history by day, week, month, quarter or year in one column per kind of income and expense, with the squadron bank and colonisation payouts told from the game's own balance readings.
 - **[Colonisation](doc/colonisation.md)**: what a construction site still needs and who can supply it, tracked from every docking and delivery.
 - **[Fleet carriers](doc/fleet_carriers.md)** and **[your ships](doc/ships.md)**: where each one is, where it is going, what is on board.
 - **[Exploration and exobiology](doc/exploration.md)**: what is worth mapping, species prediction from your own sampling history, notable stellar phenomena flagged on arrival, an automatic photo codex and sky album. And a curiosity from the game's own sales: [the bodies you never scanned are paid for too](doc/unscanned_bodies.md).

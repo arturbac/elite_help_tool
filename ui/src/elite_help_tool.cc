@@ -295,6 +295,9 @@ auto main_window_t::setup_ui() -> void
 
   network_incident_view_ = new network_incident_window_t{db_path_, state_.journal_dir_path_};
   add_tool_window(network_incident_view_, window_type_e::network_incident);
+
+  credits_view_ = new credits_window_t{state_.journal_dir_path_};
+  add_tool_window(credits_view_, window_type_e::credits);
   }
 
 auto main_window_t::add_tool_window(QMdiSubWindow * sub, window_type_e type) -> void
@@ -325,6 +328,7 @@ auto main_window_t::subwindow_for(window_type_e type) const -> QMdiSubWindow *
     case window_type_e::ships:        return ships_view_;
     case window_type_e::surface:      return surface_view_;
     case window_type_e::network_incident: return network_incident_view_;
+    case window_type_e::credits:      return credits_view_;
     case window_type_e::journal_log:   return jlw_;
     case window_type_e::none:          break;
     }
@@ -381,6 +385,7 @@ auto main_window_t::setup_toolbox() -> void
     {window_type_e::ships, "Ships"},
     {window_type_e::surface, "Surface"},
     {window_type_e::network_incident, "Network"},
+    {window_type_e::credits, "Credits"},
     {window_type_e::journal_log, "Log"}
   };
 

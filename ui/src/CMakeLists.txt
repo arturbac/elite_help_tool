@@ -14,6 +14,7 @@ target_sources(elite_help_tool
   bgs_window.cc
   construction_window.cc
   network_incident_window.cc
+  credits_window.cc
   ships_window.cc
   surface_window.cc
   overlay_feed.cc

@@ -11,6 +11,7 @@
 #include <bgs_window.h>
 #include <construction_window.h>
 #include <network_incident_window.h>
+#include <credits_window.h>
 #include <ships_window.h>
 #include <surface_window.h>
 #include <eht_extension.h>
@@ -45,13 +46,14 @@ enum struct window_type_e
   construction,
   ships,
   surface,
-  network_incident
+  network_incident,
+  credits
   };
 
 consteval auto adl_enum_bounds(window_type_e)
   {
   using enum window_type_e;
-  return simple_enum::adl_info{none, network_incident};
+  return simple_enum::adl_info{none, credits};
   }
 
 class main_window_t : public QMainWindow
@@ -79,6 +81,7 @@ public:
   QPointer<ships_window_t> ships_view_;
   QPointer<surface_window_t> surface_view_;
   QPointer<network_incident_window_t> network_incident_view_;
+  QPointer<credits_window_t> credits_view_;
 
   ///\brief feeds the overlay in the game window; it lives whether or not the game is running at all
   std::unique_ptr<overlay_feed_t> overlay_feed_;
