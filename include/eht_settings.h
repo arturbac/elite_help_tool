@@ -175,6 +175,9 @@ struct overlay_settings_t
   overlay_colours_t colours;
   overlay_lists_t lists;
   overlay_refresh_t refresh;
+  ///\brief this long without a single UDP datagram while a session runs is told as the game server's
+  /// silence - several come every second while all is well
+  uint32_t server_silence_ms{3000u};
   ///\brief a body worth less than this is not listed as worth mapping
   uint32_t minimum_body_value{300000u};
   ///\brief a mission with less than this left is shown as about to run out

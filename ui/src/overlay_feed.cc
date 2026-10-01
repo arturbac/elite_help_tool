@@ -12,6 +12,7 @@
 #include <data/war.h>
 #include <backup.h>
 #include <evidence_log.h>
+#include <netstate.h>
 #include <picture_records.h>
 #include <port_model.h>
 #include <commodity_facts.h>
@@ -31,6 +32,7 @@
 #include <cctype>
 #include <format>
 #include <fstream>
+#include <iterator>
 #include <map>
 #include <set>
 #include <ranges>
@@ -5038,6 +5040,13 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
     return;
 
   frame.seq = ++sequence_;
+  // The link to Frontier's servers goes under the temperatures, which are put before it next - the first
+  // place looked at when the game seems to hang
+  if(auto lines{build_server_link_lines(state)}; not lines.empty())
+    frame.blocks.insert(
+      frame.blocks.begin(),
+      overlay::block_t{.corner = overlay::corner_e::top_right, .ttl_ms = block_ttl_ms(), .lines = std::move(lines)}
+    );
   // The temperatures come first in the right band, straight under the layer's own frame rate - the
   // number goes warm, then red, near the driver's critical level
   if(auto const reading{sensors_.latest()}; reading and (reading->gpu or reading->cpu))
@@ -5081,4 +5090,60 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
   server_->publish(frame);
   last_ = std::move(frame);
   last_sent_ = now;
+  }
+
+auto overlay_feed_t::build_server_link_lines(current_state_t const & state) -> std::vector<overlay::line_t>
+  {
+  auto const now{std::chrono::system_clock::now()};
+  server_tail_.read(
+    netlog_dir_, [this](server_link::time_point_t at, std::string_view line) { server_link::feed(server_state_, at, line); }
+  );
+
+  // a silence means something only while a session runs: the game's process there, and Status.json saying
+  // more than the main menu's nothing
+  if(server_game_ and not std::filesystem::exists(std::format("/proc/{}", *server_game_)))
+    server_game_.reset();
+  if(auto const steady{std::chrono::steady_clock::now()};
+     not server_game_ and steady - server_game_looked_ > std::chrono::seconds{10})
+    {
+    server_game_looked_ = steady;
+    server_game_ = netstate::find_game(state.journal_dir_path_);
+    }
+  std::optional<std::chrono::milliseconds> silence;
+  if(server_game_ and (status_flags_ != 0u or status_flags2_ != 0u))
+    {
+    std::ifstream snmp{"/proc/net/snmp"};
+    std::string const text{std::istreambuf_iterator<char>{snmp}, std::istreambuf_iterator<char>{}};
+    if(auto const counters{netstate::parse_snmp(text)}; counters)
+      {
+      server_link::feed(udp_silence_, now, counters->udp_in);
+      silence = server_link::silent_for(
+        udp_silence_, now, std::chrono::milliseconds{eht::settings()->overlay.server_silence_ms}
+      );
+      }
+    }
+  else
+    udp_silence_ = {};
+
+  std::vector<server_link::warning_t> const shown{server_link::warnings(server_state_, silence, now)};
+  // each new thing once into the log - the seconds counted on the screen left out
+  std::vector<std::string> told;
+  for(server_link::warning_t const & warning: shown)
+    {
+    std::string key{warning.text.substr(0, warning.text.find_first_of("0123456789"))};
+    if(not std::ranges::contains(server_told_, key))
+      spdlog::warn("server link: {}", warning.text);
+    told.push_back(std::move(key));
+    }
+  server_told_ = std::move(told);
+
+  std::vector<overlay::line_t> lines;
+  for(server_link::warning_t const & warning: shown)
+    lines.push_back(
+      overlay::line_t{
+        .text = warning.text,
+        .color = warning.level == server_link::level_e::server ? colour_expiring() : colour_alert()
+      }
+    );
+  return lines;
   }

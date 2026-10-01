@@ -27,6 +27,29 @@ that only looks at what is new. What it found stays through restarts: a small pr
 newest netLog and journal file names already gone through) means old history is not reread from
 scratch every time EHT starts.
 
+## While it happens
+
+The window above looks back; the overlay tells the same kind of trouble while it lasts (see
+[the overlay](overlay.md)). Its sources, read without root:
+
+- **netLog, read as it grows** - the newest file, only the lines written since the last look:
+  - `Several LOST packet#` - a packet came from the game server after a gap. In the history checked
+    while building this it stood in every session that ended in a lost connection, at the very moment
+    the server went silent (it matched `LastRx` of the disconnect that followed 38 to 55 seconds later),
+    and in about a third of the sessions where it appeared the game carried on - a hiccup, not a loss;
+  - `Disconnected: ... (Too many retries)` - one of the game's servers given up, the missions' one as a
+    rule first, 9 to 18 seconds before the session itself;
+  - `Disconnect: type=N&reason=...` - the game's own disconnect;
+  - `Webserver request failed: code N` (0 is no answer at all) and `HTTP Request took N sec` - the web
+    API beside the game server, which the game writes down only for requests of 10 seconds or more.
+    Its failures come in bursts, often with no trouble on the game server at all: a 502 from the
+    inventory on stepping out of the ship held the game for some 20 seconds and nothing more;
+- **the count of UDP datagrams the machine received** (`/proc/net/snmp`): the game server sends
+  several a second all through a session, so a few seconds with none is the silence itself, seen as it
+  lasts. It counts only after a couple of seconds of traffic and only while Status.json says more
+  than the main menu's nothing. The count is the whole machine's - another program's traffic can hide
+  a silence, never invent one.
+
 ## The local-network verdict
 
 The moment an incident is found, EHT reads the systemd journal for a service logging under the

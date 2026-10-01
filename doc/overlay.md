@@ -70,6 +70,18 @@ process carries no state of ours.
   `gpu_sensor`, `pci`, `cpu_c`, `cpu_sensor`.
 
   ![The temperature readout under the frame rate](images/overlay_temperatures.png)
+- **Server link.** Under the temperatures the overlay tells trouble with Frontier's servers while it
+  happens - the game's own disconnect dialog comes only after it has given up, and by then its server
+  has as a rule been silent for 40 seconds or more. Red is the game server itself, the session at
+  stake: `game server silent N s` (not one UDP datagram received for `overlay.server_silence_ms`,
+  3000 by default, while a session runs - several come every second while all is well),
+  `EDServer#N: packets lost N s ago` (a packet arrived after a gap), `EDServer#N dropped N s ago - a
+  disconnect may follow` (one of the game's servers given up after too many retries) and, once it
+  happens, `disconnected: <reason>`. Amber is the web API beside it - the inventory, the journal
+  upload, colonisation and the like - where the game goes on, only slower: `Frontier API: N requests
+  failed in the last minute (no answer | HTTP 502 | ...)` and `Frontier API: <request> took N s` (the
+  game writes down only requests of 10 s or more). See [network incidents](network_incidents.md#while-it-happens)
+  for what is read and why.
 - **Jump panel.** While the drive charges for a jump to another system, the game shows the
   destination's superpower emblem, and it is wrong for the Federation, the Empire and the Alliance
   (only independents get the right one). The overlay paints over it with the right emblem, and

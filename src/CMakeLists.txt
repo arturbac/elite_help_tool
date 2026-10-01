@@ -26,6 +26,7 @@ target_sources(eht
   netstate.cc
   evidence_log.cc
   network_incident.cc
+  server_link.cc
   database_storage.cc
   database_storage_missions.cc
   database_storage_systems.cc

@@ -22,6 +22,7 @@
 #include <vision_shots.h>
 #include "hud_reader.h"
 #include <hot_drop.h>
+#include <server_link.h>
 
 #include <overlay_ipc.h>
 
@@ -306,6 +307,19 @@ private:
   ///\brief where the game's netLog is, looked for now and then - the game may start after the tool
   std::filesystem::path netlog_dir_;
   std::chrono::steady_clock::time_point netlog_looked_{};
+  ///\brief the link to Frontier's servers, told while it fails - netLog read as it grows, and the count of
+  /// UDP datagrams received for a silence lasting now
+  server_link::tail_t server_tail_;
+  server_link::netlog_state_t server_state_;
+  server_link::udp_silence_t udp_silence_;
+  ///\brief the game's process, looked for on its own - netstate_ looks only while the evidence is gathered
+  std::optional<int> server_game_;
+  std::chrono::steady_clock::time_point server_game_looked_;
+  ///\brief what was told last, so the log says each change once
+  std::vector<std::string> server_told_;
+  ///\brief reads what is new and gives the lines to show
+  [[nodiscard]]
+  auto build_server_link_lines(current_state_t const & state) -> std::vector<overlay::line_t>;
   sensors::level_e gpu_level_{};
   sensors::level_e cpu_level_{};
   ///\brief the one request the frame carries - the newest of the codex's and the scanner's. Kept here so
