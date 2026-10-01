@@ -9,13 +9,20 @@ same way.
 
 The charts below are from one commander's history, November 2025 to September 2026.
 
-![Incidents per day, June to September 2026](images/incidents_daily.png)
+![Incidents per day, June to October 2026](images/incidents_daily.png)
 
 ![Incidents per day over the whole history, with game updates](images/incidents_history.png)
 
 ![Incidents by kind, 7-day mean, with game updates](images/incidents_by_type.png)
 
 ![Incidents per hour the game ran, a panel for each kind, with game updates](images/incidents_per_hour.png)
+
+Beside the failures - a disconnect, checksum failures, a session ended without Shutdown - the first three
+show the trouble that ended in none: a hiccup of the game server (packets lost, a server given up) with no
+disconnect within two minutes after it, a run of failed or slow web requests to Frontier's API, and
+another player's link given up. A hiccup that a disconnect did follow belongs to that disconnect and is
+not counted twice. On the history chart the scale follows the 7-day means; a day's burst above it is
+clipped and named.
 
 The per-hour chart is the fair one where play time varies: a day of ten hours is not worse than a day of
 one for having more incidents. Its kinds are explained in [network incidents](network_incidents.md#while-it-happens);

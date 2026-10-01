@@ -1,9 +1,15 @@
 #!/usr/bin/env python3
-"""Draws three charts of connection incidents from a CSV of occurred_utc,category[,...] rows.
+"""Draws charts of connection incidents from a CSV of occurred_utc,category[,...] rows.
 
   incidents_daily.png    - stacked bars, one per day, of a chosen period (the last 120 days by default)
-  incidents_history.png  - the whole history, all kinds summed: the daily count and its 7-day mean
+  incidents_history.png  - the whole history: failures and the trouble the game went on through, each
+                           as a 7-day mean, over the daily count of all
   incidents_by_type.png  - the whole history, the 7-day mean of each kind
+
+The first three show the failures - a disconnect, checksum failures, a session ended without Shutdown -
+and beside them the trouble that ended in none: the game server's hiccups (packets lost, a server given
+up) with no disconnect within two minutes after, the web API failing or slow, and another player's link
+given up. A hiccup that a disconnect did follow belongs to that disconnect and is not counted twice.
   incidents_per_hour.png - the whole history, a panel for each kind of trouble, the ones the game goes on
                            through among them: incidents per hour of play over 28 days (needs the
                            sessions.csv extract_incidents.py writes)
@@ -26,11 +32,19 @@ import matplotlib.dates as mdates  # noqa: E402
 import matplotlib.pyplot as plt  # noqa: E402
 
 KINDS = ["checksum failure", "disconnect", "ended without Shutdown"]
+# the trouble the game went on through, grouped for the first three charts
+WENT_ON = ["Frontier API trouble", "game server hiccup", "player link dropped"]
+# a hiccup this close before a disconnect belongs to it; API episodes this close together are one
+HICCUP_BEFORE_DISCONNECT = dt.timedelta(minutes=2)
+API_GAP = dt.timedelta(seconds=60)
 # what the game goes on through, as a rule - only on the per-hour chart
 DEGRADED = ["server dropped", "packets lost", "player link dropped", "API failure", "API slow"]
 COLOURS = {"checksum failure": "#2a78d6", "disconnect": "#1baf7a", "ended without Shutdown": "#eb6834",
            "server dropped": "#e34948", "packets lost": "#eda100", "player link dropped": "#e87ba4",
-           "API failure": "#4a3aa7", "API slow": "#008300"}
+           "API failure": "#4a3aa7", "API slow": "#008300",
+           "Frontier API trouble": "#4a3aa7", "game server hiccup": "#eda100"}
+FAILURES_COLOUR = "#2a78d6"
+WENT_ON_COLOUR = "#eb6834"
 PER_HOUR = ["disconnect", "server dropped", "packets lost", "player link dropped", "API failure", "API slow"]
 TITLES = {"disconnect": "disconnect - the session lost",
           "server dropped": "server dropped - an EDServer given up, a disconnect follows 2 times in 3",
@@ -56,13 +70,44 @@ def kind_of(category):
 
 
 def load(path, zone):
-    """(local date, kind) of every row - a day is the player's day, so the time is moved to local time."""
+    """(local date, kind) of every row - a day is the player's day, so the time is moved to local time -
+    and (moment, kind) for the grouping of the trouble the game went on through."""
     rows = []
+    moments = []
     with open(path, encoding="utf-8") as f:
         for row in csv.DictReader(f):
             moment = dt.datetime.strptime(row["occurred_utc"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=dt.timezone.utc)
             rows.append((moment.astimezone(zone).date(), kind_of(row["category"])))
-    return rows
+            moments.append((moment, kind_of(row["category"])))
+    return rows, moments
+
+
+def grouped(moments, zone):
+    """(local date, kind) with the failures as they are and the trouble the game went on through grouped:
+    a game server hiccup with no disconnect within two minutes after it (hiccups within two minutes of
+    each other are one), a run of failed or slow web requests (one within a minute of the last is the
+    same run), another player's link given up."""
+    moments = sorted(moments)
+    disconnects = [m for m, k in moments if k == "disconnect"]
+    out = []
+    last_hiccup = last_api = None
+    di = 0
+    for moment, kind in moments:
+        if kind in KINDS or kind == "player link dropped":
+            out.append((moment.astimezone(zone).date(), kind))
+        elif kind in ("packets lost", "server dropped"):
+            while di < len(disconnects) and disconnects[di] < moment:
+                di += 1
+            if di < len(disconnects) and disconnects[di] - moment <= HICCUP_BEFORE_DISCONNECT:
+                continue
+            if last_hiccup is None or moment - last_hiccup > HICCUP_BEFORE_DISCONNECT:
+                out.append((moment.astimezone(zone).date(), "game server hiccup"))
+            last_hiccup = moment
+        elif kind in ("API failure", "API slow"):
+            if last_api is None or moment - last_api > API_GAP:
+                out.append((moment.astimezone(zone).date(), "Frontier API trouble"))
+            last_api = moment
+    return out
 
 
 def load_updates(path):
@@ -70,6 +115,15 @@ def load_updates(path):
         return []
     with open(path, encoding="utf-8") as f:
         return [(dt.date.fromisoformat(row["date"]), row["label"]) for row in csv.DictReader(f)]
+
+
+def history_start(rows):
+    """The first day with a stretch of history after it - a lone old netLog would stretch the axis by a year."""
+    dates = sorted(d for d, _ in rows)
+    for i, date in enumerate(dates):
+        if sum(1 for d in dates[i : i + 50] if d - date < dt.timedelta(days=28)) >= 5:
+            return date
+    return dates[0]
 
 
 def days(start, end):
@@ -133,7 +187,7 @@ def daily_chart(rows, start, end, updates, out):
             per_day[date][kind] += 1
     fig, ax = figure(16, 6)
     bottom = [0] * len(dates)
-    for kind in KINDS:
+    for kind in KINDS + WENT_ON:
         values = [per_day[d][kind] for d in dates]
         ax.bar(dates, values, bottom=bottom, width=1.0, color=COLOURS[kind], label=kind, linewidth=0)
         bottom = [b + v for b, v in zip(bottom, values)]
@@ -143,29 +197,40 @@ def daily_chart(rows, start, end, updates, out):
 
 
 def history_chart(rows, updates, out):
-    start, end = min(d for d, _ in rows), max(d for d, _ in rows)
+    start, end = history_start(rows), max(d for d, _ in rows)
     dates = days(start, end)
     per_day = collections.Counter(d for d, _ in rows)
+    failures = collections.Counter(d for d, k in rows if k in KINDS)
+    went_on = collections.Counter(d for d, k in rows if k in WENT_ON)
     counts = [per_day[d] for d in dates]
     fig, ax = figure(18, 7)
-    ax.plot(dates, counts, color="#86b6ef", linewidth=0.9, alpha=0.8, label="incidents per day")
-    ax.plot(dates, trailing_mean(counts), color="#2a78d6", linewidth=2.2, label="7-day mean")
-    top = max(counts, default=1) or 1
+    ax.plot(dates, counts, color="#c3c2b7", linewidth=0.8, alpha=0.9, label="all, per day")
+    ax.plot(dates, trailing_mean([failures[d] for d in dates]), color=FAILURES_COLOUR, linewidth=2.2,
+            label="failures - disconnect, checksum, no Shutdown (7-day mean)")
+    ax.plot(dates, trailing_mean([went_on[d] for d in dates]), color=WENT_ON_COLOUR, linewidth=2.2,
+            label="the game went on - server hiccup, API trouble, player link (7-day mean)")
+    # the scale follows the means - a single day's burst would flatten them; it is clipped and named instead
+    top = max(max(trailing_mean([failures[d] for d in dates]), default=0),
+              max(trailing_mean([went_on[d] for d in dates]), default=0)) * 1.3 or 1
+    peak = max(dates, key=lambda d: per_day[d])
+    if per_day[peak] > top:
+        ax.annotate(f"{per_day[peak]} on {peak:%b %d, %Y}", xy=(peak, top), xytext=(6, -12),
+                    textcoords="offset points", fontsize=8, color=MUTED)
     mark_updates(ax, updates, start, end, top)
-    ax.set_ylim(0, top * 1.15)
-    finish(fig, ax, f"Elite Dangerous - incidents per day, all kinds, with game updates\n{span(start, end)}",
-           "Incidents / day", start, end, mdates.MonthLocator(), "%b %Y", out)
+    ax.set_ylim(0, top)
+    finish(fig, ax, f"Elite Dangerous - incidents per day, failures and trouble the game went on through, with game updates\n"
+           f"{span(start, end)}", "Incidents / day", start, end, mdates.MonthLocator(), "%b %Y", out)
 
 
 def by_type_chart(rows, updates, out):
-    start, end = min(d for d, _ in rows), max(d for d, _ in rows)
+    start, end = history_start(rows), max(d for d, _ in rows)
     dates = days(start, end)
     per_day = collections.defaultdict(collections.Counter)
     for date, kind in rows:
         per_day[date][kind] += 1
     fig, ax = figure(18, 7)
     top = 0.0
-    for kind in KINDS:
+    for kind in KINDS + WENT_ON:
         mean = trailing_mean([per_day[d][kind] for d in dates])
         ax.plot(dates, mean, color=COLOURS[kind], linewidth=2.0, label=kind)
         top = max(top, max(mean, default=0))
@@ -260,19 +325,19 @@ def main():
     args = parser.parse_args()
 
     zone = ZoneInfo(args.tz) if args.tz else dt.datetime.now().astimezone().tzinfo
-    rows = load(args.csv, zone)
+    rows, moments = load(args.csv, zone)
     if not rows:
         raise SystemExit("no incidents in the file")
     updates = load_updates(args.updates)
     end = args.end or max(d for d, _ in rows)
     start = args.start or end - dt.timedelta(days=119)
     args.out.mkdir(parents=True, exist_ok=True)
-    # the first three keep to the kinds they always showed - the trouble the game goes on through has a
-    # chart of its own, where the hours played set the scale
-    classic = [row for row in rows if row[1] in KINDS]
-    daily_chart(classic, start, end, updates, args.out / "incidents_daily.png")
-    history_chart(classic, updates, args.out / "incidents_history.png")
-    by_type_chart(classic, updates, args.out / "incidents_by_type.png")
+    # the first three take the trouble the game went on through grouped; the per-hour chart has each kind
+    # in a panel of its own
+    both = grouped(moments, zone)
+    daily_chart(both, start, end, updates, args.out / "incidents_daily.png")
+    history_chart(both, updates, args.out / "incidents_history.png")
+    by_type_chart(both, updates, args.out / "incidents_by_type.png")
     hours = load_hours(args.sessions or args.csv.with_name("sessions.csv"), zone)
     if hours:
         per_hour_chart(rows, hours, updates, args.out / "incidents_per_hour.png")
