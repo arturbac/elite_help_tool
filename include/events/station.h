@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <vector>
 
 ///\brief journal events: stations and settlements - docking, approaching, stepping out
 namespace events
@@ -90,6 +91,8 @@ struct docked_t
   ///\brief the faction holding the place - the journal gives it nested, not as a bare string
   system_faction_t StationFaction;
   double DistFromStarLS;
+  ///\brief what the place offers - "exploration" is Universal Cartographics, where cartography is sold
+  std::vector<std::string> StationServices;
   };
 
 ///\brief lifting off the pad - from this moment the market of that place stops concerning us

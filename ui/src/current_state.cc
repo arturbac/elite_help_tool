@@ -771,6 +771,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
             ++fleet_changes_;
             }
           settlement_market_id_ = 0;
+          cartographics_here_ = false;
           // a name given while docked - a construction site's, chosen from the game's rolls - shows first here,
           // and a construction finished while docked leaves as what it became: a settlement, an outpost
           if(event.MarketID != 0u and not event.StationName.empty())
@@ -870,6 +871,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
 
           // a station's identity is rebuilt from journals - the type tells a carrier from a station
           settlement_market_id_ = event.MarketID;
+          cartographics_here_ = std::ranges::contains(event.StationServices, std::string_view{"exploration"});
           info::station_t station{
             .market_id = event.MarketID,
             .system_address = event.SystemAddress,

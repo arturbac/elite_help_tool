@@ -53,7 +53,9 @@ and what the game paid - base, bonus and the sum that reached the account. The g
 all the systems of a sale and nothing for a body, so only a sale of one system is an exact price;
 over those the tab gives the base over the estimate (median, lowest, highest). The base is what the
 bodies were worth, the first discovery included; the bonus is paid on top for a system scanned or
-mapped in full, and a fleet carrier keeps a quarter of the base. Sell system by system to learn more.
+mapped in full, and a fleet carrier keeps a quarter of the base. Sell system by system to learn more:
+the overlay reminds of it while the station services are open at a place with Universal Cartographics
+(the `exploration` service of the `Docked` event) and cartography is unsold.
 Exobiology needs no such check: the price list agrees to the credit with every sample sold in the
 archive, and the first-logged bonus is always four times the price.
 `journal_tailer --cartography --dir <journals> --commander <FID>` prints the same.

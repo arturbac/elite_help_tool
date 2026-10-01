@@ -143,6 +143,8 @@ struct current_state_t : public generic_state_t
   uint64_t supercharged_in_{};
   ///\brief the settlement we are in - collected micro resources get its market_id
   uint64_t settlement_market_id_{};
+  ///\brief docked where cartography can be sold - from the services of the Docked event
+  bool cartographics_here_{};
 
   ///\brief how far the journal had been read into this database when the tool last ran
   ///\detail everything up to here has already been written down, so on the way back to the present

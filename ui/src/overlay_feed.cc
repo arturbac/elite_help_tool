@@ -4471,6 +4471,25 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
       );
     }
 
+  // at the station services of a place with Universal Cartographics, with cartography unsold - the moment of
+  // the sale. The game names only the sum of a sale, so one system a sale is the only way to learn what each
+  // was worth
+  constexpr uint32_t station_services_focus{5u};
+  if(at_risk_.cartography != 0u and state.cartographics_here_ and gui_focus_ == station_services_focus)
+    {
+    std::vector<overlay::line_t> lines{overlay::line_t{
+      .text = std::format(
+        "cartography ~{} unsold - sell it system by system", overlay_exploration::short_credits(at_risk_.cartography)
+      ),
+      .color = colour_alert()
+    }};
+    if(station_type_ == "FleetCarrier")
+      lines.push_back(overlay::line_t{.text = "a fleet carrier keeps a quarter of it", .color = colour_plain()});
+    frame.blocks.push_back(
+      overlay::block_t{.corner = overlay::corner_e::top_left, .ttl_ms = block_ttl_ms(), .lines = std::move(lines)}
+    );
+    }
+
   // Who probably holds a bounty on the commander - worth knowing before flying to their port, since the
   // legal state below is only the jurisdiction of this system's controlling faction
   if(not legal_.holders.empty() or legal_.notoriety != 0u)
