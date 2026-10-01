@@ -1,7 +1,9 @@
 # Charts of your own connection incidents
 
 Two small Python scripts in [`tools/incident_charts/`](../tools/incident_charts/) turn the game's own logs
-into three charts of disconnects and failures over time. EHT is not needed: they read the folders the
+into four charts of disconnects and failures over time - the fourth also of the trouble the game
+carries on through (packets lost, a server or another player's link given up, the web API failing or
+slow), counted per hour the game ran. EHT is not needed: they read the folders the
 game already writes. With EHT, the [Network](network_incidents.md) window's data can be plotted the
 same way.
 
@@ -13,13 +15,20 @@ The charts below are from one commander's history, November 2025 to September 20
 
 ![Incidents by kind, 7-day mean, with game updates](images/incidents_by_type.png)
 
+![Incidents per hour the game ran, a panel for each kind, with game updates](images/incidents_per_hour.png)
+
+The per-hour chart is the fair one where play time varies: a day of ten hours is not worse than a day of
+one for having more incidents. Its kinds are explained in [network incidents](network_incidents.md#while-it-happens);
+a run of lost packets, failed or slow web requests within a minute counts as one.
+
 ## What to run
 
 You need Python 3.9 or newer and matplotlib (`pip install matplotlib`, or your distribution's package).
 The commands below are written for Linux (bash). A full Linux example is under [On Linux](#on-linux),
 and what differs on Windows is under [On Windows](#on-windows).
 
-**1. Find the incidents** - `extract_incidents.py` reads both folders and writes `incidents.csv`:
+**1. Find the incidents** - `extract_incidents.py` reads both folders and writes `incidents.csv`, and
+from netLog also `sessions.csv` (`--sessions`): each file's first and last moment, the hours the game ran:
 
 ```sh
 python3 tools/incident_charts/extract_incidents.py \
@@ -49,15 +58,16 @@ sqlite3 -readonly -header -csv live.sqlite \
   "SELECT occurred AS occurred_utc, category, detail FROM network_incident ORDER BY occurred" > incidents.csv
 ```
 
-**2. Draw the charts** - `plot_incidents.py` writes three PNG files:
+**2. Draw the charts** - `plot_incidents.py` writes four PNG files (the per-hour one only with a
+`sessions.csv` beside the incidents' CSV, or given with `--sessions`):
 
 ```sh
 python3 tools/incident_charts/plot_incidents.py incidents.csv --tz Europe/Warsaw \
     --from 2026-06-01 --to 2026-09-30 --out charts
 ```
 
-`--from`/`--to` set the period of the daily chart only (by default, the last 120 days). The other two
-always cover the whole file. Game updates are read from
+`--from`/`--to` set the period of the daily chart only (by default, the last 120 days). The others
+always cover the whole file. EHT's own export has no sessions, so the per-hour chart needs the script's. Game updates are read from
 [`game_updates.csv`](../tools/incident_charts/game_updates.csv) beside the script, one `date,label` per
 line; add new ones there.
 
