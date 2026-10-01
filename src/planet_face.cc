@@ -86,16 +86,17 @@ namespace
         if(uint8_t const * const p{picture.rgb.data() + (size_t{y} * picture.width + x) * 3u}; is_hud(p) or is_cyan(p))
           marked
             [size_t{std::min(grey.height - 1u, uint32_t(float(y) * scale))} * grey.width
-             + std::min(grey.width - 1u, uint32_t(float(x) * scale))]
-            = true;
+             + std::min(grey.width - 1u, uint32_t(float(x) * scale))] = true;
     // grown by two, for the soft edge the ring leaves on the pixels beside it
     for(int pass{}; pass != 2; ++pass)
       {
       std::vector<bool> const source{marked};
       for(uint32_t y{1u}; y + 1u < grey.height; ++y)
         for(uint32_t x{1u}; x + 1u < grey.width; ++x)
-          if(size_t const at{size_t{y} * grey.width + x};
-             source[at - 1u] or source[at + 1u] or source[at - grey.width] or source[at + grey.width])
+          if(
+            size_t const at{size_t{y} * grey.width + x};
+            source[at - 1u] or source[at + 1u] or source[at - grey.width] or source[at + grey.width]
+          )
             marked[at] = true;
       }
     return marked;
@@ -167,59 +168,85 @@ auto find_disc(image_t const & picture, bool past_hud) -> std::optional<disc_t>
         }
   soften(votes, w, h);
   soften(votes, w, h);
+  // the circle centred on a peak of the votes
+  auto const circle_at = [&](size_t centre) -> std::optional<disc_t>
+  {
+    float const cx{float(centre % w)};
+    float const cy{float(centre / w)};
+
+    // the radius most edges pointing along it stand at, per unit of rim - a large circle is not better for being long
+    std::vector<float> at_radius(size_t(r_max) + 2u, 0.f);
+    for(edge_t const & e: edges)
+      {
+      float const dx{e.x - cx};
+      float const dy{e.y - cy};
+      float const d{std::hypot(dx, dy) + 1e-6f};
+      if(std::abs((dx * e.ux + dy * e.uy) / d) <= 0.9f)
+        continue;
+      if(auto const bin{size_t(std::lround(d))}; bin < at_radius.size())
+        at_radius[bin] += 1.f;
+      }
+    int radius{};
+    float score{};
+    for(int r{r_min}; r <= r_max; ++r)
+      if(float const s{at_radius[size_t(r)] / float(r)}; s > score)
+        {
+        score = s;
+        radius = r;
+        }
+    if(radius == 0)
+      return std::nullopt;
+
+    // how much of the rim shows: of 90 arcs, those with an edge on the circle
+    std::array<bool, 90> arcs{};
+    for(edge_t const & e: edges)
+      {
+      float const dx{e.x - cx};
+      float const dy{e.y - cy};
+      float const d{std::hypot(dx, dy) + 1e-6f};
+      if(std::abs(d - float(radius)) >= 2.5f or std::abs((dx * e.ux + dy * e.uy) / d) <= 0.9f)
+        continue;
+      auto const arc{
+        size_t((std::atan2(dy, dx) + std::numbers::pi_v<float>) / (2.f * std::numbers::pi_v<float>)*90.f) % 90u
+      };
+      arcs[arc] = true;
+      }
+    float const rim{float(std::ranges::count(arcs, true)) / 90.f};
+    float const r{float(radius)};
+    return disc_t{
+      .x = (cx + 0.5f) / scale,
+      .y = (cy + 0.5f) / scale,
+      .radius = r / scale,
+      .rim = rim,
+      .inside = cx - r >= 0.f and cy - r >= 0.f and cx + r < float(w) and cy + r < float(h)
+    };
+  };
+
   auto const best{std::ranges::max_element(votes)};
   if(*best <= 0.f)
     return std::nullopt;
-  auto const centre{size_t(best - votes.begin())};
-  float const cx{float(centre % w)};
-  float const cy{float(centre / w)};
-
-  // the radius most edges pointing along it stand at, per unit of rim - a large circle is not better for being long
-  std::vector<float> at_radius(size_t(r_max) + 2u, 0.f);
-  for(edge_t const & e: edges)
+  auto const first{circle_at(size_t(best - votes.begin()))};
+  // from the cockpit only a whole ball is of use, and the arc of the cockpit's frame at the side of the view
+  // can outvote a ball in front of a bright sky - so the next peaks are tried, the votes round each one tried
+  // put out, until one is whole
+  if(not past_hud or not first or first->inside)
+    return first;
+  for(int tried{}; tried != 8; ++tried)
     {
-    float const dx{e.x - cx};
-    float const dy{e.y - cy};
-    float const d{std::hypot(dx, dy) + 1e-6f};
-    if(std::abs((dx * e.ux + dy * e.uy) / d) <= 0.9f)
-      continue;
-    if(auto const bin{size_t(std::lround(d))}; bin < at_radius.size())
-      at_radius[bin] += 1.f;
+    auto const peak{std::ranges::max_element(votes)};
+    if(*peak <= 0.f)
+      break;
+    auto const centre{size_t(peak - votes.begin())};
+    if(tried != 0)
+      if(auto const next{circle_at(centre)}; next and next->inside)
+        return next;
+    int const px{int(centre % w)};
+    int const py{int(centre / w)};
+    for(int y{std::max(0, py - r_min)}; y <= std::min(int(h) - 1, py + r_min); ++y)
+      for(int x{std::max(0, px - r_min)}; x <= std::min(int(w) - 1, px + r_min); ++x)
+        votes[size_t(y) * w + size_t(x)] = 0.f;
     }
-  int radius{};
-  float score{};
-  for(int r{r_min}; r <= r_max; ++r)
-    if(float const s{at_radius[size_t(r)] / float(r)}; s > score)
-      {
-      score = s;
-      radius = r;
-      }
-  if(radius == 0)
-    return std::nullopt;
-
-  // how much of the rim shows: of 90 arcs, those with an edge on the circle
-  std::array<bool, 90> arcs{};
-  for(edge_t const & e: edges)
-    {
-    float const dx{e.x - cx};
-    float const dy{e.y - cy};
-    float const d{std::hypot(dx, dy) + 1e-6f};
-    if(std::abs(d - float(radius)) >= 2.5f or std::abs((dx * e.ux + dy * e.uy) / d) <= 0.9f)
-      continue;
-    auto const arc{
-      size_t((std::atan2(dy, dx) + std::numbers::pi_v<float>) / (2.f * std::numbers::pi_v<float>)*90.f) % 90u
-    };
-    arcs[arc] = true;
-    }
-  float const rim{float(std::ranges::count(arcs, true)) / 90.f};
-  float const r{float(radius)};
-  return disc_t{
-    .x = (cx + 0.5f) / scale,
-    .y = (cy + 0.5f) / scale,
-    .radius = r / scale,
-    .rim = rim,
-    .inside = cx - r >= 0.f and cy - r >= 0.f and cx + r < float(w) and cy + r < float(h)
-  };
+  return first;
   }
 
 namespace
@@ -488,30 +515,59 @@ namespace
     return float(std::ranges::count_if(lit, [&](float l) { return l < usual * 0.3f; })) / float(lit.size());
     }
 
-  ///\brief how bright the sky just beyond the ball is - the 90th percentile of a ring from 1.15 to 1.5 radii,
-  /// the HUD's colours left out; none when hardly any of the ring is in the picture
+  ///\brief the share of the rim the ball stands out of the sky at: in each of 16 sectors the median colour of a
+  /// band just inside the rim, 0.7 to 0.9 radii, against that of a band just outside, 1.1 to 1.35 - the HUD's
+  /// colours left out; none when hardly any sector has both bands in the picture
+  ///\detail a real ball differs from what lies behind it, darker or lighter or of another colour, at least
+  /// along its lit side; a circle the stars and dust outline has the same sky on both sides of it
   [[nodiscard]]
-  auto sky_around(image_t const & view, disc_t const & disc) -> std::optional<float>
+  auto standing_out(image_t const & view, disc_t const & disc) -> std::optional<float>
     {
-    float const inner{disc.radius * 1.15f};
-    float const outer{disc.radius * 1.5f};
+    constexpr size_t sectors{16u};
+    // per sector, inside and outside, the three channels
+    std::array<std::array<std::array<std::vector<float>, 3>, 2>, sectors> bands;
+    float const outer{disc.radius * 1.35f};
     auto const clamp = [](float v, uint32_t limit) { return uint32_t(std::clamp(v, 0.f, float(limit))); };
-    std::vector<float> sky;
     for(uint32_t y{clamp(disc.y - outer, view.height)}; y != clamp(disc.y + outer + 1.f, view.height); ++y)
       for(uint32_t x{clamp(disc.x - outer, view.width)}; x != clamp(disc.x + outer + 1.f, view.width); ++x)
         {
-        float const d{std::hypot(float(x) - disc.x, float(y) - disc.y)};
-        if(d < inner or d > outer)
+        float const dx{float(x) - disc.x};
+        float const dy{float(y) - disc.y};
+        float const d{std::hypot(dx, dy) / disc.radius};
+        bool const in{d >= 0.7f and d <= 0.9f};
+        if(not in and (d < 1.1f or d > 1.35f))
           continue;
         uint8_t const * const p{view.rgb.data() + (size_t{y} * view.width + x) * 3u};
-        if(not is_hud(p) and not is_cyan(p))
-          sky.push_back(luminance(p));
+        if(is_hud(p) or is_cyan(p))
+          continue;
+        auto const sector{
+          size_t((std::atan2(dy, dx) + std::numbers::pi_v<float>) / (2.f * std::numbers::pi_v<float>)*float(sectors))
+          % sectors
+        };
+        for(size_t c{}; c != 3u; ++c)
+          bands[sector][in ? 0u : 1u][c].push_back(float(p[c]) / 255.f);
         }
-    if(sky.size() < 64u)
+    auto const median = [](std::vector<float> & v)
+    {
+      auto const middle{v.begin() + std::ptrdiff_t(v.size() / 2u)};
+      std::nth_element(v.begin(), middle, v.end());
+      return *middle;
+    };
+    size_t seen{};
+    size_t apart{};
+    for(auto & sector: bands)
+      {
+      if(sector[0][0].size() < 4u or sector[1][0].size() < 4u)
+        continue;
+      ++seen;
+      float step{};
+      for(size_t c{}; c != 3u; ++c)
+        step = std::max(step, std::abs(median(sector[0][c]) - median(sector[1][c])));
+      apart += step > 0.08f ? 1u : 0u;
+      }
+    if(seen < sectors / 2u)
       return std::nullopt;
-    auto const p90{sky.begin() + std::ptrdiff_t(sky.size() * 9u / 10u)};
-    std::nth_element(sky.begin(), p90, sky.end());
-    return *p90;
+    return float(apart) / float(seen);
     }
   }  // namespace
 
@@ -661,15 +717,13 @@ auto judge_approach(image_t const & view, float pixel_scale, float full_size, st
   if(bright < 0.08f)
     return refuse(std::format("too dark, {:.2f}", bright));
   // far off the planet is a dot, and the noise of the stars and dust behind it can pass for a rim - a ball made
-  // of the sky is no brighter than the sky round it, a real one stands out of the black of space
-  std::vector<float> day;
-  std::ranges::copy_if(lum, std::back_inserter(day), [bright](float l) { return l > bright * 0.25f; });
-  auto const middle{day.begin() + std::ptrdiff_t(day.size() / 2u)};
-  std::nth_element(day.begin(), middle, day.end());
-  if(auto const sky{sky_around(view, *disc)}; sky and *middle < *sky * 2.5f)
-    return refuse(std::format(
-      "no brighter than the sky round it, {:.2f} against {:.2f}, {:.0f} px", *middle, *sky, disc->radius * pixel_scale
-    ));
+  // of the sky has the same sky on both sides of its rim, a real one stands out of what lies behind it
+  if(auto const apart{standing_out(view, *disc)}; apart and *apart < 0.25f)
+    return refuse(
+      std::format(
+        "no different from the sky round it, {:.2f} of the rim, {:.0f} px", *apart, disc->radius * pixel_scale
+      )
+    );
   approach_t judged{
     .disc = *disc,
     .lit = float(std::ranges::count_if(lum, [&](float l) { return l > bright * 0.25f; })) / float(lum.size()),

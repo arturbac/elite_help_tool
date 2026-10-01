@@ -161,23 +161,68 @@ auto main() -> int
 
   "a ball made of the sky behind it is no view of a planet"_test = []
   {
-    // far off the planet is a dot; dust as bright as the ball fills the sky round the circle the edges outline
+    // far off the planet is a dot; the stars and dust outline a circle, with the same sky on both sides of it
     uint32_t const w{800u};
     uint32_t const h{600u};
-    planet_face::image_t view{ball_on_stars(w, h, 400.f, 300.f, 160.f, {120u, 120u, 130u})};
+    planet_face::image_t view{ball_on_stars(w, h, -500.f, -500.f, 10.f, {0u, 0u, 0u})};
+    for(uint32_t py{}; py != h; ++py)
+      for(uint32_t px{}; px != w; ++px)
+        {
+        uint8_t * const p{view.rgb.data() + (size_t{py} * w + px) * 3u};
+        auto const dust{uint8_t(40.f + 30.f * std::sin(float(px) / 23.f) * std::cos(float(py) / 17.f))};
+        float const d{std::hypot(float(px) - 400.f, float(py) - 300.f)};
+        if(std::abs(d - 160.f) < 2.f)
+          p[0] = p[1] = p[2] = 180u;
+        else if(p[0] < dust)
+          p[0] = p[1] = p[2] = dust;
+        }
+    std::string why;
+    expect(not planet_face::judge_approach(view, 1.f, planet_face::full_radius, &why).has_value());
+    expect(why.contains("sky")) << why;
+  };
+
+  "a ball in front of a bright sky is a view of it"_test = []
+  {
+    // a grey moon before the orange of the gas giant it circles, the giant brighter than the moon
+    uint32_t const w{800u};
+    uint32_t const h{600u};
+    planet_face::image_t view{ball_on_stars(w, h, 400.f, 300.f, 160.f, {150u, 145u, 140u})};
     for(uint32_t py{}; py != h; ++py)
       for(uint32_t px{}; px != w; ++px)
         if(std::hypot(float(px) - 400.f, float(py) - 300.f) > 160.f)
           {
           uint8_t * const p{view.rgb.data() + (size_t{py} * w + px) * 3u};
-          auto const dust{uint8_t(200.f + 40.f * std::sin(float(px) / 23.f) * std::cos(float(py) / 17.f))};
-          p[0] = p[1] = p[2] = dust;
+          float const band{20.f * std::sin(float(py) / 31.f)};
+          p[0] = uint8_t(220.f + band);
+          p[1] = uint8_t(150.f + band);
+          p[2] = uint8_t(110.f + band);
           }
     std::string why;
-    expect(not planet_face::judge_approach(view, 1.f, planet_face::full_radius, &why).has_value());
-    expect(why.contains("sky")) << why;
-    // the same ball against the black of space is a view
-    expect(planet_face::judge_approach(ball_on_stars(w, h, 400.f, 300.f, 160.f, {120u, 120u, 130u})).has_value());
+    expect(planet_face::judge_approach(view, 1.f, planet_face::full_radius, &why).has_value()) << why;
+  };
+
+  "a whole ball from the cockpit is found past the frame's arc at the side"_test = []
+  {
+    // a sample as small as the layer's: a moon before a bright sky, and the dark arc of the cockpit's frame
+    // curving in from the corner - sharper than the moon's rim against that sky
+    uint32_t const w{384u};
+    uint32_t const h{216u};
+    planet_face::image_t view{ball_on_stars(w, h, 190.f, 110.f, 30.f, {215u, 205u, 200u})};
+    for(uint32_t py{}; py != h; ++py)
+      for(uint32_t px{}; px != w; ++px)
+        {
+        uint8_t * const p{view.rgb.data() + (size_t{py} * w + px) * 3u};
+        if(std::hypot(float(px) - 12.f, float(py) - 46.f) < 28.f)
+          p[0] = p[1] = p[2] = 15u;
+        else if(std::hypot(float(px) - 190.f, float(py) - 110.f) > 30.f)
+          {
+          p[0] = 205u;
+          p[1] = 170u;
+          p[2] = 160u;
+          }
+        }
+    auto const disc{planet_face::find_disc(view, true)};
+    expect(disc.has_value() and disc->inside and std::abs(disc->x - 190.f) < 3.f) << (disc ? disc->x : 0.f);
   };
 
   "no ball, no face"_test = []

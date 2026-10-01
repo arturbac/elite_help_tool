@@ -151,8 +151,11 @@ sides share (`captures/<socket>_sample.bin` beside the socket). The game waits f
 microseconds a frame. Each sample is judged in a thread: the ball must be found whole in it - its
 night side's rim may be lost against the black, and the edges in the HUD's cyan and orange do not
 count, or the target's ring round its middle would be taken for a small ball - and the cockpit's frame must hide next to none of it.
-Its daylight must be at least 2.5 times as bright as the sky just beyond its rim: far off the planet is
-a dot, and the stars and dust behind it can outline a circle that passes for a ball.
+It must stand out of the sky just beyond its rim - darker, lighter or of another colour along at least a
+quarter of it: far off the planet is a dot, and the stars and dust behind it can outline a circle that
+passes for a ball, with the same sky on both sides of it. A moon before the bright face of its gas giant
+stands out as well as a planet against the black. A circle the view cuts off is passed over for the next
+one, so the arc of the cockpit's frame at the side does not hide a whole ball in the middle.
 It must also be large enough on the screen, 110 px of radius (`exploration.approach_radius_px`): the
 size a planet has 1 Ls away, so a larger planet is taken from farther and a smaller one from nearer, in
 proportion to its radius - farther off, the game draws a ball without the face it shows up close.
