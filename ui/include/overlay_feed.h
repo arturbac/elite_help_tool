@@ -74,6 +74,12 @@ public:
     { return state.organic_scans_seen_ != pictured_scans_; }
 
 private:
+  ///\brief the body under the surface scanner: the one set as the destination, as the scanner needs it targeted.
+  /// The journal names it only when the mapping ends - or at once for a body mapped before - so until then
+  /// its last word is still of the body mapped before
+  [[nodiscard]]
+  auto scanner_target(current_state_t const & state) const -> std::string;
+
   ///\brief what the overlay shows of one system's factions
   struct system_factions_t
     {

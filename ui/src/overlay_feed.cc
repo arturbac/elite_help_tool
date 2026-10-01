@@ -3985,6 +3985,14 @@ auto overlay_feed_t::build_fleet_lines() const -> std::vector<overlay::line_t>
   return lines;
   }
 
+auto overlay_feed_t::scanner_target(current_state_t const & state) const -> std::string
+  {
+  if(status_destination_ and status_destination_->System == state.current_system_address_
+     and status_destination_->Body != 0u)
+    return status_destination_->Name;
+  return {};
+  }
+
 auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t const & plotted) -> void
   {
   codex_.set_journal_dir(state.journal_dir_path_);
@@ -4006,7 +4014,7 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
     gui_focus_ == 10u and (status_flags_ & supercruise_flag) != 0u and (status_flags_ & main_ship_flag) != 0u
   };
   scanner_.collect(scanner_on_planet);
-  scanner_.observe(scanner_on_planet, state.scanner_body_);
+  scanner_.observe(scanner_on_planet, scanner_target(state));
 
   // Out of the jump the ship faces the arrival star; after the scanner it still faces the planet. Both are
   // taken then, quietly, once per body - in the ship's own view in supercruise, nothing else open
@@ -4687,17 +4695,16 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
 
   // In the scanner the band says what the last picture did: a new view is the sign that the filter is in
   // and the next one may be chosen
-  if(gui_focus_ == 10u and eht::settings()->exploration.scanner_pictures and not state.scanner_body_.empty())
+  if(std::string const target{gui_focus_ == 10u ? scanner_target(state) : std::string{}};
+     not target.empty() and eht::settings()->exploration.scanner_pictures)
     {
     std::vector<overlay::line_t> lines{overlay::line_t{
       .text = std::format(
-        "scanner views of {}: {} kept",
-        short_body_name(state.system.name, state.scanner_body_),
-        scanner_.view_count(state.scanner_body_)
+        "scanner views of {}: {} kept", short_body_name(state.system.name, target), scanner_.view_count(target)
       ),
       .color = colour_heading()
     }};
-    if(auto const & news{scanner_.news()}; news and news->body == state.scanner_body_)
+    if(auto const & news{scanner_.news()}; news and news->body == target)
       {
       auto const ago{std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - news->at)};
       lines.push_back(
