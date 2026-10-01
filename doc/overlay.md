@@ -33,7 +33,10 @@ process carries no state of ours.
   a face with life on it gets a green ring. A body with an atmosphere wears it as a veil in the
   colour of its main gas - nitrogen pale blue, oxygen blue, sulphur dioxide yellow, methane
   turquoise, argon violet, neon pink, vapours orange - faint over the face, thickest at the limb
-  and glowing a little past it, reaching further for thick air than for thin. The balls are shaded on the graphics card as they are
+  and glowing a little past it, reaching further for thick air than for thin. The names of the
+  planets and moons say what is left to map: green for a body already mapped, amber for one worth
+  mapping (`overlay.minimum_body_value`) and not mapped yet, grey for the rest
+  (`overlay.system_map.mapped` and `to_map` in the settings). The balls are shaded on the graphics card as they are
   drawn, the faces read on a thread of their own and copied into one texture a few at a time, which
   together costs the game a few microseconds a frame. The orbital ports you have docked at are small
   models lit from the same star: a Coriolis is a cuboctahedron and a Dodec a dodecahedron, each with

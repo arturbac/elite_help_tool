@@ -755,6 +755,17 @@ auto build_system_diagram(
       );
   };
 
+  // what a body's name is written in: mapped already, worth mapping and not yet, or neither
+  uint32_t const minimum_value{cfg->overlay.minimum_body_value};
+  auto const name_colour = [&](body_t const * body, planet_details_t const & details) -> uint32_t
+  {
+    if(details.mapped)
+      return sm.mapped.rgb;
+    if(body->value >= minimum_value)
+      return sm.to_map.rgb;
+    return label_colour;
+  };
+
   auto const mark_here = [&](body_t const * body, float x, float y, float r)
   {
     if(auto const it{mission_bodies.find(body->body_id)}; it != mission_bodies.end())
@@ -986,7 +997,7 @@ auto build_system_diagram(
       body_disc(planet, pd, x, line_y, r);
       diagram.labels.push_back(
         overlay::label_t{
-          .x = x, .y = line_y - giant_radius - 9.f, .text = std::string{last_word(planet->name)}, .color = label_colour,
+          .x = x, .y = line_y - giant_radius - 9.f, .text = std::string{last_word(planet->name)}, .color = name_colour(planet, pd),
           .align = 0.5f
         }
       );
@@ -1011,7 +1022,7 @@ auto build_system_diagram(
           body_disc(moon, md, x, y, mr);
           diagram.labels.push_back(
             overlay::label_t{
-              .x = x + mr + 5.5f, .y = y, .text = std::string{last_word(moon->name)}, .color = label_colour, .align = 0.f
+              .x = x + mr + 5.5f, .y = y, .text = std::string{last_word(moon->name)}, .color = name_colour(moon, md), .align = 0.f
             }
           );
           mark_here(moon, x, y, mr);

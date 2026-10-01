@@ -116,6 +116,10 @@ struct system_map_t
   /// the colour of good news instead
   colour_t mission{0xff9a4au};
   float mission_arrow{6.f};
+  ///\brief the name of a body already mapped by the detailed surface scanner
+  colour_t mapped{0x5fd38au};
+  ///\brief the name of a body worth mapping (overlay.minimum_body_value) and not mapped yet
+  colour_t to_map{0xffb84au};
   };
 
 ///\brief the superpower's emblem in the panel of a hyperspace jump being charged
