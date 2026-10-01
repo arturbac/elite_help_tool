@@ -32,7 +32,7 @@ Two influence changes that are not the tick are filtered out:
   data this filter removed 53 of 735 observations and cut the median window from 38 to 25 minutes.
 - **Freshly colonised systems.** Until the first weekly recalculation (Thursday 07:00 UTC),
   influence there follows a rhythm of its own. Such a system is ignored until then
-  (`settled_colony_clause` in `src/database_storage.cc`).
+  (`settled_colony_clause` in `src/database_storage_bgs.cc`).
 
 ## 2. Rare visits give wide windows, and those are thrown away
 

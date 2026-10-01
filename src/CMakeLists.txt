@@ -26,6 +26,13 @@ target_sources(eht
   evidence_log.cc
   network_incident.cc
   database_storage.cc
+  database_storage_missions.cc
+  database_storage_systems.cc
+  database_storage_bgs.cc
+  database_storage_market.cc
+  database_storage_carrier.cc
+  database_storage_fleet.cc
+  database_storage_colonisation.cc
   database_import_state.cc
   elite_data.cc
   eht_settings.cc
