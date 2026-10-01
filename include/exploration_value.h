@@ -131,26 +131,28 @@ inline constexpr std::array<organic_value_t, 96> organic_values{
 [[nodiscard]]
 auto organic_value_range(std::string_view name) noexcept -> std::optional<std::pair<uint32_t, uint32_t>>;
 
+///\brief the k of each planet class and what terraformability adds to it - the values in common use among
+/// explorers (EDDiscovery, MattG's formula); checked against single system sales, see doc/exploration.md
 inline constexpr std::array<planet_value_info_t, 19> exploration_values{
   {{"Metal rich body", 21'790.0},
-   {"High metal content body", 9'693.0, 93'328.0},  // the bonus added when terraformable
+   {"High metal content body", 9'654.0, 100'677.0},  // the bonus added when terraformable
    {"Rocky body", 300.0, 93'328.0},
    {"Icy body", 300.0},
    {"Rocky ice body", 300.0},
    {"Earthlike body", 64'831.0 + 116'295.0},  // an Earth-like is always "terraformed" by the definition of the base value
-   {"Water world", 24'831.0, 116'295.0},
-   {"Ammonia world", 33'268.0},
-   {"Water giant", 1'000.0},
-   {"Water giant with life", 1'500.0},
-   {"Gas giant with water based life", 3'000.0},
-   {"Gas giant with ammonia based life", 1'500.0},
-   {"Sudarsky class I gas giant", 1'650.0},
-   {"Sudarsky class II gas giant", 9'650.0},
-   {"Sudarsky class III gas giant", 500.0},
-   {"Sudarsky class IV gas giant", 2'800.0},
-   {"Sudarsky class V gas giant", 3'100.0},
-   {"Helium rich gas giant", 3'000.0},
-   {"Helium gas giant", 500.0}}
+   {"Water world", 64'831.0, 116'295.0},
+   {"Ammonia world", 96'932.0},
+   {"Water giant", 300.0},
+   {"Water giant with life", 300.0},
+   {"Gas giant with water based life", 300.0},
+   {"Gas giant with ammonia based life", 300.0},
+   {"Sudarsky class I gas giant", 1'656.0},
+   {"Sudarsky class II gas giant", 9'654.0},
+   {"Sudarsky class III gas giant", 300.0},
+   {"Sudarsky class IV gas giant", 300.0},
+   {"Sudarsky class V gas giant", 300.0},
+   {"Helium rich gas giant", 300.0},
+   {"Helium gas giant", 300.0}}
 };
 
 namespace exploration
@@ -168,8 +170,11 @@ auto system_approx_value(std::string_view star_class, std::string_view system_na
 /// efficiently") - pass the real outcome (ProbesUsed <= EfficiencyTarget) once SAAScanComplete is known
 auto aprox_value(body_t const & body, bool efficiency_bonus = true) noexcept -> uint32_t;
 ///\brief a star's value by its class and mass; the discovery bonus when nobody had it before
+///\detail any star but the one the jump arrives at pays a third more - DistanceFromArrivalLS above zero
 [[nodiscard]]
-auto star_value(std::string_view star_type, double stellar_mass, bool is_first_discoverer = false) noexcept -> uint32_t;
+auto star_value(
+  std::string_view star_type, double stellar_mass, bool is_first_discoverer = false, bool is_arrival_star = true
+) noexcept -> uint32_t;
 ///\brief a planet scanned and not mapped - what the FSS scan alone brings
 [[nodiscard]]
 auto scanned_value(planet_value_info_t const & info, double mass_em, bool is_terraformable, bool is_first_discoverer)

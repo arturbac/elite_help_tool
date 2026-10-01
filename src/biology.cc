@@ -62,6 +62,7 @@ namespace detail
     std::string BodyName;
     std::string StarType;
     double StellarMass{};
+    double DistanceFromArrivalLS{};
     std::string PlanetClass;
     double MassEM{};
     std::string TerraformState;
@@ -109,7 +110,9 @@ namespace
   auto body_price(detail::scan_line_t const & scan, std::optional<bool> mapped_efficiently) -> uint64_t
     {
     if(not scan.StarType.empty())
-      return exploration::star_value(scan.StarType, scan.StellarMass, not scan.WasDiscovered);
+      return exploration::star_value(
+        scan.StarType, scan.StellarMass, not scan.WasDiscovered, scan.DistanceFromArrivalLS <= 0.0
+      );
     auto const it{std::ranges::find(exploration_values, scan.PlanetClass, &planet_value_info_t::planet_class)};
     if(it == exploration_values.end())
       return 0u;
@@ -623,7 +626,7 @@ auto estimate_accuracy(std::span<cartography_sale_t const> sales) -> std::option
   std::vector<double> ratios;
   for(cartography_sale_t const & sale: sales)
     if(sale.systems.size() == 1u and sale.estimate != 0u)
-      ratios.push_back(double(sale.total) / double(sale.estimate));
+      ratios.push_back(double(sale.base_value) / double(sale.estimate));
   if(ratios.empty())
     return std::nullopt;
   std::ranges::sort(ratios);

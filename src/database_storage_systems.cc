@@ -1,6 +1,7 @@
 // database_storage_t: star systems and their bodies, rings, signals and life
 #include "database_storage_impl.h"
 #include <biology.h>
+#include <exploration_value.h>
 
 auto database_storage_t::store(star_system_t const & system) -> expected_ec<void>
   {
@@ -689,6 +690,9 @@ auto database_storage_t::load_system(uint64_t system_address)
           assert(res3->size() == 1);
           out_body.details = sql_iface::to_native_fromat((*res3)[0]);
           }
+        // the stored value is the one reckoned at the scan - reckoned again, so a better formula reaches the
+        // bodies already known; how efficiently a body was mapped is not kept, so the efficient outcome is assumed
+        out_body.value = exploration::aprox_value(out_body);
         }
       }
       // barycentres - what a body of a shared orbit (two stars, or two planets of one pair) itself

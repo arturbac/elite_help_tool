@@ -439,6 +439,24 @@ auto planet_name_from_ring_name(std::string_view system, std::string_view name) 
 
 namespace exploration
   {
+namespace
+  {
+  ///\brief what the game adds to every planet sold since Odyssey: a third, and never less than 500
+  [[nodiscard]]
+  auto with_odyssey_bonus(double value) noexcept -> double
+    {
+    value = std::max(500.0, value);
+    return value + std::max(value / 3.0, 500.0);
+    }
+
+  [[nodiscard]]
+  auto planet_k(planet_value_info_t const & info, double mass_em, bool is_terraformable) noexcept -> double
+    {
+    double const k{info.base_value + (is_terraformable ? info.terraform_bonus : 0.0)};
+    return k + k * 0.56591828 * std::pow(mass_em, 0.2);
+    }
+  }  // namespace
+
 [[nodiscard]]
 auto calculate_value(
   planet_value_info_t const & info,
@@ -449,46 +467,17 @@ auto calculate_value(
   bool efficiency_bonus
 ) -> uint32_t
   {
-  // 1. the mass factor (0.3 at least)
-  double const q = std::max(0.3, std::pow(mass_em, 0.2));
-
-  // 2. the base value (K)
-  double const base_value = info.base_value + (is_terraformable ? info.terraform_bonus : 0.0);
-  double const fss_value = base_value * q;
-
-  // 3. what mapping gives (DSS)
-  // mapping is the base * 3.333333, and the efficiency bonus is a further +25%
-  double const mapping_multiplier = efficiency_bonus ? 1.25 : 1.0;
-  double const dss_value = (fss_value * 3.333333) * mapping_multiplier;
-
-  double final_value = 0.0;
-
-  // 4. how the "first" bonuses work
-  if(is_first_discoverer && is_first_mapper)
-    {
-    // being first in both categories gives a multiplier of ~3.695x on the WHOLE sum
-    final_value = (fss_value + dss_value) * 3.695244;
-    }
-  else if(is_first_discoverer)
-    {
-    // first discoverer only (FSS)
-    final_value = (fss_value * 2.6) + dss_value;
-    }
-  else if(is_first_mapper)
-    {
-    // first mapper only (DSS)
-    final_value = fss_value + (dss_value * 3.695244);
-    }
-  else
-    {
-    // no "first" bonuses at all
-    final_value = fss_value + dss_value;
-    }
-
-  return static_cast<uint32_t>(std::max(500.0, std::round(final_value)));
+  // the first mapper of a body somebody else discovered gets the most - the game pays for the effort
+  double const mapping{is_first_discoverer and is_first_mapper ? 3.699622554 : is_first_mapper ? 8.0929 : 3.3333333333};
+  double value{with_odyssey_bonus(planet_k(info, mass_em, is_terraformable) * mapping)};
+  if(efficiency_bonus)
+    value *= 1.25;
+  return static_cast<uint32_t>(std::round(value * (is_first_discoverer ? 2.6 : 1.0)));
   }
 
-auto star_value(std::string_view star_type, double stellar_mass, bool is_first_discoverer) noexcept -> uint32_t
+auto star_value(
+  std::string_view star_type, double stellar_mass, bool is_first_discoverer, bool is_arrival_star
+) noexcept -> uint32_t
   {
   constexpr static auto get_base_value = [](std::string_view type) -> double
   {
@@ -503,6 +492,8 @@ auto star_value(std::string_view star_type, double stellar_mass, bool is_first_d
       return 22628.0;
     if(type == "BlackHole"sv or type == "H"sv)
       return 22628.0;
+    if(type == "SupermassiveBlackHole"sv)
+      return 33.5678;
 
     // ordinary main sequence stars, giants and supergiants (K, G, B, F, O, A, M) all share the same
     // base and differ by mass - the game has no separate supergiant bucket
@@ -510,16 +501,17 @@ auto star_value(std::string_view star_type, double stellar_mass, bool is_first_d
   };
 
   auto const k{get_base_value(star_type)};
-  // FDEV's standard formula for stars, and the first discoverer's multiplier on top
-  return static_cast<uint32_t>((k + (stellar_mass * k / 66.25)) * (is_first_discoverer ? 2.6 : 1.0));
+  // FDEV's standard formula for stars with the first discoverer's multiplier, rounded before a companion
+  // gets its third more - in that order the sales match to the credit
+  double const value{std::round((k + (stellar_mass * k / 66.25)) * (is_first_discoverer ? 2.6 : 1.0))};
+  return static_cast<uint32_t>(is_arrival_star ? value : std::round(value * 4.0 / 3.0));
   }
 
 auto scanned_value(planet_value_info_t const & info, double mass_em, bool is_terraformable, bool is_first_discoverer)
   -> uint32_t
   {
-  double const q{std::max(0.3, std::pow(mass_em, 0.2))};
-  double const fss_value{(info.base_value + (is_terraformable ? info.terraform_bonus : 0.0)) * q};
-  return static_cast<uint32_t>(std::max(500.0, std::round(fss_value * (is_first_discoverer ? 2.6 : 1.0))));
+  double const value{with_odyssey_bonus(planet_k(info, mass_em, is_terraformable))};
+  return static_cast<uint32_t>(std::round(value * (is_first_discoverer ? 2.6 : 1.0)));
   }
 
 auto aprox_value(body_t const & body, bool efficiency_bonus) noexcept -> uint32_t
@@ -528,7 +520,9 @@ auto aprox_value(body_t const & body, bool efficiency_bonus) noexcept -> uint32_
   if(body.body_type() == body_type_e::star)
     {
     star_details_t const & details{std::get<star_details_t>(body.details)};
-    result = star_value(details.star_type, details.stellar_mass, not body.was_discovered);
+    result = star_value(
+      details.star_type, details.stellar_mass, not body.was_discovered, body.distance_from_arrival_ls <= 0.0
+    );
     }
   else
     {

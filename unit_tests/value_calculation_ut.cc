@@ -2,54 +2,53 @@
 #include <string_view>
 #include <cmath>
 #include <algorithm>
+#include <ranges>
 #include <exploration_value.h>
 
 auto main() -> int
   {
   using namespace boost::ut;
-  static constexpr planet_value_info_t hmc_info{
-    .planet_class = "High metal content body", .base_value = 9'693.0, .terraform_bonus = 93'328.0
-  };
-  "elite_dangerous_valuation"_test = []
+  // every expected value below is what the game paid in a real sale of a single system (BaseValue)
+  static constexpr auto info = [](std::string_view planet_class) -> planet_value_info_t const &
+  { return *std::ranges::find(exploration_values, planet_class, &planet_value_info_t::planet_class); };
+
+  "planet_value"_test = []
   {
-    "A 1: high metal content (non terraformable)"_test = []
+    "a small icy body is worth the floor of 500 and the Odyssey bonus of 500"_test = []
     {
-      // MassEM: 0.090840, TerraformState: "", First Disc/Map: true
-      auto const val = exploration::calculate_value(hmc_info, 0.090840, false, true, true, true);
-
-      // expected value: about 114k
-      expect(val >= 110'000_u && val <= 120'000_u) << "Actual value:" << val;
+      expect(exploration::scanned_value(info("Icy body"), 0.642746, false, false) == 1'000_u);
+      expect(exploration::scanned_value(info("Rocky ice body"), 4.986541, false, false) == 1'034_u);
     };
 
-    "A 5: high metal content (terraformable)"_test = []
+    "the whole sale of Hegai QK-F d11-4, a terraformable mapped by its first mapper"_test = []
     {
-      // MassEM: 0.070008, TerraformState: "Terraformable", First Disc/Map: true
-      auto const val = exploration::calculate_value(hmc_info, 0.070008, true, true, true, true);
-
-      // expected value: > 1.1 million CR
-      // (Base 103k * MassQ 0.587) * (1 + 3.33 * 1.25) * 3.695
-      expect(val > 1'100'000_u) << "Value too low for terraformable! Actual:" << val;
+      uint64_t const sum{
+        exploration::star_value("F", 1.492188)
+        + exploration::calculate_value(info("High metal content body"), 0.56849, true, false, true, true)
+        + exploration::scanned_value(info("High metal content body"), 1.082288, false, false)
+        + exploration::scanned_value(info("High metal content body"), 0.388736, false, false)
+        + exploration::scanned_value(info("High metal content body"), 2.6096, false, false)
+        + exploration::scanned_value(info("High metal content body"), 2.076126, false, false)
+        + exploration::scanned_value(info("Rocky ice body"), 4.986541, false, false)
+        + exploration::scanned_value(info("High metal content body"), 2.50014, false, false)
+      };
+      // paid 2'346'435 - within a hundredth of a percent
+      expect(sum >= 2'346'200_ull and sum <= 2'346'700_ull) << "estimate:" << sum;
     };
 
-    "A 6: high metal content (terraformable)"_test = []
+    "a terraformable body is worth far more than a plain one"_test = []
     {
-      // MassEM: 0.076945, TerraformState: "Terraformable", First Disc/Map: true
-      auto const val = exploration::calculate_value(hmc_info, 0.076945, true, true, true, true);
-
-      // expected value: > 1.15 million CR
-      expect(val > 1'150'000_u) << "Value too low for terraformable! Actual:" << val;
-    };
-
-    "logic error: a terraformable treated as an ordinary body"_test = []
-    {
-      // a simulation of the bug mentioned (it returns 100k)
-      auto const val_error = exploration::calculate_value(hmc_info, 0.070008, false, true, true, true);
-
-      expect(val_error < 115'000_u) << "Value matches the '100k error' mentioned by user";
+      auto const plain{
+        exploration::calculate_value(info("High metal content body"), 0.070008, false, true, true, true)
+      };
+      auto const terraformable{
+        exploration::calculate_value(info("High metal content body"), 0.070008, true, true, true, true)
+      };
+      expect(terraformable > plain * 5u) << "plain:" << plain << "terraformable:" << terraformable;
     };
   };
-  
-  "elite_dangerous_valuation"_test = []
+
+  "aprox_value"_test = []
   {
     body_t b{
       .details = planet_details_t{
@@ -72,6 +71,18 @@ auto main() -> int
       auto const ordinary{exploration::star_value("K", 5.0)};
       expect(supergiant == ordinary) << "supergiant:" << supergiant << "ordinary:" << ordinary;
       expect(supergiant > 1'000_u) << "supergiant value too low:" << supergiant;
+    };
+
+    "the arrival star, discovered first - Gludgae DZ-N c20-0"_test
+      = [] { expect(exploration::star_value("K", 0.597656, true) == 3'148_u); };
+
+    "companion stars pay a third more - Hyades Sector YY-R b4-4"_test = []
+    {
+      auto const sum{
+        exploration::star_value("L", 0.203125) + exploration::star_value("T", 0.070313, false, false)
+        + exploration::star_value("L", 0.160156, false, false)
+      };
+      expect(sum == 4'409_u) << "estimate:" << sum;
     };
 
     "a scanned star body gets a non-zero value, unlike the pre-fix always-0 bug"_test = []

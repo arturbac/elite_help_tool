@@ -184,7 +184,7 @@ void print_cartography(fs::path const & journal_dir, std::string_view commander)
     "base",
     "bonus",
     "total",
-    "paid/est",
+    "base/est",
     "system"
   );
   for(bio::cartography_sale_t const & sale: sales)
@@ -197,8 +197,7 @@ void print_cartography(fs::path const & journal_dir, std::string_view commander)
       sale.base_value,
       sale.bonus,
       sale.total,
-      sale.estimate != 0u ? std::format("{:.2f}", double(sale.base_value + sale.bonus) / double(sale.estimate))
-                          : std::string{"-"},
+      sale.estimate != 0u ? std::format("{:.2f}", double(sale.base_value) / double(sale.estimate)) : std::string{"-"},
       sale.systems.size() == 1u ? sale.systems.front() : std::format("{} systems", sale.systems.size())
     );
   }

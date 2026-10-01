@@ -79,7 +79,7 @@ auto main() -> int
     // A's first bounty was handed in, B's never was, A's second came after the hand-in
     expect(mine.bounties == 1010_u) << mine.bounties;
     // S1 was sold after its scan, S2 was not: a neutron star of one solar mass, 22628 * (1 + 1/66.25)
-    expect(mine.cartography == 22969_u) << mine.cartography;
+    expect(mine.cartography == 22970_u) << mine.cartography;
 
     bio::at_risk_t const anyone{bio::at_risk(dir, "")};
     // with no account named, the other one's death ends it at once
@@ -158,19 +158,20 @@ auto main() -> int
     expect(sales.size() == 2_u) << sales.size();
     if(sales.size() == 2u)
       {
-      // a neutron star 22628 * (1 + 1/66.25) and an icy body scanned but not mapped, at the floor of 500
+      // a neutron star 22628 * (1 + 1/66.25) and an icy body scanned but not mapped, at the floor of 500 and
+      // the Odyssey bonus of 500
       expect(sales[0].systems == std::vector<std::string>{"S1"});
-      expect(sales[0].estimate == 23469_u) << sales[0].estimate;
+      expect(sales[0].estimate == 23970_u) << sales[0].estimate;
       expect(sales[0].priced == 2_u and sales[0].bodies == 2_u and sales[0].total == 46500_u);
       expect(sales[0].when == std::chrono::sys_days{std::chrono::September / 1 / 2026} + std::chrono::hours{11});
       // the single sale names its systems plainly and counts no bodies
-      expect(sales[1].systems.size() == 2_u and sales[1].bodies == 0_u and sales[1].estimate == 22969_u);
+      expect(sales[1].systems.size() == 2_u and sales[1].bodies == 0_u and sales[1].estimate == 22970_u);
       }
 
-    // only a sale of one system is an exact price
+    // only a sale of one system is an exact price, and its base is what the bodies were worth
     auto const accuracy{bio::estimate_accuracy(sales)};
     expect(accuracy.has_value() and accuracy->sales == 1_u);
-    expect(accuracy.has_value() and std::abs(accuracy->median - 46500.0 / 23469.0) < 1e-9);
+    expect(accuracy.has_value() and std::abs(accuracy->median - 50000.0 / 23970.0) < 1e-9);
 
     for(char const * name:
         {"Journal.2026-09-01T100000.01.log", "Journal.2026-09-02T100000.01.log", "Journal.2026-09-03T100000.01.log"})

@@ -567,7 +567,7 @@ auto micro_resource_window_t::setup_ui() -> void
   cartography_view_ = new QTableWidget(cartography_page);
   cartography_view_->setColumnCount(9);
   cartography_view_->setHorizontalHeaderLabels(
-    {"Sold (UTC)", "Systems", "Bodies sold", "Bodies priced", "Estimate", "Base", "Bonus", "Paid", "Paid / estimate"}
+    {"Sold (UTC)", "Systems", "Bodies sold", "Bodies priced", "Estimate", "Base", "Bonus", "Paid", "Base / estimate"}
   );
   cartography_view_->verticalHeader()->setVisible(false);
   cartography_view_->setEditTriggers(QAbstractItemView::NoEditTriggers);
@@ -710,11 +710,12 @@ auto micro_resource_window_t::show_cartography(bool now) -> void
     "Each sale of cartographic data from the journals, against what EHT reckoned the bodies scanned there were worth"
     " at the moment of the sale - the same reckoning as the cartography a death would cost. The game writes one sum"
     " for all the systems of a sale and nothing for a body, so only a sale of one system gives an exact price:"
-    " sell system by system to learn more."
+    " sell system by system to learn more. The base is what the bodies are worth and is set against the estimate;"
+    " the bonus is paid for a system scanned or mapped in full, and a fleet carrier keeps a quarter of the base."
   };
   if(auto const accuracy{bio::estimate_accuracy(sales)}; accuracy)
     note += std::format(
-      "\n{} sales of one system: paid {:.2f} times the estimate (median), from {:.2f} to {:.2f}.",
+      "\n{} sales of one system: a base of {:.2f} times the estimate (median), from {:.2f} to {:.2f}.",
       accuracy->sales,
       accuracy->median,
       accuracy->lowest,
@@ -753,7 +754,8 @@ auto micro_resource_window_t::show_cartography(bool now) -> void
     cartography_view_->setItem(r, 7, cell(format_credits_value(sale.total), true));
     // a sale of several systems is a sum over all of them, so its ratio is shown but says less
     auto * ratio{cell(
-      sale.estimate != 0u ? std::format("{:.2f}", double(sale.total) / double(sale.estimate)) : std::string{"-"}, true
+      sale.estimate != 0u ? std::format("{:.2f}", double(sale.base_value) / double(sale.estimate)) : std::string{"-"},
+      true
     )};
     if(not single)
       ratio->setForeground(QBrush{QColor{0x8a, 0x8a, 0x8a}});

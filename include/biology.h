@@ -103,7 +103,7 @@ auto cartography_sales(std::filesystem::path const & journal_dir, std::string_vi
 struct estimate_accuracy_t
   {
   size_t sales{};
-  ///\brief what was paid over what was reckoned: the median, the lowest and the highest
+  ///\brief the base value of a sale over what was reckoned: the median, the lowest and the highest
   double median{};
   double lowest{};
   double highest{};

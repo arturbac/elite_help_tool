@@ -51,10 +51,28 @@ cartographic data in the journals: when, which systems, the bodies sold and thos
 EHT's estimate at the moment of the sale (the same reckoning as the cartography a death would cost),
 and what the game paid - base, bonus and the sum that reached the account. The game writes one sum for
 all the systems of a sale and nothing for a body, so only a sale of one system is an exact price;
-over those the tab gives how many times the estimate was paid (median, lowest, highest). Sell system
-by system to learn more. Exobiology needs no such check: the price list agrees to the credit with
-every sample sold in the archive, and the first-logged bonus is always four times the price.
+over those the tab gives the base over the estimate (median, lowest, highest). The base is what the
+bodies were worth, the first discovery included; the bonus is paid on top for a system scanned or
+mapped in full, and a fleet carrier keeps a quarter of the base. Sell system by system to learn more.
+Exobiology needs no such check: the price list agrees to the credit with every sample sold in the
+archive, and the first-logged bonus is always four times the price.
 `journal_tailer --cartography --dir <journals> --commander <FID>` prints the same.
+
+**How a body is priced.** The formula in common use among explorers, corrected where the sales
+disagree with it:
+
+- a planet: `k + k * 0.56591828 * mass^0.2`, where `k` is the value of its class (with the
+  terraformable bonus), times the mapping multiplier when mapped - 3.3333, or 3.6996 for the first
+  discoverer who also maps it, or 8.0929 for the first to map a body someone else discovered,
+- at least 500, then a third more and never less than 500 more (a small icy body is worth 1000),
+- times 1.25 when mapped with no more probes than the target, times 2.6 for the first discovery,
+- a star: `k + mass * k / 66.25` (1200 for an ordinary star, 14057 for a white dwarf, 22628 for a
+  neutron star or a black hole), times 2.6 for the first discovery, and a third more for every star
+  but the one the jump arrives at.
+
+Over the single system sales of a station (not a carrier) from systems scanned in full, 69 of 83 agree
+within a tenth of a percent. The rest are systems sold more than once, where the journal cannot tell
+what was already paid for.
 
 ## Codex
 
