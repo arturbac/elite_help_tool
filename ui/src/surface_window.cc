@@ -1,4 +1,5 @@
 #include <surface_window.h>
+#include <biology.h>
 #include <qformat.h>
 
 #include <qboxlayout.h>

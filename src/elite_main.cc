@@ -1,6 +1,9 @@
 #include <eht_settings.h>
+#include <data/bgs.h>
+#include <data/progress.h>
 #include <file_io.h>
 #include <biology.h>
+#include <territory.h>
 #include <iostream>
 #include <string>
 #include <vector>

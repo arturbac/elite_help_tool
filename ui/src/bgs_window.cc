@@ -1,4 +1,7 @@
 #include <eht_settings.h>
+#include <territory.h>
+#include <data/bgs.h>
+#include <data/progress.h>
 #include <bgs_window.h>
 #include <qformat.h>
 #include <qboxlayout.h>

@@ -1,4 +1,6 @@
 #pragma once
+#include <data/carrier.h>
+#include <data/micro_resources.h>
 #include <array>
 #include "logic.h"
 #include <qwidget.h>

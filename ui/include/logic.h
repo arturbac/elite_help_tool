@@ -7,7 +7,9 @@
 #include <thread>
 #include <generic_state.h>
 #include <star_system.h>
-#include <elite_data.h>
+#include <data/bgs.h>
+#include <data/missions.h>
+#include <data/navigation.h>
 #include <simple_enum/simple_enum.hpp>
 #include <databse_storage.h>
 #include <biology.h>

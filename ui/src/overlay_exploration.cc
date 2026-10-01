@@ -1,4 +1,5 @@
 #include <overlay_exploration.h>
+#include <biology.h>
 #include <eht_settings.h>
 
 #include <algorithm>

@@ -1,4 +1,7 @@
 #pragma once
+#include <data/bgs.h>
+#include <data/market.h>
+#include <data/missions.h>
 #include "logic.h"
 #include <qwidget.h>
 #include <qmdiarea.h>

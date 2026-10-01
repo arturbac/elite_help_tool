@@ -1,4 +1,15 @@
 #include <overlay_feed.h>
+#include <biology.h>
+#include <territory.h>
+#include <data/bgs.h>
+#include <data/carrier.h>
+#include <data/colonisation.h>
+#include <data/market.h>
+#include <data/missions.h>
+#include <data/navigation.h>
+#include <data/ships.h>
+#include <data/station.h>
+#include <data/war.h>
 #include <backup.h>
 #include <evidence_log.h>
 #include <picture_records.h>

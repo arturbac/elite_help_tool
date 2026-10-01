@@ -1,5 +1,6 @@
 #pragma once
 
+#include <data/navigation.h>
 #include <functional>
 #include "logic.h"
 #include <qwidget.h>

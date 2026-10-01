@@ -1,6 +1,6 @@
 #pragma once
 
-#include <elite_data.h>
+#include <data/navigation.h>
 
 #include <cstddef>
 #include <filesystem>

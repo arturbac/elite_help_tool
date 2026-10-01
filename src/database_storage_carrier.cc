@@ -1,5 +1,6 @@
 // database_storage_t: fleet carriers, their cargo and bar, and micro resources
 #include "database_storage_impl.h"
+#include <bar_sales.h>
 
 auto database_storage_t::load_carriers() -> expected_ec<std::vector<info::carrier_t>>
   {

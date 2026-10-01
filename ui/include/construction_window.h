@@ -1,4 +1,5 @@
 #pragma once
+#include <data/colonisation.h>
 #include "logic.h"
 #include <qcheckbox.h>
 #include <qcombobox.h>

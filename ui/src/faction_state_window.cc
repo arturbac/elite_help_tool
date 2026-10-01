@@ -1,4 +1,10 @@
 #include <eht_settings.h>
+#include <data/bgs.h>
+#include <data/market.h>
+#include <data/missions.h>
+#include <data/progress.h>
+#include <data/station.h>
+#include <data/war.h>
 #include <faction_state_window.h>
 #include <qformat.h>
 #include <qboxlayout.h>

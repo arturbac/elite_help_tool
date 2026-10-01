@@ -1,6 +1,8 @@
 #include <boost/ut.hpp>
+#include <data/colonisation.h>
+#include <data/market.h>
+#include <data/ships.h>
 #include <commodity_facts.h>
-#include <elite_data.h>
 
 #include <set>
 

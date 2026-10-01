@@ -1,5 +1,6 @@
 // database_storage_t: star systems and their bodies, rings, signals and life
 #include "database_storage_impl.h"
+#include <biology.h>
 
 auto database_storage_t::store(star_system_t const & system) -> expected_ec<void>
   {

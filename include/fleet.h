@@ -1,6 +1,7 @@
 #pragma once
 #include <databse_storage.h>
-#include <elite_data.h>
+#include <data/carrier.h>
+#include <data/ships.h>
 #include <events/combat.h>
 #include <events/ships.h>
 #include <events/station.h>

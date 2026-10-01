@@ -1,4 +1,12 @@
 #include <eht_settings.h>
+#include <data/bgs.h>
+#include <data/carrier.h>
+#include <data/colonisation.h>
+#include <data/market.h>
+#include <data/micro_resources.h>
+#include <data/missions.h>
+#include <data/ships.h>
+#include <data/station.h>
 #include <database_import_state.h>
 #include <exploration_value.h>
 #include <fleet.h>

@@ -1,4 +1,6 @@
 #include <elite_data.h>
+#include <events/missions.h>
+#include <events/system_info.h>
 
 #include <algorithm>
 #include <array>

@@ -1,4 +1,5 @@
 #pragma once
+#include <data/network.h>
 #include "logic.h"
 #include <qlabel.h>
 #include <qmdisubwindow.h>

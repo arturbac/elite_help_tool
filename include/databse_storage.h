@@ -1,18 +1,50 @@
 #pragma once
-#include <bar_sales.h>
-#include <string>
-#include <memory>
+#include <data/fwd.h>
+#include <events/common.h>
 #include <simple_enum/expected.h>
 #include <simple_enum/simple_enum.hpp>
-#include <events/carrier.h>
-#include <events/system_info.h>
-#include <star_system.h>
-#include <elite_data.h>
-#include <biology.h>
-#include <territory.h>
 #include <array>
+#include <chrono>
+#include <cstdint>
 #include <map>
+#include <memory>
+#include <optional>
 #include <span>
+#include <string>
+#include <string_view>
+#include <system_error>
+#include <vector>
+
+// only named in the signatures below - whoever reads their members includes their headers
+namespace events
+  {
+struct atmosphere_element_t;
+struct genus_t;
+struct signal_t;
+  }  // namespace events
+
+namespace bar
+  {
+struct mission_reward_row_t;
+struct port_sale_row_t;
+  }  // namespace bar
+
+namespace bio
+  {
+struct find_t;
+struct species_record_t;
+  }  // namespace bio
+
+namespace territory
+  {
+struct system_t;
+  }  // namespace territory
+
+struct bary_centre_t;
+struct body_t;
+struct ring_t;
+struct star_system_t;
+struct system_signal_t;
 
 struct sqlite3_handle_t;
 

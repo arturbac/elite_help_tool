@@ -2,6 +2,7 @@
 ///\brief what every database_storage_*.cc shares - the tables, their rows and the sqlite helpers
 #include <eht_settings.h>
 #include <databse_storage.h>
+#include <elite_data.h>
 #include <set>
 #include <sqlite3.h>
 #include <filesystem>

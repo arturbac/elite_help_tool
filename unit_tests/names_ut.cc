@@ -1,7 +1,7 @@
 #include <boost/ut.hpp>
+#include <data/bgs.h>
 #include <events/missions.h>
 #include <star_system.h>
-#include <elite_data.h>
 
 auto main() -> int
   {

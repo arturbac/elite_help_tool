@@ -1,4 +1,5 @@
 #include <network_incident_window.h>
+#include <data/network.h>
 
 #include <backup.h>
 #include <eht_settings.h>

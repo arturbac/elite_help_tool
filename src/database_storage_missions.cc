@@ -1,5 +1,6 @@
 // database_storage_t: missions and what they need, pay and move
 #include "database_storage_impl.h"
+#include <bar_sales.h>
 
 auto database_storage_t::store(info::mission_t const & value) -> expected_ec<void>
   {

@@ -1,4 +1,5 @@
 #pragma once
+#include <data/missions.h>
 #include "logic.h"
 #include <qmdisubwindow.h>
 #include <qabstractitemmodel.h>

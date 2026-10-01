@@ -1,4 +1,5 @@
 #pragma once
+#include <data/bgs.h>
 #include "logic.h"
 #include <qwidget.h>
 #include <qmdiarea.h>

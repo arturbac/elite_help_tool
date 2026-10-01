@@ -120,6 +120,11 @@ of EHT includes it:
   variant. EHT's own model is in `include/star_system.h`, `orbit.h`, `generic_state.h` and
   `exploration_value.h`. `include/elite_events.h` includes all of them at once; a file that needs
   only one domain should include just that header.
+- The database rows are split the same way, in `include/data/<domain>.h` (bgs, war, station,
+  market, missions, carrier, colonisation, micro_resources, ships, navigation, network, progress);
+  `include/elite_data.h` includes all of them. `include/databse_storage.h` only declares the row
+  types (`data/fwd.h` and a few declarations at its top), so a file that calls the database
+  includes the domain headers of the rows it reads.
 - A `.cc` file that uses glaze directly (for its own local types, `glz::generic`, or reflection)
   includes `include/json_glaze.h`, never `<glaze/glaze.hpp>`. That header brings in simple_enum's
   adapter and the colour's meta. Without them glaze would silently write enums as numbers and

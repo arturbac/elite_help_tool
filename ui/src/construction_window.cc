@@ -1,4 +1,7 @@
 #include <construction_window.h>
+#include <data/carrier.h>
+#include <data/colonisation.h>
+#include <data/market.h>
 #include <qformat.h>
 #include <commodity_facts.h>
 

@@ -1,4 +1,11 @@
 #include <databse_storage.h>
+#include <biology.h>
+#include <territory.h>
+#include <data/bgs.h>
+#include <data/carrier.h>
+#include <data/micro_resources.h>
+#include <data/station.h>
+#include <star_system.h>
 #include <json_glaze.h>
 #include <print>
 #include <filesystem>

@@ -1,4 +1,6 @@
 #include <ground_cz.h>
+#include <data/station.h>
+#include <data/war.h>
 
 #include <json_glaze.h>
 

@@ -1,5 +1,11 @@
 #pragma once
 
+#include <data/colonisation.h>
+#include <data/market.h>
+#include <data/navigation.h>
+#include <data/station.h>
+#include <data/war.h>
+#include <territory.h>
 #include "logic.h"
 #include "overlay_exploration.h"
 #include <legal.h>

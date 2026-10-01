@@ -1,4 +1,15 @@
 #include <backup.h>
+#include <biology.h>
+#include <data/bgs.h>
+#include <data/carrier.h>
+#include <data/colonisation.h>
+#include <data/market.h>
+#include <data/micro_resources.h>
+#include <data/progress.h>
+#include <data/missions.h>
+#include <data/navigation.h>
+#include <data/ships.h>
+#include <data/station.h>
 #include <eht_settings.h>
 #include "logic.h"
 #include <main_window.h>

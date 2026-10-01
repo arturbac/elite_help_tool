@@ -1,4 +1,5 @@
 #include <codex.h>
+#include <biology.h>
 #include <picture_records.h>
 #include <eht_settings.h>
 

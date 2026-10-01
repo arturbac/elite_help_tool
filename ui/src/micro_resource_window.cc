@@ -1,4 +1,7 @@
 #include <micro_resource_window.h>
+#include <data/carrier.h>
+#include <data/micro_resources.h>
+#include <data/progress.h>
 #include <bar_sales.h>
 #include <biology.h>
 #include <cmath>

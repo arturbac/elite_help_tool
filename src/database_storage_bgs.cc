@@ -1,5 +1,6 @@
 // database_storage_t: factions, influence, ticks, wars and territory
 #include "database_storage_impl.h"
+#include <territory.h>
 
 auto database_storage_t::store_faction_seen(int64_t faction_oid, uint64_t system_address, std::chrono::sys_seconds when)
   -> expected_ec<void>

@@ -1,4 +1,6 @@
 #pragma once
+#include <data/bgs.h>
+#include <territory.h>
 #include "logic.h"
 #include <qwidget.h>
 #include <qmdisubwindow.h>

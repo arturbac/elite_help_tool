@@ -1,4 +1,7 @@
 #include <fleet.h>
+#include <data/carrier.h>
+#include <data/ships.h>
+#include <data/station.h>
 #include <algorithm>
 #include <cctype>
 #include <cmath>

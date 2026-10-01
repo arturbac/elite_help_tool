@@ -1,6 +1,6 @@
 #include <file_io.h>
+#include <data/navigation.h>
 #include <elite_events.h>
-#include <elite_data.h>
 #include <sstream>
 #include <json_io.h>
 #include <simple_enum/enum_cast.hpp>
