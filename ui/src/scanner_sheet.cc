@@ -12,6 +12,7 @@
 #include <format>
 #include <fstream>
 #include <limits>
+#include <ranges>
 
 namespace
   {
@@ -232,7 +233,7 @@ auto scanner_sheet_t::pictures(std::string const & body) -> std::vector<overlay:
   auto const cfg{eht::settings()};
   std::vector<view_t> & views{views_of(body)};
   std::error_code ec;
-  for(view_t & view: views)
+  for(view_t & view: views | std::views::take(cfg->exploration.scanner_views))
     {
     if(view.thumbnail.empty() or not std::filesystem::exists(view.thumbnail, ec))
       {

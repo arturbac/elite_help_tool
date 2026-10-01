@@ -262,12 +262,12 @@ struct exploration_settings_t
   float scanner_size{0.75f};
   ///\brief how different, 0..255 on average, a view must be from every one kept to be kept as another
   float scanner_difference{12.f};
-  ///\brief the most views kept of one body
-  uint32_t scanner_views{12u};
+  ///\brief the most views kept of one body, and shown on the ground
+  uint32_t scanner_views{6u};
   ///\brief the side of the thumbnails in the band, in pixels
   uint32_t scanner_thumbnail{400u};
   ///\brief how many thumbnails stand side by side
-  uint32_t scanner_columns{4u};
+  uint32_t scanner_columns{3u};
   };
 
 ///\brief screenshots of the whole screen, overlay and all, taken by the layer at a key
