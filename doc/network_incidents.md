@@ -70,3 +70,5 @@ that pings a gateway and a public address every few seconds, tries a DNS lookup 
 resolver and, on failure, through a public one, and logs state changes through `logger -t
 net-monitor` gives EHT everything this feature needs; no root is required to read your own user's
 journal entries.
+
+To plot the history as charts, see [Charts of your own connection incidents](incident_charts.md).
