@@ -159,6 +159,27 @@ auto main() -> int
     expect(at(24u, 28u)[0] > at(24u, 28u)[2]) << "the colour stays warm";
   };
 
+  "a ball made of the sky behind it is no view of a planet"_test = []
+  {
+    // far off the planet is a dot; dust as bright as the ball fills the sky round the circle the edges outline
+    uint32_t const w{800u};
+    uint32_t const h{600u};
+    planet_face::image_t view{ball_on_stars(w, h, 400.f, 300.f, 160.f, {120u, 120u, 130u})};
+    for(uint32_t py{}; py != h; ++py)
+      for(uint32_t px{}; px != w; ++px)
+        if(std::hypot(float(px) - 400.f, float(py) - 300.f) > 160.f)
+          {
+          uint8_t * const p{view.rgb.data() + (size_t{py} * w + px) * 3u};
+          auto const dust{uint8_t(200.f + 40.f * std::sin(float(px) / 23.f) * std::cos(float(py) / 17.f))};
+          p[0] = p[1] = p[2] = dust;
+          }
+    std::string why;
+    expect(not planet_face::judge_approach(view, 1.f, planet_face::full_radius, &why).has_value());
+    expect(why.contains("sky")) << why;
+    // the same ball against the black of space is a view
+    expect(planet_face::judge_approach(ball_on_stars(w, h, 400.f, 300.f, 160.f, {120u, 120u, 130u})).has_value());
+  };
+
   "no ball, no face"_test = []
   {
     planet_face::image_t const stars{ball_on_stars(400u, 300u, -500.f, -500.f, 10.f, {0u, 0u, 0u})};

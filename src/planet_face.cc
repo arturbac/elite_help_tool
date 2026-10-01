@@ -487,6 +487,32 @@ namespace
     float const usual{*median};
     return float(std::ranges::count_if(lit, [&](float l) { return l < usual * 0.3f; })) / float(lit.size());
     }
+
+  ///\brief how bright the sky just beyond the ball is - the 90th percentile of a ring from 1.15 to 1.5 radii,
+  /// the HUD's colours left out; none when hardly any of the ring is in the picture
+  [[nodiscard]]
+  auto sky_around(image_t const & view, disc_t const & disc) -> std::optional<float>
+    {
+    float const inner{disc.radius * 1.15f};
+    float const outer{disc.radius * 1.5f};
+    auto const clamp = [](float v, uint32_t limit) { return uint32_t(std::clamp(v, 0.f, float(limit))); };
+    std::vector<float> sky;
+    for(uint32_t y{clamp(disc.y - outer, view.height)}; y != clamp(disc.y + outer + 1.f, view.height); ++y)
+      for(uint32_t x{clamp(disc.x - outer, view.width)}; x != clamp(disc.x + outer + 1.f, view.width); ++x)
+        {
+        float const d{std::hypot(float(x) - disc.x, float(y) - disc.y)};
+        if(d < inner or d > outer)
+          continue;
+        uint8_t const * const p{view.rgb.data() + (size_t{y} * view.width + x) * 3u};
+        if(not is_hud(p) and not is_cyan(p))
+          sky.push_back(luminance(p));
+        }
+    if(sky.size() < 64u)
+      return std::nullopt;
+    auto const p90{sky.begin() + std::ptrdiff_t(sky.size() * 9u / 10u)};
+    std::nth_element(sky.begin(), p90, sky.end());
+    return *p90;
+    }
   }  // namespace
 
 auto cut_face(image_t const & picture, disc_t const & disc, uint32_t side) -> image_t
@@ -634,6 +660,16 @@ auto judge_approach(image_t const & view, float pixel_scale, float full_size, st
   // a ball in the dark, or a black disc against the stars, is no face
   if(bright < 0.08f)
     return refuse(std::format("too dark, {:.2f}", bright));
+  // far off the planet is a dot, and the noise of the stars and dust behind it can pass for a rim - a ball made
+  // of the sky is no brighter than the sky round it, a real one stands out of the black of space
+  std::vector<float> day;
+  std::ranges::copy_if(lum, std::back_inserter(day), [bright](float l) { return l > bright * 0.25f; });
+  auto const middle{day.begin() + std::ptrdiff_t(day.size() / 2u)};
+  std::nth_element(day.begin(), middle, day.end());
+  if(auto const sky{sky_around(view, *disc)}; sky and *middle < *sky * 2.5f)
+    return refuse(std::format(
+      "no brighter than the sky round it, {:.2f} against {:.2f}, {:.0f} px", *middle, *sky, disc->radius * pixel_scale
+    ));
   approach_t judged{
     .disc = *disc,
     .lit = float(std::ranges::count_if(lum, [&](float l) { return l > bright * 0.25f; })) / float(lum.size()),
