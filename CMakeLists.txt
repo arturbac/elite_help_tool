@@ -1,6 +1,6 @@
 # 3.24: find_package finds what CPM added through its package redirects
 cmake_minimum_required(VERSION 3.24..4.1.20)
-project(EliteHelpTool VERSION 1.26.3 LANGUAGES CXX)
+project(EliteHelpTool VERSION 1.27.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

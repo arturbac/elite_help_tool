@@ -459,6 +459,15 @@ struct vision_settings_t
   uint32_t keep_every_s{10u};
   ///\brief the oldest days are deleted once the whole set grows above this; the current day never is
   double limit_gb{20.0};
+  ///\brief a picture of the whole middle screen in full resolution at least this often, 0 none - the small
+  /// pictures cannot be read, these can
+  uint32_t shot_every_s{60u};
+  ///\brief and one when Flags, Flags2 or GuiFocus changed and then stayed so this long - what is on the screen
+  /// has caught up with the status file by then
+  uint32_t shot_after_change_ms{1500u};
+  ///\brief never two closer than this
+  uint32_t shot_min_gap_s{10u};
+  uint32_t shot_jpeg_quality{90u};
   };
 
 struct settings_t

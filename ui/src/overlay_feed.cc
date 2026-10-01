@@ -4605,6 +4605,37 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
   // the layout rides with every frame: the layer keeps nothing of its own, so a saved settings file shows
   // in the game at the next frame
   frame.layout = eht::settings()->overlay.layout;
+  // the whole-screen picture for eht_vision asks before all, so any other picture takes the turn from it
+  if(auto const & vision{eht::settings()->vision}; vision.record)
+    {
+    uint64_t const now_ms{uint64_t(
+      std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count()
+    )};
+    auto const reason{shot_clock_.tick(
+      vision::shot_state_t{.flags = status_flags_, .flags2 = status_flags2_, .gui_focus = gui_focus_},
+      now_ms,
+      vision::shot_clock_t::timing_t{
+        .every_ms = uint64_t{vision.shot_every_s} * 1000u,
+        .after_change_ms = vision.shot_after_change_ms,
+        .min_gap_ms = uint64_t{vision.shot_min_gap_s} * 1000u
+      }
+    )};
+    if(reason)
+      {
+      // a picture of the whole middle screen is some 25 MB - one left lying means no recorder is running
+      std::error_code ec;
+      if(not shot_path_.empty() and std::filesystem::remove(shot_path_, ec) and not shot_untaken_told_)
+        {
+        shot_untaken_told_ = true;
+        spdlog::warn("vision: the whole-screen picture was not taken by eht_vision - is the recorder running?");
+        }
+      shot_path_ = std::filesystem::path{overlay::default_spool_path()}
+                   / std::format("{}{}_{}.ppm", overlay::vision_shot_prefix(), now_ms, vision::reason_name(*reason));
+      capture_ = overlay::capture_t{
+        .id = now_ms * 2u, .path = shot_path_.string(), .size = 1.f, .delay_ms = 0u, .quiet = true, .aspect = 16.f / 9.f
+      };
+      }
+    }
   // the views for the faces ask first, so any other picture asked for at the same moment takes the turn
   if(auto const & asked{approach_.capture_request()}; asked.id != approach_capture_id_)
     {

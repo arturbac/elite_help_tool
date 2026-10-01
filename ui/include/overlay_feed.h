@@ -19,6 +19,7 @@
 #include "glare_watch.h"
 #include "sensor_watch.h"
 #include "netstate_watch.h"
+#include <vision_shots.h>
 
 #include <overlay_ipc.h>
 
@@ -253,6 +254,11 @@ private:
   planet_faces_t faces_;
   approach_views_t approach_;
   uint64_t approach_capture_id_{};
+  ///\brief the whole-screen pictures for eht_vision's recorder, asked for last so any other picture goes first
+  vision::shot_clock_t shot_clock_;
+  ///\brief the last one asked for - still there at the next one, nobody took it, and it goes
+  std::filesystem::path shot_path_;
+  bool shot_untaken_told_{};
   ///\brief the system the album last saw us arrive in - 0 until the first, which is where the tool started, not a jump
   uint64_t sky_system_{};
   bool sky_started_{};

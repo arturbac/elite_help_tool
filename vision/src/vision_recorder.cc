@@ -4,6 +4,7 @@
 #include <json_glaze.h>
 
 #include <png.h>
+#include <turbojpeg.h>
 #include <spdlog/spdlog.h>
 
 #include <algorithm>
@@ -45,6 +46,19 @@ namespace detail
     uint32_t surface_width;
     uint32_t surface_height;
     float difference;
+    std::string commander;
+    std::string socket;
+    uint64_t status_ms;
+    glz::raw_json status;
+    };
+
+  struct shot_json_t
+    {
+    std::string file;
+    uint64_t asked_ms;
+    std::string reason;
+    uint32_t width;
+    uint32_t height;
     std::string commander;
     std::string socket;
     uint64_t status_ms;
@@ -419,6 +433,112 @@ auto write_png(std::filesystem::path const & path, std::span<uint8_t const> rgb,
   return ok and not ec;
   }
 
+auto parse_shot_name(std::string_view file_name, std::string_view prefix) -> std::optional<shot_name_t>
+  {
+  if(not file_name.starts_with(prefix) or not file_name.ends_with(".ppm"))
+    return std::nullopt;
+  std::string_view rest{file_name.substr(prefix.size(), file_name.size() - prefix.size() - 4u)};
+  auto const underscore{rest.find('_')};
+  if(underscore == 0u or underscore == std::string_view::npos or underscore + 1u == rest.size())
+    return std::nullopt;
+  uint64_t ms{};
+  for(char const c: rest.substr(0u, underscore))
+    {
+    if(c < '0' or c > '9')
+      return std::nullopt;
+    ms = ms * 10u + uint64_t(c - '0');
+    }
+  return shot_name_t{.asked_ms = ms, .reason = std::string{rest.substr(underscore + 1u)}};
+  }
+
+auto read_ppm(std::filesystem::path const & path) -> std::optional<picture_t>
+  {
+  std::ifstream in{path, std::ios::binary};
+  std::string magic;
+  uint32_t width{};
+  uint32_t height{};
+  uint32_t depth{};
+  if(not(in >> magic >> width >> height >> depth) or magic != "P6" or depth != 255u or width == 0u or height == 0u
+     or width > 16384u or height > 16384u)
+    return std::nullopt;
+  // a single whitespace ends the head
+  in.get();
+  picture_t picture{.width = width, .height = height, .rgb = std::vector<uint8_t>(size_t{width} * height * 3u)};
+  in.read(reinterpret_cast<char *>(picture.rgb.data()), std::streamsize(picture.rgb.size()));
+  if(size_t(in.gcount()) != picture.rgb.size())
+    return std::nullopt;
+  return picture;
+  }
+
+auto write_jpeg(
+  std::filesystem::path const & path, std::span<uint8_t const> rgb, uint32_t width, uint32_t height, uint32_t quality
+) -> bool
+  {
+  if(rgb.size() < size_t{width} * height * 3u)
+    return false;
+  tjhandle const handle{tjInitCompress()};
+  if(handle == nullptr)
+    return false;
+  unsigned char * jpeg{};
+  unsigned long size{};
+  bool const encoded{
+    tjCompress2(
+      handle,
+      rgb.data(),
+      int(width),
+      0,
+      int(height),
+      TJPF_RGB,
+      &jpeg,
+      &size,
+      TJSAMP_420,
+      int(std::clamp(quality, 1u, 100u)),
+      TJFLAG_FASTDCT
+    )
+    == 0
+  };
+  bool written{};
+  if(encoded)
+    {
+    // written aside and put in place whole, so a reader never finds half a picture under the name
+    std::filesystem::path partial{path};
+    partial += ".part";
+      {
+      std::ofstream out{partial, std::ios::binary | std::ios::trunc};
+      out.write(reinterpret_cast<char const *>(jpeg), std::streamsize(size));
+      written = bool(out);
+      }
+    std::error_code ec;
+    if(written)
+      std::filesystem::rename(partial, path, ec);
+    else
+      std::filesystem::remove(partial, ec);
+    written = written and not ec;
+    }
+  tjFree(jpeg);
+  tjDestroy(handle);
+  return written;
+  }
+
+auto shot_line(shot_record_t const & record) -> std::string
+  {
+  detail::shot_json_t const json{
+    .file = record.file,
+    .asked_ms = record.name.asked_ms,
+    .reason = record.name.reason,
+    .width = record.width,
+    .height = record.height,
+    .commander = record.commander,
+    .socket = record.socket,
+    .status_ms = record.status_ms,
+    .status = {record.status.empty() ? std::string{"null"} : record.status}
+  };
+  std::string line;
+  if(glz::write_json(json, line))
+    return {};
+  return line;
+  }
+
 recorder_t::recorder_t(std::filesystem::path journal_dir, std::filesystem::path sample_path) :
     journal_dir_{std::move(journal_dir)},
     sample_path_{std::move(sample_path)},
@@ -428,6 +548,68 @@ recorder_t::recorder_t(std::filesystem::path journal_dir, std::filesystem::path 
   socket_ = sample_path_.stem().string();
   if(socket_.ends_with("_sample"))
     socket_.resize(socket_.size() - std::string_view{"_sample"}.size());
+  // the whole pictures lie beside the sample, named after the same socket
+  spool_ = sample_path_.parent_path();
+  shot_prefix_ = socket_ + "_shot_";
+  }
+
+auto recorder_t::counted(std::string const & day, std::filesystem::path const & file) -> void
+  {
+  std::error_code ec;
+  uint64_t const size{std::filesystem::file_size(file, ec)};
+  if(ec)
+    return;
+  if(auto const it{std::ranges::find(days_, day, &day_size_t::name)}; it != days_.end())
+    it->bytes += size;
+  bytes_ += size;
+  }
+
+auto recorder_t::look_at_shots(eht::vision_settings_t const & cfg) -> void
+  {
+  std::error_code ec;
+  std::vector<std::pair<std::filesystem::path, shot_name_t>> found;
+  for(auto const & entry: std::filesystem::directory_iterator{spool_, ec})
+    if(auto name{parse_shot_name(entry.path().filename().string(), shot_prefix_)}; name)
+      found.emplace_back(entry.path(), std::move(*name));
+  for(auto const & [path, name]: found)
+    {
+    auto const picture{read_ppm(path)};
+    std::filesystem::remove(path, ec);
+    if(not picture)
+      {
+      spdlog::warn("vision: {} is no picture", path.filename().string());
+      continue;
+      }
+    std::string const today{day_name(name.asked_ms)};
+    if(not make_room(cfg, today))
+      continue;
+    std::string const file{std::format("{}_{}.jpg", name.asked_ms, name.reason)};
+    std::filesystem::path const dir{dataset_ / today};
+    std::filesystem::create_directories(dir, ec);
+    if(not write_jpeg(dir / file, picture->rgb, picture->width, picture->height, cfg.shot_jpeg_quality))
+      {
+      spdlog::warn("vision: could not write {}", (dir / file).string());
+      continue;
+      }
+    counted(today, dir / file);
+    ++shots_;
+    append(
+      today,
+      "shots.jsonl",
+      shot_line(
+        shot_record_t{
+          .file = file,
+          .name = name,
+          .width = picture->width,
+          .height = picture->height,
+          .commander = journal_.commander(),
+          .socket = socket_,
+          .status_ms = status_ms_,
+          .status = status_
+        }
+      )
+    );
+    }
   }
 
 auto recorder_t::append(std::string_view day, std::string_view file, std::string_view line) -> void
@@ -530,12 +712,9 @@ auto recorder_t::look_at_sample(eht::vision_settings_t const & cfg, uint64_t now
     spdlog::warn("vision: could not write {}", (dir / name).string());
     return;
     }
-  uint64_t const size{std::filesystem::file_size(dir / name, ec)};
-  if(auto const day{std::ranges::find(days_, today, &day_size_t::name)}; day != days_.end() and not ec)
-    day->bytes += size;
+  counted(today, dir / name);
   keeper_.kept(thumb, header);
   ++frames_;
-  bytes_ += ec ? 0u : size;
   append(
     today,
     "frames.jsonl",
@@ -564,6 +743,7 @@ auto recorder_t::step(eht::vision_settings_t const & cfg, uint64_t now) -> void
   look_at_journal(now);
   look_at_status(now);
   look_at_sample(cfg, now);
+  look_at_shots(cfg);
   }
 
 auto recorder_t::run(std::stop_token stop) -> void
@@ -588,11 +768,16 @@ auto recorder_t::run(std::stop_token stop) -> void
     if(now - reported >= report_every)
       {
       reported = now;
-      if(frames_ != 0u)
+      if(frames_ != 0u or shots_ != 0u)
         spdlog::info(
-          "vision: {} pictures, {:.1f} MB in the last {} minutes", frames_, double(bytes_) / 1e6, report_every.count()
+          "vision: {} pictures and {} whole ones, {:.1f} MB in the last {} minutes",
+          frames_,
+          shots_,
+          double(bytes_) / 1e6,
+          report_every.count()
         );
       frames_ = 0u;
+      shots_ = 0u;
       bytes_ = 0u;
       }
     std::this_thread::sleep_for(std::chrono::milliseconds{100});

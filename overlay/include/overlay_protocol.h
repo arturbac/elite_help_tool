@@ -480,15 +480,26 @@ inline auto default_spool_path() -> std::string
   return path + "/captures";
   }
 
-///\brief the shared file of the sample, named after the socket - two accounts playing at once each have their own
+///\brief the socket's name without its directory and extension - what tells two accounts' files in the spool apart
 [[nodiscard]]
-inline auto sample_file_path() -> std::string
+inline auto socket_stem() -> std::string
   {
   std::string stem{default_socket_path()};
   if(auto const slash{stem.find_last_of('/')}; slash != std::string::npos)
     stem.erase(0, slash + 1u);
   if(auto const dot{stem.find_last_of('.')}; dot != std::string::npos)
     stem.resize(dot);
-  return default_spool_path() + "/" + stem + "_sample.bin";
+  return stem;
   }
+
+///\brief the shared file of the sample, named after the socket - two accounts playing at once each have their own
+[[nodiscard]]
+inline auto sample_file_path() -> std::string
+  { return default_spool_path() + "/" + socket_stem() + "_sample.bin"; }
+
+///\brief how the names of the whole-screen pictures for eht_vision begin: the tool asks the layer for them under
+/// <prefix><moment in ms>_<why>.ppm, and the recorder takes them from there
+[[nodiscard]]
+inline auto vision_shot_prefix() -> std::string
+  { return socket_stem() + "_shot_"; }
   }  // namespace overlay

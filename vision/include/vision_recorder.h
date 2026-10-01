@@ -24,6 +24,9 @@
 ///   <dataset>/YYYY-MM-DD/frames.jsonl    a line a picture: where it lies on the screen, Status.json as it was
 ///   <dataset>/YYYY-MM-DD/status.jsonl    every new content of Status.json, with the moment it was seen
 ///   <dataset>/YYYY-MM-DD/events.jsonl    every event of the journal, with the moment it was seen
+///   <dataset>/YYYY-MM-DD/<asked_ms>_<why>.jpg  the whole middle screen in full resolution, now and then and
+///                                      after the state changed - the tool asks the layer for it
+///   <dataset>/YYYY-MM-DD/shots.jsonl     a line each, Status.json as it was
 namespace vision
   {
 ///\brief the sample's pixels as RGB, with the head the layer wrote
@@ -196,6 +199,51 @@ private:
 auto write_png(std::filesystem::path const & path, std::span<uint8_t const> rgb, uint32_t width, uint32_t height)
   -> bool;
 
+///\brief a whole-screen picture the tool asked the layer for: <prefix><ms>_<why>.ppm
+struct shot_name_t
+  {
+  uint64_t asked_ms;
+  std::string reason;
+  };
+
+///\brief the moment and the reason out of a picture's file name, when it is one of this account's whole pictures
+[[nodiscard]]
+auto parse_shot_name(std::string_view file_name, std::string_view prefix) -> std::optional<shot_name_t>;
+
+///\brief an RGB picture read from a file
+struct picture_t
+  {
+  uint32_t width{};
+  uint32_t height{};
+  std::vector<uint8_t> rgb;
+  };
+
+///\brief a binary PPM as the layer writes it - P6, 8 bits
+[[nodiscard]]
+auto read_ppm(std::filesystem::path const & path) -> std::optional<picture_t>;
+
+///\brief writes a JPEG of RGB pixels; false when it could not
+[[nodiscard]]
+auto write_jpeg(
+  std::filesystem::path const & path, std::span<uint8_t const> rgb, uint32_t width, uint32_t height, uint32_t quality
+) -> bool;
+
+///\brief the line of a whole-screen picture in shots.jsonl
+struct shot_record_t
+  {
+  std::string file;
+  shot_name_t name;
+  uint32_t width;
+  uint32_t height;
+  std::string commander;
+  std::string socket;
+  uint64_t status_ms;
+  std::string status;
+  };
+
+[[nodiscard]]
+auto shot_line(shot_record_t const & record) -> std::string;
+
 ///\brief the recorder itself, run until stopped
 class recorder_t
   {
@@ -214,10 +262,15 @@ private:
   auto look_at_status(uint64_t now_ms) -> void;
   auto look_at_journal(uint64_t now_ms) -> void;
   auto look_at_sample(eht::vision_settings_t const & cfg, uint64_t now_ms) -> void;
+  auto look_at_shots(eht::vision_settings_t const & cfg) -> void;
+  auto counted(std::string const & day, std::filesystem::path const & file) -> void;
   auto make_room(eht::vision_settings_t const & cfg, std::string const & today) -> bool;
 
   std::filesystem::path journal_dir_;
   std::filesystem::path sample_path_;
+  ///\brief where the layer writes the whole-screen pictures, and how this account's names begin
+  std::filesystem::path spool_;
+  std::string shot_prefix_;
   std::filesystem::path dataset_;
   std::string socket_;
   journal_tail_t journal_;
@@ -231,6 +284,7 @@ private:
   bool measured_{};
   bool full_{};
   uint64_t frames_{};
+  uint64_t shots_{};
   uint64_t bytes_{};
   };
   }  // namespace vision

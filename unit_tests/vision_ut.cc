@@ -1,4 +1,5 @@
 #include <vision_recorder.h>
+#include <vision_shots.h>
 
 #include <boost/ut.hpp>
 
@@ -215,4 +216,68 @@ int main()
     expect(not vision::write_png(file, grey(2u, 2u, 1u), 8u, 4u)) << "too few pixels";
     std::filesystem::remove(file);
   };
-  }
+  
+  "a whole picture's name says when and why"_test = []
+  {
+    auto const name{vision::parse_shot_name("overlay-alt_shot_1790870563480_change.ppm", "overlay-alt_shot_")};
+    expect(fatal(name.has_value()));
+    expect(name->asked_ms == 1790870563480u);
+    expect(name->reason == "change");
+    expect(not vision::parse_shot_name("overlay_shot_1790870563480_change.ppm", "overlay-alt_shot_"))
+      << "another account's";
+    expect(not vision::parse_shot_name("overlay-alt_shot_1790870563480_change.ppm.partial", "overlay-alt_shot_"));
+    expect(not vision::parse_shot_name("overlay-alt_shot_17x0_every.ppm", "overlay-alt_shot_"));
+    expect(not vision::parse_shot_name("overlay-alt_shot_1790870563480.ppm", "overlay-alt_shot_"));
+  };
+
+  "a whole picture goes from PPM to JPEG"_test = []
+  {
+    std::filesystem::path const ppm{
+      std::filesystem::temp_directory_path() / std::format("eht_vision_ut_{}.ppm", getpid())
+    };
+    std::filesystem::path const jpg{
+      std::filesystem::temp_directory_path() / std::format("eht_vision_ut_{}.jpg", getpid())
+    };
+      {
+      std::ofstream out{ppm, std::ios::binary};
+      out << "P6\n16 8\n255\n";
+      std::vector<uint8_t> const pixels{grey(16u, 8u, 200u)};
+      out.write(reinterpret_cast<char const *>(pixels.data()), std::streamsize(pixels.size()));
+      }
+    auto const picture{vision::read_ppm(ppm)};
+    expect(fatal(picture.has_value()));
+    expect(picture->width == 16u and picture->height == 8u and picture->rgb.size() == 16u * 8u * 3u);
+    expect(picture->rgb[5] == 200u);
+    expect(vision::write_jpeg(jpg, picture->rgb, 16u, 8u, 90u));
+    std::ifstream in{jpg, std::ios::binary};
+    std::string magic(3u, '\0');
+    in.read(magic.data(), 3);
+    expect(magic == "\xff\xd8\xff");
+      {
+      std::ofstream out{ppm, std::ios::binary};
+      out << "P6\n16 8\n255\n" << "short";
+      }
+    expect(not vision::read_ppm(ppm)) << "cut short";
+    std::filesystem::remove(ppm);
+    std::filesystem::remove(jpg);
+  };
+
+  "a whole picture now and then, and once the state settles"_test = []
+  {
+    vision::shot_clock_t clock;
+    vision::shot_clock_t::timing_t const timing{.every_ms = 60'000u, .after_change_ms = 1'500u, .min_gap_ms = 10'000u};
+    vision::shot_state_t const cruise{.flags = 16u, .flags2 = 0u, .gui_focus = 0u};
+    vision::shot_state_t const map{.flags = 16u, .flags2 = 0u, .gui_focus = 6u};
+    expect(clock.tick(cruise, 1'000u, timing) == vision::shot_reason_e::every) << "the first at once";
+    expect(not clock.tick(cruise, 30'000u, timing));
+    expect(not clock.tick(map, 30'000u, timing)) << "the change waits to settle";
+    expect(not clock.tick(map, 31'000u, timing));
+    expect(clock.tick(map, 31'500u, timing) == vision::shot_reason_e::change);
+    expect(not clock.tick(map, 33'000u, timing)) << "one a change";
+    expect(not clock.tick(cruise, 34'000u, timing));
+    expect(not clock.tick(cruise, 36'000u, timing)) << "never closer than the gap";
+    expect(clock.tick(cruise, 41'500u, timing) == vision::shot_reason_e::change);
+    expect(not clock.tick(cruise, 90'000u, timing));
+    expect(clock.tick(cruise, 101'500u, timing) == vision::shot_reason_e::every);
+  };
+}
