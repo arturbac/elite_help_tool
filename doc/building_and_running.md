@@ -5,7 +5,7 @@
 > DX11 → DXVK → Vulkan, and the screenshot key needs the X server (XWayland). None of this has
 > been tried on Windows.
 
-EHT is made of three parts:
+EHT is made of these parts:
 
 | part | what it is |
 |---|---|
@@ -13,6 +13,7 @@ EHT is made of three parts:
 | `ui/elite_help_tool` | the tool itself (Qt6): follows the newest journal live and feeds the overlay |
 | `libeht_overlay.so` | Vulkan layer loaded **into the game's process**, hands the game's swapchains to the plugin |
 | `libeht_overlay_plugin.so` | the overlay itself, loaded by the layer and reloaded when replaced |
+| `vision/eht_vision` | optional: records pictures of the screen with the game's state, see [Vision](vision.md) |
 
 ## 1. Build
 
@@ -25,6 +26,7 @@ EHT is made of three parts:
 - Boost ≥ 1.70: thread, program_options
 - SQLite3, OpenSSL, zlib, zstd (the backup packs the journals with it), pkg-config
 - libsystemd (reads net-monitor's log for the Network incidents window, no root needed)
+- libpng (the pictures `eht_vision` records)
 - Vulkan headers (for the overlay)
 
 - libxcb headers (the overlay loads libxcb at run time, from the game's process)
@@ -46,7 +48,7 @@ names and have not been tried.
 sudo apt install git cmake ninja-build clang-19 \
   qt6-base-dev libqt6charts6-dev \
   libboost-thread-dev libboost-program-options-dev \
-  libsqlite3-dev libssl-dev zlib1g-dev libzstd-dev libsystemd-dev pkg-config libvulkan-dev libxcb1-dev
+  libsqlite3-dev libssl-dev zlib1g-dev libzstd-dev libsystemd-dev libpng-dev pkg-config libvulkan-dev libxcb1-dev
 ```
 
 Debian 12 is too old: its CMake is 3.25 and it has no Qt6 Charts package.
@@ -59,7 +61,7 @@ Windows), Pop!_OS 24.04, Zorin OS 18. They share Ubuntu 24.04's packages. The de
 sudo apt install git cmake ninja-build clang-19 g++-14 \
   qt6-base-dev libqt6charts6-dev \
   libboost-thread-dev libboost-program-options-dev \
-  libsqlite3-dev libssl-dev zlib1g-dev libzstd-dev libsystemd-dev pkg-config libvulkan-dev libxcb1-dev
+  libsqlite3-dev libssl-dev zlib1g-dev libzstd-dev libsystemd-dev libpng-dev pkg-config libvulkan-dev libxcb1-dev
 ```
 
 If `clang-19` is not found, enable the *universe* repository, or take it from
@@ -70,7 +72,7 @@ CMake 3.22).
 
 ```sh
 sudo pacman -S --needed base-devel git cmake ninja clang \
-  qt6-base qt6-charts boost sqlite openssl zlib zstd systemd vulkan-headers vulkan-icd-loader libxcb
+  qt6-base qt6-charts boost sqlite openssl zlib zstd systemd libpng vulkan-headers vulkan-icd-loader libxcb
 ```
 
 Arch names its compiler plain `clang++`, so configure with
@@ -81,7 +83,7 @@ Arch names its compiler plain `clang++`, so configure with
 ```sh
 emerge --ask --noreplace dev-vcs/git dev-build/cmake dev-build/ninja llvm-core/clang:19 \
   dev-qt/qtbase:6 dev-qt/qtcharts:6 dev-libs/boost dev-db/sqlite app-arch/zstd dev-libs/openssl \
-  virtual/zlib sys-apps/systemd dev-util/vulkan-headers media-libs/vulkan-loader x11-libs/libxcb
+  virtual/zlib sys-apps/systemd media-libs/libpng dev-util/vulkan-headers media-libs/vulkan-loader x11-libs/libxcb
 ```
 
 **Immutable gaming systems** (Bazzite, SteamOS) have no package manager for development

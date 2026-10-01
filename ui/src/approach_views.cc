@@ -82,6 +82,15 @@ auto approach_views_t::sample_request() const -> overlay::sample_t
     return overlay::sample_t{
       .every_ms = sample_every_ms, .size = cfg->exploration.sky_size, .aspect = 16.f / 9.f, .width = 256u
     };
+  // the recorder of eht_vision keeps a picture a second of it - asked at least as often as the diagnostics want
+  if(eht::vision_settings_t const & vision{cfg->vision}; vision.record and vision.every_ms != 0u)
+    {
+    eht::overlay_sample_t const & always{cfg->overlay.sample};
+    uint32_t const every_ms{
+      always.always and always.every_ms != 0u ? std::min(always.every_ms, vision.every_ms) : vision.every_ms
+    };
+    return overlay::sample_t{.every_ms = every_ms, .size = vision.size, .aspect = 16.f / 9.f, .width = vision.width};
+    }
   // kept the rest of the time too when the settings say so, for looking at what the game shows
   if(eht::overlay_sample_t const & always{cfg->overlay.sample}; always.always and always.every_ms != 0u)
     return overlay::sample_t{

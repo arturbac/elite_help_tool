@@ -53,3 +53,7 @@ add_ut_test(network_incident_ut.cc)
 add_ut_test(planet_face_ut.cc)
 add_ut_test(port_model_ut.cc)
 add_ut_test(face_store_ut.cc)
+
+# the recorder of eht_vision lives in its own library beside eht
+add_ut_test(vision_ut.cc)
+target_link_libraries(vision_ut PRIVATE eht_vision_core)

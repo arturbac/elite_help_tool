@@ -19,6 +19,7 @@ EHT (Elite Help Tool) is a companion for Elite Dangerous that follows the game's
 - **[Exploration and exobiology](doc/exploration.md)**: what is worth mapping, species prediction from your own sampling history, notable stellar phenomena flagged on arrival, an automatic photo codex and sky album. And a curiosity from the game's own sales: [the bodies you never scanned are paid for too](doc/unscanned_bodies.md).
 - **[Surface navigation](doc/surface_navigation.md)** to a place given as coordinates, or to a codex entry.
 - **[Neutron routes](doc/neutron_routes.md)**: following a route plotted by Spansh.
+- **[Vision](doc/vision.md)**: an optional recorder of small pictures of the screen, each with the game's own state as its label, as a dataset for teaching a model to read the screen.
 - **[Privacy](doc/privacy.md)**: nothing is downloaded from public databases; EDDN uploads are opt-in, exploration-only and only for empty, undiscovered systems.
 
 ## Documentation

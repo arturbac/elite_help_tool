@@ -431,6 +431,29 @@ struct backup_settings_t
   int32_t level{9};
   };
 
+///\brief the recorder of eht_vision: pictures of the screen with what the game's files said at that moment
+///\detail a separate process beside the tool, reading the same file. While record is on the tool asks the
+/// layer for the sample of the screen all the time, and the recorder keeps a picture a second of it, with
+/// Status.json and the journal's events, as material to teach a model to see. See doc/vision.md
+struct vision_settings_t
+  {
+  bool record{false};
+  ///\brief a directory of its own for each UTC day goes under it; ~ is the home directory
+  std::string dataset_dir{"vision"};
+  ///\brief at most one picture this often
+  uint32_t every_ms{1000u};
+  ///\brief the part of the middle screen, its height as a share of the screen's, in the 16:9 shape
+  float size{1.f};
+  ///\brief about how wide - 256 gives the whole middle of a 4K screen as 480 x 270
+  uint32_t width{256u};
+  ///\brief a picture differing from the last one kept by less than this - the mean of the brightness of a
+  /// 32 x 18 thumbnail, 0-255 - is not kept, unless keep_every_s passed since the last one
+  float min_difference{2.f};
+  uint32_t keep_every_s{10u};
+  ///\brief the oldest days are deleted once the whole set grows above this; the current day never is
+  double limit_gb{20.0};
+  };
+
 struct settings_t
   {
   overlay_settings_t overlay;
@@ -446,6 +469,7 @@ struct settings_t
   eddn_settings_t eddn;
   backup_settings_t backup;
   bgs_settings_t bgs;
+  vision_settings_t vision;
   };
 
 ///\brief switches read from the file when someone put them there, and never written into a file of

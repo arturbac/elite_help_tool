@@ -1,6 +1,6 @@
 # 3.24: find_package finds what CPM added through its package redirects
 cmake_minimum_required(VERSION 3.24..4.1.20)
-project(EliteHelpTool VERSION 1.24.2 LANGUAGES CXX)
+project(EliteHelpTool VERSION 1.25.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -245,6 +245,7 @@ target_link_libraries(journal_tailer PRIVATE
 add_subdirectory(src)
 add_subdirectory(ui)
 add_subdirectory(overlay)
+add_subdirectory(vision)
 add_subdirectory(unit_tests)
 #add_executable(journal_tests tests.cpp)
 #target_link_libraries(journal_tests PRIVATE ut)

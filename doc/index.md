@@ -48,6 +48,10 @@
 
 - [Neutron routes](neutron_routes.md): following a Spansh route
 
+## Vision
+
+- [Vision](vision.md): `eht_vision`, recording pictures of the screen with the game's state as labels
+
 ## Data, privacy and backups
 
 - [Three databases](data_model.md): what `ehtdb.sqlite`, `galaxy.sqlite` and `live.sqlite` each hold
