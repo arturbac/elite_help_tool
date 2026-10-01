@@ -16,6 +16,8 @@ The charts below are from one commander's history, November 2025 to September 20
 ## What to run
 
 You need Python 3.9 or newer and matplotlib (`pip install matplotlib`, or your distribution's package).
+The commands below are written for Linux (bash). A full Linux example is under [On Linux](#on-linux),
+and what differs on Windows is under [On Windows](#on-windows).
 
 **1. Find the incidents** - `extract_incidents.py` reads both folders and writes `incidents.csv`:
 
@@ -58,6 +60,57 @@ python3 tools/incident_charts/plot_incidents.py incidents.csv --tz Europe/Warsaw
 always cover the whole file. Game updates are read from
 [`game_updates.csv`](../tools/incident_charts/game_updates.csv) beside the script, one `date,label` per
 line; add new ones there.
+
+## On Linux
+
+The scripts were written and checked here, with the game run by Steam through Proton.
+
+**Packages.** Python 3 is part of every distribution. matplotlib comes from the distribution's package
+or from pip:
+
+| distribution | matplotlib | sqlite3 (only for the EHT export) |
+|---|---|---|
+| Debian, Ubuntu, Mint | `sudo apt install python3-matplotlib` | `sudo apt install sqlite3` |
+| Fedora | `sudo dnf install python3-matplotlib` | `sudo dnf install sqlite` |
+| Arch, Manjaro | `sudo pacman -S python-matplotlib` | `sudo pacman -S sqlite` |
+| Gentoo | `sudo emerge dev-python/matplotlib` | `sudo emerge dev-db/sqlite` |
+| any, without root | `python3 -m venv ~/ed-charts && ~/ed-charts/bin/pip install matplotlib`, then run the scripts with `~/ed-charts/bin/python3` | - |
+
+The time zone names (`Europe/Warsaw` and the like) come from the system's own database, so `--tz`
+needs nothing extra. `timedatectl` shows the machine's zone.
+
+**Folders.** Under Proton the netLog folder is in the game's install, outside the Proton prefix, and the
+journal folder is inside the prefix. With Steam's default library:
+
+```sh
+STEAM="$HOME/.local/share/Steam"
+# Steam installed from Flathub instead:
+# STEAM="$HOME/.var/app/com.valvesoftware.Steam/.local/share/Steam"
+NETLOG="$STEAM/steamapps/common/Elite Dangerous/Products/elite-dangerous-odyssey-64/Logs"
+JOURNAL="$STEAM/steamapps/compatdata/359320/pfx/drive_c/users/steamuser/Saved Games/Frontier Developments/Elite Dangerous"
+```
+
+A game in another Steam library, or run by Lutris, Heroic or a plain Wine prefix, keeps the same two
+folders under another root. They can be found by the files in them:
+
+```sh
+find ~ /mnt /media -name 'netLog.*.log' -printf '%h\n' 2>/dev/null | sort -u
+find ~ /mnt /media -name 'Journal.*.log' -printf '%h\n' 2>/dev/null | sort -u
+```
+
+The first may list a `Logs` folder per product, e.g. `COMBAT_TUTORIAL_DEMO`; take the one of the game
+you play, `elite-dangerous-odyssey-64` for Odyssey.
+
+**The whole run**, from the folder EHT was cloned into:
+
+```sh
+python3 tools/incident_charts/extract_incidents.py --netlog "$NETLOG" --journal "$JOURNAL" \
+    --tz Europe/Warsaw --out incidents.csv
+python3 tools/incident_charts/plot_incidents.py incidents.csv --tz Europe/Warsaw --out charts
+xdg-open charts/incidents_history.png
+```
+
+Keep the quotes around `"$NETLOG"` and `"$JOURNAL"`: both paths contain spaces.
 
 ## On Windows
 
