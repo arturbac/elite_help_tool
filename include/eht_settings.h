@@ -1,6 +1,7 @@
 #pragma once
 
 #include <colour.h>
+#include <graphics_profile.h>
 #include <overlay_protocol.h>
 
 #include <cstdint>
@@ -496,6 +497,23 @@ struct hot_drop_settings_t
   float size{0.45f};
   };
 
+///\brief a line on the overlay naming the game's graphics set the place wants - near a planet the cheap one,
+/// in space the sharp one - while the game's own file holds the other. See graphics_profile.h
+struct graphics_settings_t
+  {
+  bool remind{false};
+  ///\brief the game's Options/Graphics directory; empty: found beside the journals
+  std::string dir;
+  ///\brief a place counts after it has lasted this long
+  uint32_t settle_ms{3000u};
+  graphics_profile::profile_t planet{
+    .name = "FSR Balanced + SMAA", .upscaling = 2u, .supersampling = 0.59, .anti_aliasing = 4u
+  };
+  graphics_profile::profile_t space{
+    .name = "FSR Ultra Quality + SMAA", .upscaling = 2u, .supersampling = 0.77, .anti_aliasing = 4u
+  };
+  };
+
 struct settings_t
   {
   overlay_settings_t overlay;
@@ -513,6 +531,7 @@ struct settings_t
   bgs_settings_t bgs;
   vision_settings_t vision;
   hot_drop_settings_t hot_drop;
+  graphics_settings_t graphics;
   };
 
 ///\brief switches read from the file when someone put them there, and never written into a file of

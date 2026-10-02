@@ -96,6 +96,31 @@ process carries no state of ours.
   named the instance the game was in. The netLog never gives the commander's name nor the ship - only
   the machine - so the line says how many, not who. `overlay.players_in_instance` (default `true`)
   turns it off.
+- **Graphics for the place.** The game's own upscaler is cheap and its edges stair-step: good enough
+  over the ground of a settlement, where frames are dear, and hard on the eyes along the long straight
+  edges of a station or a carrier. Two sets of the game's graphics are named in the settings, one for
+  near a planet and one for space, and while the game's graphics file holds the other one, a line in
+  amber asks for the place's set: `graphics near the planet: set FSR Balanced + SMAA - now FSR Ultra
+  Quality + SMAA`. It goes as soon as the set is applied in the game's menu. Near a planet is what
+  Status.json says by giving latitude and longitude - from orbital cruise down to the ground - or on
+  foot on a planet; everywhere else is space. A place counts after it has lasted `settle_ms`, so a
+  flicker of the flags asks for nothing. The file is the newest `Custom.*.fxcfg` in the game's
+  `Options/Graphics`, found in the same Wine user's home as the journals; the game writes it when the
+  options are applied, and EHT only reads it - the three values compared are `UpscalingQuality`,
+  `SSAAMultiplier` and `AAMode`. Off by default:
+
+  ```json
+  "graphics": {
+     "remind": false,
+     "dir": "",
+     "settle_ms": 3000,
+     "planet": { "name": "FSR Balanced + SMAA", "upscaling": 2, "supersampling": 0.59, "anti_aliasing": 4 },
+     "space": { "name": "FSR Ultra Quality + SMAA", "upscaling": 2, "supersampling": 0.77, "anti_aliasing": 4 }
+  }
+  ```
+
+  The numbers are those the game writes into the file for the set; `name` is only what the line says.
+  `dir` points at another `Options/Graphics` when the journals are not in a Wine user's `Saved Games`.
 - **Jump panel.** While the drive charges for a jump to another system, the game shows the
   destination's superpower emblem, and it is wrong for the Federation, the Empire and the Alliance
   (only independents get the right one). The overlay paints over it with the right emblem, and

@@ -5057,6 +5057,13 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
         }
       );
 
+  // The game's graphics set the place wants, while its file holds the other - under the temperatures and
+  // the link, where the eye goes in a quiet moment
+  if(auto line{build_graphics_line(state)}; line)
+    frame.blocks.push_back(
+      overlay::block_t{.corner = overlay::corner_e::top_right, .ttl_ms = block_ttl_ms(), .lines = {std::move(*line)}}
+    );
+
   // the game gets a frame when it has changed or when the keep-alive time has passed - not on every journal event
   auto const now{std::chrono::steady_clock::now()};
   if(same_content(frame, last_) and now - last_sent_ < heartbeat())
@@ -5245,4 +5252,65 @@ auto overlay_feed_t::build_server_link_lines(current_state_t const & state) -> s
       lines.push_back(overlay::line_t{.text = shown->text, .color = shown->fresh ? colour_alert() : colour_plain()});
     }
   return lines;
+  }
+
+auto overlay_feed_t::build_graphics_line(current_state_t const & state) -> std::optional<overlay::line_t>
+  {
+  auto const cfg{eht::settings()};
+  if(not cfg->graphics.remind)
+    return std::nullopt;
+
+  // the file is looked at once a second and read again only when the game has written it
+  auto const steady{std::chrono::steady_clock::now()};
+  if(steady - graphics_looked_ >= std::chrono::seconds{1})
+    {
+    graphics_looked_ = steady;
+    std::filesystem::path const dir{
+      not cfg->graphics.dir.empty() ? backup::expand_home(cfg->graphics.dir)
+                                    : graphics_profile::graphics_dir_of(state.journal_dir_path_)
+    };
+    std::error_code ec;
+    std::filesystem::path const file{graphics_profile::newest_file(dir)};
+    auto const written{std::filesystem::last_write_time(file, ec)};
+    if(ec)
+      graphics_setting_.reset();
+    else if(file != graphics_file_ or written != graphics_written_)
+      {
+      graphics_file_ = file;
+      graphics_written_ = written;
+      std::ifstream in{file};
+      std::string const text{std::istreambuf_iterator<char>{in}, std::istreambuf_iterator<char>{}};
+      graphics_setting_ = graphics_profile::parse(text);
+      if(graphics_setting_)
+        spdlog::info(
+          "graphics: {} upscaling {} supersampling {:.2f} AA mode {}",
+          file.filename().string(),
+          graphics_setting_->upscaling,
+          graphics_setting_->supersampling,
+          graphics_setting_->anti_aliasing
+        );
+      else
+        spdlog::warn("graphics: no upscaling, supersampling or AA mode in {}", file.string());
+      }
+    }
+  if(not graphics_setting_)
+    return std::nullopt;
+
+  auto const place{graphics_profile::settle(
+    graphics_watch_,
+    graphics_profile::place_of(status_flags_, status_flags2_),
+    steady,
+    std::chrono::milliseconds{cfg->graphics.settle_ms}
+  )};
+  if(not place)
+    return std::nullopt;
+  auto text{graphics_profile::hint(*place, *graphics_setting_, cfg->graphics.planet, cfg->graphics.space)};
+  if(text.value_or(std::string{}) != graphics_told_)
+    {
+    graphics_told_ = text.value_or(std::string{});
+    spdlog::info("{}", graphics_told_.empty() ? "graphics: the set fits the place" : graphics_told_);
+    }
+  if(not text)
+    return std::nullopt;
+  return overlay::line_t{.text = std::move(*text), .color = colour_alert()};
   }

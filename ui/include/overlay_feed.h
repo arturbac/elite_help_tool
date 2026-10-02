@@ -24,6 +24,7 @@
 #include <hot_drop.h>
 #include <server_link.h>
 #include <instance_players.h>
+#include <graphics_profile.h>
 #include <netstate.h>
 
 #include <overlay_ipc.h>
@@ -331,6 +332,16 @@ private:
   std::chrono::steady_clock::time_point traffic_at_;
   ///\brief writes the machine's traffic down beside the players netLog names, now and then
   auto log_traffic() -> void;
+  ///\brief the game's graphics file as last read, and the place it is weighed against
+  graphics_profile::watch_t graphics_watch_;
+  std::filesystem::path graphics_file_;
+  std::filesystem::file_time_type graphics_written_;
+  std::optional<graphics_profile::setting_t> graphics_setting_;
+  std::chrono::steady_clock::time_point graphics_looked_;
+  std::string graphics_told_;
+  ///\brief the line naming the graphics set the place wants, while the game's file holds another
+  [[nodiscard]]
+  auto build_graphics_line(current_state_t const & state) -> std::optional<overlay::line_t>;
   ///\brief reads what is new and gives the lines to show
   [[nodiscard]]
   auto build_server_link_lines(current_state_t const & state) -> std::vector<overlay::line_t>;

@@ -29,6 +29,7 @@ target_sources(eht
   network_incident.cc
   server_link.cc
   instance_players.cc
+  graphics_profile.cc
   credits.cc
   database_storage.cc
   database_storage_missions.cc
