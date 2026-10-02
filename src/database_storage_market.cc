@@ -135,6 +135,8 @@ auto database_storage_t::load_station(uint64_t market_id) -> expected_ec<std::op
   if(res->empty())
     return std::optional<info::station_t>{};
 
+  if(auto overruled{overrule_retreated_owner(res->front())}; not overruled) [[unlikely]]
+    return cxx23::unexpected{overruled.error()};
   return std::optional<info::station_t>{std::move((*res)[0])};
   }
 
@@ -182,14 +184,34 @@ auto database_storage_t::load_station(uint64_t system_address, std::string_view 
   if(res->empty())
     return std::optional<info::station_t>{};
 
+  if(auto overruled{overrule_retreated_owner(res->front())}; not overruled) [[unlikely]]
+    return cxx23::unexpected{overruled.error()};
   return std::optional<info::station_t>{std::move((*res)[0])};
   }
 
 auto database_storage_t::load_stations(uint64_t system_address) -> expected_ec<std::vector<info::station_t>>
   {
-  return sqlite::select_from<info::station_t>(
+  auto res{sqlite::select_from<info::station_t>(
     db_->db, sql_iface::tables::station, std::format(" WHERE system_address={} ORDER BY name", system_address)
-  );
+  )};
+  if(not res) [[unlikely]]
+    return cxx23::unexpected{res.error()};
+
+  // the stations of one system share a handful of owners, so each is asked about once
+  std::map<std::string, std::string> owners;
+  for(info::station_t & station: *res)
+    {
+    auto const [it, fresh]{owners.try_emplace(station.controlling_faction)};
+    if(fresh)
+      {
+      info::station_t probe{.system_address = station.system_address, .controlling_faction = station.controlling_faction};
+      if(auto overruled{overrule_retreated_owner(probe)}; not overruled) [[unlikely]]
+        return cxx23::unexpected{overruled.error()};
+      it->second = std::move(probe.controlling_faction);
+      }
+    station.controlling_faction = it->second;
+    }
+  return res;
   }
 
 auto database_storage_t::load_market_entries(uint64_t market_id) -> expected_ec<std::vector<info::market_entry_t>>

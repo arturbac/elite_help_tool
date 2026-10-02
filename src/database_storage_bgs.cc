@@ -1077,6 +1077,30 @@ auto database_storage_t::load_war_views(uint64_t system_address) -> expected_ec<
 auto database_storage_t::load_place_owner(std::string_view system_name, std::string_view place)
   -> expected_ec<std::optional<std::string>>
   {
+  auto res{sqlite::select_from<info::station_t>(
+    db_->db,
+    sql_iface::tables::station,
+    std::format(
+      " WHERE name='{}' AND system_address=(SELECT system_address FROM {} WHERE name='{}') LIMIT 1",
+      sqlite::escape_sql_quotes(place),
+      sql_iface::tables::star_system,
+      sqlite::escape_sql_quotes(system_name)
+    )
+  )};
+  if(not res) [[unlikely]]
+    return cxx23::unexpected{res.error()};
+
+  if(res->empty())
+    return std::optional<std::string>{};
+
+  info::station_t & station{res->front()};
+  if(auto overruled{overrule_retreated_owner(station)}; not overruled) [[unlikely]]
+    return cxx23::unexpected{overruled.error()};
+  return std::optional<std::string>{std::move(station.controlling_faction)};
+  }
+
+auto database_storage_t::overrule_retreated_owner(info::station_t & station) -> expected_ec<void>
+  {
   // A retreat hands everything over. When a faction's retreat completes at a tick it leaves the
   // system altogether, and every asset it held there - settlements included - passes to whoever
   // controls the system. Nothing announces this per station, so until the next docking corrects the
@@ -1087,29 +1111,35 @@ auto database_storage_t::load_place_owner(std::string_view system_name, std::str
   // from them would be wrong in 161 places to be right in one. So the owner is overruled only where
   // it once played the background simulation in this very system, by having an influence history
   // here, and has since stopped being among the factions seen at the newest reading.
-  return sqlite::select_signle_from<std::string>(
+  if(station.controlling_faction.empty())
+    return {};
+
+  auto res{sqlite::select_signle_from<std::string>(
     db_->db,
     std::format(
-      "SELECT CASE WHEN fo.oid IS NOT NULL AND sy.controlling_faction <> ''"
-      "             AND EXISTS(SELECT 1 FROM {4} i"
-      "                        WHERE i.system_address = st.system_address AND i.faction_oid = fo.oid)"
-      "             AND NOT EXISTS(SELECT 1 FROM {2} p"
-      "                            WHERE p.system_address = st.system_address AND p.faction_oid = fo.oid"
-      "                              AND p.last_seen = (SELECT max(last_seen) FROM {2}"
-      "                                                 WHERE system_address = st.system_address))"
-      "        THEN sy.controlling_faction ELSE st.controlling_faction END"
-      " FROM {0} st JOIN {1} sy ON sy.system_address = st.system_address"
-      " LEFT JOIN {3} fo ON fo.name = st.controlling_faction"
-      " WHERE sy.name='{5}' AND st.name='{6}' LIMIT 1",
+      "SELECT sy.controlling_faction FROM {1} sy JOIN {3} fo ON fo.name = '{6}'"
+      " WHERE sy.system_address = {5} AND sy.controlling_faction <> '' AND sy.controlling_faction <> fo.name"
+      "   AND EXISTS(SELECT 1 FROM {4} i WHERE i.system_address = sy.system_address AND i.faction_oid = fo.oid)"
+      "   AND NOT EXISTS(SELECT 1 FROM {2} p"
+      "                  WHERE p.system_address = sy.system_address AND p.faction_oid = fo.oid"
+      "                    AND p.last_seen = (SELECT max(last_seen) FROM {2}"
+      "                                       WHERE system_address = sy.system_address))"
+      " LIMIT 1",
       sql_iface::tables::station,
       sql_iface::tables::star_system,
       sql_iface::tables::faction_presence,
       sql_iface::tables::faction_info,
       sql_iface::tables::faction_influence,
-      sqlite::escape_sql_quotes(system_name),
-      sqlite::escape_sql_quotes(place)
+      station.system_address,
+      sqlite::escape_sql_quotes(station.controlling_faction)
     )
-  );
+  )};
+  if(not res) [[unlikely]]
+    return cxx23::unexpected{res.error()};
+
+  if(*res)
+    station.controlling_faction = std::move(**res);
+  return {};
   }
 
 auto database_storage_t::store(info::conflict_t const & value) -> expected_ec<void>

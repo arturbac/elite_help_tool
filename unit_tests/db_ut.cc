@@ -334,6 +334,17 @@ int main()
     auto engineer{dbs.load_place_owner("Test Reach", "Tinkerer's Workshop")};
     expect(engineer and engineer->has_value());
     expect(**engineer == "Hilda Tinkerer") << "an engineer's base was taken from them by the retreat rule";
+
+    // the settlement list of the system and a single read show the same owner as the mission lookup
+    auto listed{dbs.load_stations(reach)};
+    expect(listed and listed->size() == 2u);
+    if(listed and listed->size() == 2u)
+      {
+      expect((*listed)[0].controlling_faction == "Holders") << "the system's list kept the retreated owner";
+      expect((*listed)[1].controlling_faction == "Hilda Tinkerer");
+      }
+    auto single{dbs.load_station(91001u)};
+    expect(single and single->has_value() and (*single)->controlling_faction == "Holders");
   };
 
 

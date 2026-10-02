@@ -610,6 +610,12 @@ struct database_storage_t
   auto load_place_owner(std::string_view system_name, std::string_view place)
     -> expected_ec<std::optional<std::string>>;
 
+  ///\brief hands a station to the system's controlling faction when its stored owner has retreated
+  ///\detail every station read goes through it, so a place left behind by a retreat shows its new
+  /// owner everywhere until a docking writes the true one
+  [[nodiscard]]
+  auto overrule_retreated_owner(info::station_t & station) -> expected_ec<void>;
+
   ///\brief the account this personal database belongs to
   [[nodiscard]]
   auto store_owner(info::db_owner_t const & owner) -> expected_ec<void>;
