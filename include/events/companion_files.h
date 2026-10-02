@@ -6,6 +6,7 @@
 #include <string>
 #include <system_error>
 #include <vector>
+#include <events/micro_resources.h>
 
 ///\brief journal events: the files the game keeps beside the journals - Status.json, Market.json, Cargo.json
 namespace events
@@ -112,3 +113,11 @@ auto load_market(std::string journal_dir_path) -> cxx23::expected<events::market
 ///\brief Cargo.json beside the journals, overwritten - it says what is aboard right now
 [[nodiscard]]
 auto load_cargo(std::string journal_dir_path) -> cxx23::expected<events::cargo_file_t, std::error_code>;
+
+///\brief ShipLocker.json beside the journals - for the ShipLocker event that came without its lists
+[[nodiscard]]
+auto load_ship_locker(std::string journal_dir_path) -> cxx23::expected<events::ship_locker_t, std::error_code>;
+
+///\brief Backpack.json beside the journals - for the Backpack event that came without its lists
+[[nodiscard]]
+auto load_backpack(std::string journal_dir_path) -> cxx23::expected<events::backpack_t, std::error_code>;

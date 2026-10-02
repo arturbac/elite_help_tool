@@ -264,6 +264,8 @@ constexpr bool rebuilds_present_state{
   // where the commander stands on foot - they only move the tracker, write nothing
   or std::same_as<event_t, events::book_dropship_t> or std::same_as<event_t, events::dropship_deploy_t>
   or std::same_as<event_t, events::embark_t> or std::same_as<event_t, events::died_t>
+  // what is owned and carried on foot - a few dozen in a session, and the dictionary is only written once a run
+  or std::same_as<event_t, events::ship_locker_t> or std::same_as<event_t, events::backpack_t>
   // the fleet: each of them sets whole rows, so a repeat writes the same again - and a database older than
   // the fleet table gets it from the newest journal
   or fleet::changes_fleet<event_t>
@@ -337,6 +339,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
         or std::same_as<T, events::mission_abandoned_t> or std::same_as<T, events::mission_failed_t>
         or std::same_as<T, events::mission_redirected_t> or std::same_as<T, events::missions_t>
         or std::same_as<T, events::sell_micro_resources_t> or std::same_as<T, events::backpack_change_t>
+        or std::same_as<T, events::ship_locker_t> or std::same_as<T, events::backpack_t>
         or std::same_as<T, events::buy_micro_resources_t> or std::same_as<T, events::trade_micro_resources_t>
         or std::same_as<T, events::commit_crime_t>
         or std::same_as<T, events::shipyard_transfer_t> or fleet::changes_fleet<T>
@@ -791,6 +794,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           }
         else if constexpr(std::same_as<T, events::backpack_change_t>)
           {
+          apply_backpack_change(backpack, event);
           if(not event.Added.empty())
             update_micro_resources = true;
           for(events::backpack_item_t const & item: event.Added)
@@ -825,6 +829,49 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
               if(auto res{db_.store(*used)}; not res)
                 spdlog::error("failed to store the use of {}", item.Name);
               }
+          }
+        else if constexpr(std::same_as<T, events::ship_locker_t> or std::same_as<T, events::backpack_t>)
+          {
+          // the event comes with its lists or without them, and then the file beside the journals has them
+          T inventory{event};
+          if(not events::carries_lists(inventory))
+            {
+            auto file{[this]
+                      {
+                        if constexpr(std::same_as<T, events::ship_locker_t>)
+                          return load_ship_locker(journal_dir_path_);
+                        else
+                          return load_backpack(journal_dir_path_);
+                      }()};
+            if(file)
+              inventory = std::move(*file);
+            else
+              spdlog::warn("failed to read the {} file", std::same_as<T, events::ship_locker_t> ? "ShipLocker" : "Backpack");
+            }
+
+          // a thing a mission hands out reaches the locker and nowhere else - this is the only chance to learn
+          // that it is a micro resource and not a commodity some market ought to sell
+          events::for_each_item(
+            inventory,
+            [this](events::locker_item_t const & item, std::string_view category)
+            {
+              auto key{micro_resource_key(item.Name)};
+              // a mission's thing often comes without a readable name - the internal one still says what it is
+              if(learnt_micro_resources_.contains(key))
+                return;
+              if(auto res{db_.store(info::micro_resource_t{
+                   .name = key, .id = {}, .localised = item.Name_Localised, .category = std::string{category}
+                 })};
+                 not res)
+                spdlog::error("failed to store micro resource {}", item.Name);
+              learnt_micro_resources_.insert(std::move(key));
+            }
+          );
+
+          if constexpr(std::same_as<T, events::ship_locker_t>)
+            ship_locker = std::move(inventory);
+          else
+            backpack = std::move(inventory);
           }
         else if constexpr(std::same_as<T, events::buy_micro_resources_t> or std::same_as<T, events::trade_micro_resources_t>)
           {
@@ -923,7 +970,14 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
         else if constexpr(std::same_as<T, events::dropship_deploy_t>)
           ground_cz_.dropship_deploy(db_, event);
         else if constexpr(std::same_as<T, events::embark_t>)
+          {
           ground_cz_.embark();
+          // aboard, the finds go into the locker and the ShipLocker that follows lists them - the consumables
+          // stay in the backpack for the next walk
+          backpack.Items.clear();
+          backpack.Components.clear();
+          backpack.Data.clear();
+          }
         else if constexpr(std::same_as<T, events::died_t>)
           ground_cz_.died();
         else if constexpr(std::same_as<T, events::shipyard_swap_t>)

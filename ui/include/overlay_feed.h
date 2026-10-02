@@ -189,7 +189,9 @@ private:
 
   ///\brief joins the requirements with the hold - without it two corners of the screen have to be compared
   [[nodiscard]]
-  auto build_supply_lines(events::cargo_file_t const & cargo) const -> std::vector<overlay::line_t>;
+  auto build_supply_lines(
+    events::cargo_file_t const & cargo, events::ship_locker_t const & locker, events::backpack_t const & backpack
+  ) const -> std::vector<overlay::line_t>;
 
   std::unique_ptr<overlay::server_t> server_;
   database_storage_t db_;

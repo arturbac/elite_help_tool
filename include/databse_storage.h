@@ -120,7 +120,7 @@ struct database_storage_t
   [[nodiscard]]
   auto load_producers() -> expected_ec<std::vector<info::supply_option_t>>;
 
-  ///\brief the readable names of every micro resource ever seen (Data, Goods or Assets alike) - none
+  ///\brief the internal and readable names of every micro resource ever seen (Data, Goods or Assets alike) - none
   /// sits in a station's commodity market, so a mission asking for one never has a market to point at
   [[nodiscard]]
   auto load_micro_resource_commodities() -> expected_ec<std::vector<std::string>>;

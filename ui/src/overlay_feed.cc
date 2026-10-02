@@ -3367,7 +3367,9 @@ auto overlay_feed_t::build_settlement_lines(current_state_t const & state) const
   return lines;
   }
 
-auto overlay_feed_t::build_supply_lines(events::cargo_file_t const & cargo) const -> std::vector<overlay::line_t>
+auto overlay_feed_t::build_supply_lines(
+  events::cargo_file_t const & cargo, events::ship_locker_t const & locker, events::backpack_t const & backpack
+) const -> std::vector<overlay::line_t>
   {
   if(needs_.empty())
     return {};
@@ -3384,6 +3386,20 @@ auto overlay_feed_t::build_supply_lines(events::cargo_file_t const & cargo) cons
     if(auto const localised{key(item.Name_Localised)}; not localised.empty() and localised != internal)
       aboard[localised] += item.Count;
     }
+
+  // what a mission on foot hands out or asks for - a virus to upload, data off a terminal - is never in the
+  // hold but in the locker aboard or in the backpack, two inventories that never list the same thing twice
+  auto const count_on_foot{
+    [&](events::locker_item_t const & item, std::string_view)
+    {
+      auto const internal{key(item.Name)};
+      aboard[internal] += item.Count;
+      if(auto const localised{key(item.Name_Localised)}; not localised.empty() and localised != internal)
+        aboard[localised] += item.Count;
+    }
+  };
+  events::for_each_item(locker, count_on_foot);
+  events::for_each_item(backpack, count_on_foot);
 
   auto const held{
     [&](std::string const & commodity) -> uint32_t
@@ -4652,7 +4668,7 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
       overlay::block_t{.corner = overlay::corner_e::top_right, .ttl_ms = block_ttl_ms(), .lines = std::move(settlement)}
     );
 
-  if(auto supply{build_supply_lines(state.cargo)}; not supply.empty())
+  if(auto supply{build_supply_lines(state.cargo, state.ship_locker, state.backpack)}; not supply.empty())
     frame.blocks.push_back(
       overlay::block_t{.corner = overlay::corner_e::top_right, .ttl_ms = block_ttl_ms(), .lines = std::move(supply)}
     );

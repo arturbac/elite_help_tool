@@ -1,5 +1,7 @@
 #include <boost/ut.hpp>
 #include <on_foot.h>
+#include <events/micro_resources.h>
+#include <json_io.h>
 
 auto main() -> int
   {
@@ -68,4 +70,49 @@ auto main() -> int
     expect(log.at(t0 + seconds{3}).empty());
     expect(log.at(t0 + seconds{4}) == "Pistol");
   };
-  }
+  
+  "a locker read off the journal line"_test = []
+  {
+    std::string const line{
+      R"({ "timestamp":"2026-10-02T22:43:34Z", "event":"ShipLocker", "Items":[ { "Name":"virus", "OwnerID":0,)"
+      R"( "MissionID":1067513890, "Count":1 } ], "Components":[ ], "Consumables":[ ], "Data":[ { "Name":"surveilleancelogs",)"
+      R"( "Name_Localised":"Surveillance Logs", "OwnerID":0, "Count":3 } ] })"
+    };
+    ::events::ship_locker_t locker{};
+    expect(not eht::json::read_lenient(locker, line));
+    expect(::events::carries_lists(locker));
+    expect(fatal(locker.Items.size() == 1_u));
+    expect(locker.Items[0].MissionID == 1067513890_ull);
+
+    std::vector<std::string> categories;
+    ::events::for_each_item(locker, [&](::events::locker_item_t const &, std::string_view c) { categories.emplace_back(c); });
+    expect(categories == std::vector<std::string>{"Item", "Data"});
+
+    // the bare event that leaves the lists in ShipLocker.json
+    ::events::ship_locker_t bare{};
+    expect(not eht::json::read_lenient(bare, std::string{R"({ "timestamp":"2026-01-07T17:25:29Z", "event":"ShipLocker" })"}));
+    expect(not ::events::carries_lists(bare));
+  };
+
+  "the backpack follows its changes"_test = []
+  {
+    ::events::backpack_t backpack{};
+    backpack.Consumables.push_back(::events::locker_item_t{.Name = "healthpack", .Name_Localised = "Medkit", .Count = 2u});
+
+    ::events::backpack_change_t change{};
+    change.Added.push_back(::events::backpack_item_t{.Name = "$Virus_Name;", .Name_Localised = "Virus", .Type = "Item", .Count = 1u});
+    change.Added.push_back(::events::backpack_item_t{.Name = "virus", .Name_Localised = "Virus", .Type = "Item", .Count = 1u});
+    change.Removed.push_back(::events::backpack_item_t{.Name = "healthpack", .Name_Localised = "Medkit", .Type = "Consumable", .Count = 1u});
+    apply_backpack_change(backpack, change);
+    expect(fatal(backpack.Items.size() == 1_u));
+    expect(backpack.Items[0].Count == 2_u);
+    expect(fatal(backpack.Consumables.size() == 1_u));
+    expect(backpack.Consumables[0].Count == 1_u);
+
+    // uploaded to the data port - the row goes, it does not stay at nought
+    ::events::backpack_change_t upload{};
+    upload.Removed.push_back(::events::backpack_item_t{.Name = "virus", .Name_Localised = "Virus", .Type = "Item", .Count = 2u});
+    apply_backpack_change(backpack, upload);
+    expect(backpack.Items.empty());
+  };
+}

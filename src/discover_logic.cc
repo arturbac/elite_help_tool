@@ -565,14 +565,57 @@ auto micro_resource_key(std::string_view name) -> std::string
   std::string_view key{name};
   if(key.starts_with('$'))
     key.remove_prefix(1);
-  if(key.ends_with("_name;"sv))
-    key.remove_suffix(6);
 
+  // lowered first - a mission names the same thing "$Virus_Name;" that the locker calls "virus"
   std::string result;
   result.reserve(key.size());
   for(char const c: key)
     result.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
+  if(result.ends_with("_name;"sv))
+    result.resize(result.size() - 6);
   return result;
+  }
+
+auto apply_backpack_change(events::backpack_t & backpack, events::backpack_change_t const & change) -> void
+  {
+  using namespace std::literals;
+  auto const list_of{[&backpack](std::string_view type) -> std::vector<events::locker_item_t> &
+                     {
+                       if(type == "Component"sv)
+                         return backpack.Components;
+                       if(type == "Consumable"sv)
+                         return backpack.Consumables;
+                       if(type == "Data"sv)
+                         return backpack.Data;
+                       return backpack.Items;
+                     }};
+  auto const row_of{[](std::vector<events::locker_item_t> & list, std::string_view name)
+                    {
+                      auto const key{micro_resource_key(name)};
+                      return std::ranges::find_if(
+                        list, [&key](events::locker_item_t const & row) { return micro_resource_key(row.Name) == key; }
+                      );
+                    }};
+
+  for(events::backpack_item_t const & item: change.Added)
+    {
+    auto & list{list_of(item.Type)};
+    if(auto row{row_of(list, item.Name)}; row != list.end())
+      row->Count += item.Count;
+    else
+      list.push_back(events::locker_item_t{.Name = item.Name, .Name_Localised = item.Name_Localised, .Count = item.Count});
+    }
+  for(events::backpack_item_t const & item: change.Removed)
+    {
+    auto & list{list_of(item.Type)};
+    if(auto row{row_of(list, item.Name)}; row != list.end())
+      {
+      if(row->Count > item.Count)
+        row->Count -= item.Count;
+      else
+        list.erase(row);
+      }
+    }
   }
 
 auto to_system_signal(events::fss_signal_discovered_t const & signal, std::chrono::sys_seconds seen)
@@ -811,6 +854,30 @@ auto load_cargo(std::string journal_dir_path) -> cxx23::expected<events::cargo_f
   return result;
   }
 
+auto load_ship_locker(std::string journal_dir_path) -> cxx23::expected<events::ship_locker_t, std::error_code>
+  {
+  events::ship_locker_t result{};
+  std::filesystem::path locker_json{journal_dir_path};
+  locker_json /= "ShipLocker.json";
+
+  if(auto res{eht::json::read_file_lenient(result, locker_json.string())}; res) [[unlikely]]
+    return cxx23::unexpected(std::make_error_code(std::errc::resource_unavailable_try_again));
+
+  return result;
+  }
+
+auto load_backpack(std::string journal_dir_path) -> cxx23::expected<events::backpack_t, std::error_code>
+  {
+  events::backpack_t result{};
+  std::filesystem::path backpack_json{journal_dir_path};
+  backpack_json /= "Backpack.json";
+
+  if(auto res{eht::json::read_file_lenient(result, backpack_json.string())}; res) [[unlikely]]
+    return cxx23::unexpected(std::make_error_code(std::errc::resource_unavailable_try_again));
+
+  return result;
+  }
+
 auto generic_state_t::discovery(std::string_view input) -> void
   {
   raw_line(input);
@@ -868,6 +935,8 @@ auto generic_state_t::discovery(std::string_view input) -> void
       parse_and_handle.template operator()<events::supercruise_destination_drop_t>();
       break;
     case BackpackChange:   parse_and_handle.template operator()<events::backpack_change_t>(); break;
+    case ShipLocker:       parse_and_handle.template operator()<events::ship_locker_t>(); break;
+    case Backpack:         parse_and_handle.template operator()<events::backpack_t>(); break;
     case SellMicroResources:
       parse_and_handle.template operator()<events::sell_micro_resources_t>();
       break;

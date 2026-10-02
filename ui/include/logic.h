@@ -1,6 +1,7 @@
 #pragma once
 #include <map>
 #include <optional>
+#include <set>
 #include <ground_cz.h>
 #include <on_foot.h>
 #include <functional>
@@ -62,6 +63,10 @@ struct current_state_t : public generic_state_t
 
   ///\brief what is in the hold right now - a passing state, Cargo.json gets overwritten
   events::cargo_file_t cargo;
+  ///\brief what is owned on foot and kept aboard - a mission's virus or regulator lies here, not in the hold
+  events::ship_locker_t ship_locker;
+  ///\brief what is carried on foot right now
+  events::backpack_t backpack;
 
   ///\brief the ship under the crosshairs right now
   ///\detail live only, and deliberately so: a target is gone the moment it is let go, and writing
@@ -216,6 +221,9 @@ struct current_state_t : public generic_state_t
   ground_cz_tracker_t ground_cz_;
   ///\brief the consumables and the kills on foot, and which kills a grenade made
   on_foot_tracker_t on_foot_;
+  ///\brief the micro resources already written to the dictionary in this run - a locker lists a hundred
+  /// of them at every embark, and each one learnt once is enough
+  std::set<std::string> learnt_micro_resources_;
   ///\brief the weapon changes seen in Status.json, looked at a few times a second
   weapon_log_t weapons_;
   ///\brief what the commander held at a kill just made - a kill read long after it was made gets nothing

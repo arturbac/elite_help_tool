@@ -40,6 +40,8 @@ using event_holder_t = std::variant<
   supercruise_destination_drop_t,
   jet_cone_boost_t,
   backpack_change_t,
+  ship_locker_t,
+  backpack_t,
   fss_all_bodies_found_t,
   scan_bary_centre_t,
   scan_detailed_scan_t,

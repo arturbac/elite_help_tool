@@ -15,11 +15,14 @@ passenger and the rest. On-foot job boards and ground conflict zones are their o
 - **Where to go**: arrows on the system map at the bodies and ports missions send you to. At a
   settlement, what to hand in here, what to do here, and the faction-wide jobs that count at any
   settlement of that faction.
-- **Mission cargo**: the goods delivery missions still need against what is in the hold, and the
+- **Mission cargo**: the goods delivery missions still need against what is aboard, and the
   known markets and producers that supply them - "no source known" only for something a market could
   plausibly sell; a micro resource (Data downloaded off a terminal, Goods or Assets picked up or
   stolen at a settlement - a Surveillance Logs, a Nutritional Concentrate) never sits in a station's
-  market at all, so it is never flagged that way.
+  market at all, so it is never flagged that way. The count in brackets takes the hold (Cargo.json),
+  the ship's locker (the ShipLocker event or ShipLocker.json) and the backpack (the Backpack event or
+  Backpack.json, then each BackpackChange) together, so a thing a mission hands out - a Virus to
+  upload at a data port - counts as held and is learnt as a micro resource from the locker alone.
 - **What is really paid**: the reward is taken from the hand-in, not from the offer, and missions
   the game no longer lists expire by themselves.
 - **What a death would cost**: unsold exobiology, cartography and bounties at risk, moved to the

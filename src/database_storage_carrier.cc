@@ -71,10 +71,15 @@ auto database_storage_t::load_micro_resource_commodities() -> expected_ec<std::v
   auto rows{sqlite::select_from<info::micro_resource_t>(db_->db, sql_iface::tables::micro_resource, "")};
   if(not rows) [[unlikely]]
     return cxx23::unexpected{rows.error()};
+  // the internal name too - a locker row such as "virus" may never have been given a readable one
   std::vector<std::string> names;
-  names.reserve(rows->size());
+  names.reserve(rows->size() * 2);
   for(info::micro_resource_t & row: *rows)
-    names.push_back(std::move(row.localised));
+    {
+    names.push_back(std::move(row.name));
+    if(not row.localised.empty())
+      names.push_back(std::move(row.localised));
+    }
   return names;
   }
 
