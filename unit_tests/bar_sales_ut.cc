@@ -1,5 +1,6 @@
 #include <boost/ut.hpp>
 #include <bar_sales.h>
+#include <algorithm>
 
 auto main() -> int
   {
@@ -81,6 +82,21 @@ auto main() -> int
     expect(prices.at("a") == 1000.0_d);
     expect(prices.at("b") == 3000.0_d);
     expect(not prices.contains("c"));
+  };
+
+  "the price list comes first, the sales fill in what it lacks"_test = []
+  {
+    auto const list{bar::bartender_prices()};
+    expect(std::ranges::is_sorted(list, {}, &std::pair<std::string_view, uint32_t>::first));
+    expect(std::ranges::adjacent_find(list, {}, &std::pair<std::string_view, uint32_t>::first) == list.end());
+    std::vector<bar::port_sale_row_t> const rows{
+      {.sale_oid = 1, .price = 36'000u, .name = "weaponschematic", .count = 1u},
+      {.sale_oid = 1, .price = 36'000u, .name = "tacticalplans", .count = 1u},
+    };
+    auto const prices{bar::port_prices(rows)};
+    expect(prices.at("weaponschematic") == 35'000.0_d);
+    expect(prices.at("cocktailrecipes") == 3'000.0_d);
+    expect(prices.at("tacticalplans") == 1'000.0_d);
   };
 
   "a mission is its rewards of one category at what they fetch"_test = []

@@ -337,7 +337,8 @@ auto micro_resource_window_t::setup_ui() -> void
       "Read from the shelf: a fall in stock between two bartender readings is a sale, at the price shown before it;\n"
       "a rise is what you added. Read the bar on arriving, before adding anything, and again after.\n"
       "Absences with a sale: in how many of the absences the item lay on the shelf it sold at all - absences, not pieces.\n"
-      "Port price: what a port's bartender pays, worked out from your own sales at ports - blank when never sold there"
+      "Port price: what a port's bartender pays, from the known price list; the few rare kinds missing from it are worked\n"
+      "out from your own sales at ports - blank when never sold there"
     );
     bar_layout->addWidget(view, 1);
     bar_views_[ix++] = view;

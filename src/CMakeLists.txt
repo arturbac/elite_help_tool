@@ -14,6 +14,7 @@ target_sources(eht
   ground_cz.cc
   on_foot.cc
   bar_sales.cc
+  bartender_prices.cc
   legal.cc
   fleet.cc
   territory.cc

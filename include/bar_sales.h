@@ -4,6 +4,7 @@
 #include <map>
 #include <span>
 #include <string>
+#include <utility>
 #include <vector>
 
 ///\brief what a carrier's bar sold, read from its shelf
@@ -23,9 +24,14 @@ struct port_sale_row_t
   uint32_t count;
   };
 
-///\brief a port's bartender pays the same for a kind everywhere, and a sale gives only its whole sum - so the
-/// prices come out of the sales themselves: a sale of one kind gives its price, and a sale in which all
-/// kinds but one are known gives that one, over and over until nothing more comes out
+///\brief what a port's bartender pays, by the game's name of the kind - the known price list, without the few
+/// rare kinds it has no price for
+[[nodiscard]]
+auto bartender_prices() -> std::span<std::pair<std::string_view, uint32_t> const>;
+
+///\brief a port's bartender pays the same for a kind everywhere, and a sale gives only its whole sum. The price
+/// list comes first; the kinds missing from it come out of the sales themselves: a sale of one kind gives its
+/// price, and a sale in which all kinds but one are known gives that one, over and over until nothing more comes out
 [[nodiscard]]
 auto port_prices(std::span<port_sale_row_t const> rows) -> std::map<std::string, double>;
 

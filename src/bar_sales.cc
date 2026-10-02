@@ -21,6 +21,8 @@ auto port_prices(std::span<port_sale_row_t const> rows) -> std::map<std::string,
     }
 
   std::map<std::string, double> known;
+  for(auto const & [name, price]: bartender_prices())
+    known.emplace(name, double(price));
   for(bool found{true}; found;)
     {
     found = false;

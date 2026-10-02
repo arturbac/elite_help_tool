@@ -26,10 +26,13 @@
   shelf does. Read the bartender on arriving, before adding anything, and again after: a fall in
   stock between readings is a sale at the price shown before it, a rise is what you added. Per
   item: units sold, revenue, in how many absences it sold at all out of those it lay on the
-  shelf, and the price against a port's bartender. The port price is worked out from your own
-  sales at ports - a sale of one kind gives its price, a sale where all kinds but one are known
-  gives that one. A reading with no stock and no price anywhere, written before the bar has
-  loaded, is skipped; a shelf sold out keeps its prices and counts as sold. Data, goods and assets
+  shelf, and the price against a port's bartender. The port price comes from a built-in list of
+  what a port's bartender pays, the same at every port (184 kinds, from the item pages of the Elite
+  Dangerous wiki, checked against the prices worked out from real sales). The few rare kinds the
+  list lacks are worked out from your own sales at ports - a sale of one kind gives its price, a
+  sale where all kinds but one are known gives that one. A reading with no stock and no price
+  anywhere, written before the bar has loaded, is skipped; a shelf sold out keeps its prices and
+  counts as sold. Data, goods and assets
   are listed apart, each with its sums over the heading.
 - **Mission value**: which kinds of mission pay best at your carrier's bar - what their material
   rewards fetch there, per mission and in all. The missions' credits are not counted.
