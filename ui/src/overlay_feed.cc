@@ -5103,7 +5103,18 @@ auto overlay_feed_t::build_server_link_lines(current_state_t const & state) -> s
   {
   auto const now{std::chrono::system_clock::now()};
   server_tail_.read(
-    netlog_dir_, [this](server_link::time_point_t at, std::string_view line) { server_link::feed(server_state_, at, line); }
+    netlog_dir_,
+    [this](server_link::time_point_t at, std::string_view line)
+    {
+      server_link::feed(server_state_, at, line);
+      // a new file is a new run of the game - nobody of the old one is linked any more
+      if(server_tail_.file() != players_file_)
+        {
+        players_ = {};
+        players_file_ = server_tail_.file();
+        }
+      instance_players::feed(players_, at, line);
+    }
   );
 
   // a silence means something only while a session runs: the game's process there, and Status.json saying
@@ -5152,5 +5163,17 @@ auto overlay_feed_t::build_server_link_lines(current_state_t const & state) -> s
         .color = warning.level == server_link::level_e::failing ? colour_expiring() : colour_alert()
       }
     );
+
+  // the other players come under the trouble - only while the game runs, its last file may end mid-session
+  if(eht::settings()->overlay.players_in_instance and server_game_)
+    {
+    if(uint32_t const players{instance_players::summary(players_).players}; players != players_told_)
+      {
+      spdlog::info("instance: {} other player{}", players, players == 1u ? "" : "s");
+      players_told_ = players;
+      }
+    if(auto const shown{instance_players::line(players_, now)}; shown)
+      lines.push_back(overlay::line_t{.text = shown->text, .color = shown->fresh ? colour_alert() : colour_plain()});
+    }
   return lines;
   }

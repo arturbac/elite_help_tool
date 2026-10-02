@@ -178,6 +178,8 @@ struct overlay_settings_t
   ///\brief this long without a single UDP datagram while a session runs is told as the game server's
   /// silence - several come every second while all is well
   uint32_t server_silence_ms{3000u};
+  ///\brief the other players in the instance, read from netLog, told under the link to the servers
+  bool players_in_instance{true};
   ///\brief a body worth less than this is not listed as worth mapping
   uint32_t minimum_body_value{300000u};
   ///\brief a mission with less than this left is shown as about to run out

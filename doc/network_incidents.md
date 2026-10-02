@@ -40,11 +40,15 @@ The window above looks back; the overlay tells the same kind of trouble while it
   - `Disconnected: ... (Too many retries)` naming an `EDServer#` - one of the game's servers given up,
     the missions' one as a rule first, 9 to 18 seconds before the session itself (red: 63 of 92 were
     followed by a disconnect within two minutes);
-  - `Disconnected: ...` with no `EDServer#` - the link to another player, through a `((Relay))` or
-    straight, given up for `Too many retries`, `timeout`, `Route request failed` or `dc-checksum`
-    (amber, told as the player's link: it never led to a disconnect from Frontier, 0 of 160, but in a
-    wing or a fight against another commander it is the game itself). A player leaving in good order
-    (`shutdown`) is passed over;
+  - `Disconnected: ...` with no `EDServer#` and not at port 19364 - the link to another player, through
+    a `((Relay))` or straight, given up for `Too many retries`, `timeout`, `Route request failed` or
+    `dc-checksum` (amber, told as the player's link: it never led to a disconnect from Frontier, 0 of
+    160, but in a wing or a fight against another commander it is the game itself). A player leaving in
+    good order (`shutdown`) is passed over, and so is `(ServerLink::~)`: the game closing its link to
+    one of Frontier's servers it no longer needs, many times an hour - 10,720 lines in the history
+    checked, against some 300 of players;
+  - `JoinSession:Island` / `LeftSession(n)` of another machine - the other players in the instance, see
+    [the overlay](overlay.md);
   - `Disconnect: type=N&reason=...` - the game's own disconnect;
   - `Webserver request failed: code N` (0 is no answer at all) and `HTTP Request took N sec` - the web
     API beside the game server, which the game writes down only for requests of 10 seconds or more.

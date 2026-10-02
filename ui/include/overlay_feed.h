@@ -23,6 +23,7 @@
 #include "hud_reader.h"
 #include <hot_drop.h>
 #include <server_link.h>
+#include <instance_players.h>
 
 #include <overlay_ipc.h>
 
@@ -317,6 +318,10 @@ private:
   std::chrono::steady_clock::time_point server_game_looked_;
   ///\brief what was told last, so the log says each change once
   std::vector<std::string> server_told_;
+  ///\brief the other players in the instance, from the same netLog - started again with each new file
+  instance_players::state_t players_;
+  std::filesystem::path players_file_;
+  uint32_t players_told_{};
   ///\brief reads what is new and gives the lines to show
   [[nodiscard]]
   auto build_server_link_lines(current_state_t const & state) -> std::vector<overlay::line_t>;

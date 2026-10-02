@@ -85,6 +85,17 @@ process carries no state of ours.
   failed in the last minute (no answer | HTTP 502 | ...)` and `Frontier API: <request> took N s` (the
   game writes down only requests of 10 s or more). See [network incidents](network_incidents.md#while-it-happens)
   for what is read and why.
+- **Players in the instance.** Under the server link a line counts the other players in the same
+  instance: `2 players in the instance, 1 of the wing, 1 through a relay - newest 8 s ago`, amber for
+  a minute after one not of the wing comes, plain after; `player left N s ago, none in the instance
+  now` for half a minute after the last goes. Out in the black, where nobody was expected, this is the
+  first word of company. It is read from the game's netLog: the game writes every session it shares
+  with another machine - `IJoinSession:Island` when it enters an instance, `JoinSession:Island` when
+  another player is in it, `LeftSession(n)` or `Disconnected` when one goes, `WingSession` for the
+  wing and `((Relay))` for a link through a relay. In the history checked, 96 of a hundred such joins
+  named the instance the game was in. The netLog never gives the commander's name nor the ship - only
+  the machine - so the line says how many, not who. `overlay.players_in_instance` (default `true`)
+  turns it off.
 - **Jump panel.** While the drive charges for a jump to another system, the game shows the
   destination's superpower emblem, and it is wrong for the Federation, the Empire and the Alliance
   (only independents get the right one). The overlay paints over it with the right emblem, and

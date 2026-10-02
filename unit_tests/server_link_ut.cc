@@ -102,6 +102,9 @@ auto main() -> int
     server_link::netlog_state_t quiet;
     feed(quiet, t0, "{23:10:49GMT 3935.921s} Disconnected: 260298145259691 x 4 [0/2]((1.2.3.4:5100))Name Unknown (shutdown)");
     feed(quiet, t0, "{23:10:49GMT 3935.921s} Disconnected: 260298145259691 x 4 ThisMachine Name Unknown (shutdown)");
+    // the game closing its link to a server it no longer needs, as it does many times an hour
+    feed(quiet, t0, "{08:21:03GMT 715.974s} Disconnected: 73955298349590 x 4 [0/2]((54.74.32.89:19364))EDServer#6229 (ServerLink::~)");
+    feed(quiet, t0, "{08:21:03GMT 715.974s} Disconnected: 73955298349590 x 4 [0/2]((54.74.32.89:19364))Name Unknown (ServerLink::~)");
     expect(warnings(quiet, std::nullopt, t0 + 1s).empty());
   };
 

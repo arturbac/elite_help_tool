@@ -88,9 +88,12 @@ auto feed(netlog_state_t & state, time_point_t at, std::string_view line) -> voi
     state.dropped_at = at;
     state.dropped_server = server_name(line);
     }
-  else if(line.contains("} Disconnected: ") and not line.contains("ThisMachine") and not line.contains("(shutdown)"))
+  else if(line.contains("} Disconnected: ") and not line.contains("ThisMachine") and not line.contains("(shutdown)")
+          and not line.contains("EDServer#") and not line.contains(":19364))"))
     {
-    // [1/2]((Relay))Name Unknown (Too many retries) - another player, the name never given
+    // [1/2]((Relay))Name Unknown (Too many retries) - another player, the name never given. Frontier's
+    // servers - EDServer#N, or a missions' server at port 19364 "Name Unknown" - are closed with
+    // "(ServerLink::~)" each time the game moves on to another, and are no player
     auto const open{line.rfind('(')};
     std::string_view const reason{open == std::string_view::npos ? "?" : after(line.substr(open), "(", ")")};
     state.player_dropped_at = at;

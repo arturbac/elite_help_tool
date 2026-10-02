@@ -28,6 +28,7 @@ target_sources(eht
   evidence_log.cc
   network_incident.cc
   server_link.cc
+  instance_players.cc
   credits.cc
   database_storage.cc
   database_storage_missions.cc
