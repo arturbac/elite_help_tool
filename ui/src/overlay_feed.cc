@@ -5099,6 +5099,54 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
   last_sent_ = now;
   }
 
+auto overlay_feed_t::log_traffic() -> void
+  {
+  auto const cfg{eht::settings()};
+  auto const steady{std::chrono::steady_clock::now()};
+  if(cfg->evidence.dir.empty() or cfg->evidence.traffic_interval_s == 0u
+     or (traffic_counters_ and steady - traffic_at_ < std::chrono::seconds{cfg->evidence.traffic_interval_s}))
+    return;
+
+  auto const read = [](char const * path)
+  {
+    std::ifstream file{path};
+    return std::string{std::istreambuf_iterator<char>{file}, std::istreambuf_iterator<char>{}};
+  };
+  auto const counters{netstate::parse_snmp(read("/proc/net/snmp"))};
+  auto const bytes{netstate::parse_net_dev(read("/proc/net/dev"))};
+  if(not counters or not bytes)
+    return;
+  // the first reading only starts the count
+  if(traffic_counters_ and traffic_bytes_)
+    {
+    instance_players::summary_t const counted{instance_players::summary(players_)};
+    netstate::traffic_t const traffic{
+      .seconds = std::chrono::duration<double>(steady - traffic_at_).count(),
+      .delta = netstate::delta(*traffic_counters_, *counters),
+      .bytes = {
+        .received = bytes->received >= traffic_bytes_->received ? bytes->received - traffic_bytes_->received : 0u,
+        .sent = bytes->sent >= traffic_bytes_->sent ? bytes->sent - traffic_bytes_->sent : 0u
+      },
+      .in_session = status_flags_ != 0u or status_flags2_ != 0u,
+      .players = counted.players,
+      .machines = players_.machines,
+      .act1 = players_.act1,
+      .act2 = players_.act2
+    };
+    auto const at{std::chrono::system_clock::now()};
+    evidence::append(
+      backup::expand_home(cfg->evidence.dir),
+      "traffic",
+      at,
+      netstate::traffic_line(at, *server_game_, traffic),
+      cfg->evidence.traffic_keep_days
+    );
+    }
+  traffic_counters_ = counters;
+  traffic_bytes_ = bytes;
+  traffic_at_ = steady;
+  }
+
 auto overlay_feed_t::build_server_link_lines(current_state_t const & state) -> std::vector<overlay::line_t>
   {
   auto const now{std::chrono::system_clock::now()};
@@ -5163,6 +5211,11 @@ auto overlay_feed_t::build_server_link_lines(current_state_t const & state) -> s
         .color = warning.level == server_link::level_e::failing ? colour_expiring() : colour_alert()
       }
     );
+
+  if(server_game_)
+    log_traffic();
+  else
+    traffic_counters_.reset();
 
   // the other players come under the trouble - only while the game runs, its last file may end mid-session
   if(eht::settings()->overlay.players_in_instance and server_game_)

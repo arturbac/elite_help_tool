@@ -90,4 +90,38 @@ auto log_line(
 ///\brief what happened between two readings of the counters
 [[nodiscard]]
 auto delta(counters_t const & before, counters_t const & now) noexcept -> counters_t;
+
+///\brief the bytes all the machine's interfaces but the loopback received and sent
+struct interface_bytes_t
+  {
+  uint64_t received{};
+  uint64_t sent{};
+  };
+
+///\brief the bytes out of the text of /proc/net/dev - "  eth0: <8 received columns> <8 sent columns>"
+[[nodiscard]]
+auto parse_net_dev(std::string_view text) -> std::optional<interface_bytes_t>;
+
+///\brief what came and went over some seconds, beside what netLog says of the other players - written down
+/// to learn how much traffic a player brings whom the game reaches through its server alone
+struct traffic_t
+  {
+  double seconds{};
+  ///\brief the system's counters over those seconds - the whole machine's, both accounts' games and any
+  /// other program's
+  counters_t delta;
+  interface_bytes_t bytes;
+  ///\brief Status.json says more than the main menu's nothing
+  bool in_session{};
+  ///\brief other players linked in the instance, from netLog
+  uint32_t players{};
+  ///\brief the game's own figures of its last ten minutes, from netLog: "machines=N&...&act1=X&act2=Y"
+  std::optional<uint32_t> machines;
+  std::optional<double> act1;
+  std::optional<double> act2;
+  };
+
+///\brief one line of the traffic log, JSON
+[[nodiscard]]
+auto traffic_line(std::chrono::system_clock::time_point at, int pid, traffic_t const & traffic) -> std::string;
   }  // namespace netstate

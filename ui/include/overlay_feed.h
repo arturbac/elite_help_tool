@@ -24,6 +24,7 @@
 #include <hot_drop.h>
 #include <server_link.h>
 #include <instance_players.h>
+#include <netstate.h>
 
 #include <overlay_ipc.h>
 
@@ -322,6 +323,12 @@ private:
   instance_players::state_t players_;
   std::filesystem::path players_file_;
   uint32_t players_told_{};
+  ///\brief the readings the traffic log counts from - the last written, and when
+  std::optional<netstate::counters_t> traffic_counters_;
+  std::optional<netstate::interface_bytes_t> traffic_bytes_;
+  std::chrono::steady_clock::time_point traffic_at_;
+  ///\brief writes the machine's traffic down beside the players netLog names, now and then
+  auto log_traffic() -> void;
   ///\brief reads what is new and gives the lines to show
   [[nodiscard]]
   auto build_server_link_lines(current_state_t const & state) -> std::vector<overlay::line_t>;

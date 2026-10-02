@@ -136,4 +136,18 @@ auto main() -> int
     expect(summary(state).players == 1u);
     expect(state.joined.size() == 1u) << "the other island's player forgotten";
   };
-  }
+  
+  "the game's own ten-minute figures are kept"_test = [t0]
+  {
+    instance_players::state_t state;
+    feed(
+      state,
+      t0,
+      "{22:27:44GMT 1809.613s} machines=5&numturnlinks=0&backlogtotal=0&backlogmax=0&avgsrtt=295&maxLoss=0.000&"
+      "avgLoss=0.000&act1=49.892&act2=16.060"
+    );
+    expect(state.machines == std::optional<uint32_t>{5u});
+    expect(state.act1 and *state.act1 > 49.89 and *state.act1 < 49.90);
+    expect(state.act2 and *state.act2 > 16.05 and *state.act2 < 16.07);
+  };
+}

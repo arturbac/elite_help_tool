@@ -40,6 +40,12 @@ struct state_t
   ///\brief when a player last came into the game's island, and when one last went
   std::optional<time_point_t> arrived_at;
   std::optional<time_point_t> left_at;
+  ///\brief the game's own figures of its last ten minutes - "machines=N&...&act1=X&act2=Y", written every
+  /// ten minutes; act2 was seen at about 0.3 alone and 16 to 30 with players linked, what it counts is
+  /// not known
+  std::optional<uint32_t> machines;
+  std::optional<double> act1;
+  std::optional<double> act2;
   };
 
 ///\brief takes one line of netLog, its moment already known

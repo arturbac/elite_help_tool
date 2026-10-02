@@ -306,6 +306,10 @@ struct evidence_settings_t
   uint32_t keep_days{2u};
   ///\brief how often the state of the game's network connections is written down
   uint32_t netstate_interval_ms{2000u};
+  ///\brief the machine's traffic beside the players netLog names, to the day's traffic-YYYY-MM-DD.jsonl this
+  /// often while the game runs - 0 writes none - and kept this many days
+  uint32_t traffic_interval_s{10u};
+  uint32_t traffic_keep_days{30u};
   ///\brief a report of each marker takes this much from before it and, written this long after it, from after it
   uint32_t report_before_s{600u};
   uint32_t report_after_s{300u};

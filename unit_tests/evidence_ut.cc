@@ -32,6 +32,42 @@ auto main() -> int
   {
   using namespace boost::ut;
 
+  "the interfaces' bytes are summed, the loopback left out"_test = []
+  {
+    constexpr std::string_view dev{
+      "Inter-|   Receive                                                |  Transmit\n"
+      " face |bytes    packets errs drop fifo frame compressed multicast|bytes    packets errs drop fifo colls carrier compressed\n"
+      "    lo: 5000000   100    0    0    0     0          0         0  5000000     100    0    0    0     0       0          0\n"
+      "enp5s0: 1200 10 0 0 0 0 0 0 300 5 0 0 0 0 0 0\n"
+      " wlan0: 34 1 0 0 0 0 0 0 66 1 0 0 0 0 0 0\n"
+    };
+    auto const bytes{netstate::parse_net_dev(dev)};
+    expect(fatal(bytes.has_value()));
+    expect(bytes->received == 1234u) << bytes->received;
+    expect(bytes->sent == 366u) << bytes->sent;
+    expect(not netstate::parse_net_dev("nothing").has_value());
+  };
+
+  "a traffic line gives the rates and netLog's own figures when known"_test = []
+  {
+    netstate::traffic_t traffic{
+      .seconds = 10.0,
+      .delta = {.udp_in = 300u, .udp_out = 200u},
+      .bytes = {.received = 102400u, .sent = 20480u},
+      .in_session = true,
+      .players = 1u,
+      .machines = 3u,
+      .act2 = 16.06
+    };
+    std::string const line{netstate::traffic_line(at(5h, 47min), 99, traffic)};
+    expect(
+      line
+      == R"({"ts_utc":"2026-09-29T05:47:00.000Z","pid":99,"seconds":10.0,"in_session":true,"udp_in":300,"udp_out":200,)"
+         R"("udp_in_per_s":30.0,"udp_out_per_s":20.0,"rx_bytes":102400,"tx_bytes":20480,"rx_kib_per_s":10.0,)"
+         R"("tx_kib_per_s":2.0,"players":1,"netlog_machines":3,"netlog_act2":16.060})"
+    ) << line;
+  };
+
   "the system's counters are read by the names in the line above them"_test = []
   {
     auto const counters{netstate::parse_snmp(snmp)};

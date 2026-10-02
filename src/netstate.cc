@@ -335,4 +335,64 @@ auto log_line(
   line += "]}";
   return line;
   }
+
+auto parse_net_dev(std::string_view text) -> std::optional<interface_bytes_t>
+  {
+  std::optional<interface_bytes_t> result;
+  for(auto const part: std::views::split(text, '\n'))
+    {
+    std::string_view const line{part.begin(), part.end()};
+    auto const colon{line.find(':')};
+    if(colon == std::string_view::npos)
+      continue;
+    std::string_view name{line.substr(0u, colon)};
+    name.remove_prefix(std::min(name.find_first_not_of(' '), name.size()));
+    if(name == "lo")
+      continue;
+    auto const fields{words(line.substr(colon + 1u))};
+    if(fields.size() < 9u)
+      continue;
+    uint64_t received{};
+    uint64_t sent{};
+    if(std::from_chars(fields[0].data(), fields[0].data() + fields[0].size(), received).ec != std::errc{}
+       or std::from_chars(fields[8].data(), fields[8].data() + fields[8].size(), sent).ec != std::errc{})
+      continue;
+    if(not result)
+      result.emplace();
+    result->received += received;
+    result->sent += sent;
+    }
+  return result;
+  }
+
+auto traffic_line(std::chrono::system_clock::time_point at, int pid, traffic_t const & traffic) -> std::string
+  {
+  double const seconds{traffic.seconds > 0.0 ? traffic.seconds : 1.0};
+  std::string line{std::format(
+    R"({{"ts_utc":"{:%FT%T}Z","pid":{},"seconds":{:.1f},"in_session":{},"udp_in":{},"udp_out":{},)"
+    R"("udp_in_per_s":{:.1f},"udp_out_per_s":{:.1f},"rx_bytes":{},"tx_bytes":{},"rx_kib_per_s":{:.1f},)"
+    R"("tx_kib_per_s":{:.1f},"players":{})",
+    std::chrono::floor<std::chrono::milliseconds>(at),
+    pid,
+    traffic.seconds,
+    traffic.in_session,
+    traffic.delta.udp_in,
+    traffic.delta.udp_out,
+    double(traffic.delta.udp_in) / seconds,
+    double(traffic.delta.udp_out) / seconds,
+    traffic.bytes.received,
+    traffic.bytes.sent,
+    double(traffic.bytes.received) / 1024.0 / seconds,
+    double(traffic.bytes.sent) / 1024.0 / seconds,
+    traffic.players
+  )};
+  if(traffic.machines)
+    line += std::format(R"(,"netlog_machines":{})", *traffic.machines);
+  if(traffic.act1)
+    line += std::format(R"(,"netlog_act1":{:.3f})", *traffic.act1);
+  if(traffic.act2)
+    line += std::format(R"(,"netlog_act2":{:.3f})", *traffic.act2);
+  line += '}';
+  return line;
+  }
   }  // namespace netstate

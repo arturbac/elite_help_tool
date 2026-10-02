@@ -70,6 +70,25 @@ namespace
 
 auto feed(state_t & state, time_point_t at, std::string_view line) -> void
   {
+  if(auto const pos{line.find("} machines=")}; pos != std::string_view::npos)
+    {
+    // machines=2&numturnlinks=0&backlogtotal=0&backlogmax=0&avgsrtt=533&maxLoss=0.000&avgLoss=0.000&act1=34.918&act2=0.367
+    auto const number = [line]<typename value_t>(std::string_view key, value_t) -> std::optional<value_t>
+    {
+      auto const at_key{line.find(key)};
+      if(at_key == std::string_view::npos)
+        return std::nullopt;
+      std::string_view const rest{line.substr(at_key + key.size())};
+      value_t value{};
+      if(std::from_chars(rest.data(), rest.data() + rest.size(), value).ec != std::errc{})
+        return std::nullopt;
+      return value;
+    };
+    state.machines = number("machines=", uint32_t{});
+    state.act1 = number("&act1=", double{});
+    state.act2 = number("&act2=", double{});
+    return;
+    }
   bool const mine{line.contains("ThisMachine")};
   if(auto const pos{line.find("JoinSession:")}; pos != std::string_view::npos and pos != 0u)
     {

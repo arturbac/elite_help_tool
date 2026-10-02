@@ -29,6 +29,20 @@ routes. The lines hold the addresses the game talks to, other players' among the
 the machine and give them to nobody but Frontier. The daily logs are kept 2 days
 (`evidence.keep_days`); an older day's file is deleted when a new day's starts.
 
+While the game runs, the machine's traffic also goes every 10 s (`evidence.traffic_interval_s`, 0
+writes none) to the day's `<dir>/traffic-YYYY-MM-DD.jsonl`, kept 30 days
+(`evidence.traffic_keep_days`): `pid` (the game's, so two accounts are told apart), `seconds`
+since the last line, `in_session` (Status.json says more than the main menu's nothing), the UDP
+datagrams received and sent from `/proc/net/snmp` (`udp_in`, `udp_out` and per second), the bytes
+of all interfaces but the loopback from `/proc/net/dev` (`rx_bytes`, `tx_bytes` and KiB per
+second), `players` (the other players linked in the instance, see [the overlay](overlay.md)) and
+the game's own figures of its last ten minutes from netLog when it has written them
+(`netlog_machines`, `netlog_act1`, `netlog_act2`). The counts are the whole machine's - both
+accounts' games and any other program's. It is written to learn how much traffic another player
+brings when the game reaches them through its server alone, with no link of its own to them: once
+a player showed in the contacts while netLog named no machine but Frontier's servers. No addresses
+go into it.
+
 Five minutes after a marker (`evidence.report_after_s`), once what followed it is in the logs
 too, EHT writes a report into `<dir>/reports/<moment>/`: the picture, `marker.json`, the lines of
 `netstate.jsonl` and `sensors.jsonl` from 10 minutes before (`evidence.report_before_s`) to 5
