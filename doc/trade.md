@@ -27,7 +27,7 @@
   stock between readings is a sale at the price shown before it, a rise is what you added. Per
   item: units sold, revenue, in how many absences it sold at all out of those it lay on the
   shelf, and the price against a port's bartender. The port price comes from a built-in list of
-  what a port's bartender pays, the same at every port (184 kinds, from the item pages of the Elite
+  what a port's bartender pays, the same at every port (185 kinds, from the item pages of the Elite
   Dangerous wiki, checked against the prices worked out from real sales). The few rare kinds the
   list lacks are worked out from your own sales at ports - a sale of one kind gives its price, a
   sale where all kinds but one are known gives that one. A reading with no stock and no price

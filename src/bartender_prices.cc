@@ -8,8 +8,9 @@ namespace
   {
   ///\brief what a port's bartender pays for each kind, the same at every port. Taken from the
   /// item pages of the Elite Dangerous wiki and checked against the 30 kinds worked out from own sales at ports,
-  /// which all agreed. A few rare kinds have no price there and are left to the sales
-  constexpr std::array<std::pair<std::string_view, uint32_t>, 184> prices{{
+  /// which all agreed. Tactical Plans, missing there, is the most the carriers' bars ask for it over the cap of
+  /// 100 times the port's price. A few rare kinds have no price at all and are left to the sales
+  constexpr std::array<std::pair<std::string_view, uint32_t>, 185> prices{{
     {"accidentlogs", 4'000u},
     {"aerogel", 500u},
     {"agriculturalprocesssample", 50'000u},
@@ -172,6 +173,7 @@ namespace
     {"surveilleancelogs", 19'000u},
     {"syntheticgenome", 100'000u},
     {"syntheticpathogen", 75'000u},
+    {"tacticalplans", 18'000u},
     {"taxrecords", 16'000u},
     {"titaniumplating", 600u},
     {"topographicalsurveys", 12'000u},

@@ -91,12 +91,12 @@ auto main() -> int
     expect(std::ranges::adjacent_find(list, {}, &std::pair<std::string_view, uint32_t>::first) == list.end());
     std::vector<bar::port_sale_row_t> const rows{
       {.sale_oid = 1, .price = 36'000u, .name = "weaponschematic", .count = 1u},
-      {.sale_oid = 1, .price = 36'000u, .name = "tacticalplans", .count = 1u},
+      {.sale_oid = 1, .price = 36'000u, .name = "virus", .count = 1u},
     };
     auto const prices{bar::port_prices(rows)};
     expect(prices.at("weaponschematic") == 35'000.0_d);
     expect(prices.at("cocktailrecipes") == 3'000.0_d);
-    expect(prices.at("tacticalplans") == 1'000.0_d);
+    expect(prices.at("virus") == 1'000.0_d);
   };
 
   "a mission is its rewards of one category at what they fetch"_test = []
