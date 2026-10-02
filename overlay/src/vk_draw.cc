@@ -1631,6 +1631,24 @@ namespace
       stack_size[index] = draw_window(window_name(corner), position, pivot, width, stats_here, in_stack, height_limit);
       }
 
+    // the one thing the player asked for in the middle screen: a few characters in its corner, which no
+    // panel of the game uses
+    if(layout.centre_fps)
+      {
+      float const centre_left{(display.x - centre_screen_width(display, layout)) * 0.5f};
+      ImGui::SetNextWindowBgAlpha(0.f);
+      ImGui::SetNextWindowPos(
+        ImVec2{centre_left + layout.corner_margin, layout.corner_margin}, ImGuiCond_Always, ImVec2{0.f, 0.f}
+      );
+      if(ImGui::Begin("eht_centre_fps", nullptr, flags))
+        {
+        draw_ground(data, layout);
+        // wrapping text in a window that sizes itself to it breaks the line after every character
+        ImGui::TextColored(to_color(0x9ad1ffu), "%.0f fps", double{data.fps});
+        }
+      ImGui::End();
+      }
+
     // the blocks asked to stand beside a stack take what is left of the band next to it, on the same edge;
     // when the stack leaves too little of the band they go on top of it after all
     for(size_t index{}; index != 4u; ++index)

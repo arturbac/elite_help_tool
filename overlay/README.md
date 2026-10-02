@@ -64,7 +64,8 @@ in it.
 
 These are the only ones, needed before the layer connects to the tool. The whole layout (text
 scale, the widths of the side bands and the middle screen, where the head-up readouts stand,
-margins, opacity, the layer's own diagnostics) comes from `elite_help_tool` with every frame, from
+margins, opacity, the layer's own diagnostics, the frame rate in the top left corner of the middle
+screen - `centre_fps`, on by default) comes from `elite_help_tool` with every frame, from
 the `overlay.layout` section of `eht_settings.json` in the directory the tool runs from. A saved
 change shows in the game at once, and a change of text scale rebuilds the layer's fonts without
 restarting the game. The old `EHT_OVERLAY_SCALE`, `_SIDE_WIDTH`, `_CENTRE_WIDTH`, `_HUD_GAP`,

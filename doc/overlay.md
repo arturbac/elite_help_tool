@@ -95,6 +95,7 @@ process carries no state of ours.
   ![The corrected jump panel with the destination's factions listed below it](images/overlay_jump_panel.png)
 
 The layout (text size, band widths, where the readouts stand, opacity) comes from
-`eht_settings.json` and changes live. The Steam launch option is one variable:
+`eht_settings.json` and changes live. The frame rate also stands alone in the top left corner of
+the middle screen; `overlay.layout.centre_fps` (default `true`) turns it off. The Steam launch option is one variable:
 [building_and_running.md](building_and_running.md). How the layer works and why nothing in
 it can take the game down: [overlay/README.md](../overlay/README.md).

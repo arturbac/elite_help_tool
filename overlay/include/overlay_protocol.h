@@ -336,6 +336,9 @@ struct layout_t
   float chart_width{360.f};
   ///\brief the layer's own line - frame rate and connection - at the top of the right band
   bool stats{true};
+  ///\brief the frame rate alone in the top left corner of the middle screen, where it is read without a turn
+  /// of the head. A field an older layer skips
+  bool centre_fps{true};
   };
 
 ///\brief a picture of the middle of the screen, asked of the layer
