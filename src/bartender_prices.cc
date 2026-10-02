@@ -7,10 +7,11 @@ namespace bar
 namespace
   {
   ///\brief what a port's bartender pays for each kind, the same at every port. Taken from the
-  /// item pages of the Elite Dangerous wiki and checked against the 30 kinds worked out from own sales at ports,
-  /// which all agreed. Tactical Plans and Employment History, missing there, are the most the carriers' bars ask
-  /// for them over the cap of 100 times the port's price. A few rare kinds have no price at all and are left to
-  /// the sales
+  /// item pages of the Elite Dangerous wiki and checked against own sales at ports: with Faction Donator List at
+  /// 14,000 (the wiki says 16,000) every sale made up only of kinds listed here adds up to the credit. Employment
+  /// History, missing there, is what those sales leave for it. Tactical Plans is the most the carriers' bars ask
+  /// for it over the cap of 100 times the port's price. A few rare kinds have no price at all and are left to the
+  /// sales
   constexpr std::array<std::pair<std::string_view, uint32_t>, 186> prices{{
     {"accidentlogs", 4'000u},
     {"aerogel", 500u},
@@ -72,7 +73,7 @@ namespace
     {"explorationjournals", 10'000u},
     {"extractionyielddata", 6'000u},
     {"factionassociates", 15'000u},
-    {"factiondonatorlist", 16'000u},
+    {"factiondonatorlist", 14'000u},
     {"factionnews", 1'000u},
     {"financialprojections", 6'000u},
     {"fleetregistry", 17'000u},
