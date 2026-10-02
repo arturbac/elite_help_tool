@@ -3,6 +3,7 @@
 #include <boost/ut.hpp>
 
 #include <cmath>
+#include <utility>
 #include <vector>
 
 using namespace boost::ut;
@@ -105,6 +106,38 @@ int main()
     expect(s.end_speed_mm_s > 0.0);
     // supercruise over a moment later ends nothing more
     expect(not tracker.approach(5000u, std::nullopt));
+  };
+
+  "overspeed gone into again nearer counts from the last time"_test = []
+  {
+    // too early in at 88 Ls, a hard turn, in again at 2.75 Ls, and a single slip of the reader on the way
+    hot_drop::attempt_t attempt{.where = antoniadi(), .outcome = hot_drop::outcome_e::dropped};
+    uint64_t ms{};
+    for(auto const & [ls, seconds]: std::vector<std::pair<double, int32_t>>{
+          {100.0, 9}, {88.5, 4}, {76.0, 5}, {65.0, 9}, {56.0, 8}, {17.5, 489}, {4.6, 366}, {3.6, 6}, {2.75, 5},
+          {2.25, 4}, {2.0, 12}, {1.65, 4}, {0.02, 4}
+        })
+      attempt.readings.push_back(read_at(ms += 1000u, ls, seconds));
+    attempt.ended_ms = ms;
+    auto const * const done{&attempt};
+    auto const s{hot_drop::summarise(*done)};
+    expect(s.overspeed);
+    expect(near(s.overspeed_from_ls, 2.75));
+    expect(near(s.first_overspeed_ls, 88.5));
+    expect(s.overspeed_entries == 2u);
+    // a line read back has its summary made again from the readings
+    auto const record{hot_drop::parse_attempt_line(hot_drop::attempt_line(*done))};
+    expect(fatal(record.has_value()));
+    expect(near(record->summary.overspeed_from_ls, 2.75));
+  };
+
+  "readings only at the port after the drop are no approach"_test = []
+  {
+    hot_drop::tracker_t tracker;
+    expect(not tracker.approach(1000u, antoniadi()));
+    expect(not tracker.reading(read_at(900u, 0.0001, -1)));
+    expect(not tracker.reading(read_at(1900u, 0.0001, -1)));
+    expect(not tracker.dropped(2500u, "Antoniadi City", 4379301379u));
   };
 
   "the port passed is an overshoot, and the way back a new approach"_test = []

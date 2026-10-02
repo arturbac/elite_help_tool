@@ -63,8 +63,12 @@ Every approach ends up as one line in `hot_drop.jsonl`, in the directory EHT run
   - `overshot`: the distance grew again right by the port. The way back to it then counts as a new
     approach;
   - `broken_off`: anything else, such as another destination, a drop elsewhere, or turning away;
-- a summary: whether there was overspeed, the distance at its start, the least time to the target
-  on the way, and the speed at the last readings.
+- a summary: whether there was overspeed, the distance at the start of the last way into it, the
+  least time to the target on the way, and the speed at the last readings. Going in too early and
+  turning hard to lose speed, then going in again nearer, is common, and only the last way in
+  decides the outcome. It takes two readings in a row above 0:05 to end a way in, because a single
+  one is more often a misread than the ship slowing down. The distance of the first way in and the
+  number of ways in are written too.
 
 Readings taken within 0.05 Ls of the port are the drop itself and say nothing about overspeed.
 

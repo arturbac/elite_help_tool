@@ -23,6 +23,8 @@ struct attempt_json_t
   std::string outcome;
   bool overspeed{};
   double overspeed_from_ls{};
+  double first_overspeed_ls{};
+  uint32_t overspeed_entries{};
   int32_t least_seconds{-1};
   double end_speed_mm_s{};
   double last_ls{};
@@ -247,6 +249,10 @@ auto outcome_of(std::string_view name) noexcept -> std::optional<outcome_e>
 auto summarise(attempt_t const & attempt) -> summary_t
   {
   summary_t summary;
+  // too early into overspeed, the pilot turns hard to lose speed and goes in again nearer - the last way in is
+  // the one the outcome tells of. It takes two readings in a row out of overspeed to end one, a single one is
+  // more likely the reader's slip than the ship slowing down
+  uint32_t calm{2u};
   for(reading_t const & read: attempt.readings)
     {
     summary.last_ls = read.distance_ls;
@@ -254,11 +260,20 @@ auto summarise(attempt_t const & attempt) -> summary_t
       continue;
     if(summary.least_seconds < 0 or read.seconds < summary.least_seconds)
       summary.least_seconds = read.seconds;
-    if(read.seconds <= 5 and not summary.overspeed)
+    if(read.seconds > 5)
+      {
+      ++calm;
+      continue;
+      }
+    if(calm >= 2u)
       {
       summary.overspeed = true;
       summary.overspeed_from_ls = read.distance_ls;
+      if(summary.overspeed_entries == 0u)
+        summary.first_overspeed_ls = read.distance_ls;
+      ++summary.overspeed_entries;
       }
+    calm = 0u;
     }
   // the speed from the last two readings a second or more apart - nearer ones differ by the reader's rounding
   auto const & r{attempt.readings};
@@ -336,6 +351,8 @@ auto tracker_t::reading(reading_t const & given) -> std::optional<attempt_t>
   auto & readings{attempt_->readings};
   reading_t read{given};
   read.read_seconds = given.seconds;
+  // the picture may have been taken a moment before the approach was seen to begin
+  attempt_->started_ms = std::min(attempt_->started_ms, read.ms);
   read.seconds = checked_seconds(given.seconds, estimate_seconds(readings, read.ms, read.distance_ls));
   if(readings.empty() or read.distance_ls < least_ls_)
     {
@@ -384,8 +401,8 @@ auto tracker_t::finish(uint64_t now_ms, outcome_e outcome) -> std::optional<atte
   std::optional<attempt_t> done{std::move(attempt_)};
   attempt_.reset();
   ending_since_.reset();
-  // an approach never read is nothing to learn from
-  if(done and done->readings.empty())
+  // an approach never read, or read only at the port after the drop, is nothing to learn from
+  if(done and std::ranges::none_of(done->readings, [](reading_t const & r) { return r.distance_ls >= drop_zone_ls; }))
     return std::nullopt;
   if(done)
     {
@@ -404,6 +421,8 @@ auto attempt_line(attempt_t const & attempt) -> std::string
     .outcome = std::string{outcome_name(attempt.outcome)},
     .overspeed = s.overspeed,
     .overspeed_from_ls = s.overspeed_from_ls,
+    .first_overspeed_ls = s.first_overspeed_ls,
+    .overspeed_entries = s.overspeed_entries,
     .least_seconds = s.least_seconds,
     .end_speed_mm_s = s.end_speed_mm_s,
     .last_ls = s.last_ls,
@@ -426,18 +445,29 @@ auto parse_attempt_line(std::string const & line) -> std::optional<record_t>
   auto const outcome{outcome_of(json.outcome)};
   if(not outcome)
     return std::nullopt;
+  // the summary made again from the readings - lines written before a change in how it is made say then what
+  // the newer ones do
+  attempt_t attempt{
+    .where = {}, .started_ms = json.started_ms, .ended_ms = json.ended_ms, .readings = {}, .outcome = *outcome
+  };
+  for(auto const & [ms, distance_ls, seconds, read_seconds]: json.readings)
+    attempt.readings.push_back(
+      reading_t{.ms = json.started_ms + ms, .distance_ls = distance_ls, .seconds = seconds, .read_seconds = read_seconds}
+    );
   return record_t{
     .station = std::move(json.where.station),
     .market_id = json.where.market_id,
     .ship = std::move(json.where.ship),
     .outcome = *outcome,
-    .summary = summary_t{
+    .summary = attempt.readings.empty() ? summary_t{
       .overspeed = json.overspeed,
       .overspeed_from_ls = json.overspeed_from_ls,
+      .first_overspeed_ls = json.first_overspeed_ls,
+      .overspeed_entries = json.overspeed_entries,
       .least_seconds = json.least_seconds,
       .end_speed_mm_s = json.end_speed_mm_s,
       .last_ls = json.last_ls
-    }
+    } : summarise(attempt)
   };
   }
 

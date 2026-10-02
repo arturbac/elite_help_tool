@@ -142,8 +142,12 @@ struct summary_t
   {
   ///\brief the time to the target was 0:05 or less on the way - overspeed
   bool overspeed{};
-  ///\brief the distance at the first reading in overspeed
+  ///\brief the distance at the first reading of the last way into overspeed - the one the outcome tells of
   double overspeed_from_ls{};
+  ///\brief the distance at the first reading in overspeed at all, and how many times the ship went into it - more
+  /// than once when it turned to lose speed and went in again nearer
+  double first_overspeed_ls{};
+  uint32_t overspeed_entries{};
   ///\brief the least time to the target read on the way, -1 none
   int32_t least_seconds{-1};
   ///\brief how fast the ship flew at the last readings, Mm/s - by the distance they differ in, 0 unknown

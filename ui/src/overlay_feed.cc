@@ -4103,12 +4103,15 @@ auto overlay_feed_t::hot_drop_done(hot_drop::attempt_t const & attempt) -> void
   {
   hot_drop::record_t record{hot_drop::record_of(attempt)};
   spdlog::info(
-    "hot drop: {} in {} - {}, overspeed {} from {:.2f} Ls at least {} s, {:.1f} Mm/s at the end, {} readings",
+    "hot drop: {} in {} - {}, overspeed {} from {:.2f} Ls (went in {}x, first at {:.2f} Ls) at least {} s, "
+    "{:.1f} Mm/s at the end, {} readings",
     attempt.where.station,
     attempt.where.ship,
     hot_drop::outcome_name(attempt.outcome),
     record.summary.overspeed,
     record.summary.overspeed_from_ls,
+    record.summary.overspeed_entries,
+    record.summary.first_overspeed_ls,
     record.summary.least_seconds,
     record.summary.end_speed_mm_s,
     attempt.readings.size()
@@ -4237,7 +4240,11 @@ auto overlay_feed_t::build_hot_drop_lines(current_state_t const & state) const -
     hot_drop::summary_t const & s{hot_drop_last_->summary};
     std::string text{std::format("hot drop {}: {}", hot_drop_last_->station, hot_drop::outcome_name(hot_drop_last_->outcome))};
     if(s.overspeed)
+      {
       text += std::format(", overspeed from {:.1f} Ls at {}", s.overspeed_from_ls, seconds_text(s.least_seconds));
+      if(s.overspeed_entries > 1u)
+        text += std::format(" (went in {}x, first at {:.1f} Ls)", s.overspeed_entries, s.first_overspeed_ls);
+      }
     else
       text += ", no overspeed";
     lines.push_back(
