@@ -5057,12 +5057,22 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
         }
       );
 
-  // The game's graphics set the place wants, while its file holds the other - under the temperatures and
-  // the link, where the eye goes in a quiet moment
-  if(auto line{build_graphics_line(state)}; line)
-    frame.blocks.push_back(
-      overlay::block_t{.corner = overlay::corner_e::top_right, .ttl_ms = block_ttl_ms(), .lines = {std::move(*line)}}
-    );
+  // The game's graphics set the place wants, while its file holds the other. It is in the frame before the
+  // check for a change, so it comes at once, and it goes first in the right band below
+  bool const graphics_shown{[&]
+                            {
+                              auto line{build_graphics_line(state)};
+                              if(line)
+                                frame.blocks.insert(
+                                  frame.blocks.begin(),
+                                  overlay::block_t{
+                                    .corner = overlay::corner_e::top_right,
+                                    .ttl_ms = block_ttl_ms(),
+                                    .lines = {std::move(*line)}
+                                  }
+                                );
+                              return line.has_value();
+                            }()};
 
   // the game gets a frame when it has changed or when the keep-alive time has passed - not on every journal event
   auto const now{std::chrono::steady_clock::now()};
@@ -5070,6 +5080,7 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
     return;
 
   frame.seq = ++sequence_;
+  size_t const blocks_before{frame.blocks.size()};
   // The link to Frontier's servers goes under the temperatures, which are put before it next - the first
   // place looked at when the game seems to hang
   if(auto lines{build_server_link_lines(state)}; not lines.empty())
@@ -5115,6 +5126,13 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
       frame.blocks.begin(),
       overlay::block_t{.corner = overlay::corner_e::top_right, .ttl_ms = block_ttl_ms(), .lines = {std::move(line)}}
     );
+    }
+  // the graphics set first of all, straight under the layer's own lines - the blocks put before it since
+  // move down one
+  if(graphics_shown)
+    {
+    auto const graphics{frame.blocks.begin() + std::ptrdiff_t(frame.blocks.size() - blocks_before)};
+    std::rotate(frame.blocks.begin(), graphics, std::next(graphics));
     }
 
   server_->publish(frame);

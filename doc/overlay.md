@@ -100,8 +100,8 @@ process carries no state of ours.
   over the ground of a settlement, where frames are dear, and hard on the eyes along the long straight
   edges of a station or a carrier. Two sets of the game's graphics are named in the settings, one for
   near a planet and one for space, and while the game's graphics file holds the other one, a line in
-  amber asks for the place's set: `graphics near the planet: set FSR Balanced + SMAA - now FSR Ultra
-  Quality + SMAA`. It goes as soon as the set is applied in the game's menu. Near a planet is what
+  amber at the top of the right band, straight under the layer's own lines, asks for the place's set:
+  `graphics near the planet: set FSR Balanced + SMAA - now FSR Ultra Quality + SMAA`. It goes as soon as the set is applied in the game's menu. Near a planet is what
   Status.json says by giving latitude and longitude - from orbital cruise down to the ground - or on
   foot on a planet; everywhere else is space. A place counts after it has lasted `settle_ms`, so a
   flicker of the flags asks for nothing. The file is the newest `Custom.*.fxcfg` in the game's
