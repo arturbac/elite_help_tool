@@ -21,7 +21,7 @@ namespace
 template<typename... Args>
 void critical_abort(std::format_string<Args...> fmt, Args &&... args)
   {
-  spdlog::default_logger_raw()->debug(fmt, std::forward<Args>(args)...);
+  spdlog::default_logger_raw()->critical(fmt, std::forward<Args>(args)...);
   std::abort();
   }
 
