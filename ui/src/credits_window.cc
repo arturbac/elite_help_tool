@@ -1,6 +1,8 @@
 #include <credits_window.h>
+#include <time_zone_warning.h>
 
 #include <file_io.h>
+#include <event_guard.h>
 #include <format_credits.h>
 
 #include <qboxlayout.h>
@@ -47,6 +49,7 @@ auto local_text(credits::time_point_t at) -> std::string
     }
   catch(...)
     {
+    eht::warn_no_time_zone();
     return std::format("{:%Y-%m-%d %H:%M} UTC", at);
     }
   }
@@ -109,7 +112,8 @@ auto whole_file(std::filesystem::path const & path) -> std::string
 credits_window_t::credits_window_t(std::string journal_dir, QWidget * parent) : QMdiSubWindow(parent)
   {
   setup_ui();
-  scanner_ = std::jthread{[this, journal_dir](std::stop_token stoken) { run_scanner(stoken, journal_dir); }};
+  scanner_ = std::jthread{[this, journal_dir](std::stop_token stoken)
+                          { eht::event_guard("credits scanner", [&] { run_scanner(stoken, journal_dir); }); }};
   }
 
 credits_window_t::~credits_window_t()
@@ -184,7 +188,7 @@ auto credits_window_t::setup_ui() -> void
   connect(period_, &QComboBox::currentIndexChanged, this, [this](int) { redraw(); });
 
   refresh_timer_ = new QTimer(this);
-  connect(refresh_timer_, &QTimer::timeout, this, [this] { poll(); });
+  connect(refresh_timer_, &QTimer::timeout, this, [this] { eht::event_guard("credits refresh", [this] { poll(); }); });
   refresh_timer_->start(2000);
 
   setWidget(central_widget);
@@ -303,6 +307,7 @@ auto credits_window_t::fill_history(credits::ledger_t const & ledger) -> void
     }
   catch(...)
     {
+    eht::warn_no_time_zone();
     zone = nullptr;
     }
   std::vector<credits::summary_t> const rows{credits::summarise(ledger, period, zone)};

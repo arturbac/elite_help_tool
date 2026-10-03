@@ -2,6 +2,7 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <exception>
 
 namespace eht_overlay
   {
@@ -19,5 +20,21 @@ auto log_line(std::string_view text) -> void
   {
   std::fprintf(stderr, "[eht-overlay] %.*s\n", static_cast<int>(text.size()), text.data());
   std::fflush(stderr);
+  }
+
+auto exception_text() noexcept -> std::string_view
+  {
+  try
+    {
+    throw;
+    }
+  catch(std::exception const & error)
+    {
+    return error.what();
+    }
+  catch(...)
+    {
+    return "unknown exception";
+    }
   }
   }  // namespace eht_overlay

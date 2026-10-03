@@ -26,6 +26,7 @@ endfunction()
 
 add_ut_test(value_calculation_ut.cc)
 add_ut_test(db_ut.cc)
+add_ut_test(event_guard_ut.cc)
 add_ut_test(biology_ut.cc)
 add_ut_test(surface_nav_ut.cc)
 add_ut_test(picture_records_ut.cc)

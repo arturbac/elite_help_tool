@@ -1,4 +1,5 @@
 #include <screenshots.h>
+#include <time_zone_warning.h>
 #include <eht_settings.h>
 
 #include <overlay_protocol.h>
@@ -29,6 +30,7 @@ auto target_name(std::string_view stem, std::string_view extension) -> std::stri
     }
   catch(...)
     {
+    eht::warn_no_time_zone();
     return std::format("ED {:%Y-%m-%d %H-%M-%S} UTC.{}", taken, extension);
     }
   }

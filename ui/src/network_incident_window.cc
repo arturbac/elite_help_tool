@@ -1,7 +1,9 @@
 #include <network_incident_window.h>
+#include <time_zone_warning.h>
 #include <data/network.h>
 
 #include <backup.h>
+#include <event_guard.h>
 #include <eht_settings.h>
 #include <evidence_log.h>
 #include <file_io.h>
@@ -82,6 +84,7 @@ auto local_utc_offset(std::string_view netlog_name) -> std::chrono::seconds
     }
   catch(...)
     {
+    eht::warn_no_time_zone();
     return std::chrono::seconds{0};
     }
   }
@@ -156,7 +159,12 @@ network_incident_window_t::network_incident_window_t(std::string db_path, std::s
     shown_through_ = *res;
 
   scanner_ = std::jthread{
-    [db_path, journal_dir](std::stop_token stoken) { network_incident_window_t::run_scanner(stoken, db_path, journal_dir); }
+    [db_path, journal_dir](std::stop_token stoken)
+    {
+      eht::event_guard(
+        "network incidents scanner", [&] { network_incident_window_t::run_scanner(stoken, db_path, journal_dir); }
+      );
+    }
   };
   }
 
@@ -233,7 +241,7 @@ auto network_incident_window_t::setup_ui() -> void
   );
 
   refresh_timer_ = new QTimer(this);
-  connect(refresh_timer_, &QTimer::timeout, this, [this] { poll(); });
+  connect(refresh_timer_, &QTimer::timeout, this, [this] { eht::event_guard("network incidents refresh", [this] { poll(); }); });
   refresh_timer_->start(20000);
 
   setWidget(central_widget);

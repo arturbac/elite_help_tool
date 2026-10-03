@@ -265,7 +265,7 @@ auto record_sample(swapchain_data_t & data, frame_resources_t & frame, uint32_t 
       or not blits_supported(data)
     )
       {
-      log("no sample: the image cannot be blitted here");
+      report("overlay: no sample, the image cannot be blitted here");
       sample.broken = true;
       return false;
       }
@@ -300,7 +300,7 @@ auto record_sample(swapchain_data_t & data, frame_resources_t & frame, uint32_t 
     };
     if(not same and not make_chain(data, area, levels))
       {
-      log("no sample: its image could not be made");
+      report("overlay: no sample, its image could not be made");
       free_chain(data);
       sample.broken = true;
       return false;
@@ -469,6 +469,7 @@ auto record_sample(swapchain_data_t & data, frame_resources_t & frame, uint32_t 
     }
   catch(...)
     {
+    report("overlay: sampling threw ({}), no samples for this swapchain", exception_text());
     data.sample.broken = true;
     return false;
     }

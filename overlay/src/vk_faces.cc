@@ -337,7 +337,7 @@ auto record_face_uploads(swapchain_data_t & data, frame_resources_t & frame, uin
       return;
     if(atlas.set == VK_NULL_HANDLE and not make_atlas(data))
       {
-      log("face atlas could not be made, the balls keep their colours");
+      report("overlay: face atlas could not be made, the balls keep their colours");
       atlas.broken = true;
       return;
       }
@@ -454,6 +454,7 @@ auto record_face_uploads(swapchain_data_t & data, frame_resources_t & frame, uin
     }
   catch(...)
     {
+    report("overlay: faces threw ({}), the balls keep their colours", exception_text());
     data.faces.broken = true;
     }
   }

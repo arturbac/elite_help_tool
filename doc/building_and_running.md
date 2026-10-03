@@ -133,6 +133,20 @@ of EHT includes it:
   adapter and the colour's meta. Without them glaze would silently write enums as numbers and
   colours as objects.
 
+### Errors in the code
+
+- EHT's own code does not throw. An exception from code outside it (the standard library, glaze,
+  filesystem) is caught next to the call and turned into `expected_ec`.
+- A thread's body and a Qt timer or slot that runs the tool's logic go through `eht::event_guard()`
+  (`include/event_guard.h`). It logs an exception that got that far and keeps it from ending the
+  process or running through Qt's event loop. It is the last net, not the way errors are handled.
+- A place that falls back to UTC because the time zone cannot be read calls
+  `eht::warn_no_time_zone()`, which logs one warning per process.
+- The overlay layer never ends the game's process. A part of it that fails switches off for that
+  swapchain and prints one line on the game's stderr.
+- The journal import of `journal_tailer` is the one exception: on a database error it aborts on
+  purpose, so a half-written database is never left behind, and logs the reason at critical level.
+
 ## 2. Install the overlay layer
 
 ```sh
@@ -234,7 +248,7 @@ ENABLE_EHT_OVERLAY=1 EHT_OVERLAY_CAPTURE=1 %command%
 |---|---|
 | `ENABLE_EHT_OVERLAY=1` | turns the layer on (required) |
 | `EHT_OVERLAY_CAPTURE=1` | lets the layer copy the game's image: pictures for the codex and the screenshot key. Leave it out if you want neither |
-| `EHT_OVERLAY_DEBUG=1` | the layer's log on the game's stderr |
+| `EHT_OVERLAY_DEBUG=1` | the layer's log on the game's stderr. A part of the overlay that gives up says so there once even without it |
 | `DISABLE_EHT_OVERLAY=1` | emergency off switch, even with the layer installed |
 
 Do **not** add `PROTON_ENABLE_WAYLAND=1`. The screenshot key needs the game to run through

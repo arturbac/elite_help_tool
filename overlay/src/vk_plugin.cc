@@ -119,6 +119,7 @@ namespace
       }
     catch(...)
       {
+      report("overlay: device could not be attached ({}), no overlay on it", exception_text());
       return nullptr;
       }
     }
@@ -148,6 +149,7 @@ namespace
       }
     catch(...)
       {
+      report("overlay: swapchain could not be attached ({}), no overlay on it", exception_text());
       return nullptr;
       }
     }

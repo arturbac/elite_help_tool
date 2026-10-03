@@ -420,6 +420,7 @@ namespace
       }
     catch(...)
       {
+      report("overlay: a capture could not be recorded ({}), captures off for this swapchain", exception_text());
       data.capture_broken = true;
       return false;
       }
@@ -465,6 +466,7 @@ auto record_capture(
     }
   catch(...)
     {
+    report("overlay: capture request failed ({})", exception_text());
     return false;
     }
   }
@@ -485,6 +487,7 @@ auto record_screenshot(swapchain_data_t & data, frame_resources_t & frame, uint3
     }
   catch(...)
     {
+    report("overlay: screenshot failed ({})", exception_text());
     return false;
     }
   }
@@ -530,6 +533,7 @@ auto collect_capture(swapchain_data_t & data, frame_resources_t & frame) noexcep
     }
   catch(...)
     {
+    report("overlay: a capture could not be collected ({}), captures off for this swapchain", exception_text());
     data.capture_broken = true;
     }
   }

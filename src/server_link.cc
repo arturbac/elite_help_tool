@@ -1,4 +1,5 @@
 #include <server_link.h>
+#include <time_zone_warning.h>
 
 #include <algorithm>
 #include <charconv>
@@ -71,6 +72,7 @@ auto local_utc_offset(std::string_view netlog_name) -> std::chrono::seconds
     }
   catch(...)
     {
+    eht::warn_no_time_zone();
     return std::chrono::seconds{0};
     }
   }

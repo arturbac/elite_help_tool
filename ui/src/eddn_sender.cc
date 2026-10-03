@@ -1,5 +1,6 @@
 #include <eddn_sender.h>
 #include <eht_settings.h>
+#include <event_guard.h>
 
 #include <boost/asio/connect.hpp>
 #include <boost/asio/io_context.hpp>
@@ -141,7 +142,10 @@ auto refused_for_good(reply_t const & reply) -> bool
   }
   }  // namespace
 
-sender_t::sender_t() : worker_{[this](std::stop_token stop) { run(std::move(stop)); }} {}
+sender_t::sender_t() :
+    worker_{[this](std::stop_token stop) { eht::event_guard("eddn sender", [&] { run(std::move(stop)); }); }}
+  {
+  }
 
 sender_t::~sender_t()
   {

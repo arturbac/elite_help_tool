@@ -1,4 +1,5 @@
 #include <hud_reader.h>
+#include <event_guard.h>
 
 #include <spdlog/spdlog.h>
 
@@ -69,7 +70,10 @@ auto wait_for(std::filesystem::path const & path, std::stop_token const & stop) 
   }
   }  // namespace
 
-hud_reader_t::hud_reader_t() : worker_{[this](std::stop_token stop) { work(std::move(stop)); }} {}
+hud_reader_t::hud_reader_t() :
+    worker_{[this](std::stop_token stop) { eht::event_guard("hud reader", [&] { work(std::move(stop)); }); }}
+  {
+  }
 
 hud_reader_t::~hud_reader_t()
   {

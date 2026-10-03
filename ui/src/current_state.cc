@@ -1,6 +1,7 @@
 #include <backup.h>
 #include <biology.h>
 #include <data/bgs.h>
+#include <event_guard.h>
 #include <data/carrier.h>
 #include <data/colonisation.h>
 #include <data/market.h>
@@ -1999,15 +2000,21 @@ auto current_state_t::start_weapon_watch() -> void
   static constexpr std::chrono::milliseconds every{200};
   weapon_watch_ = std::jthread{[this](std::stop_token stoken)
                                {
-                                 while(not stoken.stop_requested())
+                                 eht::event_guard(
+                                   "weapon watch",
+                                   [&]
                                    {
-                                   if(auto status{load_status(journal_dir_path_)}; status)
-                                     weapons_.observe(
-                                       status->timestamp,
-                                       status->SelectedWeapon_Localised.empty() ? status->SelectedWeapon
-                                                                                : status->SelectedWeapon_Localised
-                                     );
-                                   std::this_thread::sleep_for(every);
+                                     while(not stoken.stop_requested())
+                                       {
+                                       if(auto status{load_status(journal_dir_path_)}; status)
+                                         weapons_.observe(
+                                           status->timestamp,
+                                           status->SelectedWeapon_Localised.empty() ? status->SelectedWeapon
+                                                                                    : status->SelectedWeapon_Localised
+                                         );
+                                       std::this_thread::sleep_for(every);
+                                       }
                                    }
+                                 );
                                }};
   }

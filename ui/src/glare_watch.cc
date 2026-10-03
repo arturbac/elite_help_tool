@@ -1,5 +1,6 @@
 // the codex, with the journal's events, before Qt - their "signals" is a word Qt takes for its own
 #include <codex.h>
+#include <time_zone_warning.h>
 #include <glare_watch.h>
 #include <backup.h>
 #include <eht_settings.h>
@@ -230,6 +231,7 @@ auto glare_watch_t::collect(glare::game_t const & game, places_t const & places)
     }
   catch(...)
     {
+    eht::warn_no_time_zone();
     local_time = std::format("{:%H:%M:%S} UTC", std::chrono::floor<std::chrono::seconds>(done.taken));
     }
   noticed_ = noticed_t{.local_time = std::move(local_time), .at = now};
@@ -257,6 +259,7 @@ auto glare_watch_t::write_due_reports(places_t const & places) -> void
     }
   catch(...)
     {
+    eht::warn_no_time_zone();
     }
   for(report_t const & report: due)
     {

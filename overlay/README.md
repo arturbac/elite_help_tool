@@ -58,7 +58,7 @@ in it.
 |---|---|
 | `ENABLE_EHT_OVERLAY=1` | turns the layer on |
 | `DISABLE_EHT_OVERLAY=1` | turns it off even with the manifest installed: the emergency switch |
-| `EHT_OVERLAY_DEBUG=1` | the layer's log on the game process' stderr |
+| `EHT_OVERLAY_DEBUG=1` | the layer's log on the game process' stderr. A part of the overlay that gives up (drawing, sampling, faces, captures, the screenshot key) says so there once even without it |
 | `EHT_OVERLAY_SOCKET` | the socket's path, by default `~/.local/share/elite_help_tool/overlay.sock` |
 | `EHT_OVERLAY_CAPTURE=1` | lets the layer copy the game's image. Without it there are no codex pictures and no screenshots at the key |
 

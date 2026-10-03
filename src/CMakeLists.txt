@@ -40,6 +40,7 @@ target_sources(eht
   database_storage_fleet.cc
   database_storage_colonisation.cc
   database_import_state.cc
+  time_zone_warning.cc
   elite_data.cc
   eht_settings.cc
   eddn_publisher.cc

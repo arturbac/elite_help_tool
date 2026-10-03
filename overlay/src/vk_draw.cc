@@ -2036,6 +2036,7 @@ auto renew_present_semaphore(swapchain_data_t & data, uint32_t image_index) noex
     {
     if(device.WaitForFences(device.device, 1u, &frame.fence, VK_TRUE, fence_timeout_ns) != VK_SUCCESS)
       {
+      report("overlay: a present semaphore could not be renewed, disabled for this swapchain");
       data.broken = true;
       return;
       }
@@ -2049,6 +2050,7 @@ auto renew_present_semaphore(swapchain_data_t & data, uint32_t image_index) noex
   VkSemaphore replacement{};
   if(device.CreateSemaphore(device.device, &semaphore_info, nullptr, &replacement) != VK_SUCCESS)
     {
+    report("overlay: a present semaphore could not be renewed, disabled for this swapchain");
     data.broken = true;
     return;
     }
@@ -2073,6 +2075,7 @@ auto draw_overlay(
     if(not data.ready and not ensure_resources(data, queue))
       {
       // one failed attempt is enough - from there the game goes its own way without us
+      report("overlay: its resources could not be made, disabled for this swapchain");
       data.broken = true;
       return VK_NULL_HANDLE;
       }
@@ -2089,7 +2092,7 @@ auto draw_overlay(
       // a whole second is a failure; we would rather lose the overlay than stall the game's frames
       if(device.WaitForFences(device.device, 1u, &frame.fence, VK_TRUE, fence_timeout_ns) != VK_SUCCESS)
         {
-        log("overlay command buffer did not finish in time, disabling for this swapchain");
+        report("overlay: command buffer did not finish in time, disabled for this swapchain");
         data.broken = true;
         return VK_NULL_HANDLE;
         }
@@ -2177,6 +2180,7 @@ auto draw_overlay(
     };
     if(device.BeginCommandBuffer(frame.command_buffer, &begin_info) != VK_SUCCESS)
       {
+      report("overlay: command buffer could not be begun, disabled for this swapchain");
       data.broken = true;
       return VK_NULL_HANDLE;
       }
@@ -2221,6 +2225,7 @@ auto draw_overlay(
 
     if(device.EndCommandBuffer(frame.command_buffer) != VK_SUCCESS)
       {
+      report("overlay: command buffer could not be ended, disabled for this swapchain");
       data.broken = true;
       return VK_NULL_HANDLE;
       }
@@ -2245,6 +2250,7 @@ auto draw_overlay(
     };
     if(device.QueueSubmit(queue, 1u, &submit, frame.fence) != VK_SUCCESS)
       {
+      report("overlay: queue submit failed, disabled for this swapchain");
       data.broken = true;
       return VK_NULL_HANDLE;
       }
@@ -2259,6 +2265,7 @@ auto draw_overlay(
     }
   catch(...)
     {
+    report("overlay: drawing threw ({}), disabled for this swapchain", exception_text());
     data.broken = true;
     return VK_NULL_HANDLE;
     }

@@ -1,4 +1,5 @@
 #include <eht_settings.h>
+#include <event_guard.h>
 #include <main_window.h>
 #include <spdlog/spdlog.h>
 #include <spdlog/cfg/env.h>
@@ -102,9 +103,9 @@ main_window_t::main_window_t(std::string db_path, std::string journal_path, QWid
   // journal has told whose it is
   auto * const backup_timer{new QTimer(this)};
   backup_timer->setInterval(std::chrono::minutes{10});
-  connect(backup_timer, &QTimer::timeout, this, [this] { follow_backup(); });
+  connect(backup_timer, &QTimer::timeout, this, [this] { eht::event_guard("backup", [this] { follow_backup(); }); });
   backup_timer->start();
-  QTimer::singleShot(std::chrono::minutes{1}, this, [this] { follow_backup(); });
+  QTimer::singleShot(std::chrono::minutes{1}, this, [this] { eht::event_guard("backup", [this] { follow_backup(); }); });
   }
 
 auto main_window_t::follow_backup() -> void
@@ -228,7 +229,13 @@ auto main_window_t::start_monitoring() -> void
       extension_->journal_line(line, live);
   };
 
-  worker_thread_ = std::jthread([this](std::stop_token stoken) { background_worker(stoken); });
+  worker_thread_ = std::jthread(
+    [this](std::stop_token stoken)
+    {
+      // with this thread gone the journal is no longer followed; the window stays for what it already knows
+      eht::event_guard("journal reader", [this, &stoken] { background_worker(stoken); });
+    }
+  );
   }
 
 auto main_window_t::setup_ui() -> void

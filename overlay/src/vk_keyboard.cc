@@ -401,6 +401,10 @@ auto take_screenshot_press() noexcept -> bool
     }
   catch(...)
     {
+    // asked every frame, so said only the first time
+    static std::atomic_flag said;
+    if(not said.test_and_set())
+      report("overlay: screenshot key watcher failed ({})", exception_text());
     return false;
     }
   }
