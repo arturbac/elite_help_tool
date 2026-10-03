@@ -159,6 +159,8 @@ quarter of it: far off the planet is a dot, and the stars and dust behind it can
 passes for a ball, with the same sky on both sides of it. A moon before the bright face of its gas giant
 stands out as well as a planet against the black. A circle the view cuts off is passed over for the next
 one, so the arc of the cockpit's frame at the side does not hide a whole ball in the middle.
+Only the part of the sample above 70% of the screen's height is judged: below it lies the dashboard,
+where the target panel's hologram is a lit, textured ball too and would be taken for the planet.
 It must also be large enough on the screen, 110 px of radius (`exploration.approach_radius_px`): the
 size a planet has 1 Ls away, so a larger planet is taken from farther and a smaller one from nearer, in
 proportion to its radius - farther off, the game draws a ball without the face it shows up close.

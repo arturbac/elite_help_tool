@@ -677,6 +677,18 @@ auto retint(image_t face, std::array<float, 3> colour) -> image_t
   return face;
   }
 
+auto above_dashboard(image_t view, float top, float height) -> image_t
+  {
+  if(height <= 0.f or view.empty())
+    return view;
+  auto const rows{
+    uint32_t(std::clamp(std::round((dashboard_top - top) / height * float(view.height)), 0.f, float(view.height)))
+  };
+  view.height = rows;
+  view.rgb.resize(size_t{view.width} * rows * 3u);
+  return view;
+  }
+
 auto judge_approach(image_t const & view, float pixel_scale, float full_size, std::string * why)
   -> std::optional<approach_t>
   {

@@ -190,7 +190,10 @@ auto approach_views_t::tick(planet_faces_t & faces) -> void
       overlay::sample_header_t const & h{read.header};
       float const screen_per_pixel{h.region_width * float(h.surface_width) / float(h.width)};
       std::string why;
-      auto const judged{planet_face::judge_approach(read.image, screen_per_pixel, full, &why)};
+      // the rows dropped are at the bottom, so the ball's place in the sample stays where it was
+      auto const judged{planet_face::judge_approach(
+        planet_face::above_dashboard(read.image, h.top, h.region_height), screen_per_pixel, full, &why
+      )};
       if(not judged)
         return {.verdict = std::nullopt, .why = std::move(why)};
       // strictly better: a view as good as the one kept would only be the same face again, every interval

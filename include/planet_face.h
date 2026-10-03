@@ -96,6 +96,16 @@ struct approach_t
 ///\brief the radius on the screen from which a ball is large enough for a face, in screen pixels
 inline constexpr float full_radius{110.f};
 
+///\brief the top of the cockpit's dashboard as a share of the screen's height - below it the target's hologram
+/// is a ball too, lit and textured, and would be taken for the planet
+inline constexpr float dashboard_top{0.7f};
+
+///\brief the view without its rows below dashboard_top on the screen - the part where a planet can be seen
+///\param top the view's top as a share of the screen's height
+///\param height the view's height as a share of the screen's height
+[[nodiscard]]
+auto above_dashboard(image_t view, float top, float height) -> image_t;
+
 ///\brief the ball in a view from the cockpit, judged; none when it is not whole and clear in it, or smaller
 /// on the screen than full_size
 ///\param pixel_scale screen pixels to a pixel of the view - above 1 for a small sample, so that its ball is

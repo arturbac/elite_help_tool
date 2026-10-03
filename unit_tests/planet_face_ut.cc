@@ -159,6 +159,31 @@ auto main() -> int
     expect(at(24u, 28u)[0] > at(24u, 28u)[2]) << "the colour stays warm";
   };
 
+  "the target's hologram on the dashboard is no view of the planet"_test = []
+  {
+    // a sample of the middle 0.1 - 0.9 of the screen's height, the hologram low in it and the moon high up
+    uint32_t const w{384u};
+    uint32_t const h{216u};
+    float const top{0.1f};
+    float const height{0.8f};
+    planet_face::image_t const hologram{ball_on_stars(w, h, 96.f, 188.f, 18.f, {90u, 110u, 150u})};
+    expect(planet_face::judge_approach(hologram, 8.f).has_value()) << "the whole sample shows the hologram";
+    planet_face::image_t const above{planet_face::above_dashboard(hologram, top, height)};
+    expect(above.width == w and above.height == 162u) << above.height;
+    expect(not above.empty());
+    expect(not planet_face::judge_approach(above, 8.f).has_value());
+
+    planet_face::image_t const moon{ball_on_stars(w, h, 300.f, 70.f, 18.f, {200u, 195u, 190u})};
+    auto const whole{planet_face::judge_approach(moon, 8.f)};
+    auto const cut{planet_face::judge_approach(planet_face::above_dashboard(moon, top, height), 8.f)};
+    expect(whole.has_value() and cut.has_value());
+    if(whole and cut)
+      expect(std::abs(cut->disc.y - 70.f) < 4.f) << "the ball stays where it was" << cut->disc.y;
+
+    // a sample wholly below the dashboard keeps nothing
+    expect(planet_face::above_dashboard(moon, 0.75f, 0.2f).empty());
+  };
+
   "a ball made of the sky behind it is no view of a planet"_test = []
   {
     // far off the planet is a dot; the stars and dust outline a circle, with the same sky on both sides of it
