@@ -1,8 +1,8 @@
 # Backup
 
-EHT keeps a copy of what cannot be rebuilt in `~/.backups/eht/<commander>/`, in the background, once a
-month (`backup.every_days`, 30) or once 100 new pictures came into the codex and the sky album
-(`backup.every_pictures`), whichever comes first.
+EHT keeps a copy of what cannot be rebuilt in `~/.backups/eht/<commander>/`. The journals, the codex
+and `live.sqlite` go in the background, once a month (`backup.every_days`, 30) or once 100 new
+pictures came into the codex and the sky album (`backup.every_pictures`), whichever comes first.
 
 - The journals go one `journals-2026-09.tar.zst` a month, some seventy times smaller than the text
   (zstd level `backup.level`, 9). A month is packed again only when a journal of it changed, so a
@@ -15,6 +15,21 @@ month (`backup.every_days`, 30) or once 100 new pictures came into the codex and
   hand in the Data window is nowhere else. So it is copied whole, hot (SQLite's own backup API, safe
   to take while EHT is running and writing it), every time this backup runs, and again right after
   every market is read, rather than waiting for the monthly schedule.
+- The settings go to `settings/`, looked at every ten minutes rather than monthly - a few small files,
+  and a verification of the game's files (Steam or the launcher) may take them any day: it deletes
+  what the game did not ship from the game's directory and puts its own files back as shipped.
+  - `settings/options/`: the game's `Options` directory (Bindings, Graphics, Player, Audio), found
+    beside the journals in the same Wine user's home.
+  - `settings/game/`: from the top of the game's own directory (`Products/<product>`)
+    `AppConfigLocal.xml`, `GraphicsConfiguration.xml` and every `.ini` file - the mods keep theirs
+    there. Never a DLL: a mod's binary comes again from where it was built or downloaded. The
+    directory is found beside a Steam library's journals, or from the running game; a game started
+    by another launcher is found only while it runs, or set it with `backup.game_dir`.
+  - `settings/eht_settings.json`: the tool's own settings.
+
+  A file is copied when missing or newer. When a newer one differs, the copy it replaces is kept
+  beside it with its time appended (`edworld.ini.20261004-183000`), so a setting broken later never
+  overwrites the last good one; a file the game wrote again unchanged sets nothing aside.
 - `last_backup.json` beside them says when the last one was and how many pictures there were then.
 - `backup.dir` moves it, `backup.enabled` turns it off. Copying `~/.backups/eht` to another disk
   is then the whole backup.

@@ -446,6 +446,9 @@ struct backup_settings_t
   uint32_t every_pictures{100u};
   ///\brief zstd's level for the journals - 9 packs them some seventy times smaller in seconds
   int32_t level{9};
+  ///\brief the game's own directory, Products/<product>, whose AppConfigLocal.xml, GraphicsConfiguration.xml and
+  /// mods' .ini files are kept too; empty: found beside a Steam library's journals, or from the running game
+  std::string game_dir;
   };
 
 ///\brief the recorder of eht_vision: pictures of the screen with what the game's files said at that moment

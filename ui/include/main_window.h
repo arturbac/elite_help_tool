@@ -92,6 +92,8 @@ public:
   ///\brief what the running backup is to be marked with once it is done
   std::filesystem::path backup_destination_;
   uint64_t backup_pictures_{};
+  ///\brief the game's own directory as last found - the launcher's game is found only while it runs
+  std::filesystem::path backup_game_dir_;
   ///\brief starts a backup when one is due, and takes its result when it is done
   auto follow_backup() -> void;
 

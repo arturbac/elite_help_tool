@@ -12,6 +12,7 @@
 #include <fstream>
 #include <map>
 #include <mutex>
+#include <optional>
 
 // named, not anonymous - glaze's reflection needs the types to have linkage
 namespace backup::detail
@@ -279,6 +280,111 @@ auto run(
       ++summary.pictures_copied;
     else
       summary.errors.push_back(std::format("{} could not be copied: {}", entry.path().string(), ec.message()));
+    }
+  return summary;
+  }
+
+auto kept_from_game(std::filesystem::path const & file_name) -> bool
+  {
+  std::string const name{file_name.filename().string()};
+  return name == "AppConfigLocal.xml" or name == "GraphicsConfiguration.xml" or file_name.extension() == ".ini";
+  }
+
+auto game_dir_of(std::filesystem::path const & netlog_dir) -> std::filesystem::path
+  {
+  if(netlog_dir.filename() != "Logs")
+    return {};
+  return netlog_dir.parent_path();
+  }
+
+namespace
+  {
+///\brief the whole of a small file - the settings are a few kilobytes each
+auto file_bytes(std::filesystem::path const & path) -> std::optional<std::string>
+  {
+  std::ifstream in{path, std::ios::binary};
+  if(not in)
+    return std::nullopt;
+  return std::string{std::istreambuf_iterator<char>{in}, std::istreambuf_iterator<char>{}};
+  }
+
+auto same_content(std::filesystem::path const & a, std::filesystem::path const & b) -> bool
+  {
+  std::error_code ec_a;
+  std::error_code ec_b;
+  if(std::filesystem::file_size(a, ec_a) != std::filesystem::file_size(b, ec_b) or ec_a or ec_b)
+    return false;
+  auto const left{file_bytes(a)};
+  auto const right{file_bytes(b)};
+  return left and right and *left == *right;
+  }
+
+///\brief one file into the backup when missing or newer, the copy it replaces kept as <name>.<its time>
+auto keep_file(std::filesystem::path const & source, std::filesystem::path const & target, settings_summary_t & summary)
+  -> void
+  {
+  std::error_code ec;
+  auto const source_time{file_time(source)};
+  if(std::filesystem::exists(target, ec))
+    {
+    auto const target_time{file_time(target)};
+    if(target_time >= source_time)
+      return;
+    // the game writes some of its options again unchanged - only the time moves then, no copy is set aside
+    if(same_content(source, target))
+      {
+      std::filesystem::last_write_time(target, source_time, ec);
+      return;
+      }
+    std::string const stamp{std::format(
+      "{:%Y%m%d-%H%M%S}",
+      std::chrono::floor<std::chrono::seconds>(std::chrono::clock_cast<std::chrono::system_clock>(target_time))
+    )};
+    std::filesystem::rename(target, std::filesystem::path{target.string() + "." + stamp}, ec);
+    if(ec)
+      {
+      summary.errors.push_back(std::format("{} could not be set aside: {}", target.string(), ec.message()));
+      return;
+      }
+    }
+  std::filesystem::create_directories(target.parent_path(), ec);
+  // copy_file keeps no time - the copy is given the source's, so the next run sees it as up to date
+  if(std::filesystem::copy_file(source, target, std::filesystem::copy_options::overwrite_existing, ec))
+    {
+    std::filesystem::last_write_time(target, source_time, ec);
+    ++summary.copied;
+    }
+  else
+    summary.errors.push_back(std::format("{} could not be copied: {}", source.string(), ec.message()));
+  }
+  }  // namespace
+
+auto copy_settings(std::filesystem::path const & destination, settings_sources_t const & sources) -> settings_summary_t
+  {
+  settings_summary_t summary;
+  std::filesystem::path const settings{destination / "settings"};
+  std::error_code ec;
+
+  // a directory iterator throws when stepping fails half way - what was copied stays, the rest waits for the next run
+  try
+    {
+    if(not sources.options_dir.empty() and std::filesystem::is_directory(sources.options_dir, ec))
+      for(auto const & entry: std::filesystem::recursive_directory_iterator{sources.options_dir, ec})
+        if(entry.is_regular_file(ec))
+          keep_file(entry.path(), settings / "options" / entry.path().lexically_relative(sources.options_dir), summary);
+
+    // the top of the game's directory only - the mods keep their .ini files there, beside the game's executable
+    if(not sources.game_dir.empty() and std::filesystem::is_directory(sources.game_dir, ec))
+      for(auto const & entry: std::filesystem::directory_iterator{sources.game_dir, ec})
+        if(entry.is_regular_file(ec) and kept_from_game(entry.path()))
+          keep_file(entry.path(), settings / "game" / entry.path().filename(), summary);
+
+    if(not sources.tool_settings.empty() and std::filesystem::is_regular_file(sources.tool_settings, ec))
+      keep_file(sources.tool_settings, settings / sources.tool_settings.filename(), summary);
+    }
+  catch(std::exception const & e)
+    {
+    summary.errors.push_back(std::format("the settings could not be gone through: {}", e.what()));
     }
   return summary;
   }

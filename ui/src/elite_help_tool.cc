@@ -1,4 +1,7 @@
 #include <eht_settings.h>
+#include <evidence_log.h>
+#include <graphics_profile.h>
+#include <netstate.h>
 #include <event_guard.h>
 #include <main_window.h>
 #include <spdlog/spdlog.h>
@@ -140,6 +143,35 @@ auto main_window_t::follow_backup() -> void
   std::filesystem::path const destination{
     backup::expand_home(cfg->backup.dir) / codex_files::file_safe(state_.commander_name_)
   };
+
+  // the settings at every look - a few small files, and a verification of the game's files may take them any day
+  std::filesystem::path const journal_dir{state_.journal_dir_path_};
+  if(not cfg->backup.game_dir.empty())
+    backup_game_dir_ = backup::expand_home(cfg->backup.game_dir);
+  else
+    {
+    std::error_code ec;
+    std::filesystem::path cwd;
+    if(auto const pid{netstate::find_game(journal_dir)}; pid)
+      cwd = std::filesystem::read_symlink(std::format("/proc/{}/cwd", *pid), ec);
+    if(auto found{backup::game_dir_of(evidence::find_netlog_dir(journal_dir, cwd))};
+       not found.empty() and found != backup_game_dir_)
+      {
+      spdlog::info("backup: the game's directory is {}", found.string());
+      backup_game_dir_ = std::move(found);
+      }
+    }
+  std::filesystem::path const options_dir{graphics_profile::graphics_dir_of(journal_dir).parent_path()};
+  backup::settings_summary_t const settings{backup::copy_settings(
+    destination,
+    backup::settings_sources_t{
+      .options_dir = options_dir, .game_dir = backup_game_dir_, .tool_settings = std::filesystem::path{eht::settings_file_name}
+    }
+  )};
+  for(std::string const & error: settings.errors)
+    spdlog::error("backup: {}", error);
+  if(settings.copied != 0u)
+    spdlog::info("backup: {} file(s) of the settings copied to {}", settings.copied, (destination / "settings").string());
   uint64_t const pictures{backup::count_pictures(codex_files::codex_dir())};
   auto const now{std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())};
   if(not backup::due(backup::read_mark(destination), now, pictures, cfg->backup.every_days, cfg->backup.every_pictures))
