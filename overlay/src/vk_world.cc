@@ -25,7 +25,7 @@ namespace
   auto share_path() noexcept -> char const *
     {
     char const * const env{std::getenv("EHT_WORLD_SHARE")};
-    return env and *env ? env : "/dev/shm/edworld";
+    return env and *env ? env : "/dev/shm/eht/panels";
     }
 
   ///\brief maps the file once it is there and whole; said once either way

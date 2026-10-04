@@ -28,6 +28,7 @@
 #include <netstate.h>
 
 #include <overlay_ipc.h>
+#include <edworld_share.h>
 
 #include <chrono>
 #include <map>
@@ -204,6 +205,14 @@ private:
   uint64_t jump_system_{};
   std::string jump_allegiance_;
   std::string jump_controlling_;
+
+  ///\brief what the database knows of the jump's destination, told to edworld (the d3d11 proxy in the
+  /// game) through `target` in the tmpfs directory of the edworld settings - once per new destination
+  auto publish_edworld_target(current_state_t const & state) -> void;
+  edworld::target_t * edworld_target_{};
+  std::string edworld_dir_;
+  uint64_t edworld_system_{};
+  bool edworld_failed_{};
 
   uint64_t market_id_{};
   uint64_t market_destination_{};

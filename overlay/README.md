@@ -231,12 +231,20 @@ on the screen with it while a patch at a fixed spot stays. A patch can follow a 
 (`cover_t.follow_width`, `follow_height`, `follow_rest_x`, `follow_rest_y`), from what edworld reports:
 edworld is a separate, read-only d3d11 proxy in the game process that publishes, for every cockpit panel
 the game draws, the size of its interface surface and where its origin lands on the screen, in
-`/dev/shm/edworld` (`EHT_WORLD_SHARE` names another file; layout in `include/edworld_share.h`). The
+`/dev/shm/eht/panels` (`EHT_WORLD_SHARE` names another file; layout in `include/edworld_share.h`). The
 layer maps that file, picks the panel by its surface's size (the one nearest its rest place when several
 share it) and moves the patch by as much as the panel's origin moved from `follow_rest_x`, `follow_rest_y`
 (normalised device coordinates of the whole surface, x right, y up). Without the file, with a record older
 than 250 ms, or with `follow_width` 0, the patch stays where `x`, `y` put it. An older layer skips the
 fields and its patch stays put.
+
+The other way round, the tool tells edworld what its database knows of a jump's destination: once per new
+FSDTarget it writes `target` into the same tmpfs directory (`edworld.dir` in `eht_settings.json`, default
+`/dev/shm/eht`; layout `edworld::target_t`, written under a seqlock by `include/world_target.h`): the system's
+address, whether the database has it, its allegiance and name. edworld draws the emblem from that when the
+address is its destination and the system is known, and asks EDSM only when the tool does not know the system
+or says nothing for two seconds. A directory that cannot be written leaves one warning in the log and edworld
+on EDSM.
 
 ## An arrow on a line
 

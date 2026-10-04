@@ -521,6 +521,15 @@ struct graphics_settings_t
   };
   };
 
+///\brief edworld - a d3d11 proxy in the game process that draws the right superpower emblem onto the panel of
+/// a jump being charged - takes the destination's allegiance from the tool first: the tool writes what its
+/// database knows of the system into `target` in this tmpfs directory (the proxy's `shm_dir`, as Z:\dev\shm\...
+/// under Wine), and the proxy publishes the cockpit panels it sees into `panels` there. Empty: nothing written
+struct edworld_settings_t
+  {
+  std::string dir{"/dev/shm/eht"};
+  };
+
 struct settings_t
   {
   overlay_settings_t overlay;
@@ -539,6 +548,7 @@ struct settings_t
   vision_settings_t vision;
   hot_drop_settings_t hot_drop;
   graphics_settings_t graphics;
+  edworld_settings_t edworld;
   };
 
 ///\brief switches read from the file when someone put them there, and never written into a file of

@@ -1,9 +1,12 @@
 #include <world_follow.h>
+#include <world_target.h>
 
 #include <boost/ut.hpp>
 
 #include <cmath>
 #include <memory>
+#include <string>
+#include <string_view>
 
 using namespace boost::ut;
 
@@ -74,6 +77,31 @@ int main()
     auto behind{make_record()};
     add_panel(*behind, 1024u, 512u, 0.1f, 0.1f, -1.f);
     expect(not overlay::world::panel_shift(*behind, {1024u, 512u, 0.f, 0.f}, now_ms).has_value());
+  };
+
+  "the destination told to edworld: the database's allegiance, or not known"_test = []
+  {
+    auto const fed{overlay::world::make_target(1487912553027ull, true, "Federation", "Bleia Eohn QT-O d7-43", now_ms)};
+    expect(fed.magic == edworld::target_magic and fed.version == edworld::target_version);
+    expect(fed.size == sizeof(edworld::target_t) and fed.system_address == 1487912553027ull);
+    expect(fed.known == 1u and fed.allegiance == 1u);
+    expect(std::string_view{fed.name} == "Bleia Eohn QT-O d7-43");
+    expect(overlay::world::allegiance_code("Empire") == 2u and overlay::world::allegiance_code("Alliance") == 3u);
+    expect(overlay::world::allegiance_code("Independent") == 4u and overlay::world::allegiance_code("Thargoid") == 5u);
+    auto const unknown{overlay::world::make_target(7ull, false, "Empire", std::string(100, 'x'), now_ms)};
+    expect(unknown.known == 0u and unknown.allegiance == 0u) << "an unknown system names no allegiance";
+    expect(std::string_view{unknown.name}.size() == sizeof unknown.name - 1u) << "a long name is cut, NUL kept";
+  };
+
+  "the target goes into the shared record under its seqlock, even and whole"_test = []
+  {
+    auto shared{std::make_unique<edworld::target_t>()};
+    shared->sequence = 4u;
+    overlay::world::write_target(*shared, overlay::world::make_target(42ull, true, "Alliance", "A", now_ms));
+    expect(shared->sequence == 6u) << shared->sequence;
+    expect(shared->system_address == 42ull and shared->allegiance == 3u and shared->magic == edworld::target_magic);
+    overlay::world::write_target(*shared, overlay::world::make_target(43ull, false, "", "B", now_ms));
+    expect(shared->sequence == 8u and shared->system_address == 43ull and shared->known == 0u);
   };
 
   "a record is read only when consistent and edworld's"_test = []

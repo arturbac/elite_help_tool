@@ -133,6 +133,9 @@ process carries no state of ours.
   drawn), the patch follows the panel: `overlay.jump_emblem.follow_width` and `follow_height` name the
   panel by the size of its interface surface, `follow_rest_x` and `follow_rest_y` say where its origin
   stands when the patch is in its place (all 0 by default: the patch stays put).
+  The tool also tells edworld what its database knows of the destination, in `target` in the tmpfs
+  directory `edworld.dir` (default `/dev/shm/eht`, empty: nothing written), so edworld paints the emblem
+  from the tool's record instead of EDSM's, which can be older.
 
   ![The corrected jump panel with the destination's factions listed below it](images/overlay_jump_panel.png)
 

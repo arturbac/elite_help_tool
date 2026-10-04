@@ -1,5 +1,5 @@
-// edworld - what a read-only d3d11 observer in the game process publishes about the cockpit panels it
-// sees drawn. Plain fixed-width layout, written on the Windows side, mapped here read-only.
+// edworld - what a d3d11 proxy in the game process publishes about the cockpit panels it sees drawn, and what
+// a data source beside the game (EHT) tells it of the jump destination. Plain fixed-width layouts.
 #pragma once
 
 #include <cstdint>
@@ -57,5 +57,25 @@ struct share_t
   std::uint32_t pool_bytes;  ///< size of the instance record pool copied for the frame
   std::uint32_t reserved;
   panel_t panels[max_panels];
+  };
+
+// ---- the destination, written by a data source beside the game (EHT), read by the proxy ----
+inline constexpr std::uint32_t target_magic{0x47545745u};  // "EWTG"
+inline constexpr std::uint32_t target_version{1u};
+
+///\brief what the source knows of the system a jump is being charged to. The proxy takes it before asking
+/// EDSM, when system_address is the destination Status.json names and known is set
+struct target_t
+  {
+  std::uint32_t magic;
+  std::uint32_t version;
+  std::uint32_t size;      ///< sizeof(target_t) of the writer
+  std::uint32_t sequence;  ///< seqlock, as in share_t
+  std::uint64_t system_address;
+  std::int64_t unix_ms;     ///< when written
+  std::uint8_t known;       ///< 1: the source has the system; 0: it does not, ask elsewhere
+  std::uint8_t allegiance;  ///< 0 unknown, 1 Federation, 2 Empire, 3 Alliance, 4 Independent, 5 other
+  std::uint8_t reserved[6];
+  char name[64];  ///< the system's name, for logs; NUL-terminated
   };
   }  // namespace edworld

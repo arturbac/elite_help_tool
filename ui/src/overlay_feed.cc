@@ -21,6 +21,12 @@
 #include <qformat.h>
 
 #include <spdlog/spdlog.h>
+#include <world_target.h>
+
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 #include <algorithm>
 #include <array>
@@ -4278,6 +4284,64 @@ auto overlay_feed_t::build_hot_drop_lines(current_state_t const & state) const -
   return lines;
   }
 
+auto overlay_feed_t::publish_edworld_target(current_state_t const & state) -> void
+  {
+  std::string const & dir{eht::settings()->edworld.dir};
+  if(dir.empty())
+    return;
+  if(dir != edworld_dir_)
+    {
+    if(edworld_target_)
+      ::munmap(edworld_target_, sizeof(edworld::target_t));
+    edworld_target_ = nullptr;
+    edworld_dir_ = dir;
+    edworld_system_ = 0u;
+    edworld_failed_ = false;
+    }
+  if(not edworld_target_)
+    {
+    if(edworld_failed_)
+      return;
+    // a directory of tmpfs: the proxy under Wine opens the same file as Z:\dev\shm\..., and the mapping
+    // it makes of it is this one's pages
+    ::mkdir(dir.c_str(), 0755);
+    std::string const path{dir + "/target"};
+    int const fd{::open(path.c_str(), O_RDWR | O_CREAT | O_CLOEXEC, 0644)};
+    void * view{MAP_FAILED};
+    if(fd >= 0 and ::ftruncate(fd, sizeof(edworld::target_t)) == 0)
+      view = ::mmap(nullptr, sizeof(edworld::target_t), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    int const err{errno};
+    if(fd >= 0)
+      ::close(fd);
+    if(view == MAP_FAILED)
+      {
+      edworld_failed_ = true;
+      spdlog::warn("edworld: {} could not be mapped ({}), the proxy will ask EDSM instead", path, std::strerror(err));
+      return;
+      }
+    edworld_target_ = static_cast<edworld::target_t *>(view);
+    spdlog::info("edworld: telling the proxy the jump destination in {}", path);
+    }
+
+  uint64_t const target{state.next_target.SystemAddress};
+  if(target == 0u or target == edworld_system_)
+    return;
+  edworld_system_ = target;
+  bool known{};
+  std::string allegiance;
+  if(auto system{db_.load_system(target)}; system and *system)
+    {
+    known = true;
+    allegiance = (*system)->allegiance;
+    }
+  auto const now_ms{
+    std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count()
+  };
+  overlay::world::write_target(
+    *edworld_target_, overlay::world::make_target(target, known, allegiance, state.next_target.Name, now_ms)
+  );
+  }
+
 auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t const & plotted) -> void
   {
   codex_.set_journal_dir(state.journal_dir_path_);
@@ -4958,6 +5022,8 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
   frame.capture = capture_;
   frame.sample = approach_.sample_request();
   frame.screenshot.key = eht::settings()->screenshots.key;
+
+  publish_edworld_target(state);
 
   // The panel of a jump being charged stands in the middle of the screen while the hyperdrive charges - a
   // state of Flags2 alone: StartJump is written only when the charge is done and the countdown begins,
