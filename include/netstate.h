@@ -64,6 +64,11 @@ auto default_routes(std::string_view route_table) -> uint32_t;
 [[nodiscard]]
 auto socket_inode(std::string_view link) -> std::optional<uint64_t>;
 
+///\brief whether a /proc/<pid>/cmdline is the game's own process: the program itself, the first argument, is
+/// EliteDangerous64.exe - the watchdog names the game only among its arguments
+[[nodiscard]]
+auto is_game_command(std::string_view cmdline) noexcept -> bool;
+
 ///\brief the game's process, the one whose Wine prefix holds the journal directory - two accounts may play at once
 [[nodiscard]]
 auto find_game(std::filesystem::path const & journal_dir) -> std::optional<int>;

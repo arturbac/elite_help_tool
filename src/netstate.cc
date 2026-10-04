@@ -211,6 +211,13 @@ auto socket_inode(std::string_view link) -> std::optional<uint64_t>
   return inode;
   }
 
+auto is_game_command(std::string_view cmdline) noexcept -> bool
+  {
+  std::string_view const program{cmdline.substr(0u, cmdline.find('\0'))};
+  std::string_view const file{program.substr(program.find_last_of("\\/") + 1u)};
+  return file == "EliteDangerous64.exe";
+  }
+
 auto find_game(std::filesystem::path const & journal_dir) -> std::optional<int>
   {
   std::error_code ec;
@@ -224,7 +231,7 @@ auto find_game(std::filesystem::path const & journal_dir) -> std::optional<int>
     if(std::from_chars(name.data(), name.data() + name.size(), pid).ec != std::errc{})
       continue;
     std::string const command{whole(entry.path() / "cmdline")};
-    if(not command.contains("EliteDangerous64.exe"))
+    if(not is_game_command(command))
       continue;
     std::string const environment{whole(entry.path() / "environ")};
     for(auto const part: std::views::split(environment, '\0'))

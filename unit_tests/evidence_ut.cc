@@ -97,6 +97,15 @@ auto main() -> int
     expect(netstate::socket_inode("socket:[4242]") == std::optional<uint64_t>{4242u});
     expect(not netstate::socket_inode("pipe:[4242]").has_value());
     expect(not netstate::socket_inode("/dev/null").has_value());
+    using namespace std::string_view_literals;
+    expect(netstate::is_game_command(
+      "S:\\steamapps\\common\\Elite Dangerous\\Products\\elite-dangerous-odyssey-64\\EliteDangerous64.exe\0wseed 23651\0"sv
+    ));
+    expect(not netstate::is_game_command(
+      "S:\\steamapps\\common\\Elite Dangerous\\WatchDog64.exe\0/Executable\0S:\\steamapps\\common\\Elite Dangerous\\Products\\elite-dangerous-odyssey-64\\EliteDangerous64.exe\0"sv
+    ));
+    expect(netstate::is_game_command("EliteDangerous64.exe"sv));
+    expect(not netstate::is_game_command(""sv));
   };
 
   "a netstate line names the moment and every socket"_test = []

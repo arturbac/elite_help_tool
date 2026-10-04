@@ -21,8 +21,9 @@ again, or 5 minutes (`evidence.again_after_s`).
 While the game runs, the state of its network connections goes every 2 s
 (`evidence.netstate_interval_ms`) to the day's `<dir>/netstate-YYYY-MM-DD.jsonl`, again from what
 any user may read - no packet capture, nothing as root. The game's sockets come from its
-`/proc/<pid>/fd` (the game whose Wine prefix holds the journals, so two accounts playing at once
-are told apart) and their state from the kernel's socket diagnostics: for TCP the round trip, its
+`/proc/<pid>/fd` (the process whose program is `EliteDangerous64.exe` itself - not the watchdog,
+which names the game only among its arguments - and whose Wine prefix holds the journals, so two
+accounts playing at once are told apart) and their state from the kernel's socket diagnostics: for TCP the round trip, its
 variance, retransmissions and losses; for UDP the queues and the datagrams dropped. Beside them go
 the system's UDP and TCP counters from `/proc/net/snmp` as deltas, and the number of default
 routes. The lines hold the addresses the game talks to, other players' among them: keep them on
