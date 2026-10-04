@@ -3,6 +3,7 @@
 #include "vk_keyboard.h"
 #include "vk_faces.h"
 #include "vk_sample.h"
+#include "vk_world.h"
 #include "overlay_font.h"
 #include "ground_shaders.h"
 #include "sphere_shaders.h"
@@ -11,6 +12,7 @@
 #include <imgui.h>
 
 #include <overlay_emblems.h>
+#include <world_follow.h>
 
 #include <algorithm>
 #include <array>
@@ -1183,9 +1185,31 @@ namespace
     ImVec2 const centre{display.x / 2.f, display.y / 2.f};
     ImDrawList * const draw{ImGui::GetBackgroundDrawList()};
     ImFontAtlas & atlas{*ImGui::GetIO().Fonts};
+    // the record is read once for all the patches, and only when one of them follows a panel
+    edworld::share_t * world{};
+    bool world_read{};
     for(overlay::cover_t const & cover: covers)
       {
-      ImVec2 const middle{centre.x + cover.x * unit, centre.y + cover.y * unit};
+      ImVec2 middle{centre.x + cover.x * unit, centre.y + cover.y * unit};
+      if(cover.follow_width != 0u and cover.follow_height != 0u)
+        {
+        if(not world_read)
+          {
+          world_read = true;
+          thread_local edworld::share_t record;  // 16 kB, kept off the stack
+          if(world_record(record))
+            world = &record;
+          }
+        if(world)
+          {
+          overlay::world::follow_t const follow{cover.follow_width, cover.follow_height, cover.follow_rest_x, cover.follow_rest_y};
+          auto const since_epoch{std::chrono::system_clock::now().time_since_epoch()};
+          int64_t const now_ms{std::chrono::duration_cast<std::chrono::milliseconds>(since_epoch).count()};
+          // normalised device coordinates span the whole surface, 2 across and 2 down, y up
+          if(auto const shift{overlay::world::panel_shift(*world, follow, now_ms)}; shift)
+            middle = ImVec2{middle.x + shift->x * display.x / 2.f, middle.y - shift->y * display.y / 2.f};
+          }
+        }
       ImVec2 const half{cover.width * unit / 2.f, cover.height * unit / 2.f};
       draw->AddRectFilled(
         ImVec2{std::round(middle.x - half.x), std::round(middle.y - half.y)},

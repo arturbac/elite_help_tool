@@ -137,6 +137,13 @@ struct jump_emblem_t
   float emblem_height{0.030f};
   ///\brief the panel's own black, under the patch
   colour_t ground{0x020304u};
+  ///\brief follow the panel when the cockpit camera swings, from what edworld (a d3d11 observer in the game
+  /// process) reports: the size of the panel's interface surface, and where the panel's origin stands on the
+  /// screen (normalised device coordinates, x right, y up) when the patch is at x, y. 0 = the patch stays put
+  uint32_t follow_width{0u};
+  uint32_t follow_height{0u};
+  float follow_rest_x{0.f};
+  float follow_rest_y{0.f};
   ///\brief the factions of the system being jumped to, under the panel while the drive charges - names,
   /// influence and which way it went at the last tick
   bool factions{true};

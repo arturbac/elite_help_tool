@@ -226,6 +226,18 @@ are in the `overlay.jump_emblem` section of `eht_settings.json`. A patch goes wh
 silent for 10 s, so it never outlives the tool. An older layer skips both fields: no patches, and
 the block joins its corner.
 
+The cockpit camera is not fixed to the ship: it lags and swings when the ship turns, and the panel moves
+on the screen with it while a patch at a fixed spot stays. A patch can follow a panel instead
+(`cover_t.follow_width`, `follow_height`, `follow_rest_x`, `follow_rest_y`), from what edworld reports:
+edworld is a separate, read-only d3d11 proxy in the game process that publishes, for every cockpit panel
+the game draws, the size of its interface surface and where its origin lands on the screen, in
+`/dev/shm/edworld` (`EHT_WORLD_SHARE` names another file; layout in `include/edworld_share.h`). The
+layer maps that file, picks the panel by its surface's size (the one nearest its rest place when several
+share it) and moves the patch by as much as the panel's origin moved from `follow_rest_x`, `follow_rest_y`
+(normalised device coordinates of the whole surface, x right, y up). Without the file, with a record older
+than 250 ms, or with `follow_width` 0, the patch stays where `x`, `y` put it. An older layer skips the
+fields and its patch stays put.
+
 ## An arrow on a line
 
 `line_t.pointer` puts an arrow before the line's text, in the line's colour, turned that many degrees

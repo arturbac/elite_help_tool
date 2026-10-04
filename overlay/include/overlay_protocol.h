@@ -442,6 +442,14 @@ struct cover_t
   emblem_e emblem{emblem_e::none};
   float emblem_height{};
   uint32_t emblem_color{0xffffffu};
+  ///\brief follow a cockpit panel that edworld reports - named by the size of the interface surface it draws;
+  /// 0 keeps the patch where x and y put it. Fields an older layer skips, and its patch stays put
+  uint32_t follow_width{};
+  uint32_t follow_height{};
+  ///\brief where that panel's origin stands on the screen when the patch is at x, y - normalised device
+  /// coordinates of the whole surface, x right and y up; the patch moves by as much as the origin moves
+  float follow_rest_x{};
+  float follow_rest_y{};
   };
 
 ///\brief the full image to draw - replaces the previous one entirely, only the newest counts

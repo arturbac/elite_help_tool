@@ -121,6 +121,7 @@ add_library(eht_overlay_plugin SHARED
   src/vk_faces.cc
   src/vk_sample.cc
   src/vk_keyboard.cc
+  src/vk_world.cc
   ${EHT_OVERLAY_FONT_SOURCE})
 target_include_directories(eht_overlay_plugin PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(eht_overlay_plugin PRIVATE

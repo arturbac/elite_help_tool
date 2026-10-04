@@ -215,7 +215,11 @@ auto jump_emblem_cover(std::string_view allegiance) -> std::optional<overlay::co
     .ground = place.ground.rgb,
     .emblem = allegiance_emblem(superpower),
     .emblem_height = place.emblem_height,
-    .emblem_color = allegiance_colour(superpower)
+    .emblem_color = allegiance_colour(superpower),
+    .follow_width = place.follow_width,
+    .follow_height = place.follow_height,
+    .follow_rest_x = place.follow_rest_x,
+    .follow_rest_y = place.follow_rest_y
   };
   }
 

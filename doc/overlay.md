@@ -128,6 +128,12 @@ process carries no state of ours.
   It knows only systems already in its database: on a first visit, and in unpopulated space while
   exploring, it leaves the panel as the game draws it and shows no list.
 
+  The cockpit camera swings when the ship turns, and the panel moves on the screen with it. With
+  edworld in the game (a separate, read-only d3d11 proxy that reports where the cockpit panels are
+  drawn), the patch follows the panel: `overlay.jump_emblem.follow_width` and `follow_height` name the
+  panel by the size of its interface surface, `follow_rest_x` and `follow_rest_y` say where its origin
+  stands when the patch is in its place (all 0 by default: the patch stays put).
+
   ![The corrected jump panel with the destination's factions listed below it](images/overlay_jump_panel.png)
 
 The layout (text size, band widths, where the readouts stand, opacity) comes from

@@ -63,3 +63,10 @@ add_ut_test(face_store_ut.cc)
 add_ut_test(hot_drop_ut.cc)
 add_ut_test(vision_ut.cc)
 target_link_libraries(vision_ut PRIVATE eht_vision_core)
+
+# podazanie latki za panelem kokpitu (edworld) - sam naglowek warstwy, bez eht
+add_executable(overlay_world_ut overlay_world_ut.cc)
+target_include_directories(overlay_world_ut PRIVATE ${PROJECT_SOURCE_DIR}/overlay/include)
+target_link_libraries(overlay_world_ut PRIVATE Boost::ut)
+target_compile_options(overlay_world_ut PUBLIC -Wno-global-constructors)
+add_test(NAME "overlay_world_ut" COMMAND overlay_world_ut)
