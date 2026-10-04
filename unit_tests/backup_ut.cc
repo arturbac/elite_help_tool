@@ -119,4 +119,61 @@ auto main() -> int
     std::error_code ec;
     std::filesystem::remove_all(root, ec);
   };
+    "settings kept"_test = []
+  {
+    expect(backup::kept_from_game("AppConfigLocal.xml"));
+    expect(backup::kept_from_game("GraphicsConfiguration.xml"));
+    expect(backup::kept_from_game("d3dx.ini"));
+    expect(not backup::kept_from_game("AppConfig.xml")) << "the game's own, shipped with it";
+    expect(not backup::kept_from_game("d3d11.dll"));
+    expect(backup::game_dir_of("/g/Products/elite-dangerous-odyssey-64/Logs") == std::filesystem::path{"/g/Products/elite-dangerous-odyssey-64"});
+    expect(backup::game_dir_of({}).empty());
+    expect(backup::game_dir_of("/somewhere/else").empty());
+
+    std::filesystem::path const root{std::filesystem::temp_directory_path() / "eht_backup_settings_ut"};
+    std::error_code ec;
+    std::filesystem::remove_all(root, ec);
+    std::filesystem::path const options{root / "Options"};
+    std::filesystem::path const game{root / "game"};
+    std::filesystem::path const tool{root / "eht_settings.json"};
+    std::filesystem::path const destination{root / "backup"};
+    std::filesystem::create_directories(options / "Bindings");
+    std::filesystem::create_directories(game);
+    {
+    std::ofstream{options / "Bindings" / "Custom.4.2.binds"} << "<Root/>";
+    std::ofstream{game / "AppConfigLocal.xml"} << "<AppConfig/>";
+    std::ofstream{game / "edworld.ini"} << "patch=1";
+    std::ofstream{game / "d3d11.dll"} << "not a setting";
+    std::ofstream{tool} << "{}";
+    }
+    backup::settings_sources_t const sources{.options_dir = options, .game_dir = game, .tool_settings = tool};
+    auto const first{backup::copy_settings(destination, sources)};
+    expect(first.errors.empty());
+    expect(first.copied == 4_ul);
+    expect(std::filesystem::exists(destination / "settings" / "options" / "Bindings" / "Custom.4.2.binds"));
+    expect(std::filesystem::exists(destination / "settings" / "game" / "edworld.ini"));
+    expect(not std::filesystem::exists(destination / "settings" / "game" / "d3d11.dll"));
+    expect(std::filesystem::exists(destination / "settings" / "eht_settings.json"));
+
+    expect(backup::copy_settings(destination, sources).copied == 0_ul) << "nothing newer";
+
+    auto const later{std::filesystem::last_write_time(game / "edworld.ini") + std::chrono::hours{1}};
+    // written again unchanged - only the time moves, nothing set aside
+    std::filesystem::last_write_time(game / "edworld.ini", later);
+    expect(backup::copy_settings(destination, sources).copied == 0_ul);
+    // changed - the copy it replaces stays beside it
+    {
+    std::ofstream{game / "edworld.ini"} << "patch=0";
+    }
+    std::filesystem::last_write_time(game / "edworld.ini", later + std::chrono::hours{1});
+    expect(backup::copy_settings(destination, sources).copied == 1_ul);
+    size_t kept{};
+    for(auto const & entry: std::filesystem::directory_iterator{destination / "settings" / "game"})
+      if(entry.path().filename().string().starts_with("edworld.ini"))
+        ++kept;
+    expect(kept == 2_ul) << "the new copy and the one it replaced";
+
+    std::filesystem::remove_all(root, ec);
+  };
   }
+

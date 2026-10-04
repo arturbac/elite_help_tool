@@ -8,7 +8,8 @@
 #include <string_view>
 #include <vector>
 
-///\brief a copy of what cannot be rebuilt - the journals, the codex's pictures, and live.sqlite - kept on this machine
+///\brief a copy of what cannot be rebuilt - the journals, the codex's pictures, live.sqlite, and the settings of the
+/// game and of the tool - kept on this machine
 ///
 /// `ehtdb.sqlite` and `galaxy.sqlite` are rebuilt from the journals, and what the pictures show is
 /// described again out of them, so the journals and the pictures are what a periodic backup packs. But
@@ -55,6 +56,40 @@ auto run(
   std::filesystem::path const & live_db_path,
   int level
 ) -> summary_t;
+
+///\brief the settings nothing rebuilds - the game's own and the tool's - and where each lies; an empty path is
+/// skipped
+struct settings_sources_t
+  {
+  ///\brief the game's Options directory: Bindings, Graphics, Player, Audio
+  std::filesystem::path options_dir;
+  ///\brief the game's own directory, Products/<product> - of it only what kept_from_game names
+  std::filesystem::path game_dir;
+  ///\brief eht_settings.json
+  std::filesystem::path tool_settings;
+  };
+
+struct settings_summary_t
+  {
+  size_t copied{};
+  std::vector<std::string> errors;
+  };
+
+///\brief the files of the game's own directory a verification of the game's files would delete or put back as
+/// shipped: AppConfigLocal.xml, GraphicsConfiguration.xml, and the mods' .ini files. Never the binaries - a mod's
+/// DLL comes again from where it was built or downloaded
+[[nodiscard]]
+auto kept_from_game(std::filesystem::path const & file_name) -> bool;
+
+///\brief the game's own directory out of the netLog's: Products/<product>/Logs; empty when it is not one
+[[nodiscard]]
+auto game_dir_of(std::filesystem::path const & netlog_dir) -> std::filesystem::path;
+
+///\brief copies the settings into "settings" under destination - "options", "game" and eht_settings.json - each
+/// file when missing or newer. The copy it replaces is kept beside it under the name with its own time appended,
+/// so a setting broken later never overwrites the last good one, and nothing is ever deleted
+[[nodiscard]]
+auto copy_settings(std::filesystem::path const & destination, settings_sources_t const & sources) -> settings_summary_t;
 
 ///\brief what the last backup was, kept beside it
 struct mark_t
