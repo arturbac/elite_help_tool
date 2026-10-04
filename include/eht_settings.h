@@ -123,27 +123,12 @@ struct system_map_t
   colour_t to_map{0xffb84au};
   };
 
-///\brief the superpower's emblem in the panel of a hyperspace jump being charged
-///\detail the game shows the right emblem only for an independent system and a wrong one for the Federation, the
-/// Empire and the Alliance, so for those three the overlay paints the panel's middle over and draws the right
-/// one. The place is on the middle screen, from its centre, in shares of its height
+///\brief the panel of a hyperspace jump being charged
+///\detail the game shows the right superpower emblem there only for an independent system; edworld (a d3d11
+/// proxy in the game process, edworld_settings_t) draws the right one onto the panel itself. The overlay adds
+/// only the list below
 struct jump_emblem_t
   {
-  bool enabled{true};
-  float x{0.0014f};
-  float y{-0.1808f};
-  float width{0.085f};
-  float height{0.040f};
-  float emblem_height{0.030f};
-  ///\brief the panel's own black, under the patch
-  colour_t ground{0x020304u};
-  ///\brief follow the panel when the cockpit camera swings, from what edworld (a d3d11 observer in the game
-  /// process) reports: the size of the panel's interface surface, and where the panel's origin stands on the
-  /// screen (normalised device coordinates, x right, y up) when the patch is at x, y. 0 = the patch stays put
-  uint32_t follow_width{0u};
-  uint32_t follow_height{0u};
-  float follow_rest_x{0.f};
-  float follow_rest_y{0.f};
   ///\brief the factions of the system being jumped to, under the panel while the drive charges - names,
   /// influence and which way it went at the last tick
   bool factions{true};

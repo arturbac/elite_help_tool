@@ -203,7 +203,6 @@ private:
   system_factions_t jump_;
   ///\brief the system being jumped to as the database knows it - read once for each new target
   uint64_t jump_system_{};
-  std::string jump_allegiance_;
   std::string jump_controlling_;
 
   ///\brief what the database knows of the jump's destination, told to edworld (the d3d11 proxy in the

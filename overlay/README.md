@@ -211,8 +211,8 @@ With `PROTON_ENABLE_WAYLAND=1` the layer will not hear the key.
 ## Patches over the game's interface and blocks in the middle
 
 `frame_t.covers` are patches painted fully opaque over the game's own interface, with an emblem in
-the middle if one is named. The tool uses one to put right the superpower emblem the game gets wrong
-in the panel of a jump being charged. A block with `middle` set stands in the middle screen instead
+the middle if one is named. The tool sends none: the superpower emblem the game gets wrong in the panel
+of a jump being charged is put right by edworld, on the panel itself. A block with `middle` set stands in the middle screen instead
 of its corner, centred across it; the factions of the destination go under that panel so.
 Those lines carry no markers, since there is no chart beside them to tie them to; `line_t.emblem_column`
 keeps the emblems' column anyway, so the names still start in one place. An older layer skips the
@@ -221,8 +221,8 @@ field and draws the lines without emblems.
 Both are placed on the middle screen, from its centre, in shares of its height (`x`, `y`, `width`,
 `height`, `emblem_height`, `middle_y`, `middle_width`). The game draws its interface on the middle
 screen at 16:9 whatever the resolution and however wide the whole surface, so the same numbers land
-on the same spot of its interface at 1080p, at 4k and on a triple screen. The place and the size
-are in the `overlay.jump_emblem` section of `eht_settings.json`. A patch goes when the tool falls
+on the same spot of its interface at 1080p, at 4k and on a triple screen. The list's place and width
+are `factions_y` and `factions_width` in the `overlay.jump_emblem` section of `eht_settings.json`. A patch goes when the tool falls
 silent for 10 s, so it never outlives the tool. An older layer skips both fields: no patches, and
 the block joins its corner.
 

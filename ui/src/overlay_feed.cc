@@ -192,43 +192,6 @@ auto allegiance_emblem(info::allegiance_e allegiance) -> overlay::emblem_e
     }
   }
 
-///\brief a patch over the emblem in the panel of a hyperspace jump being charged, with the right emblem on it
-///\detail the game gets the emblem right only for an independent system; for the three superpowers it draws a
-/// wrong one, and those are the only systems the patch is for. A system the database knows nothing of yet
-/// is left to the game - a guess painted over it would be one more wrong emblem
-[[nodiscard]]
-auto jump_emblem_cover(std::string_view allegiance) -> std::optional<overlay::cover_t>
-  {
-  eht::jump_emblem_t const & place{eht::settings()->overlay.jump_emblem};
-  if(not place.enabled)
-    return std::nullopt;
-
-  using enum info::allegiance_e;
-  info::allegiance_e const superpower{
-    allegiance == "Federation" ? federation
-    : allegiance == "Empire"   ? empire
-    : allegiance == "Alliance" ? alliance
-                               : unknown
-  };
-  if(superpower == unknown)
-    return std::nullopt;
-
-  return overlay::cover_t{
-    .x = place.x,
-    .y = place.y,
-    .width = place.width,
-    .height = place.height,
-    .ground = place.ground.rgb,
-    .emblem = allegiance_emblem(superpower),
-    .emblem_height = place.emblem_height,
-    .emblem_color = allegiance_colour(superpower),
-    .follow_width = place.follow_width,
-    .follow_height = place.follow_height,
-    .follow_rest_x = place.follow_rest_x,
-    .follow_rest_y = place.follow_rest_y
-  };
-  }
-
 ///\brief separates factions that share an allegiance, without losing what the colour says
 ///\detail allegiance decides the hue, so four independents come out as one grey mass and their lines
 /// cannot be followed. The hue stays - it is the part that says Federation or Empire - and only the
@@ -5040,18 +5003,11 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
     if(target != jump_system_)
       {
       jump_system_ = target;
-      jump_allegiance_.clear();
       jump_controlling_.clear();
-      // a system we have never been to is not in the database, and then there is nothing to put right
+      // a system we have never been to is not in the database, and then there are no factions to list
       if(auto known{db_.load_system(target)}; known and *known)
-        {
-        jump_allegiance_ = (*known)->allegiance;
         jump_controlling_ = (*known)->controlling_faction;
-        }
       }
-
-    if(auto cover{jump_emblem_cover(jump_allegiance_)}; cover)
-      frame.covers.push_back(*cover);
 
     eht::jump_emblem_t const & place{eht::settings()->overlay.jump_emblem};
     if(place.factions)
