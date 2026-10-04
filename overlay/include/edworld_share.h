@@ -7,7 +7,7 @@
 namespace edworld
   {
 inline constexpr std::uint32_t share_magic{0x44575745u};  // "EWWD"
-inline constexpr std::uint32_t share_version{1u};
+inline constexpr std::uint32_t share_version{2u};
 inline constexpr std::uint32_t max_panels{64u};
 inline constexpr std::uint32_t cb0_rows{12u};
 
@@ -29,8 +29,16 @@ struct panel_t
   std::uint32_t ordinal;  ///< order among the frame's panel draws
   ///\brief VS cb0 rows 0..11 as bound at the draw; rows 4..7 produce SV_Position (one dp4 each)
   float cb0[cb0_rows][4];
-  ///\brief clip position of the panel's local origin: the w column of rows 4..7
+  ///\brief clip position of the panel's origin: rows 4..7 applied to (position, 1) when the instance record
+  /// was read (flags bit 0), else their w column alone
   float anchor_clip[4];
+  ///\brief from the instance record (VS t33, through the VB0 instance entry): the panel's place relative to
+  /// the world-rebase origin (record position - VS cb1[275]), its uniform scale and orientation (x, y, z, w)
+  float position[3];
+  float scale;
+  float orientation[4];
+  std::uint32_t record_index;
+  std::uint32_t flags;  ///< bit 0: the record was read
   };
 
 struct share_t
@@ -45,6 +53,9 @@ struct share_t
   std::int64_t unix_ms;        ///< wall clock at publish
   std::uint32_t writer_pid;    ///< Windows process id of the game
   std::uint32_t panel_count;
+  float rebase[4];           ///< VS cb1 row 275 of the frame: the world-rebase origin the positions are relative to
+  std::uint32_t pool_bytes;  ///< size of the instance record pool copied for the frame
+  std::uint32_t reserved;
   panel_t panels[max_panels];
   };
   }  // namespace edworld
