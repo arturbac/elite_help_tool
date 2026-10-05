@@ -211,11 +211,8 @@ private:
   database_storage_t db_;
   ///\brief the factions of the system we stand in
   system_factions_t here_;
-  ///\brief and of the one the drive charges to jump to, under the game's panel of the jump
+  ///\brief and of the one the drive charges to jump to, told to edworld for its list under the game's panel
   system_factions_t jump_;
-  ///\brief the system being jumped to as the database knows it - read once for each new target
-  uint64_t jump_system_{};
-  std::string jump_controlling_;
 
   ///\brief what the database knows of the jump's destination, told to edworld (the d3d11 proxy in the
   /// game) through `target` in the tmpfs directory of the edworld settings - once per new destination

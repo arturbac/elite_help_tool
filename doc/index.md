@@ -9,7 +9,7 @@
 
 ## Overlay
 
-- [In-game overlay](overlay.md): side bands, HUD readouts, dogfights, temperatures, the jump panel
+- [In-game overlay](overlay.md): side bands, HUD readouts, dogfights, temperatures
 
 ## BGS
 

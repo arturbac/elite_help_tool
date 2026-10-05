@@ -123,20 +123,6 @@ struct system_map_t
   colour_t to_map{0xffb84au};
   };
 
-///\brief the panel of a hyperspace jump being charged
-///\detail the game shows the right superpower emblem there only for an independent system; edworld (a d3d11
-/// proxy in the game process, edworld_settings_t) draws the right one onto the panel itself. The overlay adds
-/// only the list below
-struct jump_emblem_t
-  {
-  ///\brief the factions of the system being jumped to, under the panel while the drive charges - names,
-  /// influence and which way it went at the last tick
-  bool factions{true};
-  ///\brief the top of that list from the middle screen's centre, and its widest, in shares of its height
-  float factions_y{-0.105f};
-  float factions_width{0.6f};
-  };
-
 ///\brief a reminder, impossible to miss, that the market just docked at has never been opened
 ///\detail the side band already says "open the commodity market to record it", among everything
 /// else there - easy to miss. This repeats it once, wide and across the middle of the screen, only
@@ -193,7 +179,6 @@ struct overlay_settings_t
   overlay_chart_t influence_chart{.days = 20u, .height = 74u};
   overlay_chart_t tick_chart{.days = 30u, .height = 45u};
   system_map_t system_map;
-  jump_emblem_t jump_emblem;
   market_reminder_t market_reminder;
   overlay_sample_t sample;
   };

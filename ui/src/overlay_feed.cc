@@ -5053,57 +5053,6 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
 
   publish_edworld_target(state);
 
-  // The panel of a jump being charged stands in the middle of the screen while the hyperdrive charges - a
-  // state of Flags2 alone: StartJump is written only when the charge is done and the countdown begins,
-  // and by the charging the target is the system chosen, as FSDTarget named it. In the tunnel the flag
-  // may still stand while the game already names the next system of the route, and there is no panel
-  constexpr uint64_t hyperdrive_charging_flag{1u << 19u};
-  constexpr uint64_t fsd_jump_flag{1u << 30u};
-  uint64_t const target{state.next_target.SystemAddress};
-  if(
-    (status_flags2_ & hyperdrive_charging_flag) != 0u and (status_flags_ & fsd_jump_flag) == 0u
-    and not state.in_witchspace_ and target != 0u and target != state.current_system_address_
-  )
-    {
-    if(target != jump_system_)
-      {
-      jump_system_ = target;
-      jump_controlling_.clear();
-      // a system we have never been to is not in the database, and then there are no factions to list
-      if(auto known{db_.load_system(target)}; known and *known)
-        jump_controlling_ = (*known)->controlling_faction;
-      }
-
-    eht::jump_emblem_t const & place{eht::settings()->overlay.jump_emblem};
-    if(place.factions)
-      {
-      refresh_factions(state, target, jump_controlling_, jump_);
-      // the tick's hour among the lines says nothing about the system - it stays in the band
-      std::vector<overlay::line_t> lines;
-      for(overlay::line_t const & line: jump_.lines)
-        if(line.marker != overlay::marker_e::none)
-          {
-          // the markers tie the lines to the chart's series, and there is no chart under the panel
-          lines.push_back(line);
-          lines.back().marker = overlay::marker_e::none;
-          lines.back().emblem_column = true;
-          }
-      if(not lines.empty())
-        frame.blocks.push_back(
-          overlay::block_t{
-            .corner = overlay::corner_e::top_left,
-            .ttl_ms = block_ttl_ms(),
-            .lines = std::move(lines),
-            // the middle of the screen is the game's, so the list takes as little of it as it can
-            .text = overlay::text_e::small,
-            .middle = true,
-            .middle_y = place.factions_y,
-            .middle_width = place.factions_width
-          }
-        );
-      }
-    }
-
   // In the scanner the band says what the last picture did: a new view is the sign that the filter is in
   // and the next one may be chosen
   if(std::string const target{gui_focus_ == 10u ? scanner_target(state) : std::string{}};

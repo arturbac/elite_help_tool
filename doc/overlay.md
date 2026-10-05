@@ -121,22 +121,16 @@ process carries no state of ours.
 
   The numbers are those the game writes into the file for the set; `name` is only what the line says.
   `dir` points at another `Options/Graphics` when the journals are not in a Wine user's `Saved Games`.
-- **Jump panel.** While the drive charges for a jump to another system, the overlay lists the
-  destination's factions under the game's panel with their influence and the last tick's trend
-  (`overlay.jump_emblem.factions`, `factions_y`, `factions_width`). It knows only systems already in
-  its database: on a first visit, and in unpopulated space while exploring, it shows no list.
-
-  The game's panel shows the destination's superpower emblem, and it is wrong for the Federation, the
-  Empire and the Alliance (only independents get the right one). The overlay does not paint over it:
-  edworld, a separate d3d11 proxy in the game process, draws the right emblem onto the panel itself, so
-  it moves with the panel when the cockpit camera swings. The tool tells edworld what its database knows
-  of the destination, in `target` in the tmpfs directory `edworld.dir` (default `/dev/shm/eht`, empty:
+- **Jump panel.** The game's panel of a jump being charged shows the destination's superpower emblem,
+  and it is wrong for the Federation, the Empire and the Alliance (only independents get the right one).
+  The overlay draws nothing over or under that panel: edworld, a separate d3d11 proxy in the game process,
+  draws the right emblem onto the panel itself and lists the destination's factions under it, so both
+  move with the panel when the cockpit camera swings. The tool tells edworld what its database knows of
+  the destination, in `target` in the tmpfs directory `edworld.dir` (default `/dev/shm/eht`, empty:
   nothing written), so edworld paints the emblem from the tool's record instead of EDSM's, which can be
-  older. The record carries the destination's factions as well, the same ones the list under the panel shows,
-  for edworld to list them on the panel itself (the tool's whole list when it has influence readings of the
-  system, else edworld takes the whole list from EDSM and says so).
-
-  ![The corrected jump panel with the destination's factions listed below it](images/overlay_jump_panel.png)
+  older. The record carries the destination's factions with their influence, states and the last tick's
+  trend when the tool has influence readings of the system; else edworld takes the whole list from EDSM
+  and says so.
 
 The layout (text size, band widths, where the readouts stand, opacity) comes from
 `eht_settings.json` and changes live. The frame rate also stands alone in the top left corner of
