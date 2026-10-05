@@ -89,6 +89,16 @@ private:
   auto scanner_target(current_state_t const & state) const -> std::string;
 
   ///\brief what the overlay shows of one system's factions
+  struct listed_faction_t
+    {
+    std::string name;
+    std::string states;
+    double influence;
+    uint8_t allegiance;  ///< as edworld counts it
+    overlay::trend_e trend;
+    bool controlling;
+    };
+
   struct system_factions_t
     {
     uint64_t system{};
@@ -97,6 +107,8 @@ private:
     std::vector<overlay::line_t> conflicts;
     ///\brief the influence chart - empty when there is too little history
     std::vector<overlay::chart_t> charts;
+    ///\brief every faction present, by influence, for edworld's list under the jump panel; empty without readings
+    std::vector<listed_faction_t> factions;
     };
 
   ///\brief influence is not in the state, it has to come from the database - its own connection, as in the windows

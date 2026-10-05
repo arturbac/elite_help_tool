@@ -132,7 +132,9 @@ process carries no state of ours.
   it moves with the panel when the cockpit camera swings. The tool tells edworld what its database knows
   of the destination, in `target` in the tmpfs directory `edworld.dir` (default `/dev/shm/eht`, empty:
   nothing written), so edworld paints the emblem from the tool's record instead of EDSM's, which can be
-  older.
+  older. The record carries the destination's factions as well, the same ones the list under the panel shows,
+  for edworld to list them on the panel itself (the tool's whole list when it has influence readings of the
+  system, else edworld takes the whole list from EDSM and says so).
 
   ![The corrected jump panel with the destination's factions listed below it](images/overlay_jump_panel.png)
 

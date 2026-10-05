@@ -241,10 +241,15 @@ fields and its patch stays put.
 The other way round, the tool tells edworld what its database knows of a jump's destination: once per new
 FSDTarget it writes `target` into the same tmpfs directory (`edworld.dir` in `eht_settings.json`, default
 `/dev/shm/eht`; layout `edworld::target_t`, written under a seqlock by `include/world_target.h`): the system's
-address, whether the database has it, its allegiance and name. edworld draws the emblem from that when the
-address is its destination and the system is known, and asks EDSM only when the tool does not know the system
-or says nothing for two seconds. A directory that cannot be written leaves one warning in the log and edworld
-on EDSM.
+address, whether the database has it, its allegiance and name, and - when the database has influence readings
+of the system - its factions by influence (at most `edworld::max_target_factions`): name, influence, allegiance,
+the trend at the last tick, whether it controls the system, and the states with the pushes on the bars as the
+overlay's own faction lines show them. edworld draws the emblem from that when the address is its destination
+and the system is known, and lists the factions under the panel from it when they are there; it asks EDSM only
+for what the tool does not have (the whole list, never a mix of the two), and for everything when the tool does
+not know the system or says nothing for two seconds. The factions follow the first layout's fields, and
+`target_t::size` says whether they are there: an edworld of the first layout reads its part of the record and
+ignores the rest. A directory that cannot be written leaves one warning in the log and edworld on EDSM.
 
 ## An arrow on a line
 

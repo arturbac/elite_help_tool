@@ -192,6 +192,22 @@ auto allegiance_emblem(info::allegiance_e allegiance) -> overlay::emblem_e
     }
   }
 
+///\brief the allegiance as edworld counts it (overlay::world::allegiance_code)
+[[nodiscard]]
+auto edworld_allegiance(info::allegiance_e allegiance) noexcept -> uint8_t
+  {
+  using enum info::allegiance_e;
+  switch(allegiance)
+    {
+    case federation:  return 1u;
+    case empire:      return 2u;
+    case alliance:    return 3u;
+    case independent: return 4u;
+    case unknown:     return 0u;
+    default:          return 5u;
+    }
+  }
+
 ///\brief separates factions that share an allegiance, without losing what the colour says
 ///\detail allegiance decides the hue, so four independents come out as one grey mass and their lines
 /// cannot be followed. The hue stays - it is the part that says Federation or Empire - and only the
@@ -1624,6 +1640,7 @@ auto overlay_feed_t::refresh_factions(
   view.conflicts.clear();
   bool war_running{};
   view.charts.clear();
+  view.factions.clear();
 
   if(view.system == 0u)
     return;
@@ -1873,6 +1890,31 @@ auto overlay_feed_t::refresh_factions(
     return shown;
   };
 
+  // what goes on in the faction: its states first, then the pushes on the bars that lead to them
+  auto const states_of = [&](presence_t const & item) -> std::string
+  {
+    std::string states{
+      not item.active.empty() ? item.active
+      : not item.recovering.empty() ? std::format("{} (recovering)", item.recovering)
+                                     : std::string{}
+    };
+    for(std::string const & push: state_pushes(item))
+      states += (states.empty() ? "" : "  ") + push;
+    return states;
+  };
+
+  for(presence_t const & item: presence)
+    view.factions.push_back(
+      listed_faction_t{
+        .name = item.name,
+        .states = states_of(item),
+        .influence = item.influence,
+        .allegiance = edworld_allegiance(item.allegiance),
+        .trend = item.trend,
+        .controlling = item.name == controlling
+      }
+    );
+
   // the line and the chart series are given the same colour and the same shape in one place, so
   // there is no way for them to drift apart
   std::vector<charted_t> charted;
@@ -1887,13 +1929,7 @@ auto overlay_feed_t::refresh_factions(
 
     charted.push_back(charted_t{.oid = item.oid, .name = item.name, .color = colour, .marker = marker});
 
-    std::string suffix{
-      not item.active.empty() ? item.active
-      : not item.recovering.empty() ? std::format("{} (recovering)", item.recovering)
-                                     : std::string{}
-    };
-    for(std::string const & push: state_pushes(item))
-      suffix += (suffix.empty() ? "" : "  ") + push;
+    std::string suffix{states_of(item)};
 
     view.lines.push_back(
       overlay::line_t{
@@ -4292,16 +4328,45 @@ auto overlay_feed_t::publish_edworld_target(current_state_t const & state) -> vo
   edworld_system_ = target;
   bool known{};
   std::string allegiance;
+  std::string controlling;
   if(auto system{db_.load_system(target)}; system and *system)
     {
     known = true;
     allegiance = (*system)->allegiance;
+    controlling = (*system)->controlling_faction;
+    }
+  // the list under the panel is edworld's to draw: the same view the overlay keeps of the destination
+  std::vector<overlay::world::faction_entry_t> factions;
+  bool factions_known{};
+  if(known)
+    {
+    refresh_factions(state, target, controlling, jump_);
+    factions_known = not jump_.factions.empty();
+    for(listed_faction_t const & faction: jump_.factions)
+      factions.push_back(
+        overlay::world::faction_entry_t{
+          .name = faction.name,
+          .states = faction.states,
+          .influence = faction.influence,
+          .allegiance = faction.allegiance,
+          .trend = static_cast<uint8_t>(faction.trend),
+          .controlling = faction.controlling
+        }
+      );
     }
   auto const now_ms{
     std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count()
   };
   overlay::world::write_target(
-    *edworld_target_, overlay::world::make_target(target, known, allegiance, state.next_target.Name, now_ms)
+    *edworld_target_,
+    overlay::world::make_target(target, known, allegiance, state.next_target.Name, now_ms, factions_known, factions)
+  );
+  spdlog::info(
+    "edworld: destination {} told: {}, {} faction(s){}",
+    state.next_target.Name,
+    known ? "known" : "not known",
+    factions.size(),
+    known and not factions_known ? " (no influence readings, edworld asks EDSM)" : ""
   );
   }
 

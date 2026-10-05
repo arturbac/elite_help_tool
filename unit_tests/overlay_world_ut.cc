@@ -7,6 +7,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <vector>
 
 using namespace boost::ut;
 
@@ -91,6 +92,43 @@ int main()
     auto const unknown{overlay::world::make_target(7ull, false, "Empire", std::string(100, 'x'), now_ms)};
     expect(unknown.known == 0u and unknown.allegiance == 0u) << "an unknown system names no allegiance";
     expect(std::string_view{unknown.name}.size() == sizeof unknown.name - 1u) << "a long name is cut, NUL kept";
+  };
+
+  "the destination's factions go with it, only when the tool has the system and its readings"_test = []
+  {
+    std::vector<overlay::world::faction_entry_t> const factions{
+      {.name = "Bleia Eohn Gold Federal Industry",
+       .states = "Boom  EP +3",
+       .influence = 0.412,
+       .allegiance = 1u,
+       .trend = 1u,
+       .controlling = true},
+      {.name = std::string_view{"a name far longer than the sixty-three bytes the field has room for, cut"},
+       .states = {},
+       .influence = 0.2,
+       .allegiance = 9u,
+       .trend = 7u,
+       .controlling = false}
+    };
+    auto const t{overlay::world::make_target(1ull, true, "Federation", "Bleia Eohn", now_ms, true, factions)};
+    expect(t.size == sizeof(edworld::target_t) and t.size > edworld::target_size_first);
+    expect(t.factions_known == 1u and t.faction_count == 2u);
+    expect(std::string_view{t.factions[0].name} == "Bleia Eohn Gold Federal Industry");
+    expect(std::string_view{t.factions[0].states} == "Boom  EP +3");
+    expect(t.factions[0].allegiance == 1u and t.factions[0].trend == 1u and t.factions[0].controlling == 1u);
+    expect(t.factions[0].influence > 0.411f and t.factions[0].influence < 0.413f);
+    expect(std::string_view{t.factions[1].name}.size() == sizeof t.factions[1].name - 1u)
+      << "a long name is cut, NUL kept";
+    expect(t.factions[1].allegiance == 5u and t.factions[1].trend == 0u)
+      << "codes out of range fall to other / unknown";
+    auto const not_known{overlay::world::make_target(1ull, false, "", "X", now_ms, true, factions)};
+    expect(not_known.factions_known == 0u and not_known.faction_count == 0u) << "no list for a system the tool lacks";
+    auto const no_readings{overlay::world::make_target(1ull, true, "Federation", "X", now_ms, false, factions)};
+    expect(no_readings.factions_known == 0u and no_readings.faction_count == 0u);
+    std::vector<overlay::world::faction_entry_t> const many(20u, factions[0]);
+    expect(
+      overlay::world::make_target(1ull, true, "", "X", now_ms, true, many).faction_count == edworld::max_target_factions
+    );
   };
 
   "the target goes into the shared record under its seqlock, even and whole"_test = []

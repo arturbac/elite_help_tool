@@ -2,6 +2,7 @@
 // a data source beside the game (EHT) tells it of the jump destination. Plain fixed-width layouts.
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 
 namespace edworld
@@ -63,6 +64,20 @@ struct share_t
 inline constexpr std::uint32_t target_magic{0x47545745u};  // "EWTG"
 inline constexpr std::uint32_t target_version{1u};
 
+inline constexpr std::uint32_t max_target_factions{12u};
+
+///\brief one faction of the destination as the source last saw it
+struct target_faction_t
+  {
+  char name[64];  ///< NUL-terminated
+  char states[64];           ///< active states, else recovering ones (and the source's notes); NUL-terminated
+  float influence;           ///< 0..1
+  std::uint8_t allegiance;   ///< as target_t::allegiance
+  std::uint8_t trend;        ///< at the last tick: 0 unknown, 1 up, 2 flat, 3 down
+  std::uint8_t controlling;  ///< 1: the faction controls the system
+  std::uint8_t reserved;
+  };
+
 ///\brief what the source knows of the system a jump is being charged to. The proxy takes it before asking
 /// EDSM, when system_address is the destination Status.json names and known is set
 struct target_t
@@ -77,5 +92,13 @@ struct target_t
   std::uint8_t allegiance;  ///< 0 unknown, 1 Federation, 2 Empire, 3 Alliance, 4 Independent, 5 other
   std::uint8_t reserved[6];
   char name[64];  ///< the system's name, for logs; NUL-terminated
+  // ---- read only when size covers them: a writer of the first layout ends at name ----
+  std::uint8_t factions_known;  ///< 1: the factions below are the source's whole list; 0: ask elsewhere
+  std::uint8_t faction_count;
+  std::uint8_t reserved2[6];
+  target_faction_t factions[max_target_factions];  ///< by influence, highest first
   };
+
+///\brief the first layout's size, without the factions: the least a reader accepts
+inline constexpr std::uint32_t target_size_first{offsetof(target_t, factions_known)};
   }  // namespace edworld
