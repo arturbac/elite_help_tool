@@ -123,6 +123,10 @@ auto main() -> int
   {
     expect(backup::closed_mod_log("edworld.20261005T004556Z.log"));
     expect(not backup::closed_mod_log("edworld.log")) << "the running session writes it";
+    expect(backup::closed_mod_log("edworld_eht.20261005T004556Z.log")) << "the build that works with EHT";
+    expect(not backup::closed_mod_log("edworld_eht.log")) << "the running session writes it";
+    expect(not backup::closed_mod_log("edworld_eht.ini"));
+    expect(not backup::closed_mod_log("edworldx.20261005T004556Z.log"));
     expect(not backup::closed_mod_log("edworld.ini"));
     expect(not backup::closed_mod_log("Update.log"));
 

@@ -81,8 +81,9 @@ struct settings_summary_t
 [[nodiscard]]
 auto kept_from_game(std::filesystem::path const & file_name) -> bool;
 
-///\brief a log of a game session gone by, set aside by edworld when the next session began: edworld.<UTC>.log.
-/// Never edworld.log itself - the running session writes it
+///\brief a log of a game session gone by, set aside by edworld when the next session began: edworld.<UTC>.log, or
+/// edworld_eht.<UTC>.log from the build that works with EHT. Never edworld.log or edworld_eht.log - the running
+/// session writes it
 [[nodiscard]]
 auto closed_mod_log(std::filesystem::path const & file_name) -> bool;
 

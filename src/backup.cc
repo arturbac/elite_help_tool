@@ -293,7 +293,11 @@ auto kept_from_game(std::filesystem::path const & file_name) -> bool
 auto closed_mod_log(std::filesystem::path const & file_name) -> bool
   {
   std::string const name{file_name.filename().string()};
-  return name.starts_with("edworld.") and name.ends_with(".log") and name != "edworld.log";
+  // either build of edworld: edworld (alone) or edworld_eht (with EHT); <plugin>.log is the running session's
+  for(std::string_view const plugin: {"edworld", "edworld_eht"})
+    if(name.size() > plugin.size() + 4 and name.starts_with(plugin) and name[plugin.size()] == '.' and name.ends_with(".log"))
+      return true;
+  return false;
   }
 
 auto move_mod_logs(std::filesystem::path const & destination, std::filesystem::path const & game_dir, int level)
