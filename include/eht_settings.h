@@ -448,7 +448,7 @@ struct vision_settings_t
   float min_difference{2.f};
   uint32_t keep_every_s{10u};
   ///\brief the oldest days are deleted once the whole set grows above this; the current day never is
-  double limit_gb{20.0};
+  double limit_gb{100.0};
   ///\brief a picture of the whole middle screen in full resolution at least this often, 0 none - the small
   /// pictures cannot be read, these can
   uint32_t shot_every_s{60u};

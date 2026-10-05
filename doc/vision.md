@@ -23,7 +23,7 @@ In `eht_settings.json`, in the directory EHT runs in:
    "width": 256,
    "min_difference": 2,
    "keep_every_s": 10,
-   "limit_gb": 20,
+   "limit_gb": 100,
    "shot_every_s": 60,
    "shot_after_change_ms": 1500,
    "shot_min_gap_s": 10,
