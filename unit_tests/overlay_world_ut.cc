@@ -94,6 +94,15 @@ int main()
     expect(std::string_view{unknown.name}.size() == sizeof unknown.name - 1u) << "a long name is cut, NUL kept";
   };
 
+  "a record another writer put in its place is seen, so the tool writes its own again"_test = []
+  {
+    edworld::target_t shared{};
+    overlay::world::write_target(shared, overlay::world::make_target(1487912553027ull, true, "Alliance", "X", now_ms));
+    expect(overlay::world::holds(shared, 1487912553027ull));
+    overlay::world::write_target(shared, overlay::world::make_target(63ull, false, "", "", now_ms));
+    expect(not overlay::world::holds(shared, 1487912553027ull)) << "the other commander's tool wrote its destination";
+  };
+
   "the destination's factions go with it, only when the tool has the system and its readings"_test = []
   {
     std::vector<overlay::world::faction_entry_t> const factions{

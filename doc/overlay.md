@@ -125,12 +125,14 @@ process carries no state of ours.
   and it is wrong for the Federation, the Empire and the Alliance (only independents get the right one).
   The overlay draws nothing over or under that panel: edworld, a separate d3d11 proxy in the game process,
   draws the right emblem onto the panel itself and lists the destination's factions under it, so both
-  move with the panel when the cockpit camera swings. The tool tells edworld what its database knows of
-  the destination, in `target` in the tmpfs directory `edworld.dir` (default `/dev/shm/eht`, empty:
-  nothing written), so edworld paints the emblem from the tool's record instead of EDSM's, which can be
-  older. The record carries the destination's factions with their influence, states and the last tick's
-  trend when the tool has influence readings of the system; else edworld takes the whole list from EDSM
-  and says so.
+  move with the panel when the cockpit camera swings. edworld reads the superpower from the panel's own
+  text. The tool tells edworld what its database knows of the destination's factions, in `target` in the
+  tmpfs directory `edworld.dir` (default `/dev/shm/eht`, empty: nothing written): their influence, states
+  and the last tick's trend when the tool has influence readings of the system; else edworld takes the whole
+  list from EDSM and says so. Each commander's tool needs a directory of its own (for example
+  `/dev/shm/eht-<commander>`, the same in that game's edworld ini as `shm_dir`): two tools writing one
+  `target` replace each other's destination. When the tool finds its record replaced, it writes it again
+  once and warns in its log.
 
 The layout (text size, band widths, where the readouts stand, opacity) comes from
 `eht_settings.json` and changes live. The frame rate also stands alone in the top left corner of

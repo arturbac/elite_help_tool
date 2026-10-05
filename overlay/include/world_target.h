@@ -90,6 +90,14 @@ inline auto make_target(
   return t;
   }
 
+///\brief whether the shared record still tells this system: another writer of the same file (a second tool,
+/// another commander's) may have put its own there since
+[[nodiscard]]
+inline auto holds(edworld::target_t & shared, uint64_t system_address) noexcept -> bool
+  {
+  return std::atomic_ref<uint64_t>{shared.system_address}.load(std::memory_order_acquire) == system_address;
+  }
+
 ///\brief puts the record into the shared one under its seqlock: odd while inside, even when done
 inline auto write_target(edworld::target_t & shared, edworld::target_t const & value) noexcept -> void
   {

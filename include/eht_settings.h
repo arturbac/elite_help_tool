@@ -495,9 +495,11 @@ struct graphics_settings_t
   };
 
 ///\brief edworld - a d3d11 proxy in the game process that draws the right superpower emblem onto the panel of
-/// a jump being charged - takes the destination's allegiance from the tool first: the tool writes what its
-/// database knows of the system into `target` in this tmpfs directory (the proxy's `shm_dir`, as Z:\dev\shm\...
-/// under Wine), and the proxy publishes the cockpit panels it sees into `panels` there. Empty: nothing written
+/// a jump being charged and lists the destination's factions under it - takes the factions from the tool first:
+/// the tool writes what its database knows of the system into `target` in this tmpfs directory (the proxy's
+/// `shm_dir`, as Z:\dev\shm\... under Wine), and the proxy publishes the cockpit panels it sees into `panels`
+/// there. One directory per commander's tool: two tools on one `target` replace each other's destination.
+/// Empty: nothing written
 struct edworld_settings_t
   {
   std::string dir{"/dev/shm/eht"};

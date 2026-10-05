@@ -4323,8 +4323,22 @@ auto overlay_feed_t::publish_edworld_target(current_state_t const & state) -> vo
     }
 
   uint64_t const target{state.next_target.SystemAddress};
-  if(target == 0u or target == edworld_system_)
+  if(target == 0u)
     return;
+  if(target == edworld_system_)
+    {
+    // told again once per destination at most: two tools on one file would otherwise take turns every frame
+    if(overlay::world::holds(*edworld_target_, target) or edworld_retold_ == target)
+      return;
+    edworld_retold_ = target;
+    // another writer of the same file (the other commander's tool, given the same edworld.dir) put its
+    // destination there: the proxy would list that system's factions, or none
+    spdlog::warn(
+      "edworld: {}/target no longer holds {}, another tool wrote there; telling it again (give each commander's tool its own edworld.dir)",
+      dir,
+      state.next_target.Name
+    );
+    }
   edworld_system_ = target;
   bool known{};
   std::string allegiance;
