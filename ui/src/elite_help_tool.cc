@@ -172,6 +172,12 @@ auto main_window_t::follow_backup() -> void
     spdlog::error("backup: {}", error);
   if(settings.copied != 0u)
     spdlog::info("backup: {} file(s) of the settings copied to {}", settings.copied, (destination / "settings").string());
+  // the closed session logs of edworld - small, a few megabytes before packing, and gone with a verification
+  backup::mod_logs_summary_t const mod_logs{backup::move_mod_logs(destination, backup_game_dir_, 3)};
+  for(std::string const & error: mod_logs.errors)
+    spdlog::error("backup: {}", error);
+  if(mod_logs.moved != 0u)
+    spdlog::info("backup: {} closed edworld log(s) packed into {}", mod_logs.moved, (destination / "mod-logs").string());
   uint64_t const pictures{backup::count_pictures(codex_files::codex_dir())};
   auto const now{std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())};
   if(not backup::due(backup::read_mark(destination), now, pictures, cfg->backup.every_days, cfg->backup.every_pictures))

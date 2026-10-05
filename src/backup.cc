@@ -290,6 +290,90 @@ auto kept_from_game(std::filesystem::path const & file_name) -> bool
   return name == "AppConfigLocal.xml" or name == "GraphicsConfiguration.xml" or file_name.extension() == ".ini";
   }
 
+auto closed_mod_log(std::filesystem::path const & file_name) -> bool
+  {
+  std::string const name{file_name.filename().string()};
+  return name.starts_with("edworld.") and name.ends_with(".log") and name != "edworld.log";
+  }
+
+auto move_mod_logs(std::filesystem::path const & destination, std::filesystem::path const & game_dir, int level)
+  -> mod_logs_summary_t
+  {
+  mod_logs_summary_t summary;
+  std::error_code ec;
+  if(game_dir.empty() or not std::filesystem::is_directory(game_dir, ec))
+    return summary;
+  std::vector<std::filesystem::path> closed;
+  try
+    {
+    for(auto const & entry: std::filesystem::directory_iterator{game_dir, ec})
+      if(entry.is_regular_file(ec) and closed_mod_log(entry.path()))
+        closed.push_back(entry.path());
+    }
+  catch(std::exception const & e)
+    {
+    summary.errors.push_back(std::format("the game's directory could not be gone through: {}", e.what()));
+    }
+  std::filesystem::path const logs{destination / "mod-logs"};
+  for(std::filesystem::path const & source: closed)
+    try
+    {
+    std::ifstream in{source, std::ios::binary};
+    std::string const content{std::istreambuf_iterator<char>{in}, std::istreambuf_iterator<char>{}};
+    if(not in.good() and not in.eof())
+      {
+      summary.errors.push_back(std::format("{} could not be read", source.string()));
+      continue;
+      }
+    std::string packed(ZSTD_compressBound(content.size()), '\0');
+    size_t const size{ZSTD_compress(packed.data(), packed.size(), content.data(), content.size(), level)};
+    if(ZSTD_isError(size))
+      {
+      summary.errors.push_back(std::format("{} could not be compressed: {}", source.string(), ZSTD_getErrorName(size)));
+      continue;
+      }
+    packed.resize(size);
+    // read back before the original goes: the copy must give the same bytes
+    std::string check(content.size(), '\0');
+    size_t const back{ZSTD_decompress(check.data(), check.size(), packed.data(), packed.size())};
+    if(ZSTD_isError(back) or back != content.size() or check != content)
+      {
+      summary.errors.push_back(std::format("{}: the compressed copy does not read back the same; kept", source.string()));
+      continue;
+      }
+    std::filesystem::create_directories(logs, ec);
+    std::filesystem::path const target{logs / (source.filename().string() + ".zst")};
+    std::filesystem::path const partial{target.string() + ".partial"};
+    {
+    std::ofstream out{partial, std::ios::binary | std::ios::trunc};
+    out.write(packed.data(), static_cast<std::streamsize>(packed.size()));
+    out.close();
+    if(out.fail())
+      {
+      summary.errors.push_back(std::format("{} could not be written", partial.string()));
+      std::filesystem::remove(partial, ec);
+      continue;
+      }
+    }
+    std::filesystem::rename(partial, target, ec);
+    if(ec)
+      {
+      summary.errors.push_back(std::format("{} could not be put in place: {}", target.string(), ec.message()));
+      continue;
+      }
+    std::filesystem::remove(source, ec);
+    if(ec)
+      summary.errors.push_back(std::format("{} is copied but could not be removed: {}", source.string(), ec.message()));
+    else
+      ++summary.moved;
+    }
+    catch(std::exception const & e)  // bad_alloc on a log grown beyond memory, or the stream's own
+      {
+      summary.errors.push_back(std::format("{} could not be packed: {}", source.string(), e.what()));
+      }
+  return summary;
+  }
+
 auto game_dir_of(std::filesystem::path const & netlog_dir) -> std::filesystem::path
   {
   if(netlog_dir.filename() != "Logs")

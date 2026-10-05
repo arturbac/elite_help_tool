@@ -81,6 +81,24 @@ struct settings_summary_t
 [[nodiscard]]
 auto kept_from_game(std::filesystem::path const & file_name) -> bool;
 
+///\brief a log of a game session gone by, set aside by edworld when the next session began: edworld.<UTC>.log.
+/// Never edworld.log itself - the running session writes it
+[[nodiscard]]
+auto closed_mod_log(std::filesystem::path const & file_name) -> bool;
+
+struct mod_logs_summary_t
+  {
+  size_t moved{};
+  std::vector<std::string> errors;
+  };
+
+///\brief each closed log of the game's own directory compressed (zstd) into "mod-logs" under destination and, once
+/// the copy reads back the same, deleted from the game's directory - a verification of the game's files would
+/// delete it anyway, and a week of them would be lost with it
+[[nodiscard]]
+auto move_mod_logs(std::filesystem::path const & destination, std::filesystem::path const & game_dir, int level)
+  -> mod_logs_summary_t;
+
 ///\brief the game's own directory out of the netLog's: Products/<product>/Logs; empty when it is not one
 [[nodiscard]]
 auto game_dir_of(std::filesystem::path const & netlog_dir) -> std::filesystem::path;

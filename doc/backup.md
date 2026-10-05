@@ -30,6 +30,12 @@ pictures came into the codex and the sky album (`backup.every_pictures`), whiche
   A file is copied when missing or newer. When a newer one differs, the copy it replaces is kept
   beside it with its time appended (`edworld.ini.20261004-183000`), so a setting broken later never
   overwrites the last good one; a file the game wrote again unchanged sets nothing aside.
+- The closed session logs of edworld go to `mod-logs/`, looked at with the settings every ten minutes.
+  edworld writes `edworld.log` in the game's directory and, when the next game session starts, renames
+  the last one `edworld.<UTC>.log`. Each of those is compressed with zstd (level 3) into
+  `mod-logs/edworld.<UTC>.log.zst`, read back, and only then deleted from the game's directory - a
+  verification of the game's files would delete it anyway. `edworld.log` itself, the running session's,
+  is never touched. `zstd -d` unpacks one.
 - `last_backup.json` beside them says when the last one was and how many pictures there were then.
 - `backup.dir` moves it, `backup.enabled` turns it off. Copying `~/.backups/eht` to another disk
   is then the whole backup.

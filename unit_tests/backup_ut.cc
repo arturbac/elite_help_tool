@@ -119,6 +119,41 @@ auto main() -> int
     std::error_code ec;
     std::filesystem::remove_all(root, ec);
   };
+    "closed edworld logs moved"_test = []
+  {
+    expect(backup::closed_mod_log("edworld.20261005T004556Z.log"));
+    expect(not backup::closed_mod_log("edworld.log")) << "the running session writes it";
+    expect(not backup::closed_mod_log("edworld.ini"));
+    expect(not backup::closed_mod_log("Update.log"));
+
+    std::filesystem::path const root{std::filesystem::temp_directory_path() / "eht_backup_mod_logs_ut"};
+    std::error_code ec;
+    std::filesystem::remove_all(root, ec);
+    std::filesystem::path const game{root / "game"};
+    std::filesystem::path const destination{root / "backup"};
+    std::filesystem::create_directories(game);
+    std::string const text{"2026-10-05T00:48:43.742Z vs BF4E55098DFD7EB9 draws a panel surface\n"};
+    {
+    std::ofstream{game / "edworld.20261005T004556Z.log"} << text;
+    std::ofstream{game / "edworld.log"} << "running";
+    std::ofstream{game / "Update.log"} << "the game's";
+    }
+    auto const summary{backup::move_mod_logs(destination, game, 3)};
+    expect(summary.errors.empty());
+    expect(summary.moved == 1_ul);
+    expect(not std::filesystem::exists(game / "edworld.20261005T004556Z.log")) << "taken out of the game's directory";
+    expect(std::filesystem::exists(game / "edworld.log"));
+    expect(std::filesystem::exists(game / "Update.log"));
+    std::filesystem::path const packed{destination / "mod-logs" / "edworld.20261005T004556Z.log.zst"};
+    expect(std::filesystem::exists(packed));
+    std::ifstream in{packed, std::ios::binary};
+    std::string const bytes{std::istreambuf_iterator<char>{in}, std::istreambuf_iterator<char>{}};
+    std::string back(text.size(), '\0');
+    expect(ZSTD_decompress(back.data(), back.size(), bytes.data(), bytes.size()) == text.size());
+    expect(back == text);
+    expect(backup::move_mod_logs(destination, game, 3).moved == 0_ul) << "nothing left to move";
+    std::filesystem::remove_all(root, ec);
+  };
     "settings kept"_test = []
   {
     expect(backup::kept_from_game("AppConfigLocal.xml"));
