@@ -1052,6 +1052,25 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
         ++construction_changes_;
         }
         // carriers: every move, so that where each is and where it goes can be read back
+        // community goals: the commander's band is logged when it moves, the rest only shown
+        else if constexpr(std::same_as<T, events::community_goal_t>)
+        {
+        for(events::community_goal_entry_t const & goal: event.CurrentGoals)
+          {
+          auto const was{std::ranges::find(community_goals_, goal.CGID, &events::community_goal_entry_t::CGID)};
+          if(was == community_goals_.end() or was->PlayerPercentileBand != goal.PlayerPercentileBand)
+            spdlog::info(
+              "community goal {} \"{}\": {} contributed, top {}% of {} contributors",
+              goal.CGID,
+              goal.Title,
+              goal.PlayerContribution,
+              goal.PlayerPercentileBand,
+              goal.NumContributors
+            );
+          }
+        community_goals_ = event.CurrentGoals;
+        ++community_goal_changes_;
+        }
         else if constexpr(std::same_as<T, events::carrier_jump_request_t>)
         {
         if(auto res{db_.store(info::carrier_movement_t{

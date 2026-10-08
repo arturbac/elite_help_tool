@@ -14,6 +14,7 @@
 #include <events/combat.h>
 #include <events/micro_resources.h>
 #include <events/colonisation.h>
+#include <events/community_goal.h>
 #include <events/companion_files.h>
 #include <events/event_holder.h>
 #include <star_system.h>

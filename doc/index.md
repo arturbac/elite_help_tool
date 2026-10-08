@@ -29,6 +29,10 @@
 
 - [Credits](credits.md): the balance, this session, history by period, and what the balance says that no event does
 
+## Community goals
+
+- [Community goals](community_goals.md): your contribution, your percentile band and the reward bracket it reaches
+
 ## Colonisation
 
 - [Colonisation](colonisation.md): construction sites, what they still need, who supplies them
