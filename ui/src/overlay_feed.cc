@@ -4384,6 +4384,84 @@ auto overlay_feed_t::publish_edworld_target(current_state_t const & state) -> vo
   );
   }
 
+auto overlay_feed_t::publish_edworld_surface(current_state_t const & state) -> void
+  {
+  std::string const & dir{eht::settings()->edworld.dir};
+  if(dir.empty())
+    return;
+  if(dir != edworld_surface_dir_)
+    {
+    if(edworld_surface_)
+      ::munmap(edworld_surface_, sizeof(edworld::surface_t));
+    edworld_surface_ = nullptr;
+    edworld_surface_dir_ = dir;
+    edworld_surface_told_.clear();
+    edworld_surface_failed_ = false;
+    }
+  if(not edworld_surface_)
+    {
+    if(edworld_surface_failed_)
+      return;
+    ::mkdir(dir.c_str(), 0755);
+    std::string const path{dir + "/surface"};
+    int const fd{::open(path.c_str(), O_RDWR | O_CREAT | O_CLOEXEC, 0644)};
+    void * view{MAP_FAILED};
+    if(fd >= 0 and ::ftruncate(fd, sizeof(edworld::surface_t)) == 0)
+      view = ::mmap(nullptr, sizeof(edworld::surface_t), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    int const err{errno};
+    if(fd >= 0)
+      ::close(fd);
+    if(view == MAP_FAILED)
+      {
+      edworld_surface_failed_ = true;
+      spdlog::warn("edworld: {} could not be mapped ({}), the proxy steers by the planet alone", path, std::strerror(err));
+      return;
+      }
+    edworld_surface_ = static_cast<edworld::surface_t *>(view);
+    spdlog::info("edworld: telling the proxy where the destination stands in {}", path);
+    }
+
+  // a place on a body of the system the ship is in; anything else tells the proxy there is none
+  uint64_t system{};
+  uint32_t body{};
+  std::string_view name;
+  if(status_destination_ and status_destination_->Body != 0u and status_destination_->System == state.current_system_address_)
+    {
+    system = status_destination_->System;
+    body = status_destination_->Body;
+    name = status_destination_->Name;
+    }
+  std::string told{std::format("{}/{}/{}", system, body, name)};
+  if(told == edworld_surface_told_)
+    return;
+  edworld_surface_told_ = std::move(told);
+  std::optional<double> latitude;
+  std::optional<double> longitude;
+  if(not name.empty())
+    {
+    if(auto station{db_.load_station(system, name)}; not station)
+      spdlog::warn("edworld: could not look {} up: {}", name, station.error().message());
+    else if(*station and (*station)->body_id == body)
+      {
+      latitude = (*station)->latitude;
+      longitude = (*station)->longitude;
+      }
+    }
+  auto const now_ms{
+    std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count()
+  };
+  overlay::world::write_record(
+    *edworld_surface_, overlay::world::make_surface(system, body, name, latitude, longitude, now_ms)
+  );
+  if(not name.empty())
+    spdlog::info(
+      "edworld: surface destination {} (body {}) told: {}",
+      name,
+      body,
+      latitude and longitude ? std::format("{:.4f}, {:.4f}", *latitude, *longitude) : std::string{"where it stands not known"}
+    );
+  }
+
 auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t const & plotted) -> void
   {
   codex_.set_journal_dir(state.journal_dir_path_);
@@ -5066,6 +5144,7 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
   frame.screenshot.key = eht::settings()->screenshots.key;
 
   publish_edworld_target(state);
+  publish_edworld_surface(state);
 
   // In the scanner the band says what the last picture did: a new view is the sign that the filter is in
   // and the next one may be chosen

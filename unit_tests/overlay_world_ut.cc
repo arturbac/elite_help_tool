@@ -103,6 +103,21 @@ int main()
     expect(not overlay::world::holds(shared, 1487912553027ull)) << "the other commander's tool wrote its destination";
   };
 
+  "a place on a body is told with where it stands only when both coordinates are known"_test = []
+  {
+    auto const golds{overlay::world::make_surface(1487912553027ull, 11u, "Golds Base", -12.5, 52.25, now_ms)};
+    expect(golds.magic == edworld::surface_magic and golds.version == edworld::surface_version);
+    expect(golds.size == sizeof(edworld::surface_t) and golds.system_address == 1487912553027ull and golds.body_id == 11u);
+    expect(golds.known == 1u and golds.latitude == -12.5 and golds.longitude == 52.25);
+    expect(std::string_view{golds.name} == "Golds Base");
+    auto const half{overlay::world::make_surface(1ull, 3u, "X", -12.5, std::nullopt, now_ms)};
+    expect(half.known == 0u and half.latitude == 0.0 and half.longitude == 0.0) << "one coordinate is no place";
+    edworld::surface_t shared{};
+    shared.sequence = 4u;
+    overlay::world::write_record(shared, golds);
+    expect(shared.sequence == 6u and shared.known == 1u) << "written under the seqlock, even when done";
+  };
+
   "the destination's factions go with it, only when the tool has the system and its readings"_test = []
   {
     std::vector<overlay::world::faction_entry_t> const factions{

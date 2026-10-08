@@ -6,6 +6,7 @@
 #include <atomic>
 #include <cstdint>
 #include <cstring>
+#include <optional>
 #include <span>
 #include <string_view>
 
@@ -99,16 +100,45 @@ inline auto holds(edworld::target_t & shared, uint64_t system_address) noexcept 
   }
 
 ///\brief puts the record into the shared one under its seqlock: odd while inside, even when done
-inline auto write_target(edworld::target_t & shared, edworld::target_t const & value) noexcept -> void
+template<typename record_type>
+inline auto write_record(record_type & shared, record_type const & value) noexcept -> void
   {
   std::atomic_ref<uint32_t> sequence{shared.sequence};
   uint32_t const before{sequence.load(std::memory_order_relaxed)};
   sequence.store(before | 1u, std::memory_order_relaxed);
   std::atomic_thread_fence(std::memory_order_release);
-  edworld::target_t copy{value};
+  record_type copy{value};
   copy.sequence = before | 1u;
   std::memcpy(&shared, &copy, sizeof copy);
   std::atomic_thread_fence(std::memory_order_release);
   sequence.store((before | 1u) + 1u, std::memory_order_release);
+  }
+
+inline auto write_target(edworld::target_t & shared, edworld::target_t const & value) noexcept -> void
+  { write_record(shared, value); }
+
+///\brief the place Status.json's Destination names on a body; known only with both coordinates
+[[nodiscard]]
+inline auto make_surface(
+  uint64_t system_address,
+  uint32_t body_id,
+  std::string_view name,
+  std::optional<double> latitude,
+  std::optional<double> longitude,
+  int64_t unix_ms
+) noexcept -> edworld::surface_t
+  {
+  edworld::surface_t s{};
+  s.magic = edworld::surface_magic;
+  s.version = edworld::surface_version;
+  s.size = sizeof(edworld::surface_t);
+  s.system_address = system_address;
+  s.unix_ms = unix_ms;
+  s.body_id = body_id;
+  s.known = latitude and longitude ? 1u : 0u;
+  s.latitude = s.known != 0u ? *latitude : 0.0;
+  s.longitude = s.known != 0u ? *longitude : 0.0;
+  copy_text(s.name, name);
+  return s;
   }
   }  // namespace overlay::world

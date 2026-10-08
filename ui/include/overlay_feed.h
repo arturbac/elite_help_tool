@@ -223,6 +223,13 @@ private:
   ///\brief the destination told again after another writer replaced it (once per destination)
   uint64_t edworld_retold_{};
   bool edworld_failed_{};
+  ///\brief where on its body the destination stands, told to edworld through `surface` beside `target` - once
+  /// per new destination (system, body, place)
+  auto publish_edworld_surface(current_state_t const & state) -> void;
+  edworld::surface_t * edworld_surface_{};
+  std::string edworld_surface_dir_;
+  std::string edworld_surface_told_;
+  bool edworld_surface_failed_{};
 
   uint64_t market_id_{};
   uint64_t market_destination_{};

@@ -101,4 +101,26 @@ struct target_t
 
 ///\brief the first layout's size, without the factions: the least a reader accepts
 inline constexpr std::uint32_t target_size_first{offsetof(target_t, factions_known)};
+
+// ---- where on a body the destination stands, written by the data source (EHT), read by the proxy ----
+inline constexpr std::uint32_t surface_magic{0x46535745u};  // "EWSF"
+inline constexpr std::uint32_t surface_version{1u};
+
+///\brief the place on a body Status.json's Destination names (a settlement or a surface port) and where it stands,
+/// when the source knows it; the proxy takes it while its own Status.json names the same body and place
+struct surface_t
+  {
+  std::uint32_t magic;
+  std::uint32_t version;
+  std::uint32_t size;      ///< sizeof(surface_t) of the writer
+  std::uint32_t sequence;  ///< seqlock, as in share_t
+  std::uint64_t system_address;
+  std::int64_t unix_ms;  ///< when written
+  std::uint32_t body_id;  ///< Destination.Body
+  std::uint8_t known;     ///< 1: latitude and longitude are the place's; 0: the source does not know where it stands
+  std::uint8_t reserved[3];
+  double latitude;   ///< degrees
+  double longitude;  ///< degrees
+  char name[64];     ///< as Destination.Name gives it; NUL-terminated
+  };
   }  // namespace edworld
