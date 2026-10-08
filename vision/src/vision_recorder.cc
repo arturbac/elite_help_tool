@@ -315,6 +315,13 @@ auto parse_status(std::string_view text) -> std::optional<status_flags_t>
   return flags;
   }
 
+auto status_left_behind(std::optional<status_flags_t> const & flags, uint64_t written_ms, uint64_t now_ms) noexcept
+  -> bool
+  {
+  // on foot Flags is 0 and Flags2 is not, so both are asked
+  return flags and flags->Flags == 0u and flags->Flags2 == 0u and written_ms + status_silent_ms < now_ms;
+  }
+
 auto parse_event(std::string_view line) -> std::optional<journal_event_t>
   {
   std::string const buffer{line};
@@ -644,6 +651,10 @@ auto recorder_t::look_at_status(uint64_t now) -> void
   if(not flags)
     return;
   status_time_ = written;
+  status_written_ms_ = uint64_t(std::chrono::duration_cast<std::chrono::milliseconds>(
+                                  std::chrono::clock_cast<std::chrono::system_clock>(written).time_since_epoch()
+  )
+                                  .count());
   std::string minified;
   std::string input{*text};
   glz::minify_json(input, minified);
@@ -695,6 +706,17 @@ auto recorder_t::look_at_sample(eht::vision_settings_t const & cfg, uint64_t now
   overlay::sample_header_t const & header{sample->header};
   seen_seq_ = header.seq;
   if(header.taken_ms + stale_ms < now or header.taken_ms > now + stale_ms)
+    return;
+  if(bool const left_behind{status_left_behind(flags_, status_written_ms_, now)}; left_behind != status_left_behind_)
+    {
+    status_left_behind_ = left_behind;
+    if(left_behind)
+      spdlog::info("vision: Status.json unwritten for over {} min and with no flags - frames not kept until it is",
+                   status_silent_ms / 60'000u);
+    else
+      spdlog::info("vision: Status.json written again - frames kept");
+    }
+  if(status_left_behind_)
     return;
   thumbnail_t const thumb{thumbnail(sample->rgb, header.width, header.height)};
   auto const verdict{keeper_.judge(thumb, header, cfg.every_ms, cfg.min_difference, cfg.keep_every_s * 1000u)};

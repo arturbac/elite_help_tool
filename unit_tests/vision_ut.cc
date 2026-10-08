@@ -170,6 +170,18 @@ int main()
     );
   };
 
+  "Status.json left behind: unwritten for 10 minutes and saying nothing"_test = []
+  {
+    constexpr uint64_t written{1'000'000u};
+    constexpr uint64_t later{written + vision::status_silent_ms + 1u};
+    vision::status_flags_t const nothing{};
+    expect(vision::status_left_behind(nothing, written, later));
+    expect(not vision::status_left_behind(nothing, written, written + vision::status_silent_ms)) << "not yet";
+    expect(not vision::status_left_behind(vision::status_flags_t{.Flags = 16842765u}, written, later)) << "docked";
+    expect(not vision::status_left_behind(vision::status_flags_t{.Flags2 = 1u}, written, later)) << "on foot";
+    expect(not vision::status_left_behind(std::nullopt, 0u, later)) << "never read";
+  };
+
   "the journal is followed from its end, a newer one from its beginning"_test = []
   {
     std::filesystem::path const dir{

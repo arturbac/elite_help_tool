@@ -154,6 +154,15 @@ struct status_flags_t
 [[nodiscard]]
 auto parse_status(std::string_view text) -> std::optional<status_flags_t>;
 
+///\brief how long Status.json may stay unwritten, saying nothing, before the frames taken with it are not kept
+inline constexpr uint64_t status_silent_ms{10u * 60u * 1000u};
+
+///\brief whether Status.json is the one left behind - not written for status_silent_ms and with no flags set, as the
+/// last session's file is while the game is in its menus or starting; a frame labelled with it would lie
+[[nodiscard]]
+auto status_left_behind(std::optional<status_flags_t> const & flags, uint64_t written_ms, uint64_t now_ms) noexcept
+  -> bool;
+
 ///\brief an event of the journal: its name and its game timestamp
 struct journal_event_t
   {
@@ -277,6 +286,10 @@ private:
   keeper_t keeper_;
   uint64_t seen_seq_{};
   std::filesystem::file_time_type status_time_{};
+  ///\brief when the game last wrote Status.json, by the file's time
+  uint64_t status_written_ms_{};
+  ///\brief frames not kept as Status.json is the one left behind - logged once when it begins and when it ends
+  bool status_left_behind_{};
   std::string status_;
   uint64_t status_ms_{};
   std::optional<status_flags_t> flags_;

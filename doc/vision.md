@@ -76,6 +76,10 @@ WantedBy=eht.service
 A picture is also kept whenever the part of the screen changes (EHT asks for a different
 rectangle while flying at a planet), and none is kept while the sample is older than 5 s (the game
 paused, minimised, or not running).
+None is kept either while `Status.json` has not been written for over 10 minutes and has neither
+`Flags` nor `Flags2` set: that is the file left from an earlier session while the game sits in its
+menus, and a picture labelled with it would be labelled wrong. The log says when this begins and when
+`Status.json` is written again.
 
 ## Whole pictures
 
