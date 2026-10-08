@@ -11,6 +11,7 @@
 #include <events/combat.h>
 #include <events/micro_resources.h>
 #include <events/colonisation.h>
+#include <events/community_goal.h>
 #include <variant>
 
 ///\brief journal events: every event the tool reads, as one variant - only what dispatches on events needs it
@@ -80,6 +81,7 @@ using event_holder_t = std::variant<
   colonisation_contribution_t,
   colonisation_system_claim_t,
   colonisation_system_claim_release_t,
+  community_goal_t,
   carrier_jump_request_t,
   carrier_location_t,
   carrier_jump_cancelled_t,

@@ -218,6 +218,8 @@ auto main_window_t::publish_overlay() -> void
   overlay_feed_->set_construction_focus(construction_focus);
   if(ships_view_)
     ships_view_->refresh_ui();
+  if(community_goal_view_)
+    community_goal_view_->refresh_ui();
   if(surface_view_)
     {
     surface_view_->refresh_ui();
@@ -343,6 +345,8 @@ auto main_window_t::setup_ui() -> void
 
   credits_view_ = new credits_window_t{state_.journal_dir_path_};
   add_tool_window(credits_view_, window_type_e::credits);
+  community_goal_view_ = new community_goal_window_t{state_};
+  add_tool_window(community_goal_view_, window_type_e::community_goal);
   }
 
 auto main_window_t::add_tool_window(QMdiSubWindow * sub, window_type_e type) -> void
@@ -374,6 +378,7 @@ auto main_window_t::subwindow_for(window_type_e type) const -> QMdiSubWindow *
     case window_type_e::surface:      return surface_view_;
     case window_type_e::network_incident: return network_incident_view_;
     case window_type_e::credits:      return credits_view_;
+    case window_type_e::community_goal: return community_goal_view_;
     case window_type_e::journal_log:   return jlw_;
     case window_type_e::none:          break;
     }
@@ -431,6 +436,7 @@ auto main_window_t::setup_toolbox() -> void
     {window_type_e::surface, "Surface"},
     {window_type_e::network_incident, "Network"},
     {window_type_e::credits, "Credits"},
+    {window_type_e::community_goal, "Community goals"},
     {window_type_e::journal_log, "Log"}
   };
 

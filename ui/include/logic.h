@@ -17,6 +17,7 @@
 #include <fleet.h>
 #include <mutex>
 #include <events/companion_files.h>
+#include <events/community_goal.h>
 
 class main_window_t;
 
@@ -187,6 +188,10 @@ struct current_state_t : public generic_state_t
   uint64_t fleet_changes_{};
   ///\brief counts carriers' moves, so the overlay and the window read them again at once
   uint64_t carrier_changes_{};
+  ///\brief the community goals of the commander, as the game last told them - live only, not stored
+  std::vector<events::community_goal_entry_t> community_goals_;
+  ///\brief counts the readings of community goals, so the window draws them again at once
+  uint64_t community_goal_changes_{};
   ///\brief docked at one of our carriers: the hold as it was on docking - what differs on leaving is
   /// what was left on the carrier or taken off it, since the game does not tell it for a squadron's carrier
   struct carrier_visit_t

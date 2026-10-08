@@ -175,6 +175,7 @@ enum struct event_e : uint16_t
   ColonisationSystemClaimRelease,
   CarrierJumpCancelled,
   CarrierJump,
+  CommunityGoal,
   
   NavRoute,
   NavRouteClear

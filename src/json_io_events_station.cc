@@ -3,6 +3,7 @@
 #include <events/station.h>
 #include <events/companion_files.h>
 #include <events/colonisation.h>
+#include <events/community_goal.h>
 
 EHT_JSON_READ_FILE(events::status_file_t)
 EHT_JSON_READ_FILE(events::market_file_t)
@@ -17,3 +18,4 @@ EHT_JSON_READ(events::colonisation_construction_depot_t)
 EHT_JSON_READ(events::colonisation_contribution_t)
 EHT_JSON_READ(events::colonisation_system_claim_t)
 EHT_JSON_READ(events::colonisation_system_claim_release_t)
+EHT_JSON_READ(events::community_goal_t)

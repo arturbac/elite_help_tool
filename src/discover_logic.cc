@@ -1008,6 +1008,8 @@ auto generic_state_t::discovery(std::string_view input) -> void
     case ColonisationSystemClaimRelease:
       parse_and_handle.template operator()<events::colonisation_system_claim_release_t>();
       break;
+    // community goals - the commander's standing in each, live only
+    case CommunityGoal:     parse_and_handle.template operator()<events::community_goal_t>(); break;
     // carriers - one's own and the squadron's: where each is, and where it goes and when
     case CarrierJumpRequest:   parse_and_handle.template operator()<events::carrier_jump_request_t>(); break;
     case CarrierLocation:      parse_and_handle.template operator()<events::carrier_location_t>(); break;

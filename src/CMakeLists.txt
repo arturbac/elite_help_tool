@@ -31,6 +31,7 @@ target_sources(eht
   instance_players.cc
   graphics_profile.cc
   credits.cc
+  community_goal.cc
   database_storage.cc
   database_storage_missions.cc
   database_storage_systems.cc
