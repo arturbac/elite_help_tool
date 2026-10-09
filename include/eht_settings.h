@@ -170,6 +170,13 @@ struct overlay_settings_t
   double interesting_deviation{0.25};
   ///\brief and by how many credits a tonne at the least
   uint32_t interesting_margin{500u};
+  ///\brief the share of a supercruise overcharge drive's health one jump wears off, for the guess between two
+  /// readings of it - the journal gives the health only in Loadout and AfmuRepairs; 0 shows the readings alone
+  double fsd_wear_per_jump{0.01};
+  ///\brief the frame shift drive's line turns amber at this percent of health and below
+  uint32_t fsd_amber_percent{90u};
+  ///\brief and red at this one - the drive fails to charge more often from about 85
+  uint32_t fsd_red_percent{87u};
   ///\brief how long a kill stays on the target readout
   uint32_t kill_shown_s{10u};
   ///\brief how far a ship may stand to be listed as nearby; 0 turns the list off

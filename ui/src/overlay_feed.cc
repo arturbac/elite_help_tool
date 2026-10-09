@@ -14,6 +14,7 @@
 #include <evidence_log.h>
 #include <netstate.h>
 #include <picture_records.h>
+#include <ship_health.h>
 #include <port_model.h>
 #include <commodity_facts.h>
 #include <construction_window.h>
@@ -4907,6 +4908,33 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
     frame.blocks.push_back(
       overlay::block_t{.corner = overlay::corner_e::top_left, .ttl_ms = block_ttl_ms(), .lines = std::move(lines)}
     );
+    }
+
+  // the frame shift drive below full health - a drive that wears with every jump fails to charge more and
+  // more often, and the game shows its health only in the modules panel. Between two readings in the journal
+  // the wear is a guess, said so on the line
+  if(events::module_t const * fsd{ship_health::frame_shift_drive(std::span{std::as_const(state.ship_loadout.Modules)})};
+     fsd != nullptr)
+    {
+    auto const cfg{eht::settings()};
+    uint32_t const jumps{state.ship_loadout.JumpsSinceFsdHealth};
+    ship_health::fsd_reading_t const reading{ship_health::fsd_reading(*fsd, jumps, cfg->overlay.fsd_wear_per_jump)};
+    if(reading.health < 1.0)
+      {
+      uint32_t const health{ship_health::percent(reading.health)};
+      uint32_t const colour{
+        health <= cfg->overlay.fsd_red_percent     ? colour_expiring()
+        : health <= cfg->overlay.fsd_amber_percent ? colour_alert()
+                                                   : colour_plain()
+      };
+      frame.blocks.push_back(
+        overlay::block_t{
+          .corner = overlay::corner_e::bottom_left,
+          .ttl_ms = block_ttl_ms(),
+          .lines = {overlay::line_t{.text = ship_health::fsd_line(reading, jumps), .color = colour}}
+        }
+      );
+      }
     }
 
   // Who probably holds a bounty on the commander - worth knowing before flying to their port, since the

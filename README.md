@@ -10,7 +10,7 @@ EHT (Elite Help Tool) is a companion for Elite Dangerous that follows the game's
 
 ## What it does
 
-- **[In-game overlay](doc/overlay.md)** drawn straight into the frame by a Vulkan layer: side bands, head-up readouts in a dogfight, the system map, GPU/CPU temperatures, the frame rate in the corner of the middle screen, trouble with Frontier's servers told while it happens, the other players in the instance, a reminder of which graphics set fits the place.
+- **[In-game overlay](doc/overlay.md)** drawn straight into the frame by a Vulkan layer: side bands, head-up readouts in a dogfight, the system map, GPU/CPU temperatures, the frame shift drive's health below full, the frame rate in the corner of the middle screen, trouble with Frontier's servers told while it happens, the other players in the instance, a reminder of which graphics set fits the place.
 - **[BGS](doc/bgs.md)** tick tracking, influence history, wars and settlement ownership, and a territory table of your own factions' systems.
 - **[Space missions](doc/missions_space.md)** and **[on-foot missions](doc/missions_on_foot.md)**: what is open, where to go, what a hand-in really pays, who probably holds a bounty on you, settlement job boards.
 - **[Trade](doc/trade.md)**: best known trades against every market you have opened, fleet carrier bars, bartender sales, which missions pay best at your own bar.
