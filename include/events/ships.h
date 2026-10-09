@@ -53,6 +53,29 @@ struct loadout_t
   std::vector<module_t> Modules;
   };
 
+///\brief the auto field-maintenance unit repaired a module in flight - between two Loadouts the only reading
+/// of a module's health the journal gives
+struct afmu_repairs_t
+  {
+  ///\brief the module's item in the journal's spelling, `$int_hyperdrive_size5_class5_name;`
+  std::string Module;
+  bool FullyRepaired;
+  float Health;
+  };
+
+///\brief everything repaired at a port
+struct repair_all_t
+  {
+  uint32_t Cost;
+  };
+
+///\brief what was repaired at a port - modules by their item, `Wear` the hull, `Paint` the paint
+struct repair_t
+  {
+  std::vector<std::string> Items;
+  uint32_t Cost;
+  };
+
 ///\brief changing ships at a shipyard - the ship left behind keeps its hold
 struct shipyard_swap_t
   {
@@ -185,4 +208,6 @@ struct ship_loadout_t
   events::fuel_capacity_t FuelCapacity;
   float FuelLevel;
   std::vector<events::module_t> Modules;
+  ///\brief jumps made since the frame shift drive's health was last read - what wears it between readings
+  uint32_t JumpsSinceFsdHealth;
   };

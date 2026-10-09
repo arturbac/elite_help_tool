@@ -54,6 +54,13 @@ process carries no state of ours.
   for a real picture of just the rectangle that holds it. It costs the game a few microseconds a frame.
   `overlay.sample.always` keeps the sample made at all times (`every_ms`, `size`, `width`), for looking at
   what the game shows from outside it; `overlay/tools/sample_to_png.py` turns the newest one into a PNG.
+- **Frame shift drive health.** At the bottom of the left band, while the drive is below full health:
+  `FSD 98%` as last read, or `FSD ~88% est., 12 jumps` when it is a guess. The journal gives a module's
+  health only in `Loadout` (every module, written at a port and at login) and in `AfmuRepairs` (the
+  module repaired in flight); `Repair` and `RepairAll` at a port bring it back to full. Between two
+  readings a supercruise overcharge drive is taken to lose `overlay.fsd_wear_per_jump` (0.01) of its
+  health with every jump - other drives are shown as read; 0 turns the guess off. The line is plain
+  below 100%, amber from `overlay.fsd_amber_percent` (90) and red from `overlay.fsd_red_percent` (87).
 - **Temperatures.** Under the frame rate at the top of the right band stand the graphics card's and
   the processor's temperatures in degrees Celsius, orange from 10 degrees below the driver's
   critical level and red at it (3 degrees of hysteresis). They are read from `/sys/class/hwmon`,

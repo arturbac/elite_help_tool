@@ -177,6 +177,8 @@ enum struct event_e : uint16_t
   CarrierJump,
   CommunityGoal,
   
+  AfmuRepairs,
+
   NavRoute,
   NavRouteClear
   };

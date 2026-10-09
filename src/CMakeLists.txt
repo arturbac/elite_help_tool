@@ -32,6 +32,7 @@ target_sources(eht
   graphics_profile.cc
   credits.cc
   community_goal.cc
+  ship_health.cc
   database_storage.cc
   database_storage_missions.cc
   database_storage_systems.cc

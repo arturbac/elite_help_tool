@@ -15,6 +15,7 @@
 #include "logic.h"
 #include <main_window.h>
 #include <picture_records.h>
+#include <ship_health.h>
 #include <spdlog/spdlog.h>
 #include <stralgo/stralgo.h>
 
@@ -259,6 +260,9 @@ constexpr bool rebuilds_present_state{
   or std::same_as<event_t, events::cargo_t> or std::same_as<event_t, events::missions_t>
   or std::same_as<event_t, events::commander_t> or std::same_as<event_t, events::nav_route_t>
   or std::same_as<event_t, events::nav_route_clear_t> or std::same_as<event_t, events::jet_cone_boost_t>
+  // the health of the modules between two Loadouts, and the jumps above that wear the drive
+  or std::same_as<event_t, events::afmu_repairs_t> or std::same_as<event_t, events::repair_all_t>
+  or std::same_as<event_t, events::repair_t>
   // a sample half taken when the tool was closed is still half taken - and the handler only repeats the
   // species already written, in the same order
   or std::same_as<event_t, events::scan_organic_t>
@@ -515,6 +519,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
             }
           jump_info = event;
           ship_loadout.FuelLevel = event.FuelLevel;
+          ++ship_loadout.JumpsSinceFsdHealth;
 
           // when we last looked at this system - it has to be read before recording presence moves the
           // marker forward, because it is what closes the tick window from below
@@ -1386,11 +1391,44 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
             .HullHealth = event.HullHealth,
             .CargoCapacity = event.CargoCapacity,
             .FuelCapacity = event.FuelCapacity,
-            .Modules = std::move(event.Modules)
+            .Modules = std::move(event.Modules),
+            .JumpsSinceFsdHealth = 0u
           };
           std::ranges::sort(
             ship_loadout.Modules, std::less{}, [](events::module_t const & mod) -> uint8_t { return mod.Priority; }
           );
+          update_ship = true;
+          }
+        else if constexpr(std::same_as<T, events::afmu_repairs_t>)
+          {
+          // a reading of the repaired module's health - for the frame shift drive it ends the guess at its wear
+          for(events::module_t & mod: ship_loadout.Modules)
+            if(ship_health::same_item(mod.Item, event.Module))
+              {
+              mod.Health = event.Health;
+              if(mod.Slot == "FrameShiftDrive")
+                ship_loadout.JumpsSinceFsdHealth = 0u;
+              }
+          update_ship = true;
+          }
+        else if constexpr(std::same_as<T, events::repair_all_t>)
+          {
+          for(events::module_t & mod: ship_loadout.Modules)
+            mod.Health = 1.f;
+          ship_loadout.HullHealth = 1.f;
+          ship_loadout.JumpsSinceFsdHealth = 0u;
+          update_ship = true;
+          }
+        else if constexpr(std::same_as<T, events::repair_t>)
+          {
+          for(std::string const & item: event.Items)
+            for(events::module_t & mod: ship_loadout.Modules)
+              if(ship_health::same_item(mod.Item, item))
+                {
+                mod.Health = 1.f;
+                if(mod.Slot == "FrameShiftDrive")
+                  ship_loadout.JumpsSinceFsdHealth = 0u;
+                }
           update_ship = true;
           }
         else if constexpr(std::same_as<T, events::cargo_t>)

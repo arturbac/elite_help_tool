@@ -37,6 +37,7 @@ add_ut_test(eddn_ut.cc)
 add_ut_test(colonisation_ut.cc)
 add_ut_test(fleet_ut.cc)
 add_ut_test(community_goal_ut.cc)
+add_ut_test(ship_health_ut.cc)
 
 # ipc overlaya nie zalezy od eht, wiec ma wlasny cel zamiast add_ut_test
 add_executable(overlay_ipc_ut overlay_ipc_ut.cc)

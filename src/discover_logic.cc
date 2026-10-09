@@ -968,6 +968,9 @@ auto generic_state_t::discovery(std::string_view input) -> void
     case NavRouteClear:     handle(gevt.timestamp, events::nav_route_clear_t{}); break;
     case FuelScoop:         parse_and_handle.template operator()<events::fuel_scoop_t>(); break;
     case Loadout:           parse_and_handle.template operator()<events::loadout_t>(); break;
+    case AfmuRepairs:       parse_and_handle.template operator()<events::afmu_repairs_t>(); break;
+    case RepairAll:         parse_and_handle.template operator()<events::repair_all_t>(); break;
+    case Repair:            parse_and_handle.template operator()<events::repair_t>(); break;
     case Location:          parse_and_handle.template operator()<events::location_t>(); break;
     case MissionAbandoned:  parse_and_handle.template operator()<events::mission_abandoned_t>(); break;
     case MissionAccepted:   parse_and_handle.template operator()<events::mission_accepted_t>(); break;
