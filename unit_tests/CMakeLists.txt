@@ -60,6 +60,7 @@ add_ut_test(credits_ut.cc)
 add_ut_test(planet_face_ut.cc)
 add_ut_test(port_model_ut.cc)
 add_ut_test(face_store_ut.cc)
+add_ut_test(settings_ut.cc)
 
 # the recorder of eht_vision lives in its own library beside eht
 add_ut_test(hot_drop_ut.cc)

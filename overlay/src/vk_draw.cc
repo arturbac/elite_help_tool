@@ -15,6 +15,9 @@
 #include <world_follow.h>
 
 #include <algorithm>
+#include <atomic>
+#include <format>
+#include <stdexcept>
 #include <array>
 #include <cmath>
 #include <numbers>
@@ -1093,13 +1096,21 @@ namespace
       and pictures == data.picture_paths
     )
       return;
-    data.picture_paths = std::move(pictures);
 
     device_data_t & device{*data.device};
-    // only a frame actually submitted has a fence that will ever signal
+    // only a frame actually submitted has a fence that will ever signal; one that did not, the texture is
+    // still in use on the card - the old fonts stay, and the next frame tries again
     for(frame_resources_t const & frame: data.frames)
-      if(frame.submitted and frame.fence != VK_NULL_HANDLE)
-        device.WaitForFences(device.device, 1u, &frame.fence, VK_TRUE, fence_timeout_ns);
+      if(
+        frame.submitted and frame.fence != VK_NULL_HANDLE
+        and device.WaitForFences(device.device, 1u, &frame.fence, VK_TRUE, fence_timeout_ns) != VK_SUCCESS
+      )
+        {
+        if(static std::atomic_flag said; not said.test_and_set())
+          report("overlay: fonts not rebuilt, the card did not finish a frame of ours");
+        return;
+        }
+    data.picture_paths = std::move(pictures);
 
     ImGui_ImplVulkan_DestroyFontsTexture();
     build_fonts(data, layout);
@@ -1501,6 +1512,8 @@ namespace
   auto build_ui(swapchain_data_t & data) -> void
     {
     auto const snapshot{ipc_client().snapshot()};
+    if(static std::atomic_flag said; ipc_client().broken() and not said.test_and_set()) [[unlikely]]
+      report("the reader of the tool's frames stopped, no more frames until the game restarts");
     uint64_t age_ms{};
     if(snapshot)
       age_ms = static_cast<uint64_t>(
@@ -1546,7 +1559,9 @@ namespace
             0x9ad1ffu, "EHT overlay  %.0f fps  frame %llu", double{data.fps}, (unsigned long long)data.drawn_frames
           );
           auto & client{ipc_client()};
-          if(client.connected())
+          if(client.broken())
+            coloured_text(0xd9534fu, "%s", "elite_help_tool: the reader stopped - restart the game to see the tool again");
+          else if(client.connected())
             coloured_text(0x86d986u, "elite_help_tool: connected, %llu frames", (unsigned long long)client.received());
           else
             coloured_text(0xd9a34au, "elite_help_tool: waiting for connection");
@@ -1751,8 +1766,30 @@ namespace
     }
   }  // namespace
 
+namespace
+  {
+  ///\brief set while a frame of ours is being drawn - only there does a catch stand ready for imgui
+  thread_local bool drawing{};
+
+  struct drawing_scope_t
+    {
+    drawing_scope_t() noexcept { drawing = true; }
+    drawing_scope_t(drawing_scope_t const &) = delete;
+    auto operator=(drawing_scope_t const &) -> drawing_scope_t & = delete;
+    ~drawing_scope_t() { drawing = false; }
+    };
+  }  // namespace
+
+///\brief imgui going on past a broken invariant is undefined behaviour in the game: while drawing, the
+/// assert throws to the catch of draw_overlay, which disables the overlay on this swapchain. Elsewhere -
+/// tearing down - nothing could catch it, so it is said once and imgui is left to finish
 auto imgui_assert_failed(char const * expression, char const * file, int line) -> void
-  { log("imgui assert: {} at {}:{}", expression, file, line); }
+  {
+  if(drawing)
+    throw std::logic_error{std::format("imgui assert: {} at {}:{}", expression, file, line)};
+  if(static std::atomic_flag said; not said.test_and_set())
+    report("overlay: imgui assert outside drawing: {} at {}:{}", expression, file, line);
+  }
 
 auto destroy_resources(swapchain_data_t & data) -> void
   {
@@ -2096,6 +2133,7 @@ auto draw_overlay(
 
   try
     {
+    drawing_scope_t const scope;
     if(not data.ready and not ensure_resources(data, queue))
       {
       // one failed attempt is enough - from there the game goes its own way without us

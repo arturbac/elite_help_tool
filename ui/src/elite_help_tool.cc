@@ -75,13 +75,19 @@ main_window_t::main_window_t(std::string db_path, std::string journal_path, QWid
     this,
     [this]
     {
-      // the pace follows the settings file, which can change while the tool runs
-      if(
-        int const pace{static_cast<int>(std::max(100u, eht::settings()->overlay.refresh.publish_ms))};
-        overlay_timer_->interval() != pace
-      )
-        overlay_timer_->setInterval(pace);
-      publish_overlay();
+      publish_guard_(
+        "overlay publish",
+        [this]
+        {
+          // the pace follows the settings file, which can change while the tool runs
+          if(
+            int const pace{static_cast<int>(std::max(100u, eht::settings()->overlay.refresh.publish_ms))};
+            overlay_timer_->interval() != pace
+          )
+            overlay_timer_->setInterval(pace);
+          publish_overlay();
+        }
+      );
     }
   );
   overlay_timer_->start();
@@ -96,8 +102,14 @@ main_window_t::main_window_t(std::string db_path, std::string journal_path, QWid
     this,
     [this]
     {
-      if(overlay_feed_ and overlay_feed_->picture_due(state_))
-        publish_overlay();
+      publish_guard_(
+        "overlay publish",
+        [this]
+        {
+          if(overlay_feed_ and overlay_feed_->picture_due(state_))
+            publish_overlay();
+        }
+      );
     }
   );
   picture_timer->start();
@@ -121,10 +133,17 @@ auto main_window_t::follow_backup() -> void
     for(std::string const & error: summary.errors)
       spdlog::error("backup: {}", error);
     if(summary.errors.empty())
-      backup::write_mark(
-        backup_destination_,
-        backup::mark_t{.at = std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now()), .pictures = backup_pictures_}
-      );
+      if(
+        auto const written{backup::write_mark(
+          backup_destination_,
+          backup::mark_t{
+            .at = std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now()), .pictures = backup_pictures_
+          }
+        )};
+        not written
+      )
+        // without the mark the next look finds the backup due again, and the whole of it runs every ten minutes
+        spdlog::error("backup: its mark could not be written in {}: {}", backup_destination_.string(), written.error().message());
     spdlog::info(
       "backup: {} month(s) of journals packed{}, {} file(s) of the codex copied{}, in {}",
       summary.months.size(),
@@ -178,13 +197,22 @@ auto main_window_t::follow_backup() -> void
     spdlog::error("backup: {}", error);
   if(mod_logs.moved != 0u)
     spdlog::info("backup: {} closed edworld log(s) packed into {}", mod_logs.moved, (destination / "mod-logs").string());
-  uint64_t const pictures{backup::count_pictures(codex_files::codex_dir())};
+  auto const pictures{backup::count_pictures(codex_files::codex_dir())};
+  if(not pictures)
+    {
+    // the count decides when the next backup is due, so a wrong one is not guessed at
+    spdlog::error("backup: the codex pictures could not be counted: {}", pictures.error().message());
+    return;
+    }
+  auto const mark{backup::read_mark(destination)};
+  if(not mark)
+    spdlog::error("backup: the mark of the last backup could not be read, a backup is due: {}", mark.error().message());
   auto const now{std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())};
-  if(not backup::due(backup::read_mark(destination), now, pictures, cfg->backup.every_days, cfg->backup.every_pictures))
+  if(not backup::due(mark.value_or(backup::mark_t{}), now, *pictures, cfg->backup.every_days, cfg->backup.every_pictures))
     return;
 
   backup_destination_ = destination;
-  backup_pictures_ = pictures;
+  backup_pictures_ = *pictures;
   spdlog::info("backup: due, writing to {}", destination.string());
   backup_ = std::async(
     std::launch::async,
@@ -565,7 +593,12 @@ auto main_window_t::background_worker(std::stop_token stoken) -> void
   // restarting the game creates a new journal; the following switches to it on its own
   tail_journal_dir(
     state_.journal_dir_path_,
-    std::bind_front(&generic_state_t::discovery, &state_),
+    // one event that cannot be handled is skipped and said; it must not end the reading of the journal
+    [this](std::string_view line)
+    {
+      if(not eht::event_guard("journal event", [this, line] { state_.discovery(line); }))
+        spdlog::error("journal event skipped: {}", line.substr(0u, 200u));
+    },
     stoken,
     [this](fs::path const & path)
     {
@@ -708,7 +741,21 @@ auto main(int argc, char * argv[]) -> int
 
   window.start_monitoring();
   window.show();
-  return app.exec();
+  // the slots guard the tool's logic themselves; this is the last net, so that an exception leaving the
+  // event loop is at least written down rather than ending the process silently
+  try
+    {
+    return app.exec();
+    }
+  catch(std::exception const & error)
+    {
+    spdlog::critical("the event loop stopped by an exception: {}", error.what());
+    }
+  catch(...)
+    {
+    spdlog::critical("the event loop stopped by an unknown exception");
+    }
+  return EXIT_FAILURE;
   }
 
 void main_window_t::closeEvent(QCloseEvent * event)

@@ -4,14 +4,22 @@
 #include <functional>
 #include <string_view>
 #include <stop_token>
+#include <system_error>
+#include <optional>
+#include <vector>
 namespace fs = std::filesystem;
 
 using process_callback = std::function<void(std::string_view)>;
 
+///\brief the journals in the directory, oldest first; what could not be listed is set in ec - the
+/// directory of the game under Proton can be away for a moment, and that must not end the reading
+[[nodiscard]]
+auto find_all_journals(fs::path const & dir, std::error_code & ec) -> std::vector<fs::path>;
+///\brief as above, a failure written to stderr
 [[nodiscard]]
 auto find_all_journals(fs::path const & dir) -> std::vector<fs::path>;
 [[nodiscard]]
-auto find_latest_journal(fs::path const & dir) -> std::optional<fs::path>;
+auto find_latest_journal(fs::path const & dir, std::error_code & ec) -> std::optional<fs::path>;
 auto tail_file(fs::path const & path, process_callback const & cb, std::stop_token stoken) -> void;
 
 using journal_switch_callback = std::function<void(fs::path const &)>;

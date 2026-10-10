@@ -140,6 +140,12 @@ of EHT includes it:
 - A thread's body and a Qt timer or slot that runs the tool's logic go through `eht::event_guard()`
   (`include/event_guard.h`). It logs an exception that got that far and keeps it from ending the
   process or running through Qt's event loop. It is the last net, not the way errors are handled.
+  A timer that runs several times a second (the overlay's publishing) uses `eht::repeated_guard_t`,
+  which says a repeated failure once and once more when a call succeeds again. Each line of the
+  journal is guarded on its own: an event that cannot be handled is skipped and logged, and the
+  reading goes on.
+- A directory is walked by stepping with an error code (`increment(ec)`), never by a range-for over
+  a directory iterator, whose `operator++` throws.
 - A place that falls back to UTC because the time zone cannot be read calls
   `eht::warn_no_time_zone()`, which logs one warning per process.
 - The overlay layer never ends the game's process. A part of it that fails switches off for that
@@ -227,7 +233,9 @@ cd ~/eht/steam
 
 Start it from the working directory: `journal-dir`, the databases and `eht_settings.json` are all
 relative to it. On the first start it writes `eht_settings.json` with every setting at its default.
-The file is reloaded live whenever you save it.
+The file is reloaded live whenever you save it. The tool writes it (defaults, settings added by a
+newer version) into `eht_settings.json.partial` first and renames that over the file, keeping its
+permissions, so a full disk never leaves an empty settings file.
 
 EHT and the game can be started in either order. The overlay connects whenever both are up, and
 reconnects after either one restarts.

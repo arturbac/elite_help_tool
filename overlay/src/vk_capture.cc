@@ -215,6 +215,9 @@ namespace
       {
         {
         std::scoped_lock const lock{mutex_};
+        // nobody would ever write it, and the screen's pixels would pile up in the game's memory
+        if(gone_)
+          return;
         waiting_.push_back(std::move(picture));
         }
       wake_.notify_one();
@@ -225,10 +228,29 @@ namespace
     std::condition_variable wake_;
     std::deque<picture_t> waiting_;
     bool stopping_{};
+    ///\brief the thread ended on an exception
+    bool gone_{};
     // last: it runs over everything above
     std::thread thread_;
 
+    ///\brief an exception leaving a thread ends the process, and this one runs in the game - it stops
+    /// this part of the overlay alone
     auto run() -> void
+      {
+      try
+        {
+        work();
+        }
+      catch(...)
+        {
+        report("overlay: the writer of pictures stopped ({})", exception_text());
+        std::scoped_lock const lock{mutex_};
+        gone_ = true;
+        waiting_.clear();
+        }
+      }
+
+    auto work() -> void
       {
       for(;;)
         {

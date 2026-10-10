@@ -345,6 +345,15 @@ int main()
       }
     auto single{dbs.load_station(91001u)};
     expect(single and single->has_value() and (*single)->controlling_faction == "Holders");
+
+    // a later sighting that names no owner - a taxi's Disembark - must not write the guess down: the
+    // stored owner stays the one a docking read, and the rule is applied on reading only
+    expect(bool(dbs.store(info::station_t{.market_id = 91001u, .system_address = reach, .name = "Left Behind"})));
+    // so when the leavers turn out to be back, the settlement is theirs again
+    expect(bool(dbs.store_faction_seen(int64_t(**leavers), reach, after + days{1})));
+    auto back{dbs.load_station(91001u)};
+    expect(back and back->has_value() and (*back)->controlling_faction == "Leavers")
+      << "the retreat rule's guess was stored as the owner";
   };
 
 

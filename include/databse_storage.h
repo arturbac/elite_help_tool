@@ -598,6 +598,11 @@ struct database_storage_t
   [[nodiscard]]
   auto load_station(uint64_t market_id) -> expected_ec<std::optional<info::station_t>>;
 
+  ///\brief the station as stored, without overrule_retreated_owner - what a store merges into, so that
+  /// the rule's guess is never written down as the owner
+  [[nodiscard]]
+  auto load_stored_station(uint64_t market_id) -> expected_ec<std::optional<info::station_t>>;
+
   ///\brief a station by the name seen in a system signal
   [[nodiscard]]
   auto load_station(uint64_t system_address, std::string_view name) -> expected_ec<std::optional<info::station_t>>;

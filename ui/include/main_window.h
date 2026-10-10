@@ -29,6 +29,7 @@
 #include <file_io.h>
 #include <qtimer.h>
 #include <backup.h>
+#include <event_guard.h>
 #include <future>
 
 enum struct window_type_e
@@ -90,6 +91,8 @@ public:
   std::unique_ptr<overlay_feed_t> overlay_feed_;
   ///\brief keeps the image alive when nothing arrives from the journal, while docked for instance
   QTimer * overlay_timer_{};
+  ///\brief the overlay is published several times a second - a failure in it is said once, not per tick
+  eht::repeated_guard_t publish_guard_;
   ///\brief the backup running in the background, if one is
   std::future<backup::summary_t> backup_;
   ///\brief what the running backup is to be marked with once it is done

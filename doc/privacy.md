@@ -29,3 +29,6 @@ on:
 - **No markets, missions, BGS or cargo** are ever sent, and where you are shows only through the
   exploration messages above, after the sale. Localised text is stripped as EDDN asks. The message header carries your commander name as `uploaderID`, as with every EDDN
   sender.
+- **Never stuck on the gateway.** Each step of an upload (connecting, the TLS handshake, sending,
+  the answer) has ten seconds, and the whole exchange forty; a gateway that stops answering costs
+  one failed message, not a sender - or a closing of the tool - that waits for ever.

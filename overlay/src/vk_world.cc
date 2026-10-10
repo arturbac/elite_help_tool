@@ -21,6 +21,7 @@ namespace
   edworld::share_t const * mapped{};
   std::chrono::steady_clock::time_point next_try{};
   bool told_missing{};
+  bool told_unmapped{};
 
   auto share_path() noexcept -> char const *
     {
@@ -52,7 +53,12 @@ namespace
     ::close(fd);
     if(view == MAP_FAILED)
       {
-      report("overlay: {} could not be mapped, panels are not followed", path);
+      // tried again every two seconds, said once
+      if(not told_unmapped)
+        {
+        told_unmapped = true;
+        report("overlay: {} could not be mapped, panels are not followed", path);
+        }
       return;
       }
     mapped = static_cast<edworld::share_t const *>(view);

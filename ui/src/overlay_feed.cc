@@ -5217,7 +5217,24 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
     std::rotate(frame.blocks.begin(), graphics, std::next(graphics));
     }
 
-  server_->publish(frame);
+  if(auto const published{server_->publish(frame)}; published != published_)
+    {
+    switch(published)
+      {
+      case overlay::publish_e::sent:
+        spdlog::info("overlay: frames reach the game again");
+        break;
+      case overlay::publish_e::not_written:
+        spdlog::warn("overlay: the frame could not be written as json, the game keeps showing the previous one");
+        break;
+      case overlay::publish_e::too_large:
+        spdlog::warn("overlay: the frame is larger than the layer accepts, the game keeps showing the previous one");
+        break;
+      case overlay::publish_e::not_listening:
+        break;
+      }
+    published_ = published;
+    }
   last_ = std::move(frame);
   last_sent_ = now;
   }

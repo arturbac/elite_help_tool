@@ -30,6 +30,20 @@ namespace
   {
 constexpr size_t tar_block{512u};
 
+///\brief every entry of a directory, stepped with an error code - a range-for steps with the throwing
+/// operator++. A directory that is not there is no error, there is simply nothing in it
+///\returns the error that stopped the walk
+template<typename iterator_t, typename visit_t>
+auto each_entry(std::filesystem::path const & dir, visit_t && visit) -> std::error_code
+  {
+  std::error_code ec;
+  for(iterator_t it{dir, ec}, end{}; not ec and it != end; it.increment(ec))
+    visit(*it);
+  if(ec == std::errc::no_such_file_or_directory)
+    return {};
+  return ec;
+  }
+
 ///\brief an octal number in a tar header field, zero-padded and ended with a NUL
 auto put_octal(char * field, size_t width, uint64_t value) -> void
   {
@@ -246,10 +260,19 @@ auto run(
 
   // the journals by month, from their names: Journal.2026-09-28T213338.01.log
   std::map<std::string, std::vector<std::filesystem::path>> months;
-  for(auto const & entry: std::filesystem::directory_iterator{journal_dir, ec})
-    if(auto const name{entry.path().filename().string()};
-       name.starts_with("Journal.") and name.ends_with(".log") and name.size() > 15u)
-      months[name.substr(8, 7)].push_back(entry.path());
+  if(
+    auto const walked{each_entry<std::filesystem::directory_iterator>(
+      journal_dir,
+      [&months](std::filesystem::directory_entry const & entry)
+      {
+        if(auto const name{entry.path().filename().string()};
+           name.starts_with("Journal.") and name.ends_with(".log") and name.size() > 15u)
+          months[name.substr(8, 7)].push_back(entry.path());
+      }
+    )};
+    walked
+  )
+    summary.errors.push_back(std::format("the journals in {} could not all be listed: {}", journal_dir.string(), walked.message()));
 
   for(auto & [month, files]: months)
     {
@@ -268,19 +291,26 @@ auto run(
 
   // the pictures and their lists, copied when missing or newer - and never deleted from the backup
   std::filesystem::path const codex_copy{destination / "codex"};
-  for(auto const & entry: std::filesystem::recursive_directory_iterator{codex_dir, ec})
-    {
-    if(not entry.is_regular_file(ec) or entry.path().extension() == ".part" or entry.path().extension() == ".partial")
-      continue;
-    std::filesystem::path const target{codex_copy / entry.path().lexically_relative(codex_dir)};
-    if(std::filesystem::exists(target, ec) and file_time(target) >= file_time(entry.path()))
-      continue;
-    std::filesystem::create_directories(target.parent_path(), ec);
-    if(std::filesystem::copy_file(entry.path(), target, std::filesystem::copy_options::overwrite_existing, ec))
-      ++summary.pictures_copied;
-    else
-      summary.errors.push_back(std::format("{} could not be copied: {}", entry.path().string(), ec.message()));
-    }
+  if(
+    auto const walked{each_entry<std::filesystem::recursive_directory_iterator>(
+      codex_dir,
+      [&](std::filesystem::directory_entry const & entry)
+      {
+        if(not entry.is_regular_file(ec) or entry.path().extension() == ".part" or entry.path().extension() == ".partial")
+          return;
+        std::filesystem::path const target{codex_copy / entry.path().lexically_relative(codex_dir)};
+        if(std::filesystem::exists(target, ec) and file_time(target) >= file_time(entry.path()))
+          return;
+        std::filesystem::create_directories(target.parent_path(), ec);
+        if(std::filesystem::copy_file(entry.path(), target, std::filesystem::copy_options::overwrite_existing, ec))
+          ++summary.pictures_copied;
+        else
+          summary.errors.push_back(std::format("{} could not be copied: {}", entry.path().string(), ec.message()));
+      }
+    )};
+    walked
+  )
+    summary.errors.push_back(std::format("the codex in {} could not all be gone through: {}", codex_dir.string(), walked.message()));
   return summary;
   }
 
@@ -308,16 +338,18 @@ auto move_mod_logs(std::filesystem::path const & destination, std::filesystem::p
   if(game_dir.empty() or not std::filesystem::is_directory(game_dir, ec))
     return summary;
   std::vector<std::filesystem::path> closed;
-  try
-    {
-    for(auto const & entry: std::filesystem::directory_iterator{game_dir, ec})
-      if(entry.is_regular_file(ec) and closed_mod_log(entry.path()))
-        closed.push_back(entry.path());
-    }
-  catch(std::exception const & e)
-    {
-    summary.errors.push_back(std::format("the game's directory could not be gone through: {}", e.what()));
-    }
+  if(
+    auto const walked{each_entry<std::filesystem::directory_iterator>(
+      game_dir,
+      [&](std::filesystem::directory_entry const & entry)
+      {
+        if(entry.is_regular_file(ec) and closed_mod_log(entry.path()))
+          closed.push_back(entry.path());
+      }
+    )};
+    walked
+  )
+    summary.errors.push_back(std::format("the game's directory could not be gone through: {}", walked.message()));
   std::filesystem::path const logs{destination / "mod-logs"};
   for(std::filesystem::path const & source: closed)
     try
@@ -421,7 +453,9 @@ auto keep_file(std::filesystem::path const & source, std::filesystem::path const
     // the game writes some of its options again unchanged - only the time moves then, no copy is set aside
     if(same_content(source, target))
       {
-      std::filesystem::last_write_time(target, source_time, ec);
+      // without the source's time the copy looks out of date, and is set aside again at every run
+      if(std::filesystem::last_write_time(target, source_time, ec); ec)
+        summary.errors.push_back(std::format("{} could not be given its source's time: {}", target.string(), ec.message()));
       return;
       }
     std::string const stamp{std::format(
@@ -439,8 +473,9 @@ auto keep_file(std::filesystem::path const & source, std::filesystem::path const
   // copy_file keeps no time - the copy is given the source's, so the next run sees it as up to date
   if(std::filesystem::copy_file(source, target, std::filesystem::copy_options::overwrite_existing, ec))
     {
-    std::filesystem::last_write_time(target, source_time, ec);
     ++summary.copied;
+    if(std::filesystem::last_write_time(target, source_time, ec); ec)
+      summary.errors.push_back(std::format("{} could not be given its source's time: {}", target.string(), ec.message()));
     }
   else
     summary.errors.push_back(std::format("{} could not be copied: {}", source.string(), ec.message()));
@@ -453,58 +488,90 @@ auto copy_settings(std::filesystem::path const & destination, settings_sources_t
   std::filesystem::path const settings{destination / "settings"};
   std::error_code ec;
 
-  // a directory iterator throws when stepping fails half way - what was copied stays, the rest waits for the next run
-  try
-    {
-    if(not sources.options_dir.empty() and std::filesystem::is_directory(sources.options_dir, ec))
-      for(auto const & entry: std::filesystem::recursive_directory_iterator{sources.options_dir, ec})
-        if(entry.is_regular_file(ec))
-          keep_file(entry.path(), settings / "options" / entry.path().lexically_relative(sources.options_dir), summary);
+  // a walk that fails half way keeps what was copied, the rest waits for the next run
+  if(not sources.options_dir.empty() and std::filesystem::is_directory(sources.options_dir, ec))
+    if(
+      auto const walked{each_entry<std::filesystem::recursive_directory_iterator>(
+        sources.options_dir,
+        [&](std::filesystem::directory_entry const & entry)
+        {
+          if(entry.is_regular_file(ec))
+            keep_file(entry.path(), settings / "options" / entry.path().lexically_relative(sources.options_dir), summary);
+        }
+      )};
+      walked
+    )
+      summary.errors.push_back(std::format("the game's options could not all be gone through: {}", walked.message()));
 
-    // the top of the game's directory only - the mods keep their .ini files there, beside the game's executable
-    if(not sources.game_dir.empty() and std::filesystem::is_directory(sources.game_dir, ec))
-      for(auto const & entry: std::filesystem::directory_iterator{sources.game_dir, ec})
-        if(entry.is_regular_file(ec) and kept_from_game(entry.path()))
-          keep_file(entry.path(), settings / "game" / entry.path().filename(), summary);
+  // the top of the game's directory only - the mods keep their .ini files there, beside the game's executable
+  if(not sources.game_dir.empty() and std::filesystem::is_directory(sources.game_dir, ec))
+    if(
+      auto const walked{each_entry<std::filesystem::directory_iterator>(
+        sources.game_dir,
+        [&](std::filesystem::directory_entry const & entry)
+        {
+          if(entry.is_regular_file(ec) and kept_from_game(entry.path()))
+            keep_file(entry.path(), settings / "game" / entry.path().filename(), summary);
+        }
+      )};
+      walked
+    )
+      summary.errors.push_back(std::format("the game's directory could not all be gone through: {}", walked.message()));
 
-    if(not sources.tool_settings.empty() and std::filesystem::is_regular_file(sources.tool_settings, ec))
-      keep_file(sources.tool_settings, settings / sources.tool_settings.filename(), summary);
-    }
-  catch(std::exception const & e)
-    {
-    summary.errors.push_back(std::format("the settings could not be gone through: {}", e.what()));
-    }
+  if(not sources.tool_settings.empty() and std::filesystem::is_regular_file(sources.tool_settings, ec))
+    keep_file(sources.tool_settings, settings / sources.tool_settings.filename(), summary);
   return summary;
   }
 
-auto read_mark(std::filesystem::path const & destination) -> mark_t
+auto read_mark(std::filesystem::path const & destination) -> cxx23::expected<mark_t, std::error_code>
   {
+  std::filesystem::path const path{mark_path(destination)};
+  std::error_code ec;
+  if(not std::filesystem::exists(path, ec))
+    {
+    if(ec)
+      return cxx23::unexpected{ec};
+    return mark_t{};
+    }
   detail::mark_file_t file{};
   std::string buffer;
-  if(glz::read_file_json<glz::opts{.error_on_unknown_keys = false}>(file, mark_path(destination).string(), buffer))
-    return {};
+  if(glz::read_file_json<glz::opts{.error_on_unknown_keys = false}>(file, path.string(), buffer))
+    return cxx23::unexpected{std::make_error_code(std::errc::bad_message)};
   return mark_t{.at = std::chrono::sys_seconds{std::chrono::seconds{file.at}}, .pictures = file.pictures};
   }
 
-auto write_mark(std::filesystem::path const & destination, mark_t const & mark) -> void
+auto write_mark(std::filesystem::path const & destination, mark_t const & mark) -> cxx23::expected<void, std::error_code>
   {
   detail::mark_file_t const file{.at = mark.at.time_since_epoch().count(), .pictures = mark.pictures};
   std::string text;
   if(glz::write_json(file, text))
-    return;
+    return cxx23::unexpected{std::make_error_code(std::errc::bad_message)};
   std::error_code ec;
   std::filesystem::create_directories(destination, ec);
   std::ofstream out{mark_path(destination), std::ios::binary | std::ios::trunc};
   out << text << '\n';
+  out.close();
+  if(out.fail())
+    return cxx23::unexpected{std::make_error_code(std::errc::io_error)};
+  return {};
   }
 
-auto count_pictures(std::filesystem::path const & codex_dir) -> uint64_t
+auto count_pictures(std::filesystem::path const & codex_dir) -> cxx23::expected<uint64_t, std::error_code>
   {
   uint64_t count{};
   std::error_code ec;
-  for(auto const & entry: std::filesystem::recursive_directory_iterator{codex_dir, ec})
-    if(entry.is_regular_file(ec) and entry.path().extension() == ".jpg")
-      ++count;
+  if(
+    auto const walked{each_entry<std::filesystem::recursive_directory_iterator>(
+      codex_dir,
+      [&](std::filesystem::directory_entry const & entry)
+      {
+        if(entry.is_regular_file(ec) and entry.path().extension() == ".jpg")
+          ++count;
+      }
+    )};
+    walked
+  )
+    return cxx23::unexpected{walked};
   return count;
   }
 

@@ -108,8 +108,7 @@ auto main() -> int
     expect(wait_until(
       [&]
       {
-        server.publish(sample_frame(7u));
-        return client.snapshot() != nullptr;
+        return server.publish(sample_frame(7u)) == overlay::publish_e::sent and client.snapshot() != nullptr;
       }
     )) << "the frame did not arrive";
 
@@ -182,7 +181,7 @@ auto main() -> int
     overlay::server_t server{path};
     expect(server.listening());
 
-    server.publish(sample_frame(42u));
+    expect(server.publish(sample_frame(42u)) == overlay::publish_e::sent);
 
     overlay::client_t client{path};
     expect(wait_until([&] { return client.snapshot() != nullptr; })) << "the remembered frame did not arrive";
@@ -216,8 +215,7 @@ auto main() -> int
       expect(wait_until(
         [&]
         {
-          first.publish(sample_frame(1u));
-          return client.received() >= 1u;
+          return first.publish(sample_frame(1u)) == overlay::publish_e::sent and client.received() >= 1u;
         }
       ));
       }
@@ -232,8 +230,7 @@ auto main() -> int
     expect(wait_until(
       [&]
       {
-        second.publish(sample_frame(2u));
-        return client.received() > before;
+        return second.publish(sample_frame(2u)) == overlay::publish_e::sent and client.received() > before;
       }
     )) << "no frames arrive after the return";
   };
@@ -244,7 +241,33 @@ auto main() -> int
     overlay::server_t server{scratch_socket("noclient")};
     expect(server.listening());
     for(uint64_t sequence{}; sequence != 100u; ++sequence)
-      server.publish(sample_frame(sequence));
+      expect(server.publish(sample_frame(sequence)) == overlay::publish_e::sent);
     expect(server.clients() == 0_u);
+  };
+
+  // a frame the layer would refuse is not sent at all, and the caller learns why
+  "a frame above the layer's ceiling is refused with its reason"_test = []
+  {
+    overlay::server_t server{scratch_socket("large")};
+    expect(server.listening());
+    overlay::frame_t frame{sample_frame(1u)};
+    frame.blocks.front().lines.front().text = std::string(300u * 1024u, 'x');
+    expect(server.publish(frame) == overlay::publish_e::too_large);
+    expect(server.publish(sample_frame(2u)) == overlay::publish_e::sent);
+  };
+
+  "a server that could not bind says it is not listening"_test = []
+  {
+    overlay::server_t server{std::string(200u, 'x')};
+    expect(not server.listening());
+    expect(server.publish(sample_frame(1u)) == overlay::publish_e::not_listening);
+  };
+
+  "a client is not broken while it waits for the tool"_test = []
+  {
+    overlay::client_t client{scratch_socket("nobody")};
+    std::this_thread::sleep_for(50ms);
+    expect(not client.broken());
+    expect(not client.connected());
   };
   }

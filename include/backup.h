@@ -1,11 +1,14 @@
 #pragma once
 
+#include <simple_enum/expected.h>
+
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
 #include <span>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <vector>
 
 ///\brief a copy of what cannot be rebuilt - the journals, the codex's pictures, live.sqlite, and the settings of the
@@ -118,13 +121,17 @@ struct mark_t
   uint64_t pictures{};
   };
 
+///\brief the mark of the last backup - an empty one when there was none yet; an error when the file is
+/// there but cannot be read, which the caller says, since a backup then follows at every look
 [[nodiscard]]
-auto read_mark(std::filesystem::path const & destination) -> mark_t;
-auto write_mark(std::filesystem::path const & destination, mark_t const & mark) -> void;
+auto read_mark(std::filesystem::path const & destination) -> cxx23::expected<mark_t, std::error_code>;
+[[nodiscard]]
+auto write_mark(std::filesystem::path const & destination, mark_t const & mark) -> cxx23::expected<void, std::error_code>;
 
-///\brief the pictures of the codex and the sky album - what the backup counts the new ones of
+///\brief the pictures of the codex and the sky album - what the backup counts the new ones of; none when
+/// the directory is not there yet
 [[nodiscard]]
-auto count_pictures(std::filesystem::path const & codex_dir) -> uint64_t;
+auto count_pictures(std::filesystem::path const & codex_dir) -> cxx23::expected<uint64_t, std::error_code>;
 
 ///\brief a backup is due once the days have passed since the last, or once as many new pictures came in -
 /// whichever comes first; 0 turns either off

@@ -84,7 +84,21 @@ namespace
     // last: it runs over everything above
     std::thread thread_;
 
+    ///\brief an exception leaving a thread ends the process, and this one runs in the game - it stops
+    /// this part of the overlay alone
     auto run() -> void
+      {
+      try
+        {
+        work();
+        }
+      catch(...)
+        {
+        report("overlay: the reader of planet faces stopped ({})", exception_text());
+        }
+      }
+
+    auto work() -> void
       {
       for(;;)
         {

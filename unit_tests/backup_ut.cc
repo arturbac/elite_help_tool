@@ -109,12 +109,22 @@ auto main() -> int
     expect(second.months.empty());
     expect(second.pictures_copied == 0_ul);
     expect(second.live_db_copied);
-    expect(backup::count_pictures(codex) == 1_ul);
+    expect(backup::count_pictures(codex).value_or(0u) == 1_ul);
+    expect(backup::count_pictures(root / "no-such-codex").value_or(1u) == 0_ul) << "a codex not made yet holds nothing";
 
-    backup::write_mark(destination, backup::mark_t{.at = std::chrono::sys_seconds{1'000'000s}, .pictures = 7u});
+    auto const none{backup::read_mark(destination / "never-backed-up")};
+    expect(none.has_value() and none->at == std::chrono::sys_seconds{}) << "no backup yet is no error";
+    expect(backup::write_mark(destination, backup::mark_t{.at = std::chrono::sys_seconds{1'000'000s}, .pictures = 7u}).has_value());
     auto const mark{backup::read_mark(destination)};
-    expect(mark.at == std::chrono::sys_seconds{1'000'000s});
-    expect(mark.pictures == 7_ul);
+    expect(mark.has_value());
+    expect(mark->at == std::chrono::sys_seconds{1'000'000s});
+    expect(mark->pictures == 7_ul);
+
+    {
+    std::ofstream broken{destination / "last_backup.json", std::ios::trunc};
+    broken << "{ not json";
+    }
+    expect(not backup::read_mark(destination).has_value()) << "a broken mark is said, not taken for none";
 
     std::error_code ec;
     std::filesystem::remove_all(root, ec);

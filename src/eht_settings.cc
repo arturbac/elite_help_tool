@@ -1,4 +1,5 @@
 #include <eht_settings.h>
+#include <event_guard.h>
 #include <json_glaze.h>
 
 #include <spdlog/spdlog.h>
@@ -45,11 +46,33 @@ namespace
       text.insert(2u, "   \"sjona_private\": true,\n");
     text.push_back('\n');
 
-    std::ofstream out{path, std::ios::binary | std::ios::trunc};
-    out << text;
-    if(not out) [[unlikely]]
+    // written beside and put in place by a rename: a full disk or a crash half way leaves the old file
+    // whole, never an empty one. A link is followed, so the file it points at is the one replaced
+    std::error_code ec;
+    std::filesystem::path target{path};
+    if(std::filesystem::is_symlink(path, ec))
+      if(auto resolved{std::filesystem::canonical(path, ec)}; not ec)
+        target = std::move(resolved);
+    std::filesystem::path const partial{target.string() + ".partial"};
       {
-      spdlog::error("settings: could not write {}", path.string());
+      std::ofstream out{partial, std::ios::binary | std::ios::trunc};
+      out << text;
+      out.close();
+      if(out.fail()) [[unlikely]]
+        {
+        spdlog::error("settings: could not write {}, {} is left as it was", partial.string(), target.string());
+        std::filesystem::remove(partial, ec);
+        return false;
+        }
+      }
+    // the file may hold what is not for everyone's eyes - the new one keeps the old one's permissions
+    if(auto const old{std::filesystem::status(target, ec)}; not ec)
+      std::filesystem::permissions(partial, old.permissions(), ec);
+    std::filesystem::rename(partial, target, ec);
+    if(ec) [[unlikely]]
+      {
+      spdlog::error("settings: could not put {} in place: {}", target.string(), ec.message());
+      std::filesystem::remove(partial, ec);
       return false;
       }
     return true;
@@ -128,7 +151,10 @@ auto load_settings(std::filesystem::path const & path) -> bool
   // read apart from the rest, since settings_t is written out whole and these must not be
   private_settings_t hidden{};
   if(auto const hidden_err{glz::read<glz::opts{.error_on_unknown_keys = false}>(hidden, *text)}; hidden_err)
+    {
+    spdlog::warn("settings: the private switches in {} could not be read, they are off", path.string());
     hidden = {};
+    }
   current_private().store(hidden.sjona_private, std::memory_order_release);
 
   current_settings().store(std::make_shared<settings_t const>(std::move(loaded)), std::memory_order_release);
@@ -148,17 +174,24 @@ settings_watcher_t::settings_watcher_t(std::filesystem::path path) :
         // Looked at once a second rather than through inotify: a settings file is saved by hand, a
         // second is nothing to wait for, and it keeps working on a file replaced by an editor that
         // writes a new one and renames it over the old
-        std::error_code ec;
-        auto seen{std::filesystem::last_write_time(path_, ec)};
-        while(not stop.stop_requested())
+        // an exception leaving the thread would end the tool; the file is simply no longer followed
+        eht::event_guard(
+          "settings watcher",
+          [this, &stop]
           {
-          std::this_thread::sleep_for(std::chrono::seconds{1});
-          auto const now{std::filesystem::last_write_time(path_, ec)};
-          if(ec or now == seen)
-            continue;
-          seen = now;
-          load_settings(path_);
+            std::error_code ec;
+            auto seen{std::filesystem::last_write_time(path_, ec)};
+            while(not stop.stop_requested())
+              {
+              std::this_thread::sleep_for(std::chrono::seconds{1});
+              auto const now{std::filesystem::last_write_time(path_, ec)};
+              if(ec or now == seen)
+                continue;
+              seen = now;
+              load_settings(path_);
+              }
           }
+        );
       }
     }
   {

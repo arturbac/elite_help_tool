@@ -52,7 +52,7 @@ auto database_storage_t::load_trade_options(uint64_t market_id, unsigned limit, 
 
 auto database_storage_t::store(info::station_t const & value) -> expected_ec<void>
   {
-  auto known{load_station(value.market_id)};
+  auto known{load_stored_station(value.market_id)};
   if(not known) [[unlikely]]
     return cxx23::unexpected{known.error()};
 
@@ -124,7 +124,7 @@ auto database_storage_t::load_last_port() -> expected_ec<std::optional<info::por
   return std::optional<info::port_visit_t>{};
   }
 
-auto database_storage_t::load_station(uint64_t market_id) -> expected_ec<std::optional<info::station_t>>
+auto database_storage_t::load_stored_station(uint64_t market_id) -> expected_ec<std::optional<info::station_t>>
   {
   auto res{sqlite::select_from<info::station_t>(
     db_->db, sql_iface::tables::station, std::format(" WHERE market_id={}", market_id)
@@ -134,10 +134,18 @@ auto database_storage_t::load_station(uint64_t market_id) -> expected_ec<std::op
 
   if(res->empty())
     return std::optional<info::station_t>{};
-
-  if(auto overruled{overrule_retreated_owner(res->front())}; not overruled) [[unlikely]]
-    return cxx23::unexpected{overruled.error()};
   return std::optional<info::station_t>{std::move((*res)[0])};
+  }
+
+auto database_storage_t::load_station(uint64_t market_id) -> expected_ec<std::optional<info::station_t>>
+  {
+  auto res{load_stored_station(market_id)};
+  if(not res or not *res)
+    return res;
+
+  if(auto overruled{overrule_retreated_owner(**res)}; not overruled) [[unlikely]]
+    return cxx23::unexpected{overruled.error()};
+  return res;
   }
 
 auto database_storage_t::load_commodity_categories() -> expected_ec<std::map<std::string, std::string>>

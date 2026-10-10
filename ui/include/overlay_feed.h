@@ -425,5 +425,8 @@ private:
   std::set<std::string> micro_resource_commodities_;
   overlay::frame_t last_;
   std::chrono::steady_clock::time_point last_sent_{};
+  ///\brief what became of the last frame - a frame not sent leaves the game on the previous one, said
+  /// once when it starts and once when it ends
+  overlay::publish_e published_{overlay::publish_e::sent};
   uint64_t sequence_{};
   };
