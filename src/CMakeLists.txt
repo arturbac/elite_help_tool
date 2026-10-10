@@ -33,6 +33,7 @@ target_sources(eht
   credits.cc
   community_goal.cc
   ship_health.cc
+  route_progress.cc
   database_storage.cc
   database_storage_missions.cc
   database_storage_systems.cc

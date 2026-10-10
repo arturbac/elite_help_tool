@@ -625,7 +625,15 @@ auto main_window_t::background_worker(std::stop_token stoken) -> void
       state_.remember_progress();
       bool const inhabited{not state_.system_factions.empty()};
       QMetaObject::invokeMethod(
-        this, [this, inhabited]() { choose_opening_window(inhabited); }, Qt::QueuedConnection
+        this,
+        [this, inhabited]()
+        {
+          choose_opening_window(inhabited);
+          // the route's progress stood still through the replay; the system we are in now moves it on
+          if(route_view_)
+            route_view_->refresh_ui();
+        },
+        Qt::QueuedConnection
       );
     }
   );

@@ -6,6 +6,7 @@
 #include <data/micro_resources.h>
 #include <data/market.h>
 #include <data/missions.h>
+#include <data/navigation.h>
 #include <data/station.h>
 #include <star_system.h>
 #include <json_glaze.h>
@@ -541,6 +542,18 @@ int main()
       }
     auto producers{dbs.load_producers()};
     expect(bool(producers) and producers->size() == 2_u) << "a producer short of stock is still a producer";
+  };
+
+  // live.sqlite is one file for both accounts: each keeps its own place along the same route
+  "the progress along a route is the account's, and none on a route never flown"_test = [&]
+  {
+    expect(bool(dbs.store_neutron_progress(info::neutron_progress_t{.oid = -1, .fid = "F1", .route_key = "5-abc", .reached = 3u})));
+    expect(bool(dbs.store_neutron_progress(info::neutron_progress_t{.oid = -1, .fid = "F2", .route_key = "5-abc", .reached = 1u})));
+    expect(bool(dbs.store_neutron_progress(info::neutron_progress_t{.oid = -1, .fid = "F1", .route_key = "5-abc", .reached = 4u})));
+    expect(dbs.load_neutron_progress("F1", "5-abc").value_or(0u) == 4_u) << "a newer progress did not replace the old";
+    expect(dbs.load_neutron_progress("F2", "5-abc").value_or(0u) == 1_u);
+    auto const never{dbs.load_neutron_progress("F1", "5-def")};
+    expect(never.has_value() and *never == 0_u);
   };
 
   "a galaxy rebuild loses no progress"_test = [&]

@@ -1,4 +1,5 @@
 #include <overlay_feed.h>
+#include <route_progress.h>
 #include <biology.h>
 #include <territory.h>
 #include <data/bgs.h>
@@ -2824,9 +2825,8 @@ auto overlay_feed_t::refresh_neutron_route(current_state_t const & state) -> voi
     neutron_route_loaded_ = now;
     if(auto route{db_.load_neutron_route()}; route)
       {
-      // a route replaced or cleared starts the progress over - matching by name would still break on
-      // a route flown a second time, so a size change is the simplest sign it is not the same one
-      if(route->size() != neutron_route_.size())
+      // a route replaced, reversed or cleared starts the progress over
+      if(route_progress::route_key(*route) != route_progress::route_key(neutron_route_))
         neutron_reached_ = 0u;
       neutron_route_ = std::move(*route);
       }
@@ -2835,16 +2835,12 @@ auto overlay_feed_t::refresh_neutron_route(current_state_t const & state) -> voi
   if(neutron_route_.empty())
     return;
 
-  // the same walk-forward the Route window itself does, independent of whether that window is open
-  if(state.current_system_address_ != neutron_progress_system_)
+  // the same walk-forward the Route window itself does, independent of whether that window is open,
+  // and as there not through the replay of the journal
+  if(not state.catching_up_ and state.current_system_address_ != neutron_progress_system_)
     {
     neutron_progress_system_ = state.current_system_address_;
-    auto const ahead{neutron_route_ | std::views::drop(neutron_reached_)};
-    if(auto const here{
-         std::ranges::find(ahead, state.current_system_address_, &info::neutron_waypoint_t::system_address)
-       };
-       here != ahead.end())
-      neutron_reached_ += size_t(std::ranges::distance(ahead.begin(), here)) + 1u;
+    neutron_reached_ = route_progress::advance(neutron_route_, neutron_reached_, state.current_system_address_);
     }
   }
 

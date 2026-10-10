@@ -375,6 +375,12 @@ auto database_storage_t::create_database() -> expected_ec<void>
   ) [[unlikely]]
     return res;
 
+  if(
+    auto res{sqlite::create_table<info::neutron_progress_t>(db_->db, "oid"sv, sql_iface::tables::neutron_progress)};
+    not res
+  ) [[unlikely]]
+    return res;
+
   if(auto res{sqlite::create_table<info::construction_abandoned_t>(
        db_->db, "market_id"sv, sql_iface::tables::construction_abandoned
      )};
@@ -459,6 +465,11 @@ auto database_storage_t::create_database() -> expected_ec<void>
     not res
   ) [[unlikely]]
     return res;
+  // one row of progress for an account and a route
+  if(auto res{sqlite::create_index(db_->db, sql_iface::tables::neutron_progress, "fid, route_key", "key", true)};
+     not res) [[unlikely]]
+    return res;
+
   // the newest reading of a carrier's shelf is asked for by the carrier alone - the key above leads with the
   // material too, and the question walked every row of the table, about 10 ms against 0.3 with this one
   if(auto res{sqlite::create_index(db_->db, sql_iface::tables::carrier_materials, "carrier_id, timestamp", "carrier")};

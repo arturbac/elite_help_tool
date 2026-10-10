@@ -23,6 +23,37 @@ auto database_storage_t::load_neutron_route() -> expected_ec<std::vector<info::n
   );
   }
 
+auto database_storage_t::load_neutron_progress(std::string_view fid, std::string_view route_key) -> expected_ec<uint32_t>
+  {
+  auto rows{sqlite::select_from<info::neutron_progress_t>(
+    db_->db,
+    sql_iface::tables::neutron_progress,
+    std::format(
+      " WHERE fid='{}' AND route_key='{}'", sqlite::escape_sql_quotes(fid), sqlite::escape_sql_quotes(route_key)
+    )
+  )};
+  if(not rows) [[unlikely]]
+    return cxx23::unexpected{rows.error()};
+  return rows->empty() ? 0u : rows->front().reached;
+  }
+
+auto database_storage_t::store_neutron_progress(info::neutron_progress_t const & value) -> expected_ec<void>
+  {
+  // the row of this account and route replaced - the unique key on both keeps it one
+  if(auto res{sqlite::execute_query_no_result(
+       db_->db,
+       std::format(
+         "DELETE FROM {} WHERE fid='{}' AND route_key='{}'",
+         sql_iface::tables::neutron_progress,
+         sqlite::escape_sql_quotes(value.fid),
+         sqlite::escape_sql_quotes(value.route_key)
+       )
+     )};
+     not res) [[unlikely]]
+    return res;
+  return sqlite::insert_into(db_->db, "oid"sv, sql_iface::tables::neutron_progress, value);
+  }
+
 auto database_storage_t::store(info::ship_transfer_t const & value) -> expected_ec<void>
   {
   // a rebuild from journals repeats every order - the ship and the moment of ordering tell them apart

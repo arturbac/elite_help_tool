@@ -94,6 +94,8 @@ public:
   ///\brief the system progress was last taken from - a route can pass the same system more than once,
   /// so progress moves at an arrival only, and to the first match of the system from the next waypoint on
   uint64_t progress_system_{};
+  ///\brief the progress last written down for the remembered route, so it is written on change only
+  size_t stored_reached_{};
 
   explicit route_window_t(current_state_t const & state, std::string db_path, QWidget * parent = nullptr);
 
@@ -113,6 +115,13 @@ private:
   auto show_route() -> void;
   ///\brief sets progress to the given waypoint - for stepping back and for joining a route halfway
   auto jump_to_waypoint(int row) -> void;
+  ///\brief the remembered route from the database, with how far this account got along it
+  auto restore_remembered() -> void;
+  ///\brief writes the progress down when the route is the remembered one and the progress moved
+  auto store_progress() -> void;
+  ///\brief the account of this database - progress is kept per account, live.sqlite is shared
+  [[nodiscard]]
+  auto account_fid() -> std::string;
 
   auto setup_ui() -> void;
   };

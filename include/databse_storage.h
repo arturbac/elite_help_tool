@@ -290,6 +290,13 @@ struct database_storage_t
   [[nodiscard]]
   auto store_neutron_route(std::span<info::neutron_waypoint_t const> route) -> expected_ec<void>;
 
+  ///\brief how far the account got along the route of that key, zero when it never started it
+  [[nodiscard]]
+  auto load_neutron_progress(std::string_view fid, std::string_view route_key) -> expected_ec<uint32_t>;
+
+  [[nodiscard]]
+  auto store_neutron_progress(info::neutron_progress_t const & value) -> expected_ec<void>;
+
   ///\brief the remembered neutron route in flight order
   [[nodiscard]]
   auto load_neutron_route() -> expected_ec<std::vector<info::neutron_waypoint_t>>;

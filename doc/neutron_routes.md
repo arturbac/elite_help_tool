@@ -4,12 +4,19 @@
   and follows it: which waypoint is next, how many are left, and the next one put on the clipboard at
   every arrival, for the galaxy map's search. *Copy next destination* puts it there again.
 - **Reversed** flies the file from its end. It can be set before loading or changed on a loaded
-  route; the distances are counted anew from the coordinates.
+  route; the distances are counted anew from the coordinates. A remembered route turned round is
+  remembered in its new direction, with its progress started over.
 - Progress moves at an arrival only, and only forward: the game's own course between two waypoints
   may pass systems off the list, and a route there and back passes the same system more than once.
   A double click on a row makes that waypoint the next one.
 - **Remember** keeps the route across restarts, **Forget** drops it. **Clear** drops a route loaded
   for one trip only; a remembered route, if there is one, is shown again.
+- The progress along the remembered route is kept too (`neutron_progress` in `live.sqlite`), for
+  each account apart - two commanders sharing the file each keep their own place on the same route.
+  A route is told by its systems in order, so one replaced or reversed starts from its beginning.
+  After a restart the progress stands still while the journal is read back to the present, and then
+  moves on if the ship is at a waypoint ahead; a jump past the list's systems made while the tool was
+  closed is caught only by arriving at the next waypoint, or by a double click.
 - **On the overlay, in flight**: a small reminder of what to do right now with the route being flown -
   the one loaded in the Route window, or else the remembered one. At a neutron waypoint: supercharge in
   the star's cone first (the journal's `JetConeBoost` says when it is done), then open the galaxy map

@@ -559,6 +559,7 @@ namespace tables
   inline constexpr std::string_view micro_acquisition{"micro_acquisition"};
   // a route plotted outside the game is in no journal at all, so a rebuild would wipe it
   inline constexpr std::string_view neutron_route{"live.neutron_route"};
+  inline constexpr std::string_view neutron_progress{"live.neutron_progress"};
   // the commander's own choice, which no journal records - kept with what cannot be rebuilt
   inline constexpr std::string_view construction_abandoned{"live.construction_abandoned"};
   // a disconnect/crash found by scanning netLog and the journal - neither is rebuilt from EHT's own database,

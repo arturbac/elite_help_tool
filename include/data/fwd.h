@@ -72,6 +72,7 @@ enum struct mission_status_e : uint8_t;
 struct mission_t;
 // data/navigation.h
 struct neutron_waypoint_t;
+struct neutron_progress_t;
 struct route_item_t;
 // data/network.h
 struct incident_scan_progress_t;
