@@ -16,12 +16,16 @@
   target is on. Everything comes from `Status.json`: position, heading and the body's radius.
 - **The way down (proof of concept)**: over a body, in a ship, not landed, the right side band shows
   the place being flown to - the Surface window's target on this body, or else the destination set in
-  the game when its latitude and longitude are known from an earlier approach. It says the distance
+  the game when its latitude and longitude are known - from an earlier approach, or from this one: a
+  destination whose place is not known yet is looked up again every 10 seconds, and `ApproachSettlement`
+  writes it on the way down. The game's destination shows only over its own body when the system's
+  scans name that body; over an unscanned body it is trusted. It says the distance
   with the arrow of the turn, the height, how far below the horizon the place lies, and, above 3 km,
   the angle of the path flown - lower down the positions `Status.json` gives repeat and jump, and that
   angle is noise. Then the vertical speed, the ground speed and the time to the place. A chart under it
   plots the height against the way still to go over the last five minutes, the place at its right edge,
   with the straight line from here to it. The place is taken at the body's mean radius, its own height
   unknown, and a settlement's coordinates are its centre, not its pads.
-- **The pad given (proof of concept)**: from `DockingGranted` until the ship is down, leaves or enters
-  supercruise, beside the centre on the left: the pad's number, the station and its type.
+- **The pad given (proof of concept)**: from `DockingGranted` until the ship is down or leaves, the
+  request is cancelled or denied, or the ship enters supercruise, jumps, dies or the game is loaded
+  again (at most 10 minutes), beside the centre on the left: the pad's number, the station and its type.

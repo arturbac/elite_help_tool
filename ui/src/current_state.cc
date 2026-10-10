@@ -257,7 +257,8 @@ constexpr bool rebuilds_present_state{
   or std::same_as<event_t, events::loadout_t> or std::same_as<event_t, events::docked_t>
   or std::same_as<event_t, events::undocked_t> or std::same_as<event_t, events::supercruise_entry_t>
   // a pad granted before a restart of the tool, with the ship still on its way to it
-  or std::same_as<event_t, events::docking_granted_t>
+  or std::same_as<event_t, events::docking_granted_t> or std::same_as<event_t, events::docking_cancelled_t>
+  or std::same_as<event_t, events::docking_denied_t>
   or std::same_as<event_t, events::approach_settlement_t> or std::same_as<event_t, events::disembark_t>
   or std::same_as<event_t, events::cargo_t> or std::same_as<event_t, events::missions_t>
   or std::same_as<event_t, events::commander_t> or std::same_as<event_t, events::nav_route_t>
@@ -403,6 +404,8 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           {
           // after reloading game start at this system
           in_witchspace_ = false;
+          // a relog ends every request to land
+          docking_grant_ = {};
           buffered_signals.clear();
           ground_cz_.location(event);
 
@@ -479,6 +482,8 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
         else if constexpr(std::same_as<T, events::fsd_jump_t>)
           {
           in_witchspace_ = false;
+          // a jump out of normal space leaves the pad behind without a SupercruiseEntry
+          docking_grant_ = {};
           supercharged_in_ = 0u;
           ground_cz_.jumped(event.SystemAddress);
           if(system.system_address != event.SystemAddress)
@@ -782,6 +787,9 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           docking_grant_ = docking_grant_t{
             .pad = event.LandingPad, .station = event.StationName, .type = event.StationType, .granted = timestamp
           };
+        // the pad is no longer the commander's once the request is withdrawn or refused
+        else if constexpr(std::same_as<T, events::docking_cancelled_t> or std::same_as<T, events::docking_denied_t>)
+          docking_grant_ = {};
         // leaving the pad ends our presence at the place just as entering supercruise does
         else if constexpr(std::same_as<T, events::undocked_t>)
           {
@@ -998,7 +1006,10 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           backpack.Data.clear();
           }
         else if constexpr(std::same_as<T, events::died_t>)
+          {
           ground_cz_.died();
+          docking_grant_ = {};
+          }
         else if constexpr(std::same_as<T, events::shipyard_swap_t>)
           {
           // A smaller ship taken at the carrier, so as not to run far across the pad: the big one stays there

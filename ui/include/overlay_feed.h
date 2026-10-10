@@ -235,11 +235,14 @@ private:
   uint64_t edworld_retold_{};
   bool edworld_failed_{};
   ///\brief where on its body the destination stands, told to edworld through `surface` beside `target` - once
-  /// per new destination (system, body, place)
+  /// per new destination (system, body, place), and looked up again now and then while where it stands is not known
   auto publish_edworld_surface(current_state_t const & state) -> void;
   edworld::surface_t * edworld_surface_{};
   std::string edworld_surface_dir_;
   std::string edworld_surface_told_;
+  ///\brief the destination told stands somewhere known, and when it was last looked up
+  bool edworld_surface_known_{};
+  std::chrono::steady_clock::time_point edworld_surface_at_{};
   bool edworld_surface_failed_{};
   ///\brief held while this tool writes to the directory - a second tool on the same one (both commanders
   /// with the default directory) finds it taken and stays out, rather than the two telling edworld each
@@ -288,8 +291,9 @@ private:
   ///\brief how high over the body, from Status.json - absent away from one (PoC)
   std::optional<double> altitude_;
   descent::track_t descent_track_;
-  ///\brief the destination last looked up for the descent, and what was found for it
+  ///\brief the destination last looked up for the descent, when, and what was found for it
   std::string descent_looked_up_;
+  std::chrono::steady_clock::time_point descent_looked_at_{};
   std::optional<nav::target_t> descent_destination_;
   ///\brief the target of this frame, set by publish for build_descent_block
   std::optional<nav::target_t> descent_target_;

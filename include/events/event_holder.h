@@ -30,6 +30,8 @@ using event_holder_t = std::variant<
   undocked_t,
   docked_t,
   docking_granted_t,
+  docking_cancelled_t,
+  docking_denied_t,
   shipyard_transfer_t,
   sell_micro_resources_t,
   buy_micro_resources_t,

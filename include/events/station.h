@@ -104,6 +104,20 @@ struct docking_granted_t
   uint32_t LandingPad;
   };
 
+///\brief the request to land withdrawn by the commander - the pad given is no longer theirs (PoC)
+struct docking_cancelled_t
+  {
+  uint64_t MarketID;
+  std::string StationName;
+  };
+
+///\brief the tower's no - after a pad was given it means the grant is gone (PoC)
+struct docking_denied_t
+  {
+  uint64_t MarketID;
+  std::string StationName;
+  };
+
 ///\brief lifting off the pad - from this moment the market of that place stops concerning us
 struct undocked_t
   {

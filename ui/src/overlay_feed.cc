@@ -2832,28 +2832,44 @@ auto overlay_feed_t::descent_target(current_state_t const & state) -> std::optio
   if(surface_target_ and surface_target_->body == status_body_)
     return surface_target_;
 
-  // a place on a body of this system, looked up among the known places once per new destination
+  // a place on a body of this system, looked up among the known places once per new destination - and again
+  // now and then while where it stands is not known: the first approach writes it on the way down
+  constexpr std::chrono::seconds look_again{10};
+  auto const now{std::chrono::steady_clock::now()};
   std::string looked{};
   if(status_destination_ and status_destination_->Body != 0u and status_destination_->System == state.current_system_address_)
     looked = std::format("{}/{}/{}", status_destination_->System, status_destination_->Body, status_destination_->Name);
-  if(looked != descent_looked_up_)
+  bool const changed{looked != descent_looked_up_};
+  if(changed or (not looked.empty() and not descent_destination_ and now - descent_looked_at_ > look_again))
     {
     descent_looked_up_ = looked;
+    descent_looked_at_ = now;
     descent_destination_.reset();
     if(not looked.empty() and not status_destination_->Name.empty())
       {
       if(auto station{db_.load_station(status_destination_->System, status_destination_->Name)}; not station)
-        spdlog::warn("descent: could not look {} up: {}", status_destination_->Name, station.error().message());
+        {
+        if(changed)
+          spdlog::warn("descent: could not look {} up: {}", status_destination_->Name, station.error().message());
+        }
       else if(*station and (*station)->body_id == status_destination_->Body and (*station)->latitude
               and (*station)->longitude)
         descent_destination_ = nav::target_t{
-          .body = status_body_,
+          .body = {},
           .point = bio::surface_point_t{*(*station)->latitude, *(*station)->longitude},
           .label = status_destination_->Name
         };
       }
     }
-  return descent_destination_;
+  if(not descent_destination_)
+    return std::nullopt;
+  // the place counts only over its own body - by name when the system's scans know the body, trusted otherwise
+  if(auto const body{state.system.body_by_id(status_destination_->Body)};
+     body != state.system.bodies.end() and body->name != status_body_)
+    return std::nullopt;
+  nav::target_t target{*descent_destination_};
+  target.body = status_body_;
+  return target;
   }
 
 auto overlay_feed_t::build_descent_block() -> std::optional<overlay::block_t>
@@ -4608,21 +4624,35 @@ auto overlay_feed_t::publish_edworld_surface(current_state_t const & state) -> v
     name = status_destination_->Name;
     }
   std::string told{std::format("{}/{}/{}", system, body, name)};
-  if(told == edworld_surface_told_)
+  // the same destination is looked up again now and then while where it stands is not known - its first
+  // approach writes it on the way down
+  constexpr std::chrono::seconds look_again{10};
+  auto const now{std::chrono::steady_clock::now()};
+  bool const changed{told != edworld_surface_told_};
+  if(not changed and (edworld_surface_known_ or name.empty() or now - edworld_surface_at_ <= look_again))
     return;
   edworld_surface_told_ = std::move(told);
+  edworld_surface_at_ = now;
   std::optional<double> latitude;
   std::optional<double> longitude;
   if(not name.empty())
     {
     if(auto station{db_.load_station(system, name)}; not station)
-      spdlog::warn("edworld: could not look {} up: {}", name, station.error().message());
+      {
+      if(changed)
+        spdlog::warn("edworld: could not look {} up: {}", name, station.error().message());
+      }
     else if(*station and (*station)->body_id == body)
       {
       latitude = (*station)->latitude;
       longitude = (*station)->longitude;
       }
     }
+  bool const known{latitude and longitude};
+  // looked up again and still not known - nothing new to tell
+  if(not changed and not known)
+    return;
+  edworld_surface_known_ = known;
   auto const now_ms{
     std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count()
   };

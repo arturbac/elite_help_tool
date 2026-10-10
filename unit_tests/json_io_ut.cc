@@ -37,6 +37,22 @@ auto main() -> int
     expect(granted.StationName == std::string{"Golds Base"} and granted.StationType == std::string{"CraterOutpost"});
   };
 
+  "a request to land withdrawn or refused names the station"_test = []
+  {
+    ::events::docking_cancelled_t cancelled{};
+    expect(not eht::json::read_lenient(
+      cancelled,
+      R"({ "timestamp":"2026-10-10T08:01:00Z", "event":"DockingCancelled", "MarketID":3228342528, "StationName":"Golds Base", "StationType":"CraterOutpost" })"
+    ));
+    expect(cancelled.MarketID == 3228342528_ull and cancelled.StationName == std::string{"Golds Base"});
+    ::events::docking_denied_t denied{};
+    expect(not eht::json::read_lenient(
+      denied,
+      R"({ "timestamp":"2026-10-10T08:02:00Z", "event":"DockingDenied", "Reason":"Distance", "MarketID":3228342528, "StationName":"Golds Base", "StationType":"CraterOutpost" })"
+    ));
+    expect(denied.MarketID == 3228342528_ull and denied.StationName == std::string{"Golds Base"});
+  };
+
   "a broken line says where"_test = []
   {
     ::events::start_jump_t jump{};

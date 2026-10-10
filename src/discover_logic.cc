@@ -924,6 +924,8 @@ auto generic_state_t::discovery(std::string_view input) -> void
     case Market:            parse_and_handle.template operator()<events::market_t>(); break;
     case Docked:            parse_and_handle.template operator()<events::docked_t>(); break;
     case DockingGranted:    parse_and_handle.template operator()<events::docking_granted_t>(); break;
+    case DockingCancelled:  parse_and_handle.template operator()<events::docking_cancelled_t>(); break;
+    case DockingDenied:     parse_and_handle.template operator()<events::docking_denied_t>(); break;
     case ShipyardTransfer:  parse_and_handle.template operator()<events::shipyard_transfer_t>(); break;
     case Undocked:          parse_and_handle.template operator()<events::undocked_t>(); break;
     case ApproachSettlement:
