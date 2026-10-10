@@ -2766,15 +2766,35 @@ auto overlay_feed_t::refresh_status(current_state_t const & state) -> void
     };
     heading_ = status->Heading;
     altitude_ = status->Altitude;
+    // Flags bit 29: the height over the mean radius (orbital cruise, high up) rather than over the ground. On the
+    // pad and at touchdown the game writes it alone for one fix, the pad's own height then (seen in the recorded
+    // Status of 10.10: after Undocked 22 times of 41, at Touchdown 5 of 11, always with the gear down) - noise
+    constexpr uint64_t docked_flag{1u << 0u};
+    constexpr uint64_t landed_flag{1u << 1u};
+    constexpr uint64_t gear_flag{1u << 2u};
+    constexpr uint64_t supercruise_flag{1u << 4u};
+    constexpr uint64_t srv_flag{1u << 26u};
+    constexpr uint64_t mean_radius_flag{1u << 29u};
+    constexpr std::chrono::seconds settled{3};
+    altitude_over_mean_ = (status->Flags & mean_radius_flag) != 0u;
+    if((status->Flags & (docked_flag | landed_flag)) != 0u)
+      grounded_at_ = now;
+    if(altitude_ and altitude_over_mean_ and (status->Flags & supercruise_flag) == 0u
+       and ((status->Flags & (gear_flag | srv_flag)) != 0u or now - grounded_at_ < settled))
+      altitude_.reset();
     if(surface_.here and surface_.planet_radius > 0.0)
       ground_speed_.push(now, *surface_.here, surface_.planet_radius);
     else
       ground_speed_.clear();
     if(surface_.here and altitude_ and surface_.planet_radius > 0.0)
       descent_track_.push(
-        descent::fix_t{.at = now, .point = *surface_.here, .altitude_m = *altitude_}, surface_.planet_radius
+        descent::fix_t{
+          .at = now, .point = *surface_.here, .altitude_m = *altitude_, .over_mean_radius = altitude_over_mean_
+        },
+        surface_.planet_radius
       );
-    else
+    // a fix of noise leaves the track as it was; away from the body it starts over
+    else if(not(surface_.here and status->Altitude and surface_.planet_radius > 0.0))
       descent_track_.clear();
     status_body_ = std::move(status->BodyName);
     status_destination_ = std::move(status->Destination);
@@ -2900,7 +2920,13 @@ auto overlay_feed_t::build_descent_block() -> std::optional<overlay::block_t>
       .pointer = way.turn_deg ? std::optional{static_cast<float>(*way.turn_deg)} : std::nullopt
     }
   );
-  std::string angles{std::format("alt {}  to it {:.0f}\u00b0 down", nav::format_distance(*altitude_), glide.below_deg)};
+  std::string angles{std::format(
+    "alt {} {}  to it {:.0f}\u00b0 {}",
+    nav::format_distance(*altitude_),
+    altitude_over_mean_ ? "mean" : "ground",
+    std::abs(glide.below_deg),
+    glide.below_deg < 0.0 ? "up" : "down"
+  )};
   if(auto const path{descent_track_.path_angle_deg(now)}; path and *altitude_ > reliable_angle_m)
     angles += std::format("  flying {:.0f}\u00b0 {}", std::abs(*path), *path < 0.0 ? "down" : "up");
   lines.push_back(overlay::line_t{.text = std::move(angles), .color = colour_plain()});

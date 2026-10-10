@@ -33,6 +33,8 @@ struct fix_t
   std::chrono::steady_clock::time_point at;
   bio::surface_point_t point;
   double altitude_m{};
+  ///\brief Status.json Flags bit 29: the height is over the body's mean radius; else over the ground under the ship
+  bool over_mean_radius{};
   };
 
 ///\brief the last few minutes of fixes over one body: the speeds and the angle of the path flown, and
@@ -42,7 +44,8 @@ class track_t
 public:
   using clock = std::chrono::steady_clock;
 
-  ///\brief a fix over the body of this radius; another radius is another body, and the track starts over
+  ///\brief a fix over the body of this radius; another radius is another body, and the track starts over - as it
+  /// does when the height is measured from the other level: the step between them is the ground's own height
   auto push(fix_t fix, double radius_m) -> void;
   auto clear() -> void { fixes_.clear(); }
 
@@ -65,6 +68,7 @@ private:
 
   std::deque<fix_t> fixes_;
   double radius_m_{};
+  bool over_mean_radius_{};
   };
 
 ///\brief one point of the profile: how far from the place along the surface, and how high

@@ -41,10 +41,11 @@ auto glide_to(bio::surface_point_t here, double altitude_m, bio::surface_point_t
 
 auto track_t::push(fix_t fix, double radius_m) -> void
   {
-  if(radius_m != radius_m_)
+  if(radius_m != radius_m_ or fix.over_mean_radius != over_mean_radius_)
     {
     fixes_.clear();
     radius_m_ = radius_m;
+    over_mean_radius_ = fix.over_mean_radius;
     }
   // the same fix read again is no news - the file is written while nothing moves, too
   if(not fixes_.empty() and fixes_.back().point.latitude == fix.point.latitude

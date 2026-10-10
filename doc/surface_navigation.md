@@ -25,7 +25,11 @@
   angle is noise. Then the vertical speed, the ground speed and the time to the place. A chart under it
   plots the height against the way still to go over the last five minutes, the place at its right edge,
   with the straight line from here to it. The place is taken at the body's mean radius, its own height
-  unknown, and a settlement's coordinates are its centre, not its pads.
+  unknown, and a settlement's coordinates are its centre, not its pads. The height is the one
+  `Status.json` gives, over the body's mean radius (`mean`, Flags bit 29: in orbital cruise and high
+  up) or over the ground under the ship (`ground`); the track starts over when it changes from one to
+  the other, and the one fix over the mean radius the game writes on a pad or at touchdown is left
+  out.
 - **The pad given (proof of concept)**: from `DockingGranted` until the ship is down or leaves, the
   request is cancelled or denied, or the ship enters supercruise, jumps, dies or the game is loaded
   again (at most 10 minutes), beside the centre on the left: the pad's number, the station and its type.

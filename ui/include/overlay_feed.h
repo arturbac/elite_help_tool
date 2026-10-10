@@ -290,6 +290,10 @@ private:
   std::optional<double> heading_;
   ///\brief how high over the body, from Status.json - absent away from one (PoC)
   std::optional<double> altitude_;
+  ///\brief Status.json Flags bit 29: altitude_ is over the mean radius, not over the ground
+  bool altitude_over_mean_{};
+  ///\brief the last fix docked or landed - a height over the mean radius just after is the pad's, not a flight's
+  std::chrono::steady_clock::time_point grounded_at_{};
   descent::track_t descent_track_;
   ///\brief the destination last looked up for the descent, when, and what was found for it
   std::string descent_looked_up_;

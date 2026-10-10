@@ -49,6 +49,17 @@ auto main() -> int
     expect(track.fixes().size() == 1_u);
   };
 
+  "a height from the other level starts the track over: the step between them is the ground's"_test = []
+  {
+    descent::track_t track;
+    auto const start{std::chrono::steady_clock::time_point{} + 100s};
+    track.push({.at = start, .point = {0.0, 0.0}, .altitude_m = 20'000.0, .over_mean_radius = true}, radius);
+    track.push({.at = start + 1s, .point = {0.0, 0.0001}, .altitude_m = 19'900.0, .over_mean_radius = true}, radius);
+    track.push({.at = start + 2s, .point = {0.0, 0.0002}, .altitude_m = 16'500.0}, radius);
+    expect(track.fixes().size() == 1_u);
+    expect(not track.vertical_speed(start + 2s).has_value()) << "no speed across the step";
+  };
+
   "the profile is the distance to the place against the height"_test = []
   {
     std::deque<descent::fix_t> const fixes{
