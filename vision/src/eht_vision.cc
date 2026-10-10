@@ -1,6 +1,7 @@
 #include <vision_recorder.h>
 
 #include <eht_settings.h>
+#include <event_guard.h>
 #include <overlay_protocol.h>
 
 #include <spdlog/spdlog.h>
@@ -64,7 +65,9 @@ auto main(int argc, char ** argv) -> int
     overlay::sample_file_path(),
     eht::settings()->vision.record ? "on" : "off until vision.record is set"
   );
-  std::jthread worker{[&recorder](std::stop_token stop) { recorder.run(stop); }};
+  // an exception leaving the thread would end the service with nothing in its log; caught, the recorder
+  // stops and says why, and the service waits for its signal as before
+  std::jthread worker{[&recorder](std::stop_token stop) { eht::event_guard("vision recorder", [&] { recorder.run(stop); }); }};
 
   int signal{};
   sigwait(&signals, &signal);

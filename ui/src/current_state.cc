@@ -263,6 +263,8 @@ constexpr bool rebuilds_present_state{
   // the health of the modules between two Loadouts, and the jumps above that wear the drive
   or std::same_as<event_t, events::afmu_repairs_t> or std::same_as<event_t, events::repair_all_t>
   or std::same_as<event_t, events::repair_t>
+  // the goals as the game last told them - listed at login, so a restart of the tool would lose them
+  or std::same_as<event_t, events::community_goal_t>
   // a sample half taken when the tool was closed is still half taken - and the handler only repeats the
   // species already written, in the same order
   or std::same_as<event_t, events::scan_organic_t>
@@ -1134,6 +1136,14 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           auto market{load_market(journal_dir_path_)};
           if(not market or market->MarketID != event.MarketID)
             {
+            // in the replay the file is long another market's; live it should be this one - the reading is lost
+            if(not catching_up_)
+              spdlog::warn(
+                "market of {} not recorded: Market.json {}",
+                event.StationName,
+                not market ? std::format("could not be read ({})", market.error().message())
+                           : std::format("holds market {}", market->MarketID)
+              );
             if(auto res{db_.store(station)}; not res)
               spdlog::error("failed to store station {}", event.MarketID);
             return;
@@ -1422,6 +1432,9 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
         else if constexpr(std::same_as<T, events::repair_t>)
           {
           for(std::string const & item: event.Items)
+            {
+            if(ship_health::repairs_hull(item))
+              ship_loadout.HullHealth = 1.f;
             for(events::module_t & mod: ship_loadout.Modules)
               if(ship_health::same_item(mod.Item, item))
                 {
@@ -1429,6 +1442,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
                 if(mod.Slot == "FrameShiftDrive")
                   ship_loadout.JumpsSinceFsdHealth = 0u;
                 }
+            }
           update_ship = true;
           }
         else if constexpr(std::same_as<T, events::cargo_t>)
@@ -1816,8 +1830,15 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
         parent,
         [target = parent]() mutable
         {
-          if(target->route_view_) [[likely]]
-            target->route_view_->refresh_ui();
+          eht::event_guard(
+            "window refresh",
+            [&]
+            {
+              std::scoped_lock const lock{target->state_.mutex_};
+              if(target->route_view_) [[likely]]
+                target->route_view_->refresh_ui();
+            }
+          );
         },
         Qt::QueuedConnection
       );
@@ -1850,8 +1871,15 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
         parent,
         [target = parent]() mutable
         {
-          if(target->system_view_) [[likely]]
-            target->system_view_->refresh_ui();
+          eht::event_guard(
+            "window refresh",
+            [&]
+            {
+              std::scoped_lock const lock{target->state_.mutex_};
+              if(target->system_view_) [[likely]]
+                target->system_view_->refresh_ui();
+            }
+          );
         },
         Qt::QueuedConnection
       );
@@ -1861,8 +1889,15 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
         parent,
         [target = parent, sh = &ship_loadout]() mutable
         {
-          if(target->ship_view_)
-            target->ship_view_->refresh_ui(*sh);
+          eht::event_guard(
+            "window refresh",
+            [&]
+            {
+              std::scoped_lock const lock{target->state_.mutex_};
+              if(target->ship_view_)
+                target->ship_view_->refresh_ui(*sh);
+            }
+          );
         },
         Qt::QueuedConnection
       );
@@ -1871,8 +1906,15 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
         parent,
         [target = parent]() mutable
         {
-          if(target->mission_view_)
-            target->mission_view_->refresh_ui();
+          eht::event_guard(
+            "window refresh",
+            [&]
+            {
+              std::scoped_lock const lock{target->state_.mutex_};
+              if(target->mission_view_)
+                target->mission_view_->refresh_ui();
+            }
+          );
         },
         Qt::QueuedConnection
       );
@@ -1887,7 +1929,11 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
     // second of catch-up ending, and firing it once per replayed event floods the Qt event queue for
     // nothing
     if(not catching_up_)
-      QMetaObject::invokeMethod(parent, [target = parent]() mutable { target->publish_overlay(); }, Qt::QueuedConnection);
+      QMetaObject::invokeMethod(
+        parent,
+        [target = parent]() mutable { target->publish_guard_("overlay publish", [target] { target->publish_overlay(); }); },
+        Qt::QueuedConnection
+      );
 
     if(update_factions)
       {
@@ -1896,10 +1942,17 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
         parent,
         [target = parent]() mutable
         {
-          if(target->faction_view_)
-            target->faction_view_->refresh_ui();
-          if(target->faction_state_view_)
-            target->faction_state_view_->refresh_ui();
+          eht::event_guard(
+            "window refresh",
+            [&]
+            {
+              std::scoped_lock const lock{target->state_.mutex_};
+              if(target->faction_view_)
+                target->faction_view_->refresh_ui();
+              if(target->faction_state_view_)
+                target->faction_state_view_->refresh_ui();
+            }
+          );
         },
         Qt::QueuedConnection
       );

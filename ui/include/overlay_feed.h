@@ -230,6 +230,10 @@ private:
   std::string edworld_surface_dir_;
   std::string edworld_surface_told_;
   bool edworld_surface_failed_{};
+  ///\brief held while this tool writes to the directory - a second tool on the same one (both commanders
+  /// with the default directory) finds it taken and stays out, rather than the two telling edworld each
+  /// other's destinations and tearing what the other wrote
+  int edworld_lock_fd_{-1};
 
   uint64_t market_id_{};
   uint64_t market_destination_{};

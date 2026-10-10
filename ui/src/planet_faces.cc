@@ -225,6 +225,16 @@ auto planet_faces_t::offer_view(std::string const & system, std::string const & 
   (void)system;
   if(judging_.valid() and judging_.wait_for(std::chrono::seconds{0}) != std::future_status::ready)
     return;
+  // the last judgement is collected before the next replaces it - an exception in it would go unheard
+  if(judging_.valid())
+    try
+      {
+      judging_.get();
+      }
+    catch(std::exception const & error)
+      {
+      spdlog::error("faces: judging a view failed: {}", error.what());
+      }
   judging_ = std::async(std::launch::async, judge, body, std::move(view), side, live_db_);
   }
 
@@ -233,7 +243,16 @@ auto planet_faces_t::face(std::string const & system, std::string const & body, 
   entry_t & entry{entries_[body]};
   if(entry.making.valid() and entry.making.wait_for(std::chrono::seconds{0}) == std::future_status::ready)
     {
-    if(std::string made{entry.making.get()}; not made.empty())
+    std::string made;
+    try
+      {
+      made = entry.making.get();
+      }
+    catch(std::exception const & error)
+      {
+      spdlog::error("faces: the face of {} could not be made: {}", body, error.what());
+      }
+    if(not made.empty())
       entry.spool = std::move(made);
     // tried even when it failed - the same pictures would fail again
     entry.made_from = entry.making_from;

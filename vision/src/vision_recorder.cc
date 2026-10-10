@@ -593,11 +593,10 @@ auto recorder_t::look_at_shots(eht::vision_settings_t const & cfg) -> void
     std::string const file{std::format("{}_{}.jpg", name.asked_ms, name.reason)};
     std::filesystem::path const dir{dataset_ / today};
     std::filesystem::create_directories(dir, ec);
-    if(not write_jpeg(dir / file, picture->rgb, picture->width, picture->height, cfg.shot_jpeg_quality))
-      {
-      spdlog::warn("vision: could not write {}", (dir / file).string());
+    bool const written{write_jpeg(dir / file, picture->rgb, picture->width, picture->height, cfg.shot_jpeg_quality)};
+    note_write(written, dir / file);
+    if(not written)
       continue;
-      }
     counted(today, dir / file);
     ++shots_;
     append(
@@ -628,8 +627,16 @@ auto recorder_t::append(std::string_view day, std::string_view file, std::string
   std::filesystem::create_directories(dir, ec);
   std::ofstream out{dir / file, std::ios::binary | std::ios::app};
   out << line << '\n';
-  if(not out)
-    spdlog::warn("vision: could not write {}", (dir / file).string());
+  note_write(bool(out), dir / file);
+  }
+
+auto recorder_t::note_write(bool written, std::filesystem::path const & path) -> void
+  {
+  if(not written and not write_failing_)
+    spdlog::warn("vision: could not write {} - the next failures are not said until a write succeeds", path.string());
+  else if(written and write_failing_)
+    spdlog::info("vision: writes again, {}", path.string());
+  write_failing_ = not written;
   }
 
 auto recorder_t::look_at_journal(uint64_t now) -> void
@@ -729,11 +736,10 @@ auto recorder_t::look_at_sample(eht::vision_settings_t const & cfg, uint64_t now
   std::filesystem::path const dir{dataset_ / today};
   std::error_code ec;
   std::filesystem::create_directories(dir, ec);
-  if(not write_png(dir / name, sample->rgb, header.width, header.height))
-    {
-    spdlog::warn("vision: could not write {}", (dir / name).string());
+  bool const written{write_png(dir / name, sample->rgb, header.width, header.height)};
+  note_write(written, dir / name);
+  if(not written)
     return;
-    }
   counted(today, dir / name);
   keeper_.kept(thumb, header);
   ++frames_;

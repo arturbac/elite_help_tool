@@ -19,6 +19,7 @@
 #include <database_import_state.h>
 #include <iostream>
 #include <csignal>
+#include <unistd.h>
 #include <system_error>
 #include <json_io.h>
 #include <cstdlib>
@@ -343,11 +344,16 @@ void terminate_handler()
   std::abort();
   }
 
+///\brief only what may be called inside a signal handler: write(2), the stack dumped by the signal-safe call,
+/// and the signal raised again with its default action - the process ends as the signal meant it to
 void signal_handler(int signal)
   {
-  std::cerr << "\nSignal handler called for signal: " << signal << "\n";
-  std::cerr << boost::stacktrace::stacktrace();
-  std::abort();
+  constexpr char said[]{"\nSignal handler called, the stack follows\n"};
+  [[maybe_unused]]
+  auto const written{::write(STDERR_FILENO, said, sizeof(said) - 1u)};
+  boost::stacktrace::safe_dump_to(STDERR_FILENO);
+  std::signal(signal, SIG_DFL);
+  std::raise(signal);
   }
 
 [[nodiscard]]

@@ -74,4 +74,12 @@ auto main() -> int
     ));
     expect(repair.Items.size() == 2_u and repair.Cost == 3572_u);
   };
+
+  "Wear is the hull, a module is not"_test = []
+  {
+    expect(ship_health::repairs_hull("Wear"));
+    expect(ship_health::repairs_hull("$wear;"));
+    expect(not ship_health::repairs_hull("$int_sensors_size8_class5_name;"));
+    expect(not ship_health::repairs_hull("Paint"));
+  };
   }

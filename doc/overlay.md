@@ -57,7 +57,8 @@ process carries no state of ours.
 - **Frame shift drive health.** At the bottom of the left band, while the drive is below full health:
   `FSD 98%` as last read, or `FSD ~88% est., 12 jumps` when it is a guess. The journal gives a module's
   health only in `Loadout` (every module, written at a port and at login) and in `AfmuRepairs` (the
-  module repaired in flight); `Repair` and `RepairAll` at a port bring it back to full. Between two
+  module repaired in flight); `Repair` and `RepairAll` at a port bring it back to full (a `Repair` of `Wear` is the hull, shown full
+  in the ship window from then on). Between two
   readings a supercruise overcharge drive is taken to lose `overlay.fsd_wear_per_jump` (0.01) of its
   health with every jump - other drives are shown as read; 0 turns the guess off. The line is plain
   below 100%, amber from `overlay.fsd_amber_percent` (90) and red from `overlay.fsd_red_percent` (87).
@@ -137,9 +138,11 @@ process carries no state of ours.
   tmpfs directory `edworld.dir` (default `/dev/shm/eht`, empty: nothing written): their influence, states
   and the last tick's trend when the tool has influence readings of the system; else edworld takes the whole
   list from EDSM and says so. Each commander's tool needs a directory of its own (for example
-  `/dev/shm/eht-<commander>`, the same in that game's edworld ini as `shm_dir`): two tools writing one
-  `target` replace each other's destination. When the tool finds its record replaced, it writes it again
-  once and warns in its log.
+  `/dev/shm/eht-<commander>`, the same in that game's edworld ini as `shm_dir`). The first tool to write
+  a directory holds a lock on `.writer` in it; a second one started on the same directory writes nothing
+  there and says in its log that another EHT has it. When the tool finds its record replaced anyway (an
+  older tool without the lock), it writes it again once and warns in its log. The `target` file is grown
+  when shorter than the record and never shrunk, since edworld in the game maps it.
 
 The layout (text size, band widths, where the readouts stand, opacity) comes from
 `eht_settings.json` and changes live. The frame rate also stands alone in the top left corner of

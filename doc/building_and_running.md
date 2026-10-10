@@ -144,6 +144,10 @@ of EHT includes it:
   which says a repeated failure once and once more when a call succeeds again. Each line of the
   journal is guarded on its own: an event that cannot be handled is skipped and logged, and the
   reading goes on.
+- The state the journal thread builds (`current_state_t`) is read by the window thread too. Both take
+  `current_state_t::mutex_` (recursive): the journal thread for one line, the window thread for one
+  publishing of the overlay or one queued refresh of a window. A new reader of the state from the window
+  thread takes it as well.
 - A directory is walked by stepping with an error code (`increment(ec)`), never by a range-for over
   a directory iterator, whose `operator++` throws.
 - A place that falls back to UTC because the time zone cannot be read calls

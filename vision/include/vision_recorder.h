@@ -295,6 +295,10 @@ private:
   std::optional<status_flags_t> flags_;
   std::vector<day_size_t> days_;
   bool measured_{};
+  ///\brief a write failed and nothing has been written since - a full disk fails every sample, and is
+  /// said once, and once more when writing works again
+  bool write_failing_{};
+  auto note_write(bool written, std::filesystem::path const & path) -> void;
   bool full_{};
   uint64_t frames_{};
   uint64_t shots_{};
