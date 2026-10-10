@@ -459,6 +459,11 @@ auto database_storage_t::create_database() -> expected_ec<void>
     not res
   ) [[unlikely]]
     return res;
+  // the newest reading of a carrier's shelf is asked for by the carrier alone - the key above leads with the
+  // material too, and the question walked every row of the table, about 10 ms against 0.3 with this one
+  if(auto res{sqlite::create_index(db_->db, sql_iface::tables::carrier_materials, "carrier_id, timestamp", "carrier")};
+     not res) [[unlikely]]
+    return res;
 
   if(
     auto res{sqlite::create_table<info::journal_progress_t>(db_->db, "id"sv, sql_iface::tables::journal_progress)};

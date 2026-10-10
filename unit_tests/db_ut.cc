@@ -4,9 +4,12 @@
 #include <data/bgs.h>
 #include <data/carrier.h>
 #include <data/micro_resources.h>
+#include <data/market.h>
+#include <data/missions.h>
 #include <data/station.h>
 #include <star_system.h>
 #include <json_glaze.h>
+#include <array>
 #include <print>
 #include <filesystem>
 #include <boost/ut.hpp>
@@ -505,6 +508,39 @@ int main()
     expect(history->back().name == "weaponschematic" and history->back().category == "Item");
     auto stock{dbs.load_carrier_stock("W1V-NXM")};
     expect(bool(stock) and stock->size() == 1_u and stock->front().timestamp.time_since_epoch().count() == 1'790'003'600_ll);
+  };
+
+  // the join order is forced by CROSS JOIN, which must change nothing in what is found: only the
+  // market with stock enough is a supply, while every market producing it is a producer
+  "a mission's cargo finds the markets with stock enough, and every one producing it"_test = [&]
+  {
+    std::array const commodities{
+      info::commodity_t{.id = 9001u, .name = "Gold", .category = "Metals", .mean_price = 9000u, .key = "gold"},
+      info::commodity_t{.id = 9002u, .name = "Silver", .category = "Metals", .mean_price = 4000u, .key = "silver"}
+    };
+    std::array const plenty{
+      info::market_item_t{.oid = -1, .market_id = 7701u, .commodity_id = 9001u, .buy_price = 9100u, .sell_price = 0u, .stock = 50u, .demand = 0u, .producer = true, .consumer = false},
+      info::market_item_t{.oid = -1, .market_id = 7701u, .commodity_id = 9002u, .buy_price = 4100u, .sell_price = 0u, .stock = 90u, .demand = 0u, .producer = true, .consumer = false}
+    };
+    std::array const short_of{
+      info::market_item_t{.oid = -1, .market_id = 7702u, .commodity_id = 9001u, .buy_price = 9200u, .sell_price = 0u, .stock = 5u, .demand = 0u, .producer = true, .consumer = false}
+    };
+    using namespace std::chrono;
+    sys_seconds const now{sys_days{2026y / 10 / 10}};
+    expect(bool(dbs.replace_market(7701u, now, commodities, plenty, "")));
+    expect(bool(dbs.replace_market(7702u, now, commodities, short_of, "")));
+    expect(bool(dbs.store(info::mission_t{.mission_id = 880001u, .status = info::mission_status_e::accepted, .expiry = now + days{1}})));
+    expect(bool(dbs.store(info::mission_cargo_t{.mission_id = 880001u, .commodity = "gold", .count = 20u})));
+
+    auto supply{dbs.load_supply_options()};
+    expect(bool(supply) and supply->size() == 1_u);
+    if(supply and supply->size() == 1u)
+      {
+      expect(supply->front().market_id == 7701_ull and supply->front().commodity == std::string{"Gold"});
+      expect(supply->front().needed == 20_u and supply->front().stock == 50_u);
+      }
+    auto producers{dbs.load_producers()};
+    expect(bool(producers) and producers->size() == 2_u) << "a producer short of stock is still a producer";
   };
 
   "a galaxy rebuild loses no progress"_test = [&]
