@@ -54,5 +54,12 @@ the netLog's cancelled requests and zero hashes, the minute round the moment aga
 before, and the temperatures at the moment. `report.md` is written last, so a report with one is
 complete.
 
+A report still to come is promised by an empty file named after its marker in
+`glare_reports_due/`, in the commander's EHT working directory, and the file goes once the report
+is written. When EHT stops before then, it writes the report at its next start - at once if its
+minutes have passed and the game's network log is found (for a launcher's game, once the game runs
+again), with the logs still kept - so a restart loses no report. The promise lies by
+each commander's own EHT, so the report takes the network log of the game that saw the glare.
+
 For two minutes after a glare the overlay says so in red at the top of the right band -
 `lighting defect detected 08:47:21, evidence kept` - the sign that the watch works.

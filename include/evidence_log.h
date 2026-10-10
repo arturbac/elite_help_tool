@@ -127,6 +127,14 @@ struct report_input_t
 auto find_netlog_dir(std::filesystem::path const & journal_dir, std::filesystem::path const & game_cwd)
   -> std::filesystem::path;
 
+///\brief the name of a moment's report directory under reports/ - the moment to the second, 2026-10-04T01-57-39Z
+[[nodiscard]]
+auto report_name(std::chrono::system_clock::time_point moment) -> std::string;
+
+///\brief the moment a marker's file is named after - 2026-10-04T01:57:39.356Z_eht.json; none for another name
+[[nodiscard]]
+auto marker_moment(std::string_view file_name) -> std::optional<std::chrono::system_clock::time_point>;
+
 ///\brief writes the report into <evidence_dir>/reports/<moment>/ and says where it is
 [[nodiscard]]
 auto write_report(report_input_t const & input) -> std::filesystem::path;
