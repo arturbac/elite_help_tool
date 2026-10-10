@@ -79,12 +79,32 @@ auto tail_until(
     return false;
     }
 
+  // a line the game is still writing has no newline yet - it is kept until the rest comes, rather than
+  // read half and lost as a line that cannot be parsed
+  std::string pending;
   std::string line;
+  auto const next_line = [&file, &pending, &line]() -> bool
+  {
+    std::string part;
+    if(not std::getline(file, part))
+      {
+      file.clear();
+      return false;
+      }
+    if(file.eof())
+      {
+      pending += part;
+      file.clear();
+      return false;
+      }
+    line = std::move(pending) + part;
+    pending.clear();
+    return true;
+  };
+
   // read everything that is already there first
-  while(std::getline(file, line))
-    // std::println("{}", line);
+  while(next_line())
     cb(line);
-  file.clear();  // clear the EOF flag so that reading can go on
 
   // from here on the lines arrive as the game writes them; everything above was the past
   if(on_caught_up)
@@ -93,21 +113,22 @@ auto tail_until(
   // the loop that watches for changes
   while(not stoken.stop_requested())
     {
-    if(std::getline(file, line))
+    if(next_line())
       {
-      // std::println("{}", line);
       cb(line);
       continue;
       }
 
-    file.clear();
     std::this_thread::sleep_for(tail_poll_interval());
 
     if(give_up and give_up())
       {
-      // read the tail (Shutdown, for instance) before handing the file back
-      while(std::getline(file, line))
+      // read the tail (Shutdown, for instance) before handing the file back - a last line without its
+      // newline included, the game is done with this file
+      while(next_line())
         cb(line);
+      if(not pending.empty())
+        cb(pending);
       break;
       }
     }

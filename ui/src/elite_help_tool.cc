@@ -226,6 +226,8 @@ auto main_window_t::publish_overlay() -> void
   {
   if(not overlay_feed_)
     return;
+  // the frame and the windows refreshed with it read the state as one picture
+  std::scoped_lock const lock{state_.mutex_};
 
   // a route plotted outside the game is known only to the Route window - the overlay has nowhere to reach for it
   overlay_feed_t::plotted_route_t plotted{};
@@ -576,12 +578,16 @@ auto main_window_t::background_worker(std::stop_token stoken) -> void
     }
 
   // the first filling of the faction list - db_ is touched from this thread alone
+  {
+  std::scoped_lock const lock{state_.mutex_};
   state_.load_factions();
   state_.load_phenomena();
+  }
   QMetaObject::invokeMethod(
     this,
     [this]()
     {
+      std::scoped_lock const lock{state_.mutex_};
       if(faction_view_)
         faction_view_->refresh_ui();
       if(faction_state_view_)
@@ -596,7 +602,14 @@ auto main_window_t::background_worker(std::stop_token stoken) -> void
     // one event that cannot be handled is skipped and said; it must not end the reading of the journal
     [this](std::string_view line)
     {
-      if(not eht::event_guard("journal event", [this, line] { state_.discovery(line); }))
+      if(not eht::event_guard(
+           "journal event",
+           [this, line]
+           {
+             std::scoped_lock const lock{state_.mutex_};
+             state_.discovery(line);
+           }
+         ))
         spdlog::error("journal event skipped: {}", line.substr(0u, 200u));
     },
     stoken,
@@ -604,7 +617,10 @@ auto main_window_t::background_worker(std::stop_token stoken) -> void
     {
       spdlog::info("monitoring journal {}", path.string());
       // a new journal is a new session of the game: whatever was locked on is not locked on now
+      {
+      std::scoped_lock const lock{state_.mutex_};
       state_.forget_live_combat();
+      }
       QMetaObject::invokeMethod(
         this, [this, path]() { file_to_monitor = path; }, Qt::QueuedConnection
       );
@@ -620,6 +636,7 @@ auto main_window_t::background_worker(std::stop_token stoken) -> void
         state_.events_walked_past_
       );
       // from here the stream is live, and nothing in it is ever skipped again
+      std::scoped_lock const lock{state_.mutex_};
       state_.catching_up_ = false;
       state_.forget_live_combat();
       state_.remember_progress();
@@ -628,6 +645,7 @@ auto main_window_t::background_worker(std::stop_token stoken) -> void
         this,
         [this, inhabited]()
         {
+          std::scoped_lock const lock{state_.mutex_};
           choose_opening_window(inhabited);
           // the route's progress stood still through the replay; the system we are in now moves it on
           if(route_view_)

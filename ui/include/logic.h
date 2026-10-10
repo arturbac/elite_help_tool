@@ -151,6 +151,12 @@ struct current_state_t : public generic_state_t
   
   std::vector<events::event_holder_t> event_buffer_;
   std::mutex buffer_mtx_;
+  ///\brief the state is written by the thread following the journal and read by the window thread - the
+  /// overlay's frames, the windows' refreshes. The reader holds it for one event, the window thread for one
+  /// publishing or one refresh; recursive, so a refresh reached from inside a publish takes it again safely
+  ///\detail without it a Loadout replacing the modules, or a CommunityGoal the list of goals, frees what the
+  /// window thread is in the middle of walking
+  mutable std::recursive_mutex mutex_;
   
   std::vector<info::route_item_t> route_;
   uint64_t current_system_address_{};

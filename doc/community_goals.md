@@ -7,7 +7,8 @@ commander's own part in each and the reward bracket that part reaches.
 
 The game writes a `CommunityGoal` journal event at login and again each time a goal's panel is opened.
 The window shows the last of those readings; nothing is stored in the database. After a delivery the
-band is the old one until the goal's panel is opened again.
+band is the old one until the goal's panel is opened again. A restart of the tool reads the reading of
+the current session again from the journal, so the window is not empty after it.
 
 ## Columns
 

@@ -6,6 +6,9 @@
 
 namespace ship_health
   {
+auto repairs_hull(std::string_view journal_name) noexcept -> bool
+  { return same_item("wear", journal_name); }
+
 auto same_item(std::string_view loadout_item, std::string_view journal_name) noexcept -> bool
   {
   if(journal_name.starts_with('$'))

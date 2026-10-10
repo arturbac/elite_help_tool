@@ -27,6 +27,7 @@
 
 #include <fcntl.h>
 #include <sys/mman.h>
+#include <sys/file.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -4293,6 +4294,9 @@ auto overlay_feed_t::publish_edworld_target(current_state_t const & state) -> vo
     edworld_dir_ = dir;
     edworld_system_ = 0u;
     edworld_failed_ = false;
+    if(edworld_lock_fd_ >= 0)
+      ::close(edworld_lock_fd_);
+    edworld_lock_fd_ = -1;
     }
   if(not edworld_target_)
     {
@@ -4301,10 +4305,33 @@ auto overlay_feed_t::publish_edworld_target(current_state_t const & state) -> vo
     // a directory of tmpfs: the proxy under Wine opens the same file as Z:\dev\shm\..., and the mapping
     // it makes of it is this one's pages
     ::mkdir(dir.c_str(), 0755);
+    std::string const lock_path{dir + "/.writer"};
+    edworld_lock_fd_ = ::open(lock_path.c_str(), O_RDWR | O_CREAT | O_CLOEXEC, 0600);
+    if(edworld_lock_fd_ < 0 or ::flock(edworld_lock_fd_, LOCK_EX | LOCK_NB) != 0)
+      {
+      int const lock_err{errno};
+      edworld_failed_ = true;
+      if(edworld_lock_fd_ >= 0)
+        ::close(edworld_lock_fd_);
+      edworld_lock_fd_ = -1;
+      spdlog::warn(
+        "edworld: {} {} - nothing is told to the proxy from here; give each commander its own edworld.dir",
+        dir,
+        lock_err == EWOULDBLOCK ? std::string{"is written by another running EHT"} : std::format("cannot be locked ({})", std::strerror(lock_err))
+      );
+      return;
+      }
     std::string const path{dir + "/target"};
     int const fd{::open(path.c_str(), O_RDWR | O_CREAT | O_CLOEXEC, 0644)};
     void * view{MAP_FAILED};
-    if(fd >= 0 and ::ftruncate(fd, sizeof(edworld::target_t)) == 0)
+    // grown when short, never shrunk: a newer edworld may have mapped a larger record, and cutting the
+    // file under its mapping would end the game's process on the next read
+    struct stat status{};
+    bool const sized{
+      fd >= 0 and ::fstat(fd, &status) == 0
+      and (static_cast<size_t>(status.st_size) >= sizeof(edworld::target_t) or ::ftruncate(fd, sizeof(edworld::target_t)) == 0)
+    };
+    if(sized)
       view = ::mmap(nullptr, sizeof(edworld::target_t), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
     int const err{errno};
     if(fd >= 0)

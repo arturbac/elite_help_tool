@@ -15,6 +15,10 @@ namespace ship_health
 [[nodiscard]]
 auto same_item(std::string_view loadout_item, std::string_view journal_name) noexcept -> bool;
 
+///\brief a Repair item that is the hull - `Wear`, in either case and spelling
+[[nodiscard]]
+auto repairs_hull(std::string_view journal_name) noexcept -> bool;
+
 ///\brief the frame shift drive among the modules, nullptr without one
 [[nodiscard]]
 auto frame_shift_drive(std::span<events::module_t> modules) noexcept -> events::module_t *;
