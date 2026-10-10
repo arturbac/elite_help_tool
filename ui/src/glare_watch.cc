@@ -20,6 +20,19 @@ namespace
   {
 using codex_files::spool_dir;
 
+///\brief a file a marker for each report still to write, in the working directory of this commander's tool - what is
+/// left there when the tool stops is written at the next start, by the tool whose logs the marker belongs to
+std::filesystem::path const due_dir{"glare_reports_due"};
+
+///\brief the same picture name keep() gives
+[[nodiscard]]
+auto picture_of(std::filesystem::path const & dir, std::string_view marker_file) -> std::filesystem::path
+  {
+  std::filesystem::path picture{dir / "screenshots" / marker_file};
+  picture.replace_extension(".png");
+  return picture;
+  }
+
 ///\brief a layer that never answers must not hold the next picture back forever
 constexpr std::chrono::seconds pending_limit{5};
 
@@ -125,12 +138,19 @@ auto glare_watch_t::write(std::optional<QImage> image) -> void
     return;
   auto const cfg{eht::settings()};
   std::filesystem::path const dir{backup::expand_home(cfg->evidence.dir)};
+  std::string const name{glare::file_name(*found_)};
+  // the report is promised on disk too - a restart before it is due must not lose it
+  std::error_code ec;
+  std::filesystem::create_directories(due_dir, ec);
+  if(not std::ofstream{due_dir / name})
+    spdlog::error("glare: the report of {} is not kept over a restart - {} could not be written", name, due_dir.string());
   // the same names keep() gives them
   reports_.push_back(
     report_t{
       .evidence_dir = dir,
-      .marker = dir / "markers" / glare::file_name(*found_),
-      .picture = dir / "screenshots" / std::format("{}_{}.png", found_->ts_utc, found_->source),
+      .marker = dir / "markers" / name,
+      .picture = picture_of(dir, name),
+      .due_file = due_dir / name,
       .moment = found_at_,
       .due = std::chrono::steady_clock::now() + std::chrono::seconds{cfg->evidence.report_after_s + 10u}
     }
@@ -162,6 +182,8 @@ auto glare_watch_t::collect(glare::game_t const & game, places_t const & places)
     work_,
     [](std::future<void> const & job) { return job.wait_for(std::chrono::seconds{}) == std::future_status::ready; }
   );
+  if(not recovered_)
+    recover();
   write_due_reports(places);
   if(not pending_)
     return;
@@ -245,10 +267,61 @@ auto glare_watch_t::collect(glare::game_t const & game, places_t const & places)
   );
   }
 
+auto glare_watch_t::recover() -> void
+  {
+  recovered_ = true;
+  std::error_code ec;
+  if(not std::filesystem::is_directory(due_dir, ec))
+    return;
+  auto const cfg{eht::settings()};
+  if(cfg->evidence.dir.empty())
+    {
+    spdlog::warn("glare: reports left from before the restart wait in {} - evidence.dir is not set", due_dir.string());
+    return;
+    }
+  std::filesystem::path const dir{backup::expand_home(cfg->evidence.dir)};
+  auto const now{std::chrono::system_clock::now()};
+  auto const after{std::chrono::seconds{cfg->evidence.report_after_s + 10u}};
+  for(std::filesystem::directory_entry const & entry: std::filesystem::directory_iterator{due_dir, ec})
+    {
+    std::string const name{entry.path().filename().string()};
+    std::filesystem::path const marker{dir / "markers" / name};
+    auto const moment{evidence::marker_moment(name)};
+    if(not moment or not std::filesystem::exists(marker, ec))
+      {
+      spdlog::warn("glare: {} in {} names no marker of {} - let go", name, due_dir.string(), (dir / "markers").string());
+      std::filesystem::remove(entry.path(), ec);
+      continue;
+      }
+    // a report already due is written at once, the rest when their minutes have passed
+    auto const wait{std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+      std::max(std::chrono::system_clock::duration{}, *moment + after - now)
+    )};
+    reports_.push_back(
+      report_t{
+        .evidence_dir = dir,
+        .marker = marker,
+        .picture = picture_of(dir, name),
+        .due_file = entry.path(),
+        .moment = *moment,
+        .due = std::chrono::steady_clock::now() + wait,
+        .waits_for_netlog = true
+      }
+    );
+    spdlog::info("glare: the report of {} left from before the restart is written once its netLog is found", name);
+    }
+  if(ec)
+    spdlog::error("glare: {} could not be read: {}", due_dir.string(), ec.message());
+  }
+
 auto glare_watch_t::write_due_reports(places_t const & places) -> void
   {
   auto const now{std::chrono::steady_clock::now()};
-  auto const due{std::ranges::partition(reports_, [now](report_t const & r) { return r.due > now; })};
+  // a report taken up after a restart waits for the game's Logs - known only once the game runs, for a launcher
+  bool const no_netlog{places.netlog_dir.empty()};
+  auto const due{std::ranges::partition(
+    reports_, [now, no_netlog](report_t const & r) { return r.due > now or (r.waits_for_netlog and no_netlog); }
+  )};
   if(due.empty())
     return;
   auto const cfg{eht::settings()};
@@ -280,7 +353,7 @@ auto glare_watch_t::write_due_reports(places_t const & places) -> void
     work_.push_back(
       std::async(
         std::launch::async,
-        [input = std::move(input)]
+        [input = std::move(input), due_file = report.due_file]
         {
           try
             {
@@ -290,6 +363,10 @@ auto glare_watch_t::write_due_reports(places_t const & places) -> void
             {
             spdlog::error("glare: the report failed: {}", e.what());
             }
+          // written or failed, it is not tried again at the next start
+          std::error_code ec;
+          if(not due_file.empty() and not std::filesystem::remove(due_file, ec) and ec)
+            spdlog::error("glare: {} could not be removed: {}", due_file.string(), ec.message());
         }
       )
     );

@@ -429,12 +429,26 @@ auto find_netlog_dir(std::filesystem::path const & journal_dir, std::filesystem:
   return {};
   }
 
+auto report_name(sys_clock_t::time_point moment) -> std::string
+  { return std::format("{:%FT%H-%M-%S}Z", std::chrono::floor<std::chrono::seconds>(moment)); }
+
+auto marker_moment(std::string_view file_name) -> std::optional<sys_clock_t::time_point>
+  {
+  // the moment, an underscore, the source, .json
+  auto const underscore{file_name.find('_')};
+  if(underscore == std::string_view::npos or not file_name.ends_with(".json") or underscore + 1u + 5u >= file_name.size())
+    return std::nullopt;
+  std::string_view const moment{file_name.substr(0u, underscore)};
+  if(not moment.ends_with('Z'))
+    return std::nullopt;
+  return parse_iso(moment);
+  }
+
 auto write_report(report_input_t const & input) -> std::filesystem::path
   {
   auto const from{input.moment - input.before};
   auto const to{input.moment + input.after};
-  std::string const name{std::format("{:%FT%H-%M-%S}Z", std::chrono::floor<std::chrono::seconds>(input.moment))};
-  std::filesystem::path const dir{input.evidence_dir / "reports" / name};
+  std::filesystem::path const dir{input.evidence_dir / "reports" / report_name(input.moment)};
   std::error_code ec;
   std::filesystem::create_directories(dir, ec);
 

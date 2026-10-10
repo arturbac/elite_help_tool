@@ -84,15 +84,24 @@ private:
     std::filesystem::path evidence_dir;
     std::filesystem::path marker;
     std::filesystem::path picture;
+    ///\brief the promise of the report on disk, removed once it is written
+    std::filesystem::path due_file;
     std::chrono::system_clock::time_point moment;
     std::chrono::steady_clock::time_point due;
+    ///\brief taken up after a restart, perhaps before the game runs - not written without the game's netLog
+    bool waits_for_netlog{};
     };
   std::vector<report_t> reports_;
+  ///\brief the reports promised before the last restart taken back up
+  bool recovered_{};
   std::optional<noticed_t> noticed_;
   std::vector<std::future<void>> work_;
 
   ///\brief writes the marker found, with its picture when there is one
   auto write(std::optional<QImage> image) -> void;
+
+  ///\brief the reports a stopped tool promised and never wrote, put back in the queue - once, at the first collect
+  auto recover() -> void;
 
   ///\brief the reports whose window has passed, written in the background
   auto write_due_reports(places_t const & places) -> void;

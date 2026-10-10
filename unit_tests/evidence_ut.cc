@@ -231,4 +231,16 @@ auto main() -> int
     std::error_code ec;
     std::filesystem::remove_all(root, ec);
   };
+
+  "a marker's file name gives back the moment its report is named after"_test = []
+  {
+    auto const moment{evidence::marker_moment("2026-09-29T05:47:21.123Z_eht.json")};
+    expect(fatal(moment.has_value()));
+    expect(*moment == at(5h, 47min, 21s) + 123ms);
+    expect(evidence::report_name(*moment) == "2026-09-29T05-47-21Z") << evidence::report_name(*moment);
+    expect(evidence::marker_moment("2026-09-29T05:47:21Z_claude.json") == std::optional{at(5h, 47min, 21s)});
+    expect(not evidence::marker_moment("2026-09-29T05:47:21.123Z_.json").has_value());
+    expect(not evidence::marker_moment("2026-09-29T05:47:21.123Z_eht.png").has_value());
+    expect(not evidence::marker_moment("notes_eht.json").has_value());
+  };
   }
