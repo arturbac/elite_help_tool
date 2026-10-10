@@ -12,33 +12,44 @@
 #include <print>
 
 
-auto find_all_journals(fs::path const & dir) -> std::vector<fs::path>
+auto find_all_journals(fs::path const & dir, std::error_code & ec) -> std::vector<fs::path>
   {
-  if(!fs::exists(dir) || !fs::is_directory(dir))
+  ec.clear();
+  // not there yet is no error - the game may not have made its directory
+  if(not fs::is_directory(dir, ec))
+    {
+    if(ec == std::errc::no_such_file_or_directory)
+      ec.clear();
     return {};
+    }
 
-  auto journals
-    = fs::directory_iterator{dir}
-      | std::views::filter([](auto const & entry)
-                           { return entry.is_regular_file() && entry.path().filename().string().contains("Journal"); })
-      | std::views::transform([](auto const & entry) { return entry.path(); })
-      | std::ranges::to<std::vector<fs::path>>();
-
-  if(journals.empty())
-    return journals;
+  // stepped with the error code: a range over the iterator steps with the throwing operator++
+  std::vector<fs::path> journals;
+  for(fs::directory_iterator it{dir, ec}, end{}; not ec and it != end; it.increment(ec))
+    if(std::error_code type_ec; it->is_regular_file(type_ec) and it->path().filename().string().contains("Journal"))
+      journals.push_back(it->path());
 
   // a lexicographic sort of the file names (the ISO 8601 in the name guarantees it works)
   std::ranges::sort(journals);
   return journals;
   }
 
-auto find_latest_journal(fs::path const & dir) -> std::optional<fs::path>
-{
-  auto journals{find_all_journals(dir)};
+auto find_all_journals(fs::path const & dir) -> std::vector<fs::path>
+  {
+  std::error_code ec;
+  auto journals{find_all_journals(dir, ec)};
+  if(ec)
+    std::println(stderr, "error: the journals in {} could not all be listed: {}", dir.string(), ec.message());
+  return journals;
+  }
+
+auto find_latest_journal(fs::path const & dir, std::error_code & ec) -> std::optional<fs::path>
+  {
+  auto journals{find_all_journals(dir, ec)};
   if(journals.empty())
     return std::nullopt;
   return journals.back();
-}
+  }
 namespace
   {
 [[nodiscard]]
@@ -117,9 +128,23 @@ auto tail_journal_dir(
   caught_up_callback const & on_caught_up
 ) -> void
   {
+  // looked at every few seconds, so a directory that cannot be listed is said once, and once when it can again
+  bool listing_failed{};
+  auto const latest_journal = [&dir, &listing_failed]() -> std::optional<fs::path>
+  {
+    std::error_code ec;
+    auto latest{find_latest_journal(dir, ec)};
+    if(ec and not listing_failed)
+      std::println(stderr, "error: the journals in {} cannot be listed: {}", dir.string(), ec.message());
+    else if(not ec and listing_failed)
+      std::println(stderr, "the journals in {} can be listed again", dir.string());
+    listing_failed = bool(ec);
+    return latest;
+  };
+
   while(not stoken.stop_requested())
     {
-    auto latest{find_latest_journal(dir)};
+    auto latest{latest_journal()};
     if(not latest)
       {
       // the game's directory can still be empty
@@ -134,14 +159,14 @@ auto tail_journal_dir(
     auto last_check{std::chrono::steady_clock::now()};
 
     // restarting the game starts a new file, the old one stops growing
-    auto const newer_journal_available = [&dir, &current, &last_check]() -> bool
+    auto const newer_journal_available = [&latest_journal, &current, &last_check]() -> bool
     {
       auto const now{std::chrono::steady_clock::now()};
       if(now - last_check < journal_check_interval())
         return false;
       last_check = now;
 
-      auto newest{find_latest_journal(dir)};
+      auto newest{latest_journal()};
       return newest and *newest != current;
     };
 

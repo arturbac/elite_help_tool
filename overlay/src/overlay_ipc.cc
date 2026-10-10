@@ -52,16 +52,10 @@ namespace
     return true;
     }
 
+  ///\brief the payload behind its length - the caller has checked it fits under max_message_size
   [[nodiscard]]
-  auto encode(frame_t const & frame) -> std::string
+  auto encode(std::string const & payload) -> std::string
     {
-    std::string const payload{to_json(frame)};
-    if(payload.empty())
-      return {};
-
-    if(payload.size() > max_message_size)
-      return {};
-
     auto const size{static_cast<uint32_t>(payload.size())};
     std::string out;
     out.reserve(header_size + payload.size());
@@ -105,6 +99,12 @@ namespace
 client_t::client_t(std::string socket_path) : socket_path_{std::move(socket_path)}
   {
   wakeup_fd_ = ::eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK);
+  // without the descriptor the reader could never be woken to stop, and joining it would hang the game
+  if(wakeup_fd_ < 0)
+    {
+    broken_.store(true, std::memory_order_relaxed);
+    return;
+    }
   worker_ = std::thread{[this] { run(); }};
   }
 
@@ -133,7 +133,24 @@ auto client_t::rejected() const noexcept -> uint64_t
 auto client_t::received() const noexcept -> uint64_t
   { return received_.load(std::memory_order_relaxed); }
 
+auto client_t::broken() const noexcept -> bool
+  { return broken_.load(std::memory_order_relaxed); }
+
 auto client_t::run() -> void
+  {
+  // an exception leaving a thread ends the process, and this one runs in the game
+  try
+    {
+    read_frames();
+    }
+  catch(...)
+    {
+    connected_.store(false, std::memory_order_relaxed);
+    broken_.store(true, std::memory_order_relaxed);
+    }
+  }
+
+auto client_t::read_frames() -> void
   {
   std::string buffer;
   std::array<char, 8192> chunk{};
@@ -302,14 +319,17 @@ auto server_t::listening() const noexcept -> bool
 auto server_t::clients() const noexcept -> unsigned
   { return client_count_.load(std::memory_order_relaxed); }
 
-auto server_t::publish(frame_t const & frame) -> void
+auto server_t::publish(frame_t const & frame) -> publish_e
   {
   if(listen_fd_ < 0)
-    return;
+    return publish_e::not_listening;
 
-  std::string const encoded{encode(frame)};
-  if(encoded.empty())
-    return;
+  std::string const payload{to_json(frame)};
+  if(payload.empty())
+    return publish_e::not_written;
+  if(payload.size() > max_message_size)
+    return publish_e::too_large;
+  std::string const encoded{encode(payload)};
 
     {
     std::lock_guard const lock{peers_mutex_};
@@ -324,6 +344,7 @@ auto server_t::publish(frame_t const & frame) -> void
     }
 
   signal(wakeup_fd_);
+  return publish_e::sent;
   }
 
 auto server_t::run() -> void

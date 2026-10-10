@@ -264,9 +264,25 @@ None of this may crash the game:
   presentation goes on untouched,
 - a swapchain that does not accept the added usage flag is created the old way, without the overlay,
 - waiting for a fence is limited to a second, after which the layer turns itself off,
-- a failed ImGui setup goes to the log instead of stopping the process,
+- a failed ImGui assertion while a frame is drawn turns the overlay off on that swapchain, as any
+  exception in drawing does; outside drawing it is said once in the log and ImGui goes on,
+- no exception leaves the layer's entry points into the loader and the game: an instance or a device
+  the layer cannot keep track of is destroyed and reported to the game as `VK_ERROR_OUT_OF_HOST_MEMORY`,
+  a swapchain whose bookkeeping fails, or that gives no images, goes on without the overlay,
+- every thread of the layer in the game (the reader of the tool's frames, the planet faces, the
+  pictures, the screenshot key) catches what is thrown in it and stops alone, said once in the log;
+  a reader that stopped, or could not start for want of its wakeup descriptor, shows
+  `elite_help_tool: the reader stopped` in the layer's own lines,
+- the fonts are rebuilt only after the card finished every frame of ours that used them; otherwise
+  the old ones stay and the next frame tries again,
+- a plugin that cannot be found, copied, loaded or that refuses the interface is reported in the log
+  even without `EHT_OVERLAY_DEBUG`,
 - the client thread and the registry are deliberately never released, so that the game process
   winding down cannot get stuck on them.
+
+On the tool's side a frame that is not sent - it cannot be written as JSON, or it is larger than the
+256 KiB the layer accepts - leaves the game showing the previous one; the tool's log says so once
+when it starts and once when frames get through again.
 
 The start order does not matter: the client keeps trying to connect, the server accepts whoever
 comes, and neither minds the other side being absent or restarting. A newly connected game gets

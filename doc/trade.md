@@ -45,6 +45,10 @@
   to nothing. The average is over all the missions of a kind, those that gave nothing of the
   category too.
 
+The window with the bars, the bartender, bar sales and mission value reads its tables only while it
+is shown, and at most once a second as items are picked up; a hidden window is read when it is
+shown again.
+
 On-foot consumables and kills are tracked too, but that lives with the rest of the on-foot combat
 tracking in [missions_on_foot.md](missions_on_foot.md).
 

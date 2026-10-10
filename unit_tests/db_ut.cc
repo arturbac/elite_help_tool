@@ -4,9 +4,13 @@
 #include <data/bgs.h>
 #include <data/carrier.h>
 #include <data/micro_resources.h>
+#include <data/market.h>
+#include <data/missions.h>
+#include <data/navigation.h>
 #include <data/station.h>
 #include <star_system.h>
 #include <json_glaze.h>
+#include <array>
 #include <print>
 #include <filesystem>
 #include <boost/ut.hpp>
@@ -345,6 +349,15 @@ int main()
       }
     auto single{dbs.load_station(91001u)};
     expect(single and single->has_value() and (*single)->controlling_faction == "Holders");
+
+    // a later sighting that names no owner - a taxi's Disembark - must not write the guess down: the
+    // stored owner stays the one a docking read, and the rule is applied on reading only
+    expect(bool(dbs.store(info::station_t{.market_id = 91001u, .system_address = reach, .name = "Left Behind"})));
+    // so when the leavers turn out to be back, the settlement is theirs again
+    expect(bool(dbs.store_faction_seen(int64_t(**leavers), reach, after + days{1})));
+    auto back{dbs.load_station(91001u)};
+    expect(back and back->has_value() and (*back)->controlling_faction == "Leavers")
+      << "the retreat rule's guess was stored as the owner";
   };
 
 
@@ -496,6 +509,51 @@ int main()
     expect(history->back().name == "weaponschematic" and history->back().category == "Item");
     auto stock{dbs.load_carrier_stock("W1V-NXM")};
     expect(bool(stock) and stock->size() == 1_u and stock->front().timestamp.time_since_epoch().count() == 1'790'003'600_ll);
+  };
+
+  // the join order is forced by CROSS JOIN, which must change nothing in what is found: only the
+  // market with stock enough is a supply, while every market producing it is a producer
+  "a mission's cargo finds the markets with stock enough, and every one producing it"_test = [&]
+  {
+    std::array const commodities{
+      info::commodity_t{.id = 9001u, .name = "Gold", .category = "Metals", .mean_price = 9000u, .key = "gold"},
+      info::commodity_t{.id = 9002u, .name = "Silver", .category = "Metals", .mean_price = 4000u, .key = "silver"}
+    };
+    std::array const plenty{
+      info::market_item_t{.oid = -1, .market_id = 7701u, .commodity_id = 9001u, .buy_price = 9100u, .sell_price = 0u, .stock = 50u, .demand = 0u, .producer = true, .consumer = false},
+      info::market_item_t{.oid = -1, .market_id = 7701u, .commodity_id = 9002u, .buy_price = 4100u, .sell_price = 0u, .stock = 90u, .demand = 0u, .producer = true, .consumer = false}
+    };
+    std::array const short_of{
+      info::market_item_t{.oid = -1, .market_id = 7702u, .commodity_id = 9001u, .buy_price = 9200u, .sell_price = 0u, .stock = 5u, .demand = 0u, .producer = true, .consumer = false}
+    };
+    using namespace std::chrono;
+    sys_seconds const now{sys_days{2026y / 10 / 10}};
+    expect(bool(dbs.replace_market(7701u, now, commodities, plenty, "")));
+    expect(bool(dbs.replace_market(7702u, now, commodities, short_of, "")));
+    expect(bool(dbs.store(info::mission_t{.mission_id = 880001u, .status = info::mission_status_e::accepted, .expiry = now + days{1}})));
+    expect(bool(dbs.store(info::mission_cargo_t{.mission_id = 880001u, .commodity = "gold", .count = 20u})));
+
+    auto supply{dbs.load_supply_options()};
+    expect(bool(supply) and supply->size() == 1_u);
+    if(supply and supply->size() == 1u)
+      {
+      expect(supply->front().market_id == 7701_ull and supply->front().commodity == std::string{"Gold"});
+      expect(supply->front().needed == 20_u and supply->front().stock == 50_u);
+      }
+    auto producers{dbs.load_producers()};
+    expect(bool(producers) and producers->size() == 2_u) << "a producer short of stock is still a producer";
+  };
+
+  // live.sqlite is one file for both accounts: each keeps its own place along the same route
+  "the progress along a route is the account's, and none on a route never flown"_test = [&]
+  {
+    expect(bool(dbs.store_neutron_progress(info::neutron_progress_t{.oid = -1, .fid = "F1", .route_key = "5-abc", .reached = 3u})));
+    expect(bool(dbs.store_neutron_progress(info::neutron_progress_t{.oid = -1, .fid = "F2", .route_key = "5-abc", .reached = 1u})));
+    expect(bool(dbs.store_neutron_progress(info::neutron_progress_t{.oid = -1, .fid = "F1", .route_key = "5-abc", .reached = 4u})));
+    expect(dbs.load_neutron_progress("F1", "5-abc").value_or(0u) == 4_u) << "a newer progress did not replace the old";
+    expect(dbs.load_neutron_progress("F2", "5-abc").value_or(0u) == 1_u);
+    auto const never{dbs.load_neutron_progress("F1", "5-def")};
+    expect(never.has_value() and *never == 0_u);
   };
 
   "a galaxy rebuild loses no progress"_test = [&]

@@ -44,6 +44,18 @@ struct neutron_waypoint_t
   double distance;
   };
 
+///\brief how far a commander got along a remembered route, kept across restarts of the tool
+///\detail live.sqlite is one file for both accounts of the machine, so the progress is the account's;
+/// the route is told by route_progress::route_key, so a route replaced or reversed starts from nothing
+struct neutron_progress_t
+  {
+  int64_t oid{-1};
+  std::string fid;
+  std::string route_key;
+  ///\brief the waypoints behind us
+  uint32_t reached;
+  };
+
 constexpr double light_speed_mps = 299'792'458.0;
 
 ///\returns distance in Ly

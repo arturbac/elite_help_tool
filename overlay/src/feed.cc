@@ -71,7 +71,8 @@ auto main() -> int
 
   for(uint64_t sequence{1u};; ++sequence)
     {
-    server.publish(sample_frame(sequence));
+    [[maybe_unused]]
+    auto const published{server.publish(sample_frame(sequence))};
 
     if(sequence % 20u == 0u)
       {

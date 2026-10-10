@@ -21,6 +21,8 @@
 #include <qspinbox.h>
 #include <qpushbutton.h>
 #include <spdlog/spdlog.h>
+#include <event_guard.h>
+#include <chrono>
 #include <algorithm>
 #include <format_credits.h>
 
@@ -595,7 +597,14 @@ auto micro_resource_window_t::setup_ui() -> void
   connect(mission_period_, &QComboBox::activated, this, [this](int) { show_mission_value(); });
 
   setWidget(central_widget);
-  refresh_ui();
+
+  refresh_timer_ = new QTimer(this);
+  refresh_timer_->setSingleShot(true);
+  refresh_timer_->setInterval(std::chrono::seconds{1});
+  connect(
+    refresh_timer_, &QTimer::timeout, this, [this] { eht::event_guard("micro resources refresh", [this] { refresh_now(); }); }
+  );
+  // the first reading comes with the first showing
   }
 
 auto micro_resource_window_t::reload_carriers() -> void
@@ -672,6 +681,25 @@ auto micro_resource_window_t::carrier_stats_line(std::string_view carrier_id) ->
 
 auto micro_resource_window_t::refresh_ui() -> void
   {
+  if(not isVisible())
+    {
+    stale_ = true;
+    return;
+    }
+  if(not refresh_timer_->isActive())
+    refresh_timer_->start();
+  }
+
+auto micro_resource_window_t::showEvent(QShowEvent * event) -> void
+  {
+  QMdiSubWindow::showEvent(event);
+  if(stale_)
+    eht::event_guard("micro resources refresh", [this] { refresh_now(); });
+  }
+
+auto micro_resource_window_t::refresh_now() -> void
+  {
+  stale_ = false;
   reload_carriers();
 
   if(carrier_combo_->count() == 0)

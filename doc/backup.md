@@ -38,5 +38,8 @@ pictures came into the codex and the sky album (`backup.every_pictures`), whiche
   verification of the game's files would delete it anyway. The running session's log itself is never
   touched. `zstd -d` unpacks one.
 - `last_backup.json` beside them says when the last one was and how many pictures there were then.
+  When it cannot be read, or written after a backup, the log says so, since the backup then counts
+  as due at every look. A directory that cannot be gone through to its end is named in the log with
+  the reason; what was copied before stays, the rest waits for the next run.
 - `backup.dir` moves it, `backup.enabled` turns it off. Copying `~/.backups/eht` to another disk
   is then the whole backup.

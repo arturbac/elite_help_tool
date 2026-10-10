@@ -1,4 +1,5 @@
 #pragma once
+#include <atomic>
 #include <map>
 #include <optional>
 #include <set>
@@ -169,8 +170,9 @@ struct current_state_t : public generic_state_t
   std::chrono::sys_seconds last_event_{};
   ///\brief true until the reader reaches the present; skipping is only ever done while it is
   ///\detail a game clock that stepped backwards would otherwise make live events look old enough
-  /// to throw away, and live events are the ones that matter
-  bool catching_up_{true};
+  /// to throw away, and live events are the ones that matter. Atomic: the Route window holds its
+  /// progress still until the reader has caught up
+  std::atomic<bool> catching_up_{true};
   std::chrono::steady_clock::time_point progress_written_{};
   ///\brief how the way back to the present was spent, said once when it is reached
   uint64_t events_walked_past_{};

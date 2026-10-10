@@ -209,5 +209,5 @@ struct ship_loadout_t
   float FuelLevel;
   std::vector<events::module_t> Modules;
   ///\brief jumps made since the frame shift drive's health was last read - what wears it between readings
-  uint32_t JumpsSinceFsdHealth;
+  uint32_t JumpsSinceFsdHealth{};
   };

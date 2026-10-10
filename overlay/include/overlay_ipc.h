@@ -24,6 +24,15 @@ struct received_frame_t
 [[nodiscard]]
 auto to_json(frame_t const & frame) -> std::string;
 
+///\brief what became of a frame given to server_t::publish
+enum struct publish_e : uint8_t
+  {
+  sent,
+  not_listening,
+  not_written,
+  too_large
+  };
+
 ///\brief the game-process side - reads in the background, the present thread only ever gets a ready pointer
 ///
 /// nothing here may block the present thread, because that thread counts the game's frames. the socket
@@ -54,14 +63,21 @@ public:
   [[nodiscard]]
   auto rejected() const noexcept -> uint64_t;
 
+  ///\brief the reader gave up for good - no wakeup descriptor, or an exception in its thread - so no
+  /// frame will ever come again in this game process
+  [[nodiscard]]
+  auto broken() const noexcept -> bool;
+
 private:
   auto run() -> void;
+  auto read_frames() -> void;
 
   std::string socket_path_;
   std::atomic<std::shared_ptr<received_frame_t const>> latest_{};
   std::atomic<bool> connected_{false};
   std::atomic<uint64_t> received_{};
   std::atomic<uint64_t> rejected_{};
+  std::atomic<bool> broken_{false};
   int wakeup_fd_{-1};
   std::thread worker_;
   };
@@ -89,8 +105,10 @@ public:
   ///\brief serializes once and leaves it to the io thread; a frame not yet sent is replaced by the new one
   ///
   /// the last frame is kept and handed to every new client. the game usually starts later than
-  /// the tool, so without it the overlay would sit empty until the next change
-  auto publish(frame_t const & frame) -> void;
+  /// the tool, so without it the overlay would sit empty until the next change. A frame that is not
+  /// sent leaves the game showing the previous one, so the caller is told why
+  [[nodiscard]]
+  auto publish(frame_t const & frame) -> publish_e;
 
 private:
   struct peer_t

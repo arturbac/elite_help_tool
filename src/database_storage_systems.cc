@@ -648,7 +648,13 @@ auto database_storage_t::load_system(uint64_t system_address)
           )};
           if(not res3) [[unlikely]]
             return cxx23::unexpected{res3.error()};
-          assert(res3->size() == 1);
+          // a body without its row of details is a broken database, not a reason to read past the rows
+          if(res3->empty()) [[unlikely]]
+            {
+            spdlog::warn("system {}: body {} has no planet details, left out", system_address, out_body.body_id);
+            system.bodies.pop_back();
+            continue;
+            }
           out_body.details = sql_iface::to_native_fromat((*res3)[0]);
           planet_details_t & details{std::get<planet_details_t>(out_body.details)};
 
@@ -704,7 +710,13 @@ auto database_storage_t::load_system(uint64_t system_address)
           )};
           if(not res3) [[unlikely]]
             return cxx23::unexpected{res3.error()};
-          assert(res3->size() == 1);
+          // a body without its row of details is a broken database, not a reason to read past the rows
+          if(res3->empty()) [[unlikely]]
+            {
+            spdlog::warn("system {}: body {} has no star details, left out", system_address, out_body.body_id);
+            system.bodies.pop_back();
+            continue;
+            }
           out_body.details = sql_iface::to_native_fromat((*res3)[0]);
           }
         // the stored value is the one reckoned at the scan - reckoned again, so a better formula reaches the

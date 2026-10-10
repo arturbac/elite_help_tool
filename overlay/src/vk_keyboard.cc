@@ -243,7 +243,21 @@ namespace
       return not wake_.wait_for(lock, length, [this] { return stopping_; });
       }
 
+    ///\brief an exception leaving a thread ends the process, and this one runs in the game - it stops
+    /// this part of the overlay alone
     auto run() -> void
+      {
+      try
+        {
+        work();
+        }
+      catch(...)
+        {
+        report("overlay: the screenshot key watcher stopped ({})", exception_text());
+        }
+      }
+
+    auto work() -> void
       {
       if(not xcb_.load())
         {

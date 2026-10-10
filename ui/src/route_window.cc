@@ -1,4 +1,6 @@
 #include <route_window.h>
+#include <route_progress.h>
+#include <data/progress.h>
 #include <qbrush.h>
 #include <qboxlayout.h>
 #include <ranges>
@@ -145,14 +147,53 @@ route_window_t::route_window_t(current_state_t const & state, std::string db_pat
   setup_ui();
 
   // the remembered route comes back on its own - that is what it was remembered for
-  if(auto saved{db_.load_neutron_route()}; saved and not saved->empty())
-    {
-    neutron_name_ = saved->front().route_name;
-    neutron_route_ = std::move(*saved);
-    remembered_ = true;
-    }
-
+  restore_remembered();
   show_route();
+  }
+
+auto route_window_t::account_fid() -> std::string
+  {
+  if(auto owner{db_.load_owner()}; owner and *owner)
+    return (*owner)->fid;
+  return {};
+  }
+
+auto route_window_t::restore_remembered() -> void
+  {
+  auto saved{db_.load_neutron_route()};
+  if(not saved)
+    {
+    spdlog::error("route window: the remembered route could not be read: {}", saved.error().message());
+    return;
+    }
+  if(saved->empty())
+    return;
+  neutron_name_ = saved->front().route_name;
+  neutron_route_ = std::move(*saved);
+  remembered_ = true;
+  // where this account had got to - the system it is in moves it on only once the journal is read
+  // to the present, see show_route
+  reached_ = 0u;
+  progress_system_ = 0u;
+  if(auto progress{db_.load_neutron_progress(account_fid(), route_progress::route_key(neutron_route_))}; progress)
+    reached_ = std::min(size_t{*progress}, neutron_route_.size());
+  else
+    spdlog::error("route window: the progress along {} could not be read: {}", neutron_name_, progress.error().message());
+  stored_reached_ = reached_;
+  }
+
+auto route_window_t::store_progress() -> void
+  {
+  if(not remembered_ or neutron_route_.empty() or reached_ == stored_reached_)
+    return;
+  stored_reached_ = reached_;
+  if(
+    auto res{db_.store_neutron_progress(info::neutron_progress_t{
+      .oid = -1, .fid = account_fid(), .route_key = route_progress::route_key(neutron_route_), .reached = uint32_t(reached_)
+    })};
+    not res
+  )
+    spdlog::error("route window: the progress along {} could not be written: {}", neutron_name_, res.error().message());
   }
 
 auto route_window_t::load_from_file() -> void
@@ -221,6 +262,12 @@ auto route_window_t::apply_direction(std::vector<info::neutron_waypoint_t> route
   clipboard_target_.clear();
   reached_ = 0u;
   progress_system_ = 0u;
+  stored_reached_ = 0u;
+  // a remembered route turned round is remembered the way it is now flown - otherwise the next start
+  // brings back the old direction, and with it a progress counted the other way
+  if(remembered_)
+    if(auto res{db_.store_neutron_route(neutron_route_)}; not res)
+      spdlog::error("route window: the reversed route could not be remembered: {}", res.error().message());
   show_route();
   }
 
@@ -292,7 +339,12 @@ auto route_window_t::setup_ui() -> void
     if(auto res{db_.store_neutron_route(neutron_route_)}; not res)
       spdlog::error("route window: failed to remember route");
     else
+      {
       remembered_ = true;
+      // the progress made so far on it is kept from now on too
+      stored_reached_ = 0u;
+      store_progress();
+      }
     show_route();
   });
   connect(forget_button_, &QPushButton::clicked, this, [this] {
@@ -304,12 +356,7 @@ auto route_window_t::setup_ui() -> void
   connect(clear_button_, &QPushButton::clicked, this, [this] {
     drop_route();
     // a one-off route only covered the remembered one, which stays stored - it is shown again, as at start
-    if(auto saved{db_.load_neutron_route()}; saved and not saved->empty())
-      {
-      neutron_name_ = saved->front().route_name;
-      neutron_route_ = std::move(*saved);
-      remembered_ = true;
-      }
+    restore_remembered();
     show_route();
   });
 
@@ -325,6 +372,7 @@ auto route_window_t::drop_route() -> void
   clipboard_target_.clear();
   reached_ = 0u;
   progress_system_ = 0u;
+  stored_reached_ = 0u;
   remembered_ = false;
   }
 
@@ -363,22 +411,13 @@ auto route_window_t::show_route() -> void
 
   // Where we are on the route. We look by the system address rather than by name - names are sometimes
   // identical for different places, addresses are not. Only at an arrival, and only from the next waypoint
-  // on: a route there and back passes the same system again, and its earlier place is behind us
-  if(state_.current_system_address_ != progress_system_)
+  // on (route_progress::advance). Not while the journal is replayed: a jump of the past would move the
+  // progress restored from the database past a later pass through the same system
+  if(not state_.catching_up_ and state_.current_system_address_ != progress_system_)
     {
     progress_system_ = state_.current_system_address_;
-    auto const ahead{neutron_route_ | std::views::drop(reached_)};
-    auto const here{std::ranges::find(
-      ahead,
-      state_.current_system_address_,
-      [](info::neutron_waypoint_t const & waypoint) -> uint64_t { return waypoint.system_address; }
-    )};
-
-    // Progress only moves forward: a system outside the list means "somewhere along the way", not "back to
-    // the start". The game plots its own course to the next waypoint and sometimes leads through systems in
-    // between
-    if(here != ahead.end())
-      reached_ += size_t(std::ranges::distance(ahead.begin(), here)) + 1u;
+    reached_ = route_progress::advance(neutron_route_, reached_, state_.current_system_address_);
+    store_progress();
     }
 
   size_t const reached{reached_};
@@ -440,5 +479,6 @@ auto route_window_t::jump_to_waypoint(int row) -> void
   reached_ = size_t(row);
   progress_system_ = state_.current_system_address_;
   clipboard_target_.clear();
+  store_progress();
   show_route();
   }

@@ -33,4 +33,43 @@ auto event_guard(std::string_view where, function_t && function) noexcept -> boo
     }
   return false;
   }
+
+///\brief event_guard for a slot or timer that runs many times a second: a failure that repeats is said
+/// once, and once more when a call succeeds again - not with every tick
+class repeated_guard_t
+  {
+public:
+  ///\returns false when the function threw
+  template<typename function_t>
+  auto operator()(std::string_view where, function_t && function) noexcept -> bool
+    {
+    try
+      {
+      std::forward<function_t>(function)();
+      if(failing_)
+        spdlog::info("{}: works again", where);
+      failing_ = false;
+      return true;
+      }
+    catch(std::exception const & error)
+      {
+      if(not failing_)
+        spdlog::error("{}: stopped by an exception: {}", where, error.what());
+      }
+    catch(...)
+      {
+      if(not failing_)
+        spdlog::error("{}: stopped by an unknown exception", where);
+      }
+    failing_ = true;
+    return false;
+    }
+
+  [[nodiscard]]
+  auto failing() const noexcept -> bool
+    { return failing_; }
+
+private:
+  bool failing_{};
+  };
   }  // namespace eht

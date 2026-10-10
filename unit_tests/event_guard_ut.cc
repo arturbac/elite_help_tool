@@ -19,4 +19,16 @@ auto main() -> int
 
   "any other exception is caught too"_test = []
   { expect(not eht::event_guard("test", [] { throw 42; })); };
+
+  "a repeated guard remembers a failure until a call succeeds"_test = []
+  {
+    eht::repeated_guard_t guard;
+    expect(not guard.failing());
+    expect(not guard("test", [] { throw std::runtime_error{"broken"}; }));
+    expect(guard.failing());
+    expect(not guard("test", [] { throw 42; }));
+    expect(guard.failing());
+    expect(guard("test", [] {}));
+    expect(not guard.failing());
+  };
   }

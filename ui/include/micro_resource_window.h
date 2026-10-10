@@ -4,6 +4,7 @@
 #include <array>
 #include "logic.h"
 #include <qwidget.h>
+#include <qtimer.h>
 #include <qmdiarea.h>
 #include <qmdisubwindow.h>
 #include <qabstractitemmodel.h>
@@ -156,7 +157,10 @@ public:
 
   explicit micro_resource_window_t(std::string db_path, QWidget * parent = nullptr);
 
-  ///\brief called when the game state has changed
+  ///\brief called when the game state has changed - read again at most once a second, and only while the
+  /// window is shown; a hidden one is read when it is shown next
+  ///\detail every item picked up on foot changes the state, and a reading is a dozen queries over the
+  /// whole history of finds - tens to hundreds of milliseconds of the window thread each time
   auto refresh_ui() -> void;
   ///\brief the carriers' positions and jumps - read again every few seconds while the countdown runs
   auto show_carriers() -> void;
@@ -168,7 +172,16 @@ public:
 
   auto setup_ui() -> void;
 
+protected:
+  auto showEvent(QShowEvent * event) -> void override;
+
 private:
+  ///\brief the reading refresh_ui puts off
+  auto refresh_now() -> void;
+  QTimer * refresh_timer_{};
+  ///\brief the state changed while the window was hidden
+  bool stale_{true};
+
   auto reload_carriers() -> void;
   auto show_stock(std::string_view carrier_id) -> void;
   [[nodiscard]]
