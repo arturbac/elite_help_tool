@@ -164,6 +164,15 @@ struct current_state_t : public generic_state_t
   uint64_t supercharged_in_{};
   ///\brief the settlement we are in - collected micro resources get its market_id
   uint64_t settlement_market_id_{};
+  ///\brief the pad the tower gave, until the ship is down, leaves or goes to supercruise (PoC)
+  struct docking_grant_t
+    {
+    uint32_t pad{};
+    std::string station;
+    std::string type;
+    std::chrono::sys_seconds granted{};
+    };
+  docking_grant_t docking_grant_;
   ///\brief docked where cartography can be sold - from the services of the Docked event
   bool cartographics_here_{};
 

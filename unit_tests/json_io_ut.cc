@@ -2,6 +2,7 @@
 #include <events/companion_files.h>
 #include <events/navigation.h>
 #include <events/exploration.h>
+#include <events/station.h>
 #include <star_system.h>
 #include <json_io.h>
 
@@ -23,6 +24,17 @@ auto main() -> int
     expect(jump.JumpType == ::events::jump_type_e::Supercruise);
     // a field the line lacks is left as it was
     expect(not jump.StarSystem.has_value());
+  };
+
+  "the tower's answer names the pad"_test = []
+  {
+    std::string const line{
+      R"({ "timestamp":"2026-10-10T08:00:00Z", "event":"DockingGranted", "LandingPad":12, "MarketID":3228342528, "StationName":"Golds Base", "StationType":"CraterOutpost" })"
+    };
+    ::events::docking_granted_t granted{};
+    expect(not eht::json::read_lenient(granted, line));
+    expect(granted.LandingPad == 12_u and granted.MarketID == 3228342528_ull);
+    expect(granted.StationName == std::string{"Golds Base"} and granted.StationType == std::string{"CraterOutpost"});
   };
 
   "a broken line says where"_test = []

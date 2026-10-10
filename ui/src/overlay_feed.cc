@@ -2765,10 +2765,17 @@ auto overlay_feed_t::refresh_status(current_state_t const & state) -> void
       .sampler_in_hand = status->SelectedWeapon.contains("sampletool")
     };
     heading_ = status->Heading;
+    altitude_ = status->Altitude;
     if(surface_.here and surface_.planet_radius > 0.0)
       ground_speed_.push(now, *surface_.here, surface_.planet_radius);
     else
       ground_speed_.clear();
+    if(surface_.here and altitude_ and surface_.planet_radius > 0.0)
+      descent_track_.push(
+        descent::fix_t{.at = now, .point = *surface_.here, .altitude_m = *altitude_}, surface_.planet_radius
+      );
+    else
+      descent_track_.clear();
     status_body_ = std::move(status->BodyName);
     status_destination_ = std::move(status->Destination);
     }
@@ -2816,6 +2823,142 @@ auto overlay_feed_t::build_surface_nav_lines() const -> std::vector<overlay::lin
     );
   lines.push_back(overlay::line_t{.text = std::move(detail), .color = colour_plain()});
   return lines;
+  }
+
+auto overlay_feed_t::descent_target(current_state_t const & state) -> std::optional<nav::target_t>
+  {
+  if(status_body_.empty())
+    return std::nullopt;
+  if(surface_target_ and surface_target_->body == status_body_)
+    return surface_target_;
+
+  // a place on a body of this system, looked up among the known places once per new destination
+  std::string looked{};
+  if(status_destination_ and status_destination_->Body != 0u and status_destination_->System == state.current_system_address_)
+    looked = std::format("{}/{}/{}", status_destination_->System, status_destination_->Body, status_destination_->Name);
+  if(looked != descent_looked_up_)
+    {
+    descent_looked_up_ = looked;
+    descent_destination_.reset();
+    if(not looked.empty() and not status_destination_->Name.empty())
+      {
+      if(auto station{db_.load_station(status_destination_->System, status_destination_->Name)}; not station)
+        spdlog::warn("descent: could not look {} up: {}", status_destination_->Name, station.error().message());
+      else if(*station and (*station)->body_id == status_destination_->Body and (*station)->latitude
+              and (*station)->longitude)
+        descent_destination_ = nav::target_t{
+          .body = status_body_,
+          .point = bio::surface_point_t{*(*station)->latitude, *(*station)->longitude},
+          .label = status_destination_->Name
+        };
+      }
+    }
+  return descent_destination_;
+  }
+
+auto overlay_feed_t::build_descent_block() -> std::optional<overlay::block_t>
+  {
+  constexpr uint64_t docked_flag{1u << 0u};
+  constexpr uint64_t landed_flag{1u << 1u};
+  constexpr uint64_t main_ship_flag{1u << 24u};
+  constexpr uint64_t fighter_flag{1u << 25u};
+  if(not descent_target_ or not surface_.here or not altitude_ or surface_.planet_radius <= 0.0)
+    return std::nullopt;
+  if((status_flags_ & (docked_flag | landed_flag)) != 0u or (status_flags_ & (main_ship_flag | fighter_flag)) == 0u)
+    return std::nullopt;
+
+  nav::target_t const & target{*descent_target_};
+  double const radius{surface_.planet_radius};
+  descent::glide_t const glide{descent::glide_to(*surface_.here, *altitude_, target.point, radius)};
+  nav::guidance_t const way{nav::guide(*surface_.here, heading_, target.point, radius)};
+  auto const now{std::chrono::steady_clock::now()};
+  // below this the positions repeat and jump, and an angle read from them is noise (flown 08.10)
+  constexpr double reliable_angle_m{3'000.0};
+
+  std::vector<overlay::line_t> lines;
+  std::string const name{target.label.empty() ? std::string{"target"} : target.label};
+  lines.push_back(
+    overlay::line_t{
+      .text = std::format("{}  {}", name, nav::format_distance(glide.distance_m)),
+      .color = colour_heading(),
+      .pointer = way.turn_deg ? std::optional{static_cast<float>(*way.turn_deg)} : std::nullopt
+    }
+  );
+  std::string angles{std::format("alt {}  to it {:.0f}\u00b0 down", nav::format_distance(*altitude_), glide.below_deg)};
+  if(auto const path{descent_track_.path_angle_deg(now)}; path and *altitude_ > reliable_angle_m)
+    angles += std::format("  flying {:.0f}\u00b0 {}", std::abs(*path), *path < 0.0 ? "down" : "up");
+  lines.push_back(overlay::line_t{.text = std::move(angles), .color = colour_plain()});
+
+  std::string speeds;
+  if(auto const vs{descent_track_.vertical_speed(now)}; vs)
+    speeds = std::format("v/s {:+.0f} m/s", *vs);
+  if(auto const gs{ground_speed_.metres_per_second(now)}; gs)
+    {
+    speeds += std::format("{}gs {:.0f} m/s", speeds.empty() ? "" : "  ", *gs);
+    constexpr double moving_mps{0.5};
+    if(*gs > moving_mps and (not way.turn_deg or std::abs(*way.turn_deg) < 90.0))
+      speeds += std::format("  ~{}", nav::format_duration(std::chrono::seconds{static_cast<int64_t>(glide.distance_m / *gs)}));
+    }
+  if(not speeds.empty())
+    lines.push_back(overlay::line_t{.text = std::move(speeds), .color = colour_plain()});
+
+  // the profile: height against the way still to go, the place at the right edge; the straight line from
+  // here to it beside the way flown
+  std::vector<descent::profile_point_t> const flown{descent::profile(descent_track_.fixes(), target.point, radius)};
+  overlay::block_t block{.corner = overlay::corner_e::top_right, .ttl_ms = block_ttl_ms(), .lines = std::move(lines)};
+  if(flown.size() >= 2u)
+    {
+    double reach{glide.distance_m};
+    double top{*altitude_};
+    for(descent::profile_point_t const & point: flown)
+      {
+      reach = std::max(reach, point.distance_m);
+      top = std::max(top, point.altitude_m);
+      }
+    if(reach > 0.0 and top > 0.0)
+      {
+      auto const to_chart = [reach, top](double distance_m, double altitude_m)
+      {
+        return overlay::point_t{
+          .x = static_cast<float>(1.0 - std::clamp(distance_m / reach, 0.0, 1.0)),
+          .y = static_cast<float>(std::clamp(altitude_m / top, 0.0, 1.0))
+        };
+      };
+      overlay::series_t flown_series{.name = "flown", .color = colour_plain(), .marker = overlay::marker_e::circle, .points = {}};
+      for(descent::profile_point_t const & point: flown)
+        flown_series.points.push_back(to_chart(point.distance_m, point.altitude_m));
+      overlay::series_t straight{
+        .name = "straight to it",
+        .color = colour_heading(),
+        .marker = overlay::marker_e::circle,
+        .points = {to_chart(glide.distance_m, *altitude_), to_chart(0.0, 0.0)}
+      };
+      block.charts.push_back(
+        overlay::chart_t{
+          .caption = std::format("height over {} to go", nav::format_distance(reach)),
+          .height = 100u,
+          .grid = {overlay::grid_line_t{.y = 1.f, .label = nav::format_distance(top)}, overlay::grid_line_t{.y = 0.f, .label = "0"}},
+          .series = {std::move(flown_series), std::move(straight)}
+        }
+      );
+      }
+    }
+  return block;
+  }
+
+auto overlay_feed_t::build_docking_lines(current_state_t const & state) const -> std::vector<overlay::line_t>
+  {
+  auto const & grant{state.docking_grant_};
+  if(grant.pad == 0u)
+    return {};
+  // a grant runs out in the game after a few minutes; without a word from the journal it is let go later
+  constexpr std::chrono::minutes kept{10};
+  if(std::chrono::system_clock::now() - grant.granted > kept)
+    return {};
+  return {
+    overlay::line_t{.text = std::format("pad {}", grant.pad), .color = colour_heading()},
+    overlay::line_t{.text = std::format("{}  {}", grant.station, grant.type), .color = colour_plain()}
+  };
   }
 
 auto overlay_feed_t::refresh_neutron_route(current_state_t const & state) -> void
@@ -4857,6 +5000,15 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
   if(auto way{interface_open ? std::vector<overlay::line_t>{} : build_surface_nav_lines()}; not way.empty())
     frame.blocks.push_back(
       overlay::block_t{.corner = overlay::corner_e::centre_top_right, .ttl_ms = block_ttl_ms(), .lines = std::move(way)}
+    );
+
+  // the way down to the place below, and the pad given at a port (PoC)
+  descent_target_ = descent_target(state);
+  if(auto down{interface_open ? std::optional<overlay::block_t>{} : build_descent_block()}; down)
+    frame.blocks.push_back(std::move(*down));
+  if(auto pad{interface_open ? std::vector<overlay::line_t>{} : build_docking_lines(state)}; not pad.empty())
+    frame.blocks.push_back(
+      overlay::block_t{.corner = overlay::corner_e::centre_top_left, .ttl_ms = block_ttl_ms(), .lines = std::move(pad)}
     );
 
   // beside the enemies: read in supercruise, eyes on the port ahead

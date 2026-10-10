@@ -95,6 +95,15 @@ struct docked_t
   std::vector<std::string> StationServices;
   };
 
+///\brief the tower's answer to a request to land: which pad (PoC)
+struct docking_granted_t
+  {
+  uint64_t MarketID;
+  std::string StationName;
+  std::string StationType;
+  uint32_t LandingPad;
+  };
+
 ///\brief lifting off the pad - from this moment the market of that place stops concerning us
 struct undocked_t
   {

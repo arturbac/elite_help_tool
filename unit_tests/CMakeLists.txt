@@ -63,6 +63,7 @@ add_ut_test(face_store_ut.cc)
 add_ut_test(settings_ut.cc)
 add_ut_test(route_progress_ut.cc)
 add_ut_test(file_io_ut.cc)
+add_ut_test(descent_ut.cc)
 
 # the recorder of eht_vision lives in its own library beside eht
 add_ut_test(hot_drop_ut.cc)

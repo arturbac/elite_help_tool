@@ -256,6 +256,8 @@ constexpr bool rebuilds_present_state{
   or std::same_as<event_t, events::fsd_jump_t> or std::same_as<event_t, events::fsd_target_t>
   or std::same_as<event_t, events::loadout_t> or std::same_as<event_t, events::docked_t>
   or std::same_as<event_t, events::undocked_t> or std::same_as<event_t, events::supercruise_entry_t>
+  // a pad granted before a restart of the tool, with the ship still on its way to it
+  or std::same_as<event_t, events::docking_granted_t>
   or std::same_as<event_t, events::approach_settlement_t> or std::same_as<event_t, events::disembark_t>
   or std::same_as<event_t, events::cargo_t> or std::same_as<event_t, events::missions_t>
   or std::same_as<event_t, events::commander_t> or std::same_as<event_t, events::nav_route_t>
@@ -772,7 +774,14 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
             }
           }
         else if constexpr(std::same_as<T, events::supercruise_entry_t>)
+          {
           settlement_market_id_ = 0;
+          docking_grant_ = {};
+          }
+        else if constexpr(std::same_as<T, events::docking_granted_t>)
+          docking_grant_ = docking_grant_t{
+            .pad = event.LandingPad, .station = event.StationName, .type = event.StationType, .granted = timestamp
+          };
         // leaving the pad ends our presence at the place just as entering supercruise does
         else if constexpr(std::same_as<T, events::undocked_t>)
           {
@@ -783,6 +792,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
             }
           settlement_market_id_ = 0;
           cartographics_here_ = false;
+          docking_grant_ = {};
           // a name given while docked - a construction site's, chosen from the game's rolls - shows first here,
           // and a construction finished while docked leaves as what it became: a settlement, an outpost
           if(event.MarketID != 0u and not event.StationName.empty())
@@ -912,6 +922,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           }
         else if constexpr(std::same_as<T, events::docked_t>)
           {
+          docking_grant_ = {};
           // the escape pod sends the character home, and another account's ports mean nothing to it
           if(personal_ and info::is_escape_pod_port(event.StationType, event.StationName))
             if(auto res{db_.store(info::port_visit_t{

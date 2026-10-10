@@ -34,6 +34,7 @@ target_sources(eht
   community_goal.cc
   ship_health.cc
   route_progress.cc
+  descent.cc
   database_storage.cc
   database_storage_missions.cc
   database_storage_systems.cc

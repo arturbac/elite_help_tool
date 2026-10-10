@@ -11,6 +11,7 @@
 #include <legal.h>
 #include "codex.h"
 #include <surface_nav.h>
+#include <descent.h>
 #include "scanner_sheet.h"
 #include "screenshots.h"
 #include "sky_album.h"
@@ -178,6 +179,16 @@ private:
   ///\brief the way to the surface target - an arrow turned the way to go, the distance, and how long at this pace
   [[nodiscard]]
   auto build_surface_nav_lines() const -> std::vector<overlay::line_t>;
+  ///\brief the way down to the destination on the body below, with its profile (PoC)
+  [[nodiscard]]
+  auto build_descent_block() -> std::optional<overlay::block_t>;
+  ///\brief the place the descent leads to: the Surface window's target on this body, or else the
+  /// destination of Status.json on it, when its latitude and longitude are known (PoC)
+  [[nodiscard]]
+  auto descent_target(current_state_t const & state) -> std::optional<nav::target_t>;
+  ///\brief the pad the tower gave, until the ship is down (PoC)
+  [[nodiscard]]
+  auto build_docking_lines(current_state_t const & state) const -> std::vector<overlay::line_t>;
 
   ///\brief the next hops of both routes - a side band holds only what comes next, not the whole list
   [[nodiscard]]
@@ -274,6 +285,14 @@ private:
   overlay_exploration::surface_view_t surface_;
   ///\brief which way we face, from Status.json - absent in open space
   std::optional<double> heading_;
+  ///\brief how high over the body, from Status.json - absent away from one (PoC)
+  std::optional<double> altitude_;
+  descent::track_t descent_track_;
+  ///\brief the destination last looked up for the descent, and what was found for it
+  std::string descent_looked_up_;
+  std::optional<nav::target_t> descent_destination_;
+  ///\brief the target of this frame, set by publish for build_descent_block
+  std::optional<nav::target_t> descent_target_;
   nav::ground_speed_t ground_speed_;
   std::optional<nav::target_t> surface_target_;
   ///\brief every species sampled with its world, what the genera are guessed from - read again when a
