@@ -190,6 +190,8 @@ struct current_state_t : public generic_state_t
   std::string owner_fid_;
   ///\brief the commander of the session being read - a colonisation claim is theirs
   std::string commander_name_;
+  ///\brief that commander's account (FID) - progress along a neutron route is kept per account
+  std::string commander_fid_;
   ///\brief counts changes of construction sites, so the overlay reads them again at once
   uint64_t construction_changes_{};
   ///\brief counts changes of the fleet, so the Ships window reads it again at once

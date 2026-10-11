@@ -151,13 +151,6 @@ route_window_t::route_window_t(current_state_t const & state, std::string db_pat
   show_route();
   }
 
-auto route_window_t::account_fid() -> std::string
-  {
-  if(auto owner{db_.load_owner()}; owner and *owner)
-    return (*owner)->fid;
-  return {};
-  }
-
 auto route_window_t::restore_remembered() -> void
   {
   auto saved{db_.load_neutron_route()};
@@ -175,21 +168,45 @@ auto route_window_t::restore_remembered() -> void
   // to the present, see show_route
   reached_ = 0u;
   progress_system_ = 0u;
-  if(auto progress{db_.load_neutron_progress(account_fid(), route_progress::route_key(neutron_route_))}; progress)
-    reached_ = std::min(size_t{*progress}, neutron_route_.size());
-  else
-    spdlog::error("route window: the progress along {} could not be read: {}", neutron_name_, progress.error().message());
-  stored_reached_ = reached_;
+  stored_reached_ = 0u;
+  progress_fid_.clear();
+  restore_progress();
+  }
+
+auto route_window_t::restore_progress() -> void
+  {
+  // the account is the session's commander, not the database's owner: a database imported without
+  // one has no owner, and the progress of every account then fell into one row
+  std::string const & fid{state_.commander_fid_};
+  if(not remembered_ or neutron_route_.empty() or fid.empty())
+    return;
+  progress_fid_ = fid;
+  std::string const key{route_progress::route_key(neutron_route_)};
+  auto const own{db_.load_neutron_progress(fid, key)};
+  auto const without_account{db_.load_neutron_progress({}, key)};
+  if(not own or not without_account)
+    {
+    spdlog::error(
+      "route window: the progress along {} could not be read: {}",
+      neutron_name_,
+      (own ? without_account : own).error().message()
+    );
+    return;
+    }
+  reached_ = route_progress::restored(*own, *without_account, neutron_route_.size());
+  // a progress taken over from the row without an account is written under this one at once
+  stored_reached_ = *own != 0u ? reached_ : 0u;
+  store_progress();
   }
 
 auto route_window_t::store_progress() -> void
   {
-  if(not remembered_ or neutron_route_.empty() or reached_ == stored_reached_)
+  if(not remembered_ or neutron_route_.empty() or reached_ == stored_reached_ or progress_fid_.empty())
     return;
   stored_reached_ = reached_;
   if(
     auto res{db_.store_neutron_progress(info::neutron_progress_t{
-      .oid = -1, .fid = account_fid(), .route_key = route_progress::route_key(neutron_route_), .reached = uint32_t(reached_)
+      .oid = -1, .fid = progress_fid_, .route_key = route_progress::route_key(neutron_route_), .reached = uint32_t(reached_)
     })};
     not res
   )
@@ -341,8 +358,9 @@ auto route_window_t::setup_ui() -> void
     else
       {
       remembered_ = true;
-      // the progress made so far on it is kept from now on too
+      // the progress made so far on it is kept from now on too, under the session's commander
       stored_reached_ = 0u;
+      progress_fid_ = state_.commander_fid_;
       store_progress();
       }
     show_route();
@@ -373,6 +391,8 @@ auto route_window_t::drop_route() -> void
   reached_ = 0u;
   progress_system_ = 0u;
   stored_reached_ = 0u;
+  progress_fid_.clear();
+  scrolled_to_ = std::numeric_limits<size_t>::max();
   remembered_ = false;
   }
 
@@ -413,6 +433,8 @@ auto route_window_t::show_route() -> void
   // identical for different places, addresses are not. Only at an arrival, and only from the next waypoint
   // on (route_progress::advance). Not while the journal is replayed: a jump of the past would move the
   // progress restored from the database past a later pass through the same system
+  if(remembered_ and not state_.catching_up_ and state_.commander_fid_ != progress_fid_)
+    restore_progress();
   if(not state_.catching_up_ and state_.current_system_address_ != progress_system_)
     {
     progress_system_ = state_.current_system_address_;
@@ -467,6 +489,14 @@ auto route_window_t::show_route() -> void
   );
 
   model_->update_data(std::move(shown));
+  // a long route hides the next waypoint below the window - the list is brought to it, but only when
+  // the progress moves, so scrolling by hand is not undone at the next refresh
+  if(reached != scrolled_to_ and not neutron_route_.empty())
+    {
+    scrolled_to_ = reached;
+    int const row{int(std::min(reached, neutron_route_.size() - 1u))};
+    table_view_->scrollTo(model_->index(row, 0), QAbstractItemView::PositionAtCenter);
+    }
   }
 
 auto route_window_t::jump_to_waypoint(int row) -> void

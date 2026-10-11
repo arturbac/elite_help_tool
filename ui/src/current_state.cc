@@ -369,6 +369,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
 
         personal_ = owner_fid_.empty() or event.FID == owner_fid_;
         commander_name_ = event.Name;
+        commander_fid_ = event.FID;
         if(not personal_)
           spdlog::warn("session of {} - its career will not be written to this database", event.Name);
         }

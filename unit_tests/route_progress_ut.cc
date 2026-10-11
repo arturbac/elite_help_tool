@@ -42,6 +42,14 @@ auto main() -> int
   "an arrived route stays arrived"_test = [&]
   { expect(route_progress::advance(loop, 5u, 1u) == 5_ul); };
 
+  "an account's own progress wins over one written without an account"_test = [&]
+  {
+    expect(route_progress::restored(3u, 7u, 10u) == 3_ul);
+    expect(route_progress::restored(0u, 7u, 10u) == 7_ul) << "a row without an account stands for one without its own";
+    expect(route_progress::restored(0u, 0u, 10u) == 0_ul);
+    expect(route_progress::restored(12u, 0u, 10u) == 10_ul) << "never past the route's end";
+  };
+
   "a route is told by its systems in order"_test = [&]
   {
     auto reversed{route_of({1u, 2u, 3u, 4u})};

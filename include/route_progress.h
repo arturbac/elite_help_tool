@@ -17,6 +17,12 @@ namespace route_progress
 [[nodiscard]]
 auto advance(std::span<info::neutron_waypoint_t const> route, size_t reached, uint64_t here) noexcept -> size_t;
 
+///\brief the progress restored for an account: its own, else one written before the account was known
+///\detail Up to 1.41.3 progress was written under an empty account whenever the database had no owner
+/// recorded - such a row stands for every account without a row of its own. Never past the route's end
+[[nodiscard]]
+auto restored(uint32_t own, uint32_t without_account, size_t route_size) noexcept -> size_t;
+
 ///\brief what tells one route from another: the number of waypoints and a hash of their systems in
 /// flight order - the same route reversed, or loaded again from another file, is another route
 [[nodiscard]]
