@@ -17,6 +17,15 @@ auto main() -> int
     expect(not ship_health::same_item("int_hyperdrive_size5_class5", "Wear"));
   };
 
+  "a ship type listed wears by its own share, any other by the default"_test = []
+  {
+    std::map<std::string, double> const by_ship{{"mandalay", 0.0075}};
+    expect(ship_health::wear_for_ship("mandalay", by_ship, 0.01) == 0.0075);
+    expect(ship_health::wear_for_ship("Mandalay", by_ship, 0.01) == 0.0075) << "either case";
+    expect(ship_health::wear_for_ship("panthermkii", by_ship, 0.01) == 0.01);
+    expect(ship_health::wear_for_ship("", by_ship, 0.01) == 0.01);
+  };
+
   "the drive is found by its slot"_test = []
   {
     std::vector<::events::module_t> modules{

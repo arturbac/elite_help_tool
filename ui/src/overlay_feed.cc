@@ -5236,7 +5236,9 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
     {
     auto const cfg{eht::settings()};
     uint32_t const jumps{state.ship_loadout.JumpsSinceFsdHealth};
-    ship_health::fsd_reading_t const reading{ship_health::fsd_reading(*fsd, jumps, cfg->overlay.fsd_wear_per_jump)};
+    ship_health::fsd_reading_t const reading{ship_health::fsd_reading(
+      *fsd, jumps, ship_health::wear_for_ship(state.ship_loadout.Ship, cfg->overlay.fsd_wear_by_ship, cfg->overlay.fsd_wear_per_jump)
+    )};
     if(reading.health < 1.0)
       {
       uint32_t const health{ship_health::percent(reading.health)};

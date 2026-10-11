@@ -60,7 +60,9 @@ process carries no state of ours.
   module repaired in flight); `Repair` and `RepairAll` at a port bring it back to full (a `Repair` of `Wear` is the hull, shown full
   in the ship window from then on). Between two
   readings a supercruise overcharge drive is taken to lose `overlay.fsd_wear_per_jump` (0.01) of its
-  health with every jump - other drives are shown as read; 0 turns the guess off. The line is plain
+  health with every jump - other drives are shown as read; 0 turns the guess off. Ships whose drives wear
+  differently have their own share in `overlay.fsd_wear_by_ship`, by the type Loadout names (default
+  `{"mandalay": 0.0075}`); a ship not listed takes `overlay.fsd_wear_per_jump`. The line is plain
   below 100%, amber from `overlay.fsd_amber_percent` (90) and red from `overlay.fsd_red_percent` (87).
 - **Temperatures.** Under the frame rate at the top of the right band stand the graphics card's and
   the processor's temperatures in degrees Celsius, orange from 10 degrees below the driver's

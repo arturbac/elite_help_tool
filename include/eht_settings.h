@@ -6,6 +6,7 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <map>
 #include <memory>
 #include <stop_token>
 #include <string>
@@ -173,6 +174,9 @@ struct overlay_settings_t
   ///\brief the share of a supercruise overcharge drive's health one jump wears off, for the guess between two
   /// readings of it - the journal gives the health only in Loadout and AfmuRepairs; 0 shows the readings alone
   double fsd_wear_per_jump{0.01};
+  ///\brief the same per ship type as Loadout names it (`mandalay`), for the ships whose drives wear differently;
+  /// a ship not listed takes fsd_wear_per_jump. Mandalay from Artur's reading on 2026-10-11: 88% after 16 jumps
+  std::map<std::string, double> fsd_wear_by_ship{{"mandalay", 0.0075}};
   ///\brief the frame shift drive's line turns amber at this percent of health and below
   uint32_t fsd_amber_percent{90u};
   ///\brief and red at this one - the drive fails to charge more often from about 85
