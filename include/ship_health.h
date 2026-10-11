@@ -1,6 +1,7 @@
 #pragma once
 #include <events/ships.h>
 #include <cstdint>
+#include <map>
 #include <span>
 #include <string>
 #include <string_view>
@@ -37,6 +38,10 @@ struct fsd_reading_t
   ///\brief guessed from the jumps since the last reading, not read
   bool estimated;
   };
+
+///\brief the wear per jump for a ship type: its own from by_ship (the type in either case), else fallback
+[[nodiscard]]
+auto wear_for_ship(std::string_view ship, std::map<std::string, double> const & by_ship, double fallback) noexcept -> double;
 
 ///\brief the drive's health as last read, less the wear of the jumps since for a drive that wears per jump
 [[nodiscard]]

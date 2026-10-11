@@ -41,6 +41,16 @@ auto frame_shift_drive(std::span<events::module_t const> modules) noexcept -> ev
 
 auto wears_per_jump(std::string_view item) noexcept -> bool { return item.contains("overcharge"); }
 
+auto wear_for_ship(std::string_view ship, std::map<std::string, double> const & by_ship, double fallback) noexcept -> double
+  {
+  for(auto const & [type, wear]: by_ship)
+    if(type.size() == ship.size()
+       and std::ranges::equal(type, ship, [](char a, char b) noexcept -> bool
+                              { return std::tolower(static_cast<unsigned char>(a)) == std::tolower(static_cast<unsigned char>(b)); }))
+      return wear;
+  return fallback;
+  }
+
 auto fsd_reading(events::module_t const & fsd, uint32_t jumps, double wear_per_jump) noexcept -> fsd_reading_t
   {
   double const read{fsd.Health};
