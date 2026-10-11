@@ -2,6 +2,7 @@
 
 #include <data/navigation.h>
 #include <functional>
+#include <limits>
 #include "logic.h"
 #include <qwidget.h>
 #include <qmdiarea.h>
@@ -96,6 +97,10 @@ public:
   uint64_t progress_system_{};
   ///\brief the progress last written down for the remembered route, so it is written on change only
   size_t stored_reached_{};
+  ///\brief the account whose progress reached_ is; empty until the journal names the session's commander
+  std::string progress_fid_;
+  ///\brief the row the list was last scrolled to - it follows the progress, not every refresh
+  size_t scrolled_to_{std::numeric_limits<size_t>::max()};
 
   explicit route_window_t(current_state_t const & state, std::string db_path, QWidget * parent = nullptr);
 
@@ -117,11 +122,10 @@ private:
   auto jump_to_waypoint(int row) -> void;
   ///\brief the remembered route from the database, with how far this account got along it
   auto restore_remembered() -> void;
+  ///\brief how far the session's commander got along the remembered route, once the journal names them
+  auto restore_progress() -> void;
   ///\brief writes the progress down when the route is the remembered one and the progress moved
   auto store_progress() -> void;
-  ///\brief the account of this database - progress is kept per account, live.sqlite is shared
-  [[nodiscard]]
-  auto account_fid() -> std::string;
 
   auto setup_ui() -> void;
   };

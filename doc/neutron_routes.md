@@ -8,11 +8,15 @@
   remembered in its new direction, with its progress started over.
 - Progress moves at an arrival only, and only forward: the game's own course between two waypoints
   may pass systems off the list, and a route there and back passes the same system more than once.
-  A double click on a row makes that waypoint the next one.
+  A double click on a row makes that waypoint the next one. The list scrolls to the next waypoint
+  whenever the progress moves.
 - **Remember** keeps the route across restarts, **Forget** drops it. **Clear** drops a route loaded
   for one trip only; a remembered route, if there is one, is shown again.
 - The progress along the remembered route is kept too (`neutron_progress` in `live.sqlite`), for
   each account apart - two commanders sharing the file each keep their own place on the same route.
+  The account is the commander named by the journal, so the progress is restored once the journal has
+  been read that far; a progress written without an account (up to 1.41.3, by a database with no owner
+  recorded) stands for any account without one of its own, and is written under it at once.
   A route is told by its systems in order, so one replaced or reversed starts from its beginning.
   After a restart the progress stands still while the journal is read back to the present, and then
   moves on if the ship is at a waypoint ahead; a jump past the list's systems made while the tool was

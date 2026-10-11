@@ -17,6 +17,11 @@ auto advance(std::span<info::neutron_waypoint_t const> route, size_t reached, ui
   return reached + size_t(std::ranges::distance(ahead.begin(), found)) + 1u;
   }
 
+auto restored(uint32_t own, uint32_t without_account, size_t route_size) noexcept -> size_t
+  {
+  return std::min(size_t{own != 0u ? own : without_account}, route_size);
+  }
+
 auto route_key(std::span<info::neutron_waypoint_t const> route) -> std::string
   {
   // FNV-1a over the addresses' bytes - stable between builds and machines, unlike std::hash
