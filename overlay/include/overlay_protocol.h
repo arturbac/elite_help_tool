@@ -437,6 +437,28 @@ constexpr auto is_dump_flag(std::string_view file_name, std::string_view stem) n
          and file_name.substr(stem.size()).starts_with(dump_flag_infix) and file_name.ends_with(".flag");
   }
 
+///\brief the draw count of edworld's `dump_done` (`<stamp> <draws>`), which edworld_eht replaces once all the files
+/// of a whole-frame dump are written; nothing for any other text
+[[nodiscard]]
+constexpr auto dump_done_draws(std::string_view text) noexcept -> std::optional<uint32_t>
+  {
+  auto const space{text.find(' ')};
+  if(space == std::string_view::npos or space == 0u)
+    return std::nullopt;
+  uint32_t draws{};
+  bool digits{};
+  for(char const c: text.substr(space + 1u))
+    {
+    if(c == '\n' or c == '\r')
+      break;
+    if(c < '0' or c > '9')
+      return std::nullopt;
+    draws = draws * 10u + static_cast<uint32_t>(c - '0');
+    digits = true;
+    }
+  return digits ? std::optional<uint32_t>{draws} : std::nullopt;
+  }
+
 ///\brief how the layer names a screenshot in the spool, before the moment and the extension
 inline constexpr std::string_view screenshot_prefix{"screenshot_"};
 

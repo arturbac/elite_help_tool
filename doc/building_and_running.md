@@ -287,7 +287,9 @@ Details are in [overlay/README.md](../overlay/README.md).
 **F10** (`screenshots.dump_key`) asks edworld for a dump of the whole frame, for finding things in the game
 by their draws: the layer leaves a flag in its spool, EHT bumps the counter `dump` in `edworld.dir`, and
 edworld_eht dumps the next frame into its `edworld_dumps` folder (edworld's `doc/developers.md`). Empty
-turns the key off.
+turns the key off. The overlay shows `edworld dump <n>: writing...` in the lower left until edworld_eht
+reports the dump's files written (`dump_done` beside `dump`), then `edworld dump <n> written: <draws> draws`
+for a few seconds.
 
 ## Two accounts at once
 

@@ -4480,6 +4480,35 @@ auto overlay_feed_t::forward_edworld_dumps() -> void
   dumps_looked_ = now;
   std::string const & dir{eht::settings()->edworld.dir};
   std::string const stem{overlay::socket_stem()};
+  if(not dir.empty())
+    {
+    std::string done;
+    if(std::FILE * f{std::fopen((dir + "/dump_done").c_str(), "r")}; f != nullptr)
+      {
+      char line[128]{};
+      if(std::fgets(line, sizeof line, f) != nullptr)
+        done = line;
+      std::fclose(f);
+      }
+    if(not dump_done_known_)
+      {
+      dump_done_text_ = done;
+      dump_done_known_ = true;
+      }
+    else if(done != dump_done_text_ and not done.empty())
+      {
+      dump_done_text_ = done;
+      dump_done_at_ = now;
+      dump_done_draws_ = overlay::dump_done_draws(done).value_or(0u);
+      dump_waiting_ = false;
+      spdlog::info("edworld: dump {} written ({} draws)", edworld_dumps_, dump_done_draws_);
+      }
+    if(dump_waiting_ and now - dump_asked_at_ > std::chrono::minutes{2})
+      {
+      dump_waiting_ = false;
+      spdlog::warn("edworld: dump {} asked 2 min ago, edworld has not reported it written (dump_done)", edworld_dumps_);
+      }
+    }
   std::error_code ec;
   for(std::filesystem::directory_entry const & entry:
       std::filesystem::directory_iterator{std::filesystem::path{overlay::default_spool_path()}, ec})
@@ -4505,7 +4534,11 @@ auto overlay_feed_t::forward_edworld_dumps() -> void
       if(renamed)
         spdlog::error("edworld: the dump could not be asked ({})", renamed.message());
       else
+        {
+        dump_waiting_ = true;
+        dump_asked_at_ = now;
         spdlog::info("edworld: dump {} asked ({})", edworld_dumps_, path.filename().string());
+        }
       }
     else
       spdlog::error("edworld: {} cannot be written - no dump asked", part);
@@ -5463,6 +5496,21 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
   publish_edworld_target(state);
   publish_edworld_surface(state);
   forward_edworld_dumps();
+
+  // the dump key has no answer of its own in the game: the band says the dump is being written, then that it is
+  if(auto const since_done{std::chrono::steady_clock::now() - dump_done_at_};
+     dump_waiting_ or (dump_done_known_ and dump_done_at_ != std::chrono::steady_clock::time_point{} and since_done < std::chrono::seconds{6}))
+    frame.blocks.push_back(
+      overlay::block_t{
+        .corner = overlay::corner_e::bottom_left,
+        .ttl_ms = block_ttl_ms(),
+        .lines = {overlay::line_t{
+          .text = dump_waiting_ ? std::format("edworld dump {}: writing...", edworld_dumps_)
+                                : std::format("edworld dump {} written: {} draws", edworld_dumps_, dump_done_draws_),
+          .color = dump_waiting_ ? colour_heading() : colour_first()
+        }}
+      }
+    );
 
   // In the scanner the band says what the last picture did: a new view is the sign that the filter is in
   // and the next one may be chosen
