@@ -353,24 +353,35 @@ auto construction_window_t::show_site() -> void
   std::map<std::string, int64_t> carriers;
   if(auto totals{db_.load_carrier_cargo_totals()}; totals)
     carriers = std::move(*totals);
+  // the hold counts as well - bought for the carrier or for the site, it is on its way
+  std::map<std::string, int64_t> on_board;
+  for(auto const & [key, count]: hold)
+    on_board[key] += count;
+  // docked at one of our carriers, its cargo is booked only on leaving: what was moved across so far counts on it
+  // at once, as a port's market does, and the hold as it is now
+  std::map<std::string, int64_t> moved;
+  if(state_.carrier_visit_)
+    {
+    std::map<std::string, int64_t> at_docking;
+    for(auto const & [key, item]: state_.carrier_visit_->hold)
+      at_docking[key] += item.second;
+    moved = info::carrier_visit_moved(at_docking, on_board);
+    }
+  for(auto const & [key, count]: moved)
+    carriers[key] += count;
   // and the one this site is supplied from, alone
   uint64_t const supplier{carrier_combo_->currentData().toULongLong()};
   // with none chosen, all our carriers together - as on the overlay
   std::map<std::string, int64_t> supplier_cargo{supplier == 0u ? carriers : std::map<std::string, int64_t>{}};
   if(supplier != 0u)
+    {
     if(auto cargo{db_.load_carrier_cargo(supplier)}; cargo)
       for(info::carrier_cargo_t const & item: *cargo)
         supplier_cargo[item.key] += item.count;
-  // the hold counts as well - bought for the carrier or for the site, it is on its way. Docked at that
-  // carrier, its cargo is booked only on leaving, so until then the hold as it was on docking stands in
-  // for the hold now, or what was moved across would be counted twice
-  std::map<std::string, int64_t> on_board;
-  if(state_.carrier_visit_ and (supplier == 0u or state_.carrier_visit_->carrier_id == supplier))
-    for(auto const & [key, item]: state_.carrier_visit_->hold)
-      on_board[key] += item.second;
-  else
-    for(auto const & [key, count]: hold)
-      on_board[key] += count;
+    if(state_.carrier_visit_ and state_.carrier_visit_->carrier_id == supplier)
+      for(auto const & [key, count]: moved)
+        supplier_cargo[key] += count;
+    }
 
   // by type, then by name - the way the game's own list reads; every type opens with a row of its own
   std::map<std::string, std::string> categories;

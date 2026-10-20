@@ -2,6 +2,7 @@
 #include <chrono>
 #include <cstdint>
 #include <format>
+#include <map>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -33,6 +34,12 @@ struct construction_depot_t
 ///\brief names in the order a reader expects - "CMM Composite" after "Ceramic Composites", not before
 [[nodiscard]]
 auto names_before(std::string_view a, std::string_view b) noexcept -> bool;
+
+///\brief what a visit to a carrier has moved so far, by commodity key: the hold at docking less the hold now. The
+/// carrier's cargo is booked only on leaving, so while docked this is what it has gained (+) or given (-) on top of it
+[[nodiscard]]
+auto carrier_visit_moved(std::map<std::string, int64_t> const & at_docking, std::map<std::string, int64_t> const & now)
+  -> std::map<std::string, int64_t>;
 
 ///\brief the order of a site's list: by type, then by name, the way the game's own list reads
 [[nodiscard]]
