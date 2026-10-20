@@ -284,6 +284,11 @@ Press **F11** in the game. The whole screen, overlay included, is saved as
 and format in the `screenshots` section of `eht_settings.json`. This needs `EHT_OVERLAY_CAPTURE=1`.
 Details are in [overlay/README.md](../overlay/README.md).
 
+**F10** (`screenshots.dump_key`) asks edworld for a dump of the whole frame, for finding things in the game
+by their draws: the layer leaves a flag in its spool, EHT bumps the counter `dump` in `edworld.dir`, and
+edworld_eht dumps the next frame into its `edworld_dumps` folder (edworld's `doc/developers.md`). Empty
+turns the key off.
+
 ## Two accounts at once
 
 Each game + EHT pair needs its **own socket** and its **own working directory**:

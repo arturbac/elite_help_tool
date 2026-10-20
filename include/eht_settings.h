@@ -269,6 +269,9 @@ struct screenshot_settings_t
   {
   ///\brief the X key name - F11, Print, Pause, KP_Multiply, a letter, or a keysym as 0xffc8; empty turns them off
   std::string key{"F11"};
+  ///\brief the key, named the same way, that asks edworld (edworld_eht, edworld.dir) for a dump of the whole frame;
+  /// empty turns it off
+  std::string dump_key{"F10"};
   ///\brief where they are kept, relative to where the tool runs
   std::string dir{"screenshots"};
   ///\brief png keeps the overlay's text sharp; jpg is a fraction of the size

@@ -421,7 +421,21 @@ struct screenshot_t
   {
   ///\brief the X key name, as in xev or xmodmap - F11, Print, KP_Multiply; empty takes no screenshots
   std::string key{"F11"};
+  ///\brief the key that asks edworld for a dump of the whole frame (the layer leaves a flag in the spool, the tool
+  /// passes it on); empty, as an older tool sends it, watches none
+  std::string dump_key{};
   };
+
+///\brief how the layer names the flag of a dump asked at the dump key, after the socket's stem and before the moment
+inline constexpr std::string_view dump_flag_infix{"_dump_"};
+
+///\brief a file name of the spool is a dump key's flag of the tool with this socket stem: <stem>_dump_<moment>.flag
+[[nodiscard]]
+constexpr auto is_dump_flag(std::string_view file_name, std::string_view stem) noexcept -> bool
+  {
+  return file_name.size() > stem.size() + dump_flag_infix.size() + 5u and file_name.starts_with(stem)
+         and file_name.substr(stem.size()).starts_with(dump_flag_infix) and file_name.ends_with(".flag");
+  }
 
 ///\brief how the layer names a screenshot in the spool, before the moment and the extension
 inline constexpr std::string_view screenshot_prefix{"screenshot_"};

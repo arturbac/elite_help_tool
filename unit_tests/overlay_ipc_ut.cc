@@ -96,6 +96,15 @@ auto sample_frame(uint64_t sequence) -> overlay::frame_t
 
 auto main() -> int
   {
+  "a dump key's flag is told by the socket's stem"_test = []
+  {
+    expect(overlay::is_dump_flag("overlay-alt_dump_1792500000000.flag", "overlay-alt"));
+    expect(not overlay::is_dump_flag("overlay_dump_1792500000000.flag", "overlay-alt")) << "the other account's flag";
+    expect(not overlay::is_dump_flag("overlay-alt_dump_1792500000000.ppm", "overlay-alt"));
+    expect(not overlay::is_dump_flag("overlay-alt_hud_1792500000000.flag", "overlay-alt"));
+    expect(not overlay::is_dump_flag("overlay-alt_dump_.flag", "overlay-alt")) << "no moment";
+  };
+
   "a frame reaches the client whole"_test = []
   {
     auto const path{scratch_socket("roundtrip")};

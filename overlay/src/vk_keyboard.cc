@@ -228,6 +228,10 @@ namespace
     std::string key_;
     xcb_keycode_t keycode_{};
     bool was_down_{};
+    // the dump key: no picture of its own, a flag in the spool the tool passes on to edworld
+    std::string dump_key_;
+    xcb_keycode_t dump_keycode_{};
+    bool dump_was_down_{};
     std::atomic<uint32_t> presses_{};
     std::mutex mutex_;
     std::condition_variable wake_;
@@ -386,13 +390,22 @@ namespace
         if(not key_.empty() and keycode_ == 0u)
           log("screenshot key {} not found on the keyboard", key_);
         }
-      if(keycode_ == 0u)
+      bool const dump_changed{snapshot->frame.screenshot.dump_key != dump_key_};
+      if(dump_changed)
+        {
+        dump_key_ = snapshot->frame.screenshot.dump_key;
+        dump_keycode_ = dump_key_.empty() ? xcb_keycode_t{} : keycode_of(keysym_of(dump_key_));
+        if(not dump_key_.empty() and dump_keycode_ == 0u)
+          log("dump key {} not found on the keyboard", dump_key_);
+        }
+      if(keycode_ == 0u and dump_keycode_ == 0u)
         return;
 
       reply_ptr_t const keymap{xcb_.xcb_query_keymap_reply(connection_, xcb_.xcb_query_keymap(connection_), nullptr)};
       if(not keymap)
         return;
-      bool const down{(keymap->keys[keycode_ / 8u] & (1u << (keycode_ % 8u))) != 0u};
+      auto const held = [&](xcb_keycode_t code) { return code != 0u and (keymap->keys[code / 8u] & (1u << (code % 8u))) != 0u; };
+      bool const down{held(keycode_)};
       // the press, not the holding - one picture however long the key stays down, and a key newly asked
       // for that happens to be held is no press either
       if(down and not was_down_ and not changed and game_has_focus())
@@ -401,6 +414,26 @@ namespace
         log("screenshot key {} pressed", key_);
         }
       was_down_ = down;
+      bool const dump_down{held(dump_keycode_)};
+      if(dump_down and not dump_was_down_ and not dump_changed and game_has_focus())
+        leave_dump_flag();
+      dump_was_down_ = dump_down;
+      }
+
+    ///\brief an empty file in the spool under this socket's stem: the tool sees it within a second and asks edworld
+    auto leave_dump_flag() -> void
+      {
+      auto const moment{
+        std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count()
+      };
+      std::string const path{
+        std::format("{}/{}{}{}.flag", overlay::default_spool_path(), overlay::socket_stem(), overlay::dump_flag_infix, moment)
+      };
+      std::ofstream flag{path};
+      if(flag)
+        log("dump key {} pressed", dump_key_);
+      else
+        log("dump key {} pressed, but {} cannot be written", dump_key_, path);
       }
     };
 
