@@ -2465,19 +2465,24 @@ auto overlay_feed_t::build_construction_lines(current_state_t const & state) con
   auto const callsign{carrier_callsigns_.find(supplier)};
   bool const one_carrier{supplier != 0u and callsign != carrier_callsigns_.end()};
   auto const supplier_cargo{cargo_by_carrier_.find(supplier)};
-  std::map<std::string, int64_t> const & on_carrier{
+  std::map<std::string, int64_t> const & booked{
     one_carrier ? (supplier_cargo != cargo_by_carrier_.end() ? supplier_cargo->second : nothing) : carrier_cargo_
   };
   std::string const carrier_heading{one_carrier ? callsign->second : std::string{"carriers"}};
-  // what is on its way counts towards the carrier as well; docked at that carrier its cargo is booked only
-  // on leaving, so the hold as it was on docking stands in for the hold now, or it would count twice
+  // docked at that carrier its cargo is booked only on leaving: what was moved across so far counts on it at once,
+  // as a port's market does, and the hold counts as it is now - what is on its way counts towards the carrier too
+  std::map<std::string, int64_t> on_carrier{booked};
   std::map<std::string, int64_t> on_board;
+  for(auto const & [key, count]: hold)
+    on_board[key] += count;
   if(state.carrier_visit_ and (one_carrier ? state.carrier_visit_->carrier_id == supplier : true))
+    {
+    std::map<std::string, int64_t> at_docking;
     for(auto const & [key, item]: state.carrier_visit_->hold)
-      on_board[key] += item.second;
-  else
-    for(auto const & [key, count]: hold)
-      on_board[key] += count;
+      at_docking[key] += item.second;
+    for(auto const & [key, count]: info::carrier_visit_moved(at_docking, on_board))
+      on_carrier[key] += count;
+    }
 
   // the amounts stand in columns after the longest name, under a heading of their own
   size_t name_width{};

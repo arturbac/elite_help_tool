@@ -4,11 +4,25 @@
 #include <data/ships.h>
 #include <commodity_facts.h>
 
+#include <map>
 #include <set>
 
 auto main() -> int
   {
   using namespace boost::ut;
+
+  "a visit to a carrier counts what was moved across before the balance is booked"_test = []
+  {
+    std::map<std::string, int64_t> const at_docking{{"steel", 252}, {"computercomponents", 84}};
+    // unloaded all the steel and part of the components, loaded fruit off the carrier
+    std::map<std::string, int64_t> const now{{"computercomponents", 20}, {"fruitandvegetables", 48}};
+    auto const moved{info::carrier_visit_moved(at_docking, now)};
+    expect(moved.at("steel") == 252_ll) << "unloaded: the carrier gains it";
+    expect(moved.at("computercomponents") == 64_ll);
+    expect(moved.at("fruitandvegetables") == -48_ll) << "loaded: the carrier gives it";
+    expect(moved.size() == 3_ul);
+    expect(info::carrier_visit_moved(at_docking, at_docking).empty()) << "nothing moved, nothing counted";
+  };
 
   "the escape pod returns to ports only"_test = []
   {

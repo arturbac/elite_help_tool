@@ -17,7 +17,9 @@
   The *Diff* column, in the window and on the overlay, sets the carrier the site is supplied from
   (chosen in the window and remembered for each site; all our carriers when none is) and the ship's
   hold against what is left: + what is to spare, - what is still to be brought, with that in all at
-  the bottom.
+  the bottom. Docked at one of our carriers, what is moved between it and the hold shows at once on
+  both, the carrier's count and the hold's, as buying in a port does; it is booked on the carrier on
+  leaving.
 - **A site finished** leaves the list at the last delivery, and becomes the settlement or station it
   turned into, under its new name and type. When the Construction window was on top, the System
   window takes its place, showing the place just built.

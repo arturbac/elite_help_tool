@@ -13,7 +13,8 @@
   departure, as the journals show, and the time is marked with a tilde.
 - **What is on each carrier.** The game does not say what a squadron's carrier holds, so EHT keeps it:
   on docking at one of our carriers it notes the hold, and on leaving what the hold has less of is added
-  to the carrier and what it has more of is taken off. A ship changed there - a small one taken so as
+  to the carrier and what it has more of is taken off. While docked, the Construction window and the
+  overlay already count what has been moved across on the carrier. A ship changed there - a small one taken so as
   not to run far across the pad - stays with its whole hold, and leaving by escape pod leaves the load
   too; taking the big ship back and flying off with its hold takes it off the carrier again. The *Carrier cargo* tab of the Data window shows it and lets you correct any count by hand, or add a
   commodity picked from the list of those not yet on the carrier, narrowed by default to what colonies

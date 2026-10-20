@@ -233,6 +233,18 @@ namespace info
 auto names_before(std::string_view a, std::string_view b) noexcept -> bool
   { return std::ranges::lexicographical_compare(a, b, {}, stralgo::to_lower, stralgo::to_lower); }
 
+auto carrier_visit_moved(std::map<std::string, int64_t> const & at_docking, std::map<std::string, int64_t> const & now)
+  -> std::map<std::string, int64_t>
+  {
+  std::map<std::string, int64_t> moved;
+  for(auto const & [key, count]: at_docking)
+    moved[key] += count;
+  for(auto const & [key, count]: now)
+    moved[key] -= count;
+  std::erase_if(moved, [](auto const & entry) { return entry.second == 0; });
+  return moved;
+  }
+
 auto needs_before(std::string_view category_a, std::string_view name_a, std::string_view category_b, std::string_view name_b) noexcept
   -> bool
   {

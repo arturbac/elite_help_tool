@@ -1479,7 +1479,12 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
 
           // the count is in the event, but what exactly is being carried only Cargo.json says
           if(auto file{load_cargo(journal_dir_path_)}; file and file->Vessel != "SRV")
+            {
             cargo = std::move(*file);
+            // docked at one of our carriers, what is moved across shows on its cargo at once (carrier_visit_moved)
+            if(carrier_visit_)
+              ++carrier_changes_;
+            }
           else
             spdlog::warn("failed to read Cargo.json");
           }
