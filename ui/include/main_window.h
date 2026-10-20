@@ -20,6 +20,7 @@
 #include <eddn_sender.h>
 
 #include <simple_enum/simple_enum.hpp>
+#include <optional>
 #include <chrono>
 #include <qmainwindow.h>
 #include <qmdiarea.h>
@@ -142,6 +143,14 @@ private:
   std::chrono::steady_clock::time_point monitoring_started_{};
   ///\brief set once the replay has settled, after which the windows are the user's business
   bool opening_settled_{};
+  ///\brief the window in front when the tool last ran in this directory (one per commander), read before the saved
+  /// layout raises its own windows; the opening window when there is one
+  std::optional<window_type_e> last_page_;
+
+  ///\brief the settings' key of the window in front, one for each working directory - the commanders' tools share
+  /// the settings file but each runs in a directory of its own
+  [[nodiscard]]
+  static auto last_page_key() -> QString;
 
   auto background_worker(std::stop_token stoken) -> void;
 

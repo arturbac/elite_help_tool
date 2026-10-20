@@ -16,6 +16,7 @@
 #include <qstylefactory.h>
 #include <qmdisubwindow.h>
 #include <qsettings.h>
+#include <qdir.h>
 #include <qtoolbar.h>
 #include <qpushbutton.h>
 #include <qboxlayout.h>
@@ -272,11 +273,21 @@ auto main_window_t::choose_opening_window(bool inhabited) -> void
   if(std::exchange(opening_settled_, true))
     return;
 
+  // the window that was in front when the tool stopped, so a restart returns to the page being read
+  if(last_page_ and subwindow_for(*last_page_))
+    {
+    spdlog::debug("opening on the window last in front ({})", static_cast<int>(*last_page_));
+    activate_window(*last_page_);
+    return;
+    }
   // Where there are factions there is something to read about them; where there are none there is
   // nothing but what the scanner found, and the faction window would open on an empty table
   spdlog::debug("opening on {}", inhabited ? "system info" : "exploration");
   activate_window(inhabited ? window_type_e::faction_state : window_type_e::system);
   }
+
+auto main_window_t::last_page_key() -> QString
+  { return QStringLiteral("main_window/last_page_") + QDir::currentPath().replace(u'/', u'_'); }
 
 auto main_window_t::start_monitoring() -> void
   {
@@ -317,6 +328,21 @@ auto main_window_t::setup_ui() -> void
   mdi_area_ = new QMdiArea(this);
   mdi_area_->setViewMode(QMdiArea::SubWindowView);
   setCentralWidget(mdi_area_);
+  // the window in front is written down as soon as it changes - only once the opening one is settled, or the
+  // saved layout raising its windows at the start would overwrite it
+  connect(
+    mdi_area_,
+    &QMdiArea::subWindowActivated,
+    this,
+    [this](QMdiSubWindow * sub)
+    {
+      if(not opening_settled_ or not sub)
+        return;
+      auto const type{sub->property("window_type").value<window_type_e>()};
+      if(type != window_type_e::none)
+        QSettings{"ebasoft", "EliteHelpTool"}.setValue(last_page_key(), static_cast<int>(type));
+    }
+  );
 
   close_blocker_ = new close_blocker_t(this);
 
@@ -532,6 +558,12 @@ auto main_window_t::save_settings() -> void
 auto main_window_t::load_settings() -> void
   {
   QSettings settings("ebasoft", "EliteHelpTool");
+
+  // the window in front last time, before the layout below raises any; a value of no window known is dropped
+  if(bool ok{}; settings.contains(last_page_key()))
+    if(int const page{settings.value(last_page_key()).toInt(&ok)};
+       ok and page > static_cast<int>(window_type_e::none) and page <= static_cast<int>(window_type_e::community_goal))
+      last_page_ = static_cast<window_type_e>(page);
 
   settings.beginGroup("main_window");
   if(auto geo = settings.value("geometry"); geo.isValid())
