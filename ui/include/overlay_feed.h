@@ -217,6 +217,11 @@ private:
   ///\brief what the database knows of the jump's destination, told to edworld (the d3d11 proxy in the
   /// game) through `target` in the tmpfs directory of the edworld settings - once per new destination
   auto publish_edworld_target(current_state_t const & state) -> void;
+  ///\brief the layer's flags of the dump key (in the spool, under this tool's socket) passed on to edworld: each
+  /// one bumps the counter in edworld.dir/dump, which edworld_eht watches, and is removed
+  auto forward_edworld_dumps() -> void;
+  std::chrono::steady_clock::time_point dumps_looked_{};
+  uint64_t edworld_dumps_{};
   edworld::target_t * edworld_target_{};
   std::string edworld_dir_;
   uint64_t edworld_system_{};

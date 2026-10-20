@@ -189,6 +189,7 @@ sees it. The key and the format are set in the `screenshots` section of `eht_set
 | key | default | meaning |
 |---|---|---|
 | `key` | `F11` | the X key name (as in `xev`): `F1`–`F35`, `Print`, `Pause`, `Scroll_Lock`, `KP_Multiply`…, a letter, a digit or a keysym such as `0xffc8`; empty turns it off |
+| `dump_key` | `F10` | the key, named the same way, that asks edworld for a dump of the whole frame: the layer leaves `<socket stem>_dump_<ms>.flag` in the spool, the tool removes it and bumps `dump` in `edworld.dir`; empty turns it off |
 | `dir` | `screenshots` | the directory for screenshots, relative to the tool's directory |
 | `format` | `png` | `png` keeps the overlay's text sharp, `jpg` is several times smaller |
 | `jpeg_quality` | `92` | the quality for `jpg` |

@@ -4286,6 +4286,47 @@ auto overlay_feed_t::build_hot_drop_lines(current_state_t const & state) const -
   return lines;
   }
 
+auto overlay_feed_t::forward_edworld_dumps() -> void
+  {
+  // a directory listing a second is enough for a key pressed by hand
+  auto const now{std::chrono::steady_clock::now()};
+  if(now - dumps_looked_ < std::chrono::seconds{1})
+    return;
+  dumps_looked_ = now;
+  std::string const & dir{eht::settings()->edworld.dir};
+  std::string const stem{overlay::socket_stem()};
+  std::error_code ec;
+  for(std::filesystem::directory_entry const & entry:
+      std::filesystem::directory_iterator{std::filesystem::path{overlay::default_spool_path()}, ec})
+    {
+    std::filesystem::path const & path{entry.path()};
+    if(not overlay::is_dump_flag(path.filename().string(), stem))
+      continue;
+    std::error_code removed;
+    std::filesystem::remove(path, removed);
+    if(dir.empty())
+      {
+      spdlog::warn("edworld: the dump key was pressed, but edworld.dir is empty - nothing asked");
+      continue;
+      }
+    // written beside and renamed over, so edworld never reads half a number
+    std::string const part{dir + "/dump.part"};
+    if(std::FILE * f{std::fopen(part.c_str(), "w")}; f != nullptr)
+      {
+      std::fprintf(f, "%llu\n", static_cast<unsigned long long>(++edworld_dumps_));
+      std::fclose(f);
+      std::error_code renamed;
+      std::filesystem::rename(part, dir + "/dump", renamed);
+      if(renamed)
+        spdlog::error("edworld: the dump could not be asked ({})", renamed.message());
+      else
+        spdlog::info("edworld: dump {} asked ({})", edworld_dumps_, path.filename().string());
+      }
+    else
+      spdlog::error("edworld: {} cannot be written - no dump asked", part);
+    }
+  }
+
 auto overlay_feed_t::publish_edworld_target(current_state_t const & state) -> void
   {
   std::string const & dir{eht::settings()->edworld.dir};
@@ -5122,8 +5163,10 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
   frame.capture = capture_;
   frame.sample = approach_.sample_request();
   frame.screenshot.key = eht::settings()->screenshots.key;
+  frame.screenshot.dump_key = eht::settings()->screenshots.dump_key;
 
   publish_edworld_target(state);
+  forward_edworld_dumps();
 
   // In the scanner the band says what the last picture did: a new view is the sign that the filter is in
   // and the next one may be chosen
