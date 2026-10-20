@@ -105,6 +105,16 @@ auto main() -> int
     expect(not overlay::is_dump_flag("overlay-alt_dump_.flag", "overlay-alt")) << "no moment";
   };
 
+  "edworld's dump_done gives the dump's draw count"_test = []
+  {
+    expect(overlay::dump_done_draws("20261020T190744_312Z 2568\n") == std::optional<uint32_t>{2568u});
+    expect(overlay::dump_done_draws("20261020T190744_312Z 0") == std::optional<uint32_t>{0u});
+    expect(not overlay::dump_done_draws("")) << "nothing written yet";
+    expect(not overlay::dump_done_draws("20261020T190744_312Z")) << "no count";
+    expect(not overlay::dump_done_draws("20261020T190744_312Z 25x8")) << "not a number";
+    expect(not overlay::dump_done_draws(" 2568")) << "no stamp";
+  };
+
   "a frame reaches the client whole"_test = []
   {
     auto const path{scratch_socket("roundtrip")};

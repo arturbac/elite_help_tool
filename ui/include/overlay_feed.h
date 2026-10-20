@@ -222,6 +222,14 @@ private:
   auto forward_edworld_dumps() -> void;
   std::chrono::steady_clock::time_point dumps_looked_{};
   uint64_t edworld_dumps_{};
+  ///\brief the dump asked last and not yet reported written by edworld (`dump_done` beside `dump`), for the band
+  bool dump_waiting_{};
+  std::chrono::steady_clock::time_point dump_asked_at_{};
+  ///\brief `dump_done` as last read: a change is a dump written; the first read is only the starting point
+  std::string dump_done_text_;
+  bool dump_done_known_{};
+  std::chrono::steady_clock::time_point dump_done_at_{};
+  uint32_t dump_done_draws_{};
   edworld::target_t * edworld_target_{};
   std::string edworld_dir_;
   uint64_t edworld_system_{};
