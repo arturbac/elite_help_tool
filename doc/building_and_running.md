@@ -244,6 +244,10 @@ permissions, so a full disk never leaves an empty settings file.
 EHT and the game can be started in either order. The overlay connects whenever both are up, and
 reconnects after either one restarts.
 
+A restart opens on the window that was in front when EHT stopped, remembered for each working
+directory (so for each commander when each has one); the very first start opens on System info in
+an inhabited system and on Exploration elsewhere.
+
 For a launcher or a desktop entry, the tool's icon is `ui/icons/eht.svg` (a 256 px `eht.png` beside
 it). The desktop entry has to start EHT in its working directory: `Path=` set to it, or a user
 service with `WorkingDirectory=`.
