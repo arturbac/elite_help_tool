@@ -251,6 +251,14 @@ not know the system or says nothing for two seconds. The factions follow the fir
 `target_t::size` says whether they are there: an edworld of the first layout reads its part of the record and
 ignores the rest. A directory that cannot be written leaves one warning in the log and edworld on EDSM.
 
+Beside it the tool writes `surface` (layout `edworld::surface_t`, same seqlock): the place on a body that
+Status.json's Destination names in the system the ship is in, with its latitude and longitude when the database
+has them. After the first layout's fields (`edworld::surface_size_first`) it also carries the pad the tower gave
+(proof of concept): the time of the journal's DockingGranted, the pad's number and the StationType, all zero when
+no pad is given - none asked for, the request withdrawn or refused, or the ship docked, left the station, entered
+supercruise, jumped, relogged or died. The record is written again whenever the place or the grant changes;
+edworld uses the grant to draw the pad's plane in its right sphere.
+
 ## An arrow on a line
 
 `line_t.pointer` puts an arrow before the line's text, in the line's colour, turned that many degrees

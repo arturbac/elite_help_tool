@@ -4728,7 +4728,12 @@ auto overlay_feed_t::publish_edworld_surface(current_state_t const & state) -> v
     body = status_destination_->Body;
     name = status_destination_->Name;
     }
-  std::string told{std::format("{}/{}/{}", system, body, name)};
+  // the pad the tower gave goes with it (PoC: the pad's plane in edworld's right sphere): told again when it changes
+  auto const & grant{state.docking_grant_};
+  int64_t const granted_ms{
+    grant.pad != 0u ? std::chrono::duration_cast<std::chrono::milliseconds>(grant.granted.time_since_epoch()).count() : 0
+  };
+  std::string told{std::format("{}/{}/{}/{}/{}/{}", system, body, name, granted_ms, grant.pad, grant.type)};
   // the same destination is looked up again now and then while where it stands is not known - its first
   // approach writes it on the way down
   constexpr std::chrono::seconds look_again{10};
@@ -4762,8 +4767,13 @@ auto overlay_feed_t::publish_edworld_surface(current_state_t const & state) -> v
     std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count()
   };
   overlay::world::write_record(
-    *edworld_surface_, overlay::world::make_surface(system, body, name, latitude, longitude, now_ms)
+    *edworld_surface_,
+    overlay::world::with_docking(
+      overlay::world::make_surface(system, body, name, latitude, longitude, now_ms), granted_ms, grant.pad, grant.type
+    )
   );
+  if(changed and granted_ms != 0)
+    spdlog::info("edworld: pad {} at {} ({}) told", grant.pad, grant.station, grant.type);
   if(not name.empty())
     spdlog::info(
       "edworld: surface destination {} (body {}) told: {}",

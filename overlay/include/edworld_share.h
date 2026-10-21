@@ -122,5 +122,15 @@ struct surface_t
   double latitude;   ///< degrees
   double longitude;  ///< degrees
   char name[64];     ///< as Destination.Name gives it; NUL-terminated
+  // ---- read only when size covers them: a writer of the first layout ends at name ----
+  ///\brief when the tower gave a pad (journal DockingGranted, unix ms); 0: no pad given now - none asked for, withdrawn,
+  /// refused, or the ship has since docked, left or jumped
+  std::int64_t docking_granted_ms;
+  std::uint32_t docking_pad;   ///< the pad's number, 0 with no pad given
+  std::uint8_t reserved2[4];
+  char station_type[32];       ///< the grant's StationType (Coriolis, Outpost, CraterOutpost...); NUL-terminated
   };
+
+///\brief the first layout's size, without the docking grant: the least a reader accepts
+inline constexpr std::uint32_t surface_size_first{offsetof(surface_t, docking_granted_ms)};
   }  // namespace edworld

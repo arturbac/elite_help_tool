@@ -118,6 +118,20 @@ int main()
     expect(shared.sequence == 6u and shared.known == 1u) << "written under the seqlock, even when done";
   };
 
+  "the pad the tower gave goes with the place, and no pad is told as none"_test = []
+  {
+    auto const place{overlay::world::make_surface(5343476077080ull, 0u, "", std::nullopt, std::nullopt, now_ms)};
+    expect(place.docking_granted_ms == 0 and place.docking_pad == 0u and place.station_type[0] == '\0');
+    auto const granted{overlay::world::with_docking(place, now_ms, 4u, "Outpost")};
+    expect(granted.docking_granted_ms == now_ms and granted.docking_pad == 4u);
+    expect(std::string_view{granted.station_type} == "Outpost");
+    auto const gone{overlay::world::with_docking(granted, 0, 0u, "Outpost")};
+    expect(gone.docking_granted_ms == 0 and gone.docking_pad == 0u and gone.station_type[0] == '\0')
+      << "no grant clears the type with it";
+    expect(edworld::surface_size_first == offsetof(edworld::surface_t, docking_granted_ms)
+           and edworld::surface_size_first < sizeof(edworld::surface_t));
+  };
+
   "the destination's factions go with it, only when the tool has the system and its readings"_test = []
   {
     std::vector<overlay::world::faction_entry_t> const factions{

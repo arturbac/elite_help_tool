@@ -48,7 +48,9 @@ template<std::size_t n>
 inline auto copy_text(char (&field)[n], std::string_view text) noexcept -> void
   {
   std::size_t const length{std::min(text.size(), n - 1u)};
-  std::memcpy(field, text.data(), length);
+  // an empty view may hold no pointer at all, and memcpy must not be given one even for no bytes
+  if(length != 0u)
+    std::memcpy(field, text.data(), length);
   field[length] = '\0';
   }
 
@@ -139,6 +141,20 @@ inline auto make_surface(
   s.latitude = s.known != 0u ? *latitude : 0.0;
   s.longitude = s.known != 0u ? *longitude : 0.0;
   copy_text(s.name, name);
+  return s;
+  }
+
+///\brief the record with the pad the tower gave added (PoC): the time of the grant, the pad and the station's type;
+/// no time (0) tells the proxy there is no pad given
+[[nodiscard]]
+inline auto with_docking(
+  edworld::surface_t s, int64_t granted_unix_ms, uint32_t pad, std::string_view station_type
+) noexcept -> edworld::surface_t
+  {
+  bool const given{granted_unix_ms != 0 and pad != 0u};
+  s.docking_granted_ms = given ? granted_unix_ms : 0;
+  s.docking_pad = given ? pad : 0u;
+  copy_text(s.station_type, given ? station_type : std::string_view{});
   return s;
   }
   }  // namespace overlay::world
