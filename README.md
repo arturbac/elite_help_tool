@@ -25,6 +25,7 @@ EHT (Elite Help Tool) is a companion for Elite Dangerous that follows the game's
 - **[Vision](doc/vision.md)**: an optional recorder of small pictures of the screen, each with the game's own state as its label, as a dataset for teaching a model to read the screen.
   `tools/ml` trains a first model on it (a scene classifier) and converts it to ncnn.
 - **[Backup](doc/backup.md)**: the journals, the codex and the market readings, and the settings a verification of the game's files would take - the game's bindings and graphics, `AppConfigLocal.xml`, the mods' `.ini` files - and the tool's own, and edworld's logs of the game sessions gone by.
+- **[journal_context](doc/journal_context.md)**: a command-line tool that says where you were at a given place in a journal and what happened right after, as JSON.
 - **[Privacy](doc/privacy.md)**: nothing is downloaded from public databases; EDDN uploads are opt-in, exploration-only and only for empty, undiscovered systems.
 
 ## Documentation

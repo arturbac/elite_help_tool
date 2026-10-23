@@ -35,6 +35,7 @@ target_sources(eht
   ship_health.cc
   route_progress.cc
   descent.cc
+  journal_context.cc
   database_storage.cc
   database_storage_missions.cc
   database_storage_systems.cc
@@ -53,4 +54,9 @@ target_sources(eht
 target_sources(journal_tailer
   PRIVATE
   elite_main.cc
+  )
+
+target_sources(journal_context
+  PRIVATE
+  journal_context_main.cc
   )

@@ -10,6 +10,7 @@ EHT is made of these parts:
 | part | what it is |
 |---|---|
 | `journal_tailer` | command-line importer: reads **all** your journals into the databases |
+| `journal_context` | command-line: where you were at a byte of a journal and what came next, as JSON, see [journal_context](journal_context.md) |
 | `ui/elite_help_tool` | the tool itself (Qt6): follows the newest journal live and feeds the overlay |
 | `libeht_overlay.so` | Vulkan layer loaded **into the game's process**, hands the game's swapchains to the plugin |
 | `libeht_overlay_plugin.so` | the overlay itself, loaded by the layer and reloaded when replaced |

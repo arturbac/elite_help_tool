@@ -68,6 +68,7 @@
 - [Backup](backup.md): what is backed up and how
 - [Evidence of the settlement glare](settlement_glare.md): the overexposure bug report tool
 - [Network incidents](network_incidents.md): noting the game's disconnect codes, correlated against the local network's own state
+- [Where you were at a place in a journal](journal_context.md): `journal_context`, the state before a byte of a journal and the events after it, as JSON
 - [Charts of your own incidents](incident_charts.md): three charts of disconnects and failures from the game's own logs, with or without EHT
 
 ## Known issues

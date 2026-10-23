@@ -241,6 +241,10 @@ target_link_libraries(journal_tailer PRIVATE
   eht
   )
 
+# where the commander was at a byte of a journal, and what came next (include/journal_context.h)
+add_executable(journal_context)
+target_link_libraries(journal_context PRIVATE eht)
+
   
 add_subdirectory(src)
 add_subdirectory(ui)
