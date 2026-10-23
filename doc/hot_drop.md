@@ -48,7 +48,7 @@ checked against the distances: the time to the target is the distance divided by
 the distance fell over the last seconds. The minutes come from that estimate and the seconds as
 read. A time still far from the estimate is replaced by it. The picture is deleted once read.
 
-Nothing is recorded for planets, stars or ports on the ground, in a taxi, or in another
+Nothing is recorded for planets, stars, ports or building sites on the ground, in a taxi, or in another
 commander's ship.
 
 Every approach ends up as one line in `hot_drop.jsonl`, in the directory EHT runs in, holding:

@@ -2008,6 +2008,10 @@ auto overlay_feed_t::refresh_market(
     station_type_ = (*station)->station_type;
     }
 
+  // a building site takes deliveries only and never writes a Market event - asking to open it would never end
+  if(info::is_construction_depot(station_type_))
+    return;
+
   auto entries{db_.load_market_entries(market_id)};
   if(not entries or entries->empty())
     {
@@ -4240,14 +4244,15 @@ auto overlay_feed_t::hot_drop_port(current_state_t const & state) const -> std::
     .system = state.system.name, .system_address = state.current_system_address_, .station = name
   };
   // a port docked at before is known with its type and distance from the star; one never docked at only by its
-  // signal - a carrier, mostly. A star, a planet or a settlement on the ground is no port for a hot drop
+  // signal - a carrier, mostly. A star, a planet, a settlement or a building site on the ground is no port
+  // for a hot drop
   info::station_t const * known{};
   for(info::station_t const & station: stations_)
     if(station.name == name)
       known = &station;
   if(known != nullptr)
     {
-    if(info::is_ground_settlement(*known))
+    if(info::is_ground_settlement(*known) or known->station_type == "PlanetaryConstructionDepot")
       return std::nullopt;
     port.market_id = known->market_id;
     port.station_type = known->station_type;

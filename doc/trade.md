@@ -7,7 +7,8 @@
   market never opened says so in the side band - easy to miss - and, for a ship actually docked
   there (not a taxi ride, not an on-foot arrival), a second, wide reminder across the top middle of
   the screen in the ordinary overlay size: *open the Commodities Market to record it*
-  (`overlay.market_reminder`, its own place and width, on by default).
+  (`overlay.market_reminder`, its own place and width, on by default). A colonisation building site,
+  in space or on the ground, has no market to open, so neither is shown there.
 - **"controlling faction changed since last reading - reopen the market"** (`market_stale` colour):
   the market has a reading, but the station's controlling faction has since changed and the market
   itself was never reopened. The game gives no notice when this happens, and what is legal to trade

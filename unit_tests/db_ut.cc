@@ -361,6 +361,15 @@ int main()
   };
 
 
+  "a building site is told by its type, whether in space or on the ground"_test = []
+  {
+    expect(info::is_construction_depot("PlanetaryConstructionDepot"));
+    expect(info::is_construction_depot("SpaceConstructionDepot"));
+    expect(not info::is_construction_depot("CraterOutpost"));
+    expect(not info::is_construction_depot("Coriolis"));
+    expect(not info::is_construction_depot(""));
+  };
+
   "a construction finished while docked leaves as the settlement it became"_test = [&]
   {
     constexpr uint64_t site{4393068035ull};

@@ -35,6 +35,14 @@ struct station_t
   std::optional<double> longitude;
   };
 
+///\brief whether a place is a colonisation building site, in space or on the ground - it takes deliveries
+/// only, the game never writes a Market event there
+[[nodiscard]]
+inline auto is_construction_depot(std::string_view station_type) -> bool
+  {
+  return station_type == "SpaceConstructionDepot" or station_type == "PlanetaryConstructionDepot";
+  }
+
 ///\brief whether a place stands on the ground and can be a conflict zone on foot - not a port in space,
 /// a carrier, a building site, nor the colonisation ship, which calls itself a surface station under a name
 /// the game never localised
