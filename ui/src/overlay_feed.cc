@@ -15,6 +15,7 @@
 #include <evidence_log.h>
 #include <netstate.h>
 #include <picture_records.h>
+#include <live_state.h>
 #include <ship_health.h>
 #include <port_model.h>
 #include <commodity_facts.h>
@@ -3449,6 +3450,9 @@ auto overlay_feed_t::build_crew_lines(current_state_t const & state) const -> st
   using fighter_e = current_state_t::fighter_e;
 
   if(state.crew_name.empty() and state.fighter == fighter_e::stowed)
+    return {};
+  // the pilot stays behind with a ship that has no hangar, and nothing in the journal says so
+  if(not live::has_fighter_bay(std::span{std::as_const(state.ship_loadout.Modules)}))
     return {};
 
   std::vector<overlay::line_t> lines;

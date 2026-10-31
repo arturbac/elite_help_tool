@@ -15,7 +15,11 @@ process carries no state of ours.
 - **Dogfights.** The target readout, on the left of centre, fills in as the scan goes: ship, pilot
   and combat rank, then hull and shield in per cent, then faction, legal status, bounty and the
   targeted subsystem with its health. On the right stand your hired pilot with their rank and the
-  fighter's state: out and who flies it, in the bay, or destroyed and being rebuilt. A kill stays on
+  fighter's state: out and who flies it, in the bay, or destroyed and being rebuilt - only in a ship with a
+  fighter hangar, since the pilot stays behind with one that has none. The game lets a target go without
+  saying so in the journal, so the readout goes at supercruise, a jump, docking, leaving the ship, death,
+  an escape pod, a change of ship or a new location; a target that flies off or jumps away stays until
+  one of them, or until another lock. A kill stays on
   screen for a few seconds with the victim's faction, the credits it paid and, marked "paid by", the
   factions that paid them - other factions than the victim's, the ones that had the bounty on it.
   When the danger is now (heat, an interdiction, the game's own danger warning), what a death would cost moves to the

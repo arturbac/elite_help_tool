@@ -11,7 +11,8 @@
   docked at one, or when it is chosen in the Construction window: the commodities still needed, most
   wanted first, with how much is in the hold and how much the port you stand at sells, and for how
   much. What can be loaded right here stands out, and the trading hints give way, since the load
-  is the colony's.
+  is the colony's. The port is the one docked at, approached, or whose market or shipyard is used - out
+  of an escape pod the game names the port only that way.
 - **The Construction window** lists the sites under way, and for the one chosen every commodity:
   what is left, required, provided, in the hold, and in the port you stand at, grouped by type.
   The *Diff* column, in the window and on the overlay, sets the carrier the site is supplied from

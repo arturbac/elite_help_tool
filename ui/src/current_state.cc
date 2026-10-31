@@ -15,6 +15,7 @@
 #include "logic.h"
 #include <main_window.h>
 #include <picture_records.h>
+#include <live_state.h>
 #include <ship_health.h>
 #include <spdlog/spdlog.h>
 #include <stralgo/stralgo.h>
@@ -342,6 +343,14 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           return;
           }
         ++events_handled_;
+
+        // the game lets the crosshairs go at these without writing so (live_state.h)
+        if constexpr(live::drops_target_lock<T>)
+          target = {};
+        // where a market or a shipyard is used is where we are, also when no event said we docked
+        if constexpr(live::names_the_port<T>)
+          if(event.MarketID != 0u)
+            settlement_market_id_ = event.MarketID;
 
         // a career belongs to a character - from another account's session we take only the world
       if constexpr(
