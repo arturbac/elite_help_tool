@@ -159,6 +159,12 @@ public:
   ///\brief the carriers of the store columns, by market id, in their order
   std::vector<uint64_t> holdings_carriers_;
   QLineEdit * holdings_filter_{};
+  ///\brief setting a kind on a carrier that is held nowhere else
+  QComboBox * holdings_add_carrier_{};
+  QComboBox * holdings_add_kind_{};
+  QSpinBox * holdings_add_count_{};
+  ///\brief the dictionary's size when the list of kinds was filled
+  size_t holdings_add_known_{};
   ///\brief hides the kinds marked as junk - on at every start
   QCheckBox * holdings_no_junk_{};
   QLabel * holdings_note_{};

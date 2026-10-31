@@ -8,6 +8,8 @@
 #include <events/micro_resources.h>
 #include <qlineedit.h>
 #include <qsplitter.h>
+#include <qcompleter.h>
+#include <tuple>
 #include <set>
 #include <biology.h>
 #include <cmath>
@@ -553,6 +555,57 @@ auto micro_resource_window_t::setup_assets(QTabWidget * tabs) -> void
     holdings_views_[ix] = view;
     holdings_headings_[ix++] = label;
     }
+  // a kind not held at all - many lie in a carrier's store only - is set here, and shows in the table of its kind
+  auto * holdings_add = new QHBoxLayout();
+  holdings_add->addWidget(new QLabel("Set on", holdings_page));
+  holdings_add_carrier_ = new QComboBox(holdings_page);
+  holdings_add->addWidget(holdings_add_carrier_);
+  holdings_add_kind_ = new QComboBox(holdings_page);
+  holdings_add_kind_->setEditable(true);
+  holdings_add_kind_->setInsertPolicy(QComboBox::NoInsert);
+  holdings_add_kind_->setToolTip("Any data, goods or assets seen in the journals - type to narrow the list");
+  if(QCompleter * completer{holdings_add_kind_->completer()})
+    {
+    completer->setFilterMode(Qt::MatchContains);
+    completer->setCompletionMode(QCompleter::PopupCompletion);
+    }
+  holdings_add->addWidget(holdings_add_kind_, 1);
+  holdings_add_count_ = new QSpinBox(holdings_page);
+  holdings_add_count_->setRange(0, 1'000'000);
+  holdings_add->addWidget(holdings_add_count_);
+  auto * holdings_set = new QPushButton("Set", holdings_page);
+  holdings_add->addWidget(holdings_set);
+  holdings_layout->addLayout(holdings_add);
+  connect(
+    holdings_set,
+    &QPushButton::clicked,
+    this,
+    [this]
+    {
+      eht::event_guard(
+        "holdings set",
+        [this]
+        {
+          uint64_t const carrier{holdings_add_carrier_->currentData().toULongLong()};
+          int const index{holdings_add_kind_->findText(holdings_add_kind_->currentText())};
+          if(carrier == 0u or index < 0)
+            return;
+          std::string const name{holdings_add_kind_->itemData(index).toString().toStdString()};
+          if(auto res{db_.set_carrier_micro(
+               carrier,
+               name,
+               holdings_add_count_->value(),
+               std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now()),
+               "edit"
+             )};
+             not res)
+            spdlog::error("holdings: failed to set {} on {}", name, carrier);
+          show_holdings();
+        }
+      );
+    }
+  );
+
   tabs->addTab(holdings_page, "Holdings");
   connect(holdings_filter_, &QLineEdit::textChanged, this, [this](QString const &) { show_holdings(); });
   connect(holdings_no_junk_, &QCheckBox::toggled, this, [this](bool) { show_holdings(); });
@@ -732,6 +785,15 @@ auto micro_resource_window_t::show_holdings() -> void
           spdlog::error("holdings: failed to read the store of {}", c.carrier_id);
         }
   headers.push_back("Total");
+  {
+  QVariant const chosen{holdings_add_carrier_->currentData()};
+  QSignalBlocker const quiet{holdings_add_carrier_};
+  holdings_add_carrier_->clear();
+  for(auto const & [ix, market]: holdings_carriers_ | std::views::enumerate)
+    holdings_add_carrier_->addItem(headers[4 + int(ix)], QVariant::fromValue(qulonglong{market}));
+  if(int const at{holdings_add_carrier_->findData(chosen)}; at >= 0)
+    holdings_add_carrier_->setCurrentIndex(at);
+  }
 
   // the game's own lists, copied under the state's lock
   auto const [backpack, locker]{[this]
@@ -749,6 +811,24 @@ auto micro_resource_window_t::show_holdings() -> void
       if(item.junk)
         junk.insert(item.name);
       }
+  // the kinds to set on a carrier: those of the three tables only, so each lands in its own
+  if(names.size() != holdings_add_known_)
+    {
+    holdings_add_known_ = names.size();
+    std::vector<std::tuple<holdings::kind_e, std::string, std::string>> kinds;
+    for(auto const & [name, shown_category]: names)
+      if(auto const kind{holdings::kind_of(shown_category.second)}; kind)
+        kinds.emplace_back(*kind, shown_category.first.empty() ? name : shown_category.first, name);
+    std::ranges::sort(kinds);
+    QSignalBlocker const quiet{holdings_add_kind_};
+    holdings_add_kind_->clear();
+    for(auto const & [kind, shown, name]: kinds)
+      holdings_add_kind_->addItem(
+        qformat("{} ({})", shown, kind == holdings::kind_e::data ? "Data" : kind == holdings::kind_e::goods ? "Goods" : "Assets"),
+        QString::fromStdString(name)
+      );
+    holdings_add_kind_->setCurrentIndex(-1);
+    }
 
   QString const filter{holdings_filter_->text().trimmed()};
   std::array<std::vector<holdings::row_t>, 3> by_kind;
