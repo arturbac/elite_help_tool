@@ -186,13 +186,18 @@ struct database_storage_t
   [[nodiscard]]
   auto load_micro_resources() -> expected_ec<std::vector<info::micro_resource_t>>;
 
-  ///\brief the counts of micro resources set by hand on a carrier's bar, oldest first
+  ///\brief what is in a carrier's store of micro resources
   [[nodiscard]]
-  auto load_carrier_micro_counts(uint64_t carrier_id) -> expected_ec<std::vector<info::carrier_micro_count_t>>;
+  auto load_carrier_micro(uint64_t carrier_id) -> expected_ec<std::vector<info::carrier_micro_t>>;
 
-  ///\brief sets a micro resource on a carrier's bar to a count, by hand
+  ///\brief moves a micro resource in a carrier's store by delta, never below zero, and writes down why
   [[nodiscard]]
-  auto store(info::carrier_micro_count_t const & value) -> expected_ec<void>;
+  auto change_carrier_micro(info::carrier_micro_change_t const & change) -> expected_ec<void>;
+
+  ///\brief sets a micro resource in a carrier's store to a count, by hand - the change is written down too
+  [[nodiscard]]
+  auto set_carrier_micro(uint64_t carrier_id, std::string_view name, int64_t count, std::chrono::sys_seconds when)
+    -> expected_ec<void>;
 
   ///\brief the transactions and their credits since the moment, sold, bought and bartered apart
   [[nodiscard]]

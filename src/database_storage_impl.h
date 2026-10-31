@@ -570,8 +570,10 @@ namespace tables
   // the balance of every docking; none of it can be rebuilt from journals
   inline constexpr std::string_view carrier_cargo{"live.carrier_cargo"};
   inline constexpr std::string_view carrier_cargo_change{"live.carrier_cargo_change"};
-  // the counts of micro resources set by hand on a carrier's bar - none of it is in a journal
-  inline constexpr std::string_view carrier_micro_count{"live.carrier_micro_count"};
+  // the micro resources kept in our carriers' stores - the game writes none of it, so it is kept by the
+  // balance of every visit and by hand, like the cargo
+  inline constexpr std::string_view carrier_micro{"live.carrier_micro"};
+  inline constexpr std::string_view carrier_micro_change{"live.carrier_micro_change"};
   inline constexpr std::string_view carrier{"live.carrier"};
   inline constexpr std::string_view carrier_materials{"live.carrier_materials"};
   }  // namespace tables

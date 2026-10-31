@@ -155,8 +155,9 @@ public:
   ///\brief data and goods, one under the other - assets are left out, they are a lure on the bar
   std::array<QTableWidget *, 2> mission_views_{};
 
-  ///\brief what is held of data, goods and assets - the backpack, the ship's locker, one's own carrier's bar
-  QComboBox * holdings_carrier_{};
+  ///\brief what is held of data, goods and assets - the backpack, the ship's locker, our carriers' stores
+  ///\brief the carriers of the store columns, by market id, in their order
+  std::vector<uint64_t> holdings_carriers_;
   QLineEdit * holdings_filter_{};
   QLabel * holdings_note_{};
   std::array<QTableWidget *, 3> holdings_views_{};

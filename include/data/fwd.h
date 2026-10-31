@@ -29,7 +29,8 @@ struct war_countdown_t;
 struct war_onset_t;
 // data/carrier.h
 struct carrier_cargo_change_t;
-struct carrier_micro_count_t;
+struct carrier_micro_t;
+struct carrier_micro_change_t;
 struct carrier_cargo_t;
 struct carrier_movement_t;
 struct carrier_state_t;

@@ -67,15 +67,26 @@ struct carrier_cargo_change_t
   std::string source;
   };
 
-///\brief a count of a micro resource on a carrier's bar set by hand - for what other commanders bought, which no
-/// journal says; the latest one per kind holds until the next reading of the shelf
-struct carrier_micro_count_t
+///\brief a micro resource kept in a carrier's store - left there from the backpack and the ship's locker, taken
+/// back the same way; the game writes none of it, so it is kept by the balance of every visit and by hand
+struct carrier_micro_t
+  {
+  int64_t oid{-1};
+  uint64_t carrier_id;
+  ///\brief the internal name, the key the backpack and the locker use
+  std::string name;
+  int64_t count;
+  };
+
+///\brief one change of a carrier's store of micro resources and where it came from - a visit's balance, an edit
+struct carrier_micro_change_t
   {
   int64_t oid{-1};
   std::chrono::sys_seconds timestamp;
   uint64_t carrier_id;
   std::string name;
-  int64_t count;
+  int64_t delta;
+  std::string source;
   };
 
 struct fcmaterial_t

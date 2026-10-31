@@ -1,6 +1,5 @@
 #pragma once
 
-#include <chrono>
 #include <cstdint>
 #include <map>
 #include <optional>
@@ -9,10 +8,10 @@
 #include <string_view>
 #include <vector>
 
-///\brief what is held of data, goods and assets: in the backpack, in the ship's locker and on one's own carrier's bar
-///\detail the backpack and the locker are the game's own lists. The bar is known exactly only at a reading of its
-/// shelf; after it, what was handed in at the bar adds to it and what was bought there takes from it, and a count
-/// set by hand - for what other commanders bought, which no journal says - starts the item afresh
+///\brief what is held of data, goods and assets: in the backpack, in the ship's locker and in our carriers' stores
+///\detail the backpack and the locker are the game's own lists. A carrier's store is in no journal: what the backpack
+/// and the locker have less of on leaving one of our carriers than on docking was left there, what they have more of
+/// was taken from it - less what went over its bartender's counter - and a count may be set by hand
 namespace holdings
   {
 enum struct kind_e : uint8_t
@@ -45,44 +44,16 @@ struct held_t
   uint32_t count{};
   };
 
-///\brief one kind on the bar's shelf at its last reading
-struct shelf_t
-  {
-  std::string name;
-  std::string shown;
-  std::string category;
-  uint32_t stock{};
-  };
+using counts_t = std::map<std::string, int64_t, std::less<>>;
 
-///\brief something handed in at the bar (positive) or bought there (negative)
-struct move_t
-  {
-  std::chrono::sys_seconds when;
-  std::string name;
-  int64_t delta{};
-  };
-
-///\brief a count on the bar set by hand
-struct set_t
-  {
-  std::chrono::sys_seconds when;
-  std::string name;
-  int64_t count{};
-  };
-
-///\brief the bar of one carrier as far as it is known
-struct bar_t
-  {
-  ///\brief when the shelf was last read; nullopt before the first reading
-  std::optional<std::chrono::sys_seconds> read;
-  std::vector<shelf_t> shelf;
-  std::vector<set_t> sets;
-  std::vector<move_t> moves;
-  };
-
-///\brief the count of a kind on the bar: the later of the reading and the count set by hand, then every move after it
+///\brief the data, goods and assets of some lists together, by internal name - what a visit's balance compares
 [[nodiscard]]
-auto on_bar(bar_t const & bar, std::string_view name) -> int64_t;
+auto totals(std::span<held_t const> backpack, std::span<held_t const> locker) -> counts_t;
+
+///\brief what a visit to one of our carriers left in its store (positive) or took from it (negative)
+///\param counter what its bartender's counter gave (bought, positive) or took (handed in, negative) meanwhile
+[[nodiscard]]
+auto visit_balance(counts_t const & docked, counts_t const & leaving, counts_t const & counter) -> counts_t;
 
 struct row_t
   {
@@ -91,16 +62,18 @@ struct row_t
   std::string shown;
   uint32_t backpack{};
   uint32_t locker{};
-  int64_t bar{};
+  ///\brief one count a carrier, in the order the stores were given
+  std::vector<int64_t> stores;
   };
 
-///\brief every kind of data, goods and assets held anywhere of the three places, by kind and then name
+///\brief every kind of data, goods and assets held anywhere, by kind and then name
+///\param stores what each of our carriers keeps, by internal name
 ///\param names the readable name and the category of a kind the places themselves do not give
 [[nodiscard]]
 auto rows(
   std::span<held_t const> backpack,
   std::span<held_t const> locker,
-  bar_t const & bar,
+  std::span<counts_t const> stores,
   std::map<std::string, std::pair<std::string, std::string>, std::less<>> const & names
 ) -> std::vector<row_t>;
   }  // namespace holdings

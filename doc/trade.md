@@ -50,13 +50,19 @@ These are the tabs of the Asset trade window. It reads its tables only while it 
 once a second as items are picked up; a hidden window is read when it is shown again.
 
 - **Holdings**, in the Assets window: every kind of data, goods and assets you hold, in three tables,
-  with how many are in the backpack, in the ship's locker and on the bar of your own carrier (the one
-  marked "mine" in Carrier stock), and the total - to see at the mission board whether a reward is one
-  you lack or one you have plenty of. The backpack and the locker are the game's own lists; a mission's
-  thing to deliver is left out, and so are consumables. The bar is what the bartender showed at its last
-  reading, with what you handed in or bought there since. Purchases by other commanders are in no journal:
-  double-click a count on the bar to set it, and that count holds until the next reading. A squadron
-  carrier has no bar, so it has no column.
+  with how many are in the backpack, in the ship's locker, in the store of each of our carriers (the one
+  marked "mine" in Bartender stock, and the squadron's) and the total - to see at the mission board
+  whether a reward is one you lack or one you have plenty of. The backpack and the locker are the
+  game's own lists; a mission's thing to deliver is left out, and so are consumables. The game writes
+  what is picked up or taken out of the locker on foot at once; what is moved while aboard it carries out
+  only on leaving the ship, and on boarding the backpack goes into the locker without a word for the
+  backpack - so the backpack counts as emptied of them then. A carrier's store is in no journal, so it is
+  kept as the cargo is: on docking at one of our carriers the backpack and the locker are noted
+  together, and on leaving what they have less of was left in the store, what they have more of was
+  taken from it - less what went over that carrier's bartender's counter. Double-click a carrier's count
+  to correct it. It is kept in `live.sqlite` and counts only while EHT runs.
+- **Bartender stock** (the first tab of Asset trade): the bartender's shelf of every carrier as last
+  read, what is for sale and at what price - read it before and after adding to see what sold.
 
 On-foot consumables and kills are tracked too, but that lives with the rest of the on-foot combat
 tracking in [missions_on_foot.md](missions_on_foot.md).

@@ -499,17 +499,60 @@ auto database_storage_t::load_micro_resources() -> expected_ec<std::vector<info:
   return sqlite::select_from<info::micro_resource_t>(db_->db, sql_iface::tables::micro_resource, "");
   }
 
-auto database_storage_t::load_carrier_micro_counts(uint64_t carrier_id)
-  -> expected_ec<std::vector<info::carrier_micro_count_t>>
+auto database_storage_t::load_carrier_micro(uint64_t carrier_id) -> expected_ec<std::vector<info::carrier_micro_t>>
   {
-  return sqlite::select_from<info::carrier_micro_count_t>(
-    db_->db, sql_iface::tables::carrier_micro_count, std::format(" WHERE carrier_id = {} ORDER BY timestamp", carrier_id)
+  return sqlite::select_from<info::carrier_micro_t>(
+    db_->db, sql_iface::tables::carrier_micro, std::format(" WHERE carrier_id={} AND count>0", carrier_id)
   );
   }
 
-auto database_storage_t::store(info::carrier_micro_count_t const & value) -> expected_ec<void>
+auto database_storage_t::change_carrier_micro(info::carrier_micro_change_t const & change) -> expected_ec<void>
   {
-  return sqlite::insert_into(db_->db, "oid"sv, sql_iface::tables::carrier_micro_count, value);
+  if(change.delta == 0 or change.name.empty())
+    return {};
+  auto known{sqlite::select_from<info::carrier_micro_t>(
+    db_->db,
+    sql_iface::tables::carrier_micro,
+    std::format(" WHERE carrier_id={} AND name='{}' LIMIT 1", change.carrier_id, sqlite::escape_sql_quotes(change.name))
+  )};
+  if(not known) [[unlikely]]
+    return cxx23::unexpected{known.error()};
+  if(auto res{sqlite::insert_into(db_->db, "oid"sv, sql_iface::tables::carrier_micro_change, change)}; not res)
+    [[unlikely]]
+    return res;
+  if(known->empty())
+    return sqlite::insert_into(
+      db_->db,
+      "oid"sv,
+      sql_iface::tables::carrier_micro,
+      info::carrier_micro_t{
+        .carrier_id = change.carrier_id, .name = change.name, .count = std::max<int64_t>(change.delta, 0)
+      }
+    );
+  info::carrier_micro_t row{known->front()};
+  // taken back more than was known to be there: the count was wrong - it stops at nothing
+  row.count = std::max<int64_t>(row.count + change.delta, 0);
+  return sqlite::update_pk(db_->db, "oid"sv, sql_iface::tables::carrier_micro, row, row.oid);
+  }
+
+auto database_storage_t::set_carrier_micro(
+  uint64_t carrier_id, std::string_view name, int64_t count, std::chrono::sys_seconds when
+) -> expected_ec<void>
+  {
+  int64_t now_count{};
+  if(auto known{sqlite::select_from<info::carrier_micro_t>(
+       db_->db,
+       sql_iface::tables::carrier_micro,
+       std::format(" WHERE carrier_id={} AND name='{}' LIMIT 1", carrier_id, sqlite::escape_sql_quotes(name))
+     )};
+     known and not known->empty())
+    now_count = known->front().count;
+  return change_carrier_micro(
+    info::carrier_micro_change_t{
+      .timestamp = when, .carrier_id = carrier_id, .name = std::string{name},
+      .delta = std::max<int64_t>(count, 0) - now_count, .source = "edit"
+    }
+  );
   }
 
 auto database_storage_t::load_bartender_totals(std::chrono::sys_seconds since)

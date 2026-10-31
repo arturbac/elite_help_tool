@@ -297,7 +297,7 @@ auto micro_resource_window_t::setup_trade(QTabWidget * tabs) -> void
   stock_view_->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
   stock_view_->horizontalHeader()->setStretchLastSection(true);
   stock_layout->addWidget(stock_view_, 1);
-  tabs->addTab(stock_page, "Carrier stock");
+  tabs->addTab(stock_page, "Bartender stock");
 
   // --- where it all comes from ---
   auto * acquisition_page = new QWidget(tabs);
@@ -467,24 +467,26 @@ auto micro_resource_window_t::setup_assets(QTabWidget * tabs) -> void
   auto * holdings_page = new QWidget(tabs);
   auto * holdings_layout = new QVBoxLayout(holdings_page);
   auto * holdings_row = new QHBoxLayout();
-  holdings_row->addWidget(new QLabel("Carrier:", holdings_page));
-  holdings_carrier_ = new QComboBox(holdings_page);
-  holdings_carrier_->setToolTip("One's own carrier whose bar is counted");
-  holdings_row->addWidget(holdings_carrier_, 1);
   holdings_row->addWidget(new QLabel("Find:", holdings_page));
   holdings_filter_ = new QLineEdit(holdings_page);
   holdings_filter_->setClearButtonEnabled(true);
   holdings_row->addWidget(holdings_filter_, 1);
   holdings_layout->addLayout(holdings_row);
-  holdings_note_ = new QLabel(holdings_page);
+  holdings_note_ = new QLabel(
+    "The backpack and the ship's locker are the game's own lists; a mission's thing and the consumables are left out."
+    " A carrier's store is in no journal: what the backpack and the locker have less of on leaving one of our"
+    " carriers than on docking was left there, what they have more of was taken from it - less what went over its"
+    " bartender's counter. Double-click a carrier's count to correct it.",
+    holdings_page
+  );
   holdings_note_->setWordWrap(true);
   holdings_layout->addWidget(holdings_note_);
   for(size_t ix{}; char const * heading: {"Data", "Goods", "Assets"})
     {
     auto * label = new QLabel(QString::fromUtf8(heading), holdings_page);
     holdings_layout->addWidget(label);
-    auto * view = numbers_table(holdings_page, {"Name", "Backpack", "Ship locker", "Bar", "Total"});
-    // the bar's count is the one that may be corrected; the backpack and the locker are the game's own lists
+    auto * view = numbers_table(holdings_page, {"Name", "Backpack", "Ship locker", "Total"});
+    // a carrier's count is the one that may be corrected; the backpack and the locker are the game's own lists
     view->setEditTriggers(QAbstractItemView::DoubleClicked | QAbstractItemView::EditKeyPressed);
     holdings_layout->addWidget(view, 1);
     connect(
@@ -497,24 +499,20 @@ auto micro_resource_window_t::setup_assets(QTabWidget * tabs) -> void
           "holdings edit",
           [&]
           {
-            if(holdings_filling_ or column != 3)
+            int const store{column - 3};
+            if(holdings_filling_ or store < 0 or size_t(store) >= holdings_carriers_.size())
               return;
             bool ok{};
-            int64_t const count{view->item(row, 3)->text().toLongLong(&ok)};
-            uint64_t const carrier{holdings_carrier_->currentData().toULongLong()};
-            if(not ok or count < 0 or carrier == 0u)
-              {
-              show_holdings();
-              return;
-              }
-            if(auto res{db_.store(info::carrier_micro_count_t{
-                 .timestamp = std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now()),
-                 .carrier_id = carrier,
-                 .name = view->item(row, 0)->data(Qt::UserRole).toString().toStdString(),
-                 .count = count
-               })};
-               not res)
-              spdlog::error("holdings: failed to set a count on the bar of {}", carrier);
+            int64_t const count{view->item(row, column)->text().toLongLong(&ok)};
+            if(ok and count >= 0)
+              if(auto res{db_.set_carrier_micro(
+                   holdings_carriers_[size_t(store)],
+                   view->item(row, 0)->data(Qt::UserRole).toString().toStdString(),
+                   count,
+                   std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())
+                 )};
+                 not res)
+                spdlog::error("holdings: failed to set the store of {}", holdings_carriers_[size_t(store)]);
             show_holdings();
           }
         );
@@ -524,7 +522,6 @@ auto micro_resource_window_t::setup_assets(QTabWidget * tabs) -> void
     holdings_headings_[ix++] = label;
     }
   tabs->addTab(holdings_page, "Holdings");
-  connect(holdings_carrier_, &QComboBox::activated, this, [this](int) { show_holdings(); });
   connect(holdings_filter_, &QLineEdit::textChanged, this, [this](QString const &) { show_holdings(); });
 
   // --- on foot: what was used up, and what was killed with what ---
@@ -677,125 +674,75 @@ auto micro_resource_window_t::setup_commodities(QTabWidget * tabs) -> void
 
 auto micro_resource_window_t::show_holdings() -> void
   {
-  // one's own fleet carriers - a squadron's carrier has no bar of its own to count
+  // our carriers - the one marked mine and the squadron's - a column each, as in Carrier cargo
+  holdings_carriers_.clear();
+  QStringList headers{"Name", "Backpack", "Ship locker"};
+  std::vector<holdings::counts_t> stores;
   if(auto carriers{db_.load_carriers()}; carriers)
-    {
-    QVariant const previous{holdings_carrier_->currentData()};
-    QSignalBlocker const block{holdings_carrier_};
-    holdings_carrier_->clear();
     for(info::carrier_t const & c: *carriers)
-      if(c.tracked and c.carrier_type == "FleetCarrier")
+      if(c.tracked or c.carrier_type == "SquadronCarrier")
         {
-        holdings_carrier_->addItem(
-          qformat("{} ({})", c.carrier_name, c.carrier_id), QVariant::fromValue(qulonglong{c.market_id})
-        );
-        holdings_carrier_->setItemData(holdings_carrier_->count() - 1, QString::fromStdString(c.carrier_id), Qt::UserRole + 1);
+        holdings_carriers_.push_back(c.market_id);
+        headers.push_back(QString::fromStdString(c.carrier_id));
+        holdings::counts_t & store{stores.emplace_back()};
+        if(auto kept{db_.load_carrier_micro(c.market_id)}; kept)
+          for(info::carrier_micro_t const & item: *kept)
+            store[item.name] += item.count;
+        else
+          spdlog::error("holdings: failed to read the store of {}", c.carrier_id);
         }
-    if(int const index{holdings_carrier_->findData(previous)}; index >= 0)
-      holdings_carrier_->setCurrentIndex(index);
-    }
+  headers.push_back("Total");
 
-  // the game's own lists, copied under the state's lock; a mission's thing is the mission's, not one's own
-  std::vector<holdings::held_t> backpack;
-  std::vector<holdings::held_t> locker;
-  {
-  std::scoped_lock const lock{state_.mutex_};
-  auto const copy = [](auto const & inventory, std::vector<holdings::held_t> & into)
-  {
-    events::for_each_item(
-      inventory,
-      [&into](events::locker_item_t const & item, std::string_view category)
-      {
-        if(item.MissionID == 0u)
-          into.push_back(holdings::held_t{
-            .name = micro_resource_key(item.Name),
-            .shown = item.Name_Localised,
-            .category = std::string{category},
-            .count = item.Count
-          });
-      }
-    );
-  };
-  copy(state_.backpack, backpack);
-  copy(state_.ship_locker, locker);
-  }
-
-  holdings::bar_t bar;
-  uint64_t const market{holdings_carrier_->currentData().toULongLong()};
-  std::string const callsign{holdings_carrier_->currentData(Qt::UserRole + 1).toString().toStdString()};
-  if(market != 0u)
-    {
-    if(auto shelf{db_.load_carrier_stock(callsign)}; shelf)
-      for(info::carrier_stock_t const & item: *shelf)
-        {
-        bar.read = bar.read ? std::max(*bar.read, item.timestamp) : item.timestamp;
-        bar.shelf.push_back(
-          holdings::shelf_t{.name = item.name, .shown = item.localised, .category = item.category, .stock = item.stock}
-        );
-        }
-    if(auto items{db_.load_counter_items(market, bar.read.value_or(std::chrono::sys_seconds{}))}; items)
-      for(info::counter_item_t const & item: *items)
-        {
-        // handed in at the bar adds to its shelf, bought there takes from it; a barter is not a bar's business
-        if(item.kind == info::micro_trade_e::sold)
-          bar.moves.push_back(holdings::move_t{.when = item.timestamp, .name = item.name, .delta = item.count});
-        else if(item.kind == info::micro_trade_e::bought)
-          bar.moves.push_back(holdings::move_t{.when = item.timestamp, .name = item.name, .delta = -int64_t{item.count}});
-        }
-    if(auto sets{db_.load_carrier_micro_counts(market)}; sets)
-      for(info::carrier_micro_count_t const & set: *sets)
-        bar.sets.push_back(holdings::set_t{.when = set.timestamp, .name = set.name, .count = set.count});
-    }
+  // the game's own lists, copied under the state's lock
+  auto const [backpack, locker]{[this]
+                                {
+                                  std::scoped_lock const lock{state_.mutex_};
+                                  return state_.held_lists();
+                                }()};
 
   std::map<std::string, std::pair<std::string, std::string>, std::less<>> names;
   if(auto dictionary{db_.load_micro_resources()}; dictionary)
     for(info::micro_resource_t const & item: *dictionary)
       names.try_emplace(item.name, item.localised, item.category);
 
-  holdings_note_->setText(QString::fromStdString(
-    market == 0u ? std::string{"No carrier of one's own - mark it as \"mine\" in Asset trade, Carrier stock."}
-    : bar.read
-      ? std::format(
-          "The bar as read at the bartender on {:%d.%m.%Y %H:%M} UTC, with what was handed in or bought there since."
-          " Sales to other commanders are not in the journal: double-click a count on the bar to correct it.",
-          *bar.read
-        )
-      : std::string{"The bar has not been read yet - open the bartender on the carrier. Until then it counts what was"
-                    " handed in or bought there."}
-  ));
-
   QString const filter{holdings_filter_->text().trimmed()};
   std::array<std::vector<holdings::row_t>, 3> by_kind;
-  for(holdings::row_t & row: holdings::rows(backpack, locker, bar, names))
+  for(holdings::row_t & row: holdings::rows(backpack, locker, stores, names))
     if(filter.isEmpty() or QString::fromStdString(row.shown).contains(filter, Qt::CaseInsensitive))
       by_kind[size_t(row.kind)].push_back(std::move(row));
 
+  auto const cell = [](QString const & text, bool editable) -> QTableWidgetItem *
+  {
+    auto * item{new QTableWidgetItem(text)};
+    item->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    if(not editable)
+      item->setFlags(item->flags() & ~Qt::ItemIsEditable);
+    return item;
+  };
   holdings_filling_ = true;
   for(size_t ix{}; ix != by_kind.size(); ++ix)
     {
     QTableWidget * view{holdings_views_[ix]};
+    view->setColumnCount(int(headers.size()));
+    view->setHorizontalHeaderLabels(headers);
     auto const & rows{by_kind[ix]};
     view->setRowCount(int(rows.size()));
     int64_t total{};
     for(auto const & [r, row]: rows | std::views::enumerate)
       {
-      auto const cell = [](QString const & text, bool editable) -> QTableWidgetItem *
-      {
-        auto * item{new QTableWidgetItem(text)};
-        item->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
-        if(not editable)
-          item->setFlags(item->flags() & ~Qt::ItemIsEditable);
-        return item;
-      };
       auto * name{new QTableWidgetItem(QString::fromStdString(row.shown))};
       name->setFlags(name->flags() & ~Qt::ItemIsEditable);
       name->setData(Qt::UserRole, QString::fromStdString(row.name));
       view->setItem(int(r), 0, name);
       view->setItem(int(r), 1, cell(QString::number(row.backpack), false));
       view->setItem(int(r), 2, cell(QString::number(row.locker), false));
-      view->setItem(int(r), 3, cell(QString::number(row.bar), market != 0u));
-      int64_t const all{int64_t{row.backpack} + int64_t{row.locker} + row.bar};
-      view->setItem(int(r), 4, cell(QString::number(all), false));
+      int64_t all{int64_t{row.backpack} + int64_t{row.locker}};
+      for(auto const & [s, count]: row.stores | std::views::enumerate)
+        {
+        view->setItem(int(r), 3 + int(s), cell(QString::number(count), true));
+        all += count;
+        }
+      view->setItem(int(r), 3 + int(row.stores.size()), cell(QString::number(all), false));
       total += all;
       }
     holdings_headings_[ix]->setText(

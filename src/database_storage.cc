@@ -402,8 +402,11 @@ auto database_storage_t::create_database() -> expected_ec<void>
      };
      not res) [[unlikely]]
     return res;
+  if(auto res{sqlite::create_table<info::carrier_micro_t>(db_->db, "oid"sv, sql_iface::tables::carrier_micro)};
+     not res) [[unlikely]]
+    return res;
   if(auto res{
-       sqlite::create_table<info::carrier_micro_count_t>(db_->db, "oid"sv, sql_iface::tables::carrier_micro_count)
+       sqlite::create_table<info::carrier_micro_change_t>(db_->db, "oid"sv, sql_iface::tables::carrier_micro_change)
      };
      not res) [[unlikely]]
     return res;

@@ -6,15 +6,9 @@
 
 using namespace boost::ut;
 
-namespace
-  {
-using namespace std::chrono_literals;
-constexpr std::chrono::sys_seconds reading{std::chrono::sys_days{std::chrono::year{2026} / 10 / 30}};
-  }  // namespace
-
 auto main() -> int
   {
-  using holdings::bar_t;
+  using holdings::counts_t;
   using holdings::kind_e;
 
   "the kinds as the locker and the bartender file them"_test = []
@@ -27,87 +21,70 @@ auto main() -> int
     expect(not holdings::kind_of("Consumable"));
   };
 
-  "the bar: the reading, then what was handed in and bought after it"_test = []
+  "the backpack and the locker together, consumables left out"_test = []
   {
-    bar_t const bar{
-      .read = reading,
-      .shelf = {{.name = "weaponschematic", .shown = "Weapon Schematic", .category = "Data", .stock = 10u}},
-      .sets = {},
-      .moves = {
-        {.when = reading - 1h, .name = "weaponschematic", .delta = 5},
-        {.when = reading, .name = "weaponschematic", .delta = 7},
-        {.when = reading + 1h, .name = "weaponschematic", .delta = 3},
-        {.when = reading + 2h, .name = "weaponschematic", .delta = -4},
-      }
+    std::vector<holdings::held_t> const backpack{
+      {.name = "suitschematic", .shown = "Suit Schematic", .category = "Item", .count = 1u},
+      {.name = "healthpack", .shown = "Medkit", .category = "Consumable", .count = 4u},
     };
-    // the move before the reading and the one in its second are in the reading already
-    expect(holdings::on_bar(bar, "weaponschematic") == 9);
-  };
-
-  "a kind not on the shelf stood at nought at the reading"_test = []
-  {
-    bar_t const bar{
-      .read = reading,
-      .shelf = {},
-      .sets = {},
-      .moves = {{.when = reading - 1h, .name = "insight", .delta = 2}, {.when = reading + 1h, .name = "insight", .delta = 1}}
+    std::vector<holdings::held_t> const locker{
+      {.name = "suitschematic", .shown = "Suit Schematic", .category = "Item", .count = 10u}
     };
-    expect(holdings::on_bar(bar, "insight") == 1);
+    auto const all{holdings::totals(backpack, locker)};
+    expect(all.size() == 1u);
+    expect(all.at("suitschematic") == 11);
   };
 
-  "a count set by hand after the reading starts the kind afresh"_test = []
+  "moved between the backpack and the locker: nothing left on the carrier"_test = []
   {
-    bar_t const bar{
-      .read = reading,
-      .shelf = {{.name = "insight", .shown = "Insight", .category = "Data", .stock = 20u}},
-      .sets = {{.when = reading + 2h, .name = "insight", .count = 6}, {.when = reading + 1h, .name = "insight", .count = 50}},
-      .moves
-      = {{.when = reading + 1h + 30min, .name = "insight", .delta = 4}, {.when = reading + 3h, .name = "insight", .delta = 1}}
-    };
-    expect(holdings::on_bar(bar, "insight") == 7);
+    counts_t const docked{{"suitschematic", 11}};
+    counts_t const leaving{{"suitschematic", 11}};
+    expect(holdings::visit_balance(docked, leaving, {}).empty());
   };
 
-  "a reading after the count set by hand wins"_test = []
+  "less on leaving was left in the store, more was taken from it"_test = []
   {
-    bar_t const bar{
-      .read = reading,
-      .shelf = {{.name = "insight", .shown = "Insight", .category = "Data", .stock = 3u}},
-      .sets = {{.when = reading - 1h, .name = "insight", .count = 50}},
-      .moves = {}
-    };
-    expect(holdings::on_bar(bar, "insight") == 3);
+    counts_t const docked{{"suitschematic", 11}, {"insight", 2}};
+    counts_t const leaving{{"suitschematic", 6}, {"insight", 5}, {"graphene", 1}};
+    auto const balance{holdings::visit_balance(docked, leaving, {})};
+    expect(balance.size() == 3u);
+    expect(balance.at("suitschematic") == 5);
+    expect(balance.at("insight") == -3);
+    expect(balance.at("graphene") == -1);
   };
 
-  "no reading yet: every move counts, never below nought"_test = []
+  "what went over the bartender's counter is not the store's"_test = []
   {
-    bar_t const bar{.read = {}, .shelf = {}, .sets = {}, .moves = {{.when = reading, .name = "insight", .delta = -3}}};
-    expect(holdings::on_bar(bar, "insight") == 0);
+    // 4 handed in at the bar and 1 more left in the store; 2 bought at the bar
+    counts_t const docked{{"weaponschematic", 10}, {"insight", 0}};
+    counts_t const leaving{{"weaponschematic", 5}, {"insight", 2}};
+    counts_t const counter{{"weaponschematic", -4}, {"insight", 2}};
+    auto const balance{holdings::visit_balance(docked, leaving, counter)};
+    expect(balance.size() == 1u);
+    expect(balance.at("weaponschematic") == 1);
   };
 
-  "the rows: each kind in its places, by kind and name, consumables left out"_test = []
+  "the rows: each kind in its places and its stores, by kind and name"_test = []
   {
     std::vector<holdings::held_t> const backpack{
       {.name = "insight", .shown = "Insight", .category = "Data", .count = 2u}
     };
     std::vector<holdings::held_t> const locker{
       {.name = "insight", .shown = "Insight", .category = "Data", .count = 5u},
-      {.name = "medkit", .shown = "Medkit", .category = "Consumable", .count = 9u},
+      {.name = "healthpack", .shown = "Medkit", .category = "Consumable", .count = 9u},
       {.name = "graphene", .shown = "Graphene", .category = "Component", .count = 4u},
     };
-    bar_t const bar{
-      .read = reading,
-      .shelf = {{.name = "weaponschematic", .shown = "Weapon Schematic", .category = "Data", .stock = 10u}},
-      .sets = {},
-      .moves = {{.when = reading + 1h, .name = "compactlibrary", .delta = 1}}
-    };
+    std::vector<counts_t> const stores{{{"compactlibrary", 3}, {"insight", 1}}, {{"graphene", 7}, {"nothing", 0}}};
     std::map<std::string, std::pair<std::string, std::string>, std::less<>> const names{
       {"compactlibrary", {"Compact Library", "Item"}}
     };
-    auto const rows{holdings::rows(backpack, locker, bar, names)};
-    expect(fatal(rows.size() == 4u));
-    expect(rows[0].shown == "Insight" and rows[0].backpack == 2u and rows[0].locker == 5u and rows[0].bar == 0);
-    expect(rows[1].shown == "Weapon Schematic" and rows[1].bar == 10);
-    expect(rows[2].kind == kind_e::goods and rows[2].shown == "Compact Library" and rows[2].bar == 1);
-    expect(rows[3].kind == kind_e::assets and rows[3].shown == "Graphene" and rows[3].locker == 4u);
+    auto const rows{holdings::rows(backpack, locker, stores, names)};
+    expect(fatal(rows.size() == 3u));
+    expect(rows[0].shown == "Insight" and rows[0].backpack == 2u and rows[0].locker == 5u);
+    expect(rows[0].stores == std::vector<int64_t>{1, 0});
+    expect(rows[1].kind == kind_e::goods and rows[1].shown == "Compact Library");
+    expect(rows[1].stores == std::vector<int64_t>{3, 0});
+    expect(rows[2].kind == kind_e::assets and rows[2].locker == 4u);
+    expect(rows[2].stores == std::vector<int64_t>{0, 7});
   };
   }

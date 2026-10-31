@@ -829,6 +829,9 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
             }
           if(not catching_up_)
             close_carrier_visit(timestamp, false, "docking");
+          if(not catching_up_)
+            close_micro_visit(timestamp);
+          update_holdings = true;
           }
         else if constexpr(std::same_as<T, events::backpack_change_t>)
           {
@@ -992,6 +995,20 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
                   }
                 carrier_visit_ = std::move(visit);
                 }
+          // at one of our own carriers - one marked mine, or the squadron's - the store is measured from here
+          micro_visit_.reset();
+          if(not catching_up_ and event.StationType == "FleetCarrier")
+            if(auto carriers{db_.load_carriers()}; carriers)
+              if(std::ranges::any_of(
+                   *carriers,
+                   [&](info::carrier_t const & c)
+                   { return c.market_id == event.MarketID and (c.tracked or c.carrier_type == "SquadronCarrier"); }
+                 ))
+                {
+                auto const [carried, locked]{held_lists()};
+                micro_visit_
+                  = micro_visit_t{.carrier_id = event.MarketID, .since = timestamp, .held = holdings::totals(carried, locked)};
+                }
           }
         // conflict zones on foot: where the commander stands, and the kills that tell a zone's intensity
         else if constexpr(std::same_as<T, events::faction_kill_bond_t>)
@@ -1018,6 +1035,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           backpack.Items.clear();
           backpack.Components.clear();
           backpack.Data.clear();
+          update_holdings = true;
           }
         else if constexpr(std::same_as<T, events::died_t>)
           {
@@ -1041,6 +1059,10 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           // leaving a carrier by escape pod leaves the load on it - the journal writes no death for it
           if(not catching_up_)
             close_carrier_visit(timestamp, true, "escape pod");
+          // what the commander carries goes with them; the store keeps what was left in it before
+          if(not catching_up_)
+            close_micro_visit(timestamp);
+          update_holdings = true;
           }
         // colonisation: whose systems, what a site needs, what came to it
         else if constexpr(std::same_as<T, events::colonisation_system_claim_t>)
@@ -2156,6 +2178,64 @@ auto current_state_t::close_carrier_visit(std::chrono::sys_seconds when, bool es
        not res)
       spdlog::error("failed to change the cargo of carrier {}", visit.carrier_id);
     }
+  ++carrier_changes_;
+  }
+
+auto current_state_t::held_lists() const -> std::pair<std::vector<holdings::held_t>, std::vector<holdings::held_t>>
+  {
+  // a mission's thing is the mission's, not one's own
+  auto const copy = [](auto const & inventory)
+  {
+    std::vector<holdings::held_t> into;
+    events::for_each_item(
+      inventory,
+      [&into](events::locker_item_t const & item, std::string_view category)
+      {
+        if(item.MissionID == 0u)
+          into.push_back(
+            holdings::held_t{
+              .name = micro_resource_key(item.Name),
+              .shown = item.Name_Localised,
+              .category = std::string{category},
+              .count = item.Count
+            }
+          );
+      }
+    );
+    return into;
+  };
+  return {copy(backpack), copy(ship_locker)};
+  }
+
+auto current_state_t::close_micro_visit(std::chrono::sys_seconds when) -> void
+  {
+  if(not micro_visit_)
+    return;
+  micro_visit_t const visit{std::move(*micro_visit_)};
+  micro_visit_.reset();
+
+  // what the carrier's bartender took (handed in) or gave (bought) is the counter's, not the store's
+  holdings::counts_t counter;
+  if(auto items{db_.load_counter_items(visit.carrier_id, visit.since)}; items)
+    {
+    for(info::counter_item_t const & item: *items)
+      if(item.kind == info::micro_trade_e::sold)
+        counter[item.name] -= item.count;
+      else if(item.kind == info::micro_trade_e::bought)
+        counter[item.name] += item.count;
+    }
+  else
+    spdlog::error("failed to read the counter of carrier {} for its store", visit.carrier_id);
+
+  auto const [carried, locked]{held_lists()};
+  for(auto const & [name, delta]: holdings::visit_balance(visit.held, holdings::totals(carried, locked), counter))
+    if(auto res{db_.change_carrier_micro(
+         info::carrier_micro_change_t{
+           .timestamp = when, .carrier_id = visit.carrier_id, .name = name, .delta = delta, .source = "visit"
+         }
+       )};
+       not res)
+      spdlog::error("failed to change the store of carrier {}", visit.carrier_id);
   ++carrier_changes_;
   }
 

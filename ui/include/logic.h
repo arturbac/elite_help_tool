@@ -14,6 +14,7 @@
 #include <data/navigation.h>
 #include <simple_enum/simple_enum.hpp>
 #include <databse_storage.h>
+#include <holdings.h>
 #include <biology.h>
 #include <fleet.h>
 #include <mutex>
@@ -222,6 +223,20 @@ struct current_state_t : public generic_state_t
   ///\brief applies the balance of a visit to the carrier - the hold at docking against the hold now, or,
   /// leaving by escape pod, the whole hold as it was at docking
   auto close_carrier_visit(std::chrono::sys_seconds when, bool escaped, std::string_view source) -> void;
+  ///\brief docked at one of our carriers: the data, goods and assets of the backpack and the locker together on
+  /// docking - what they have less of on leaving was left in the carrier's store, what they have more of was taken
+  struct micro_visit_t
+    {
+    uint64_t carrier_id{};
+    std::chrono::sys_seconds since;
+    holdings::counts_t held;
+    };
+  std::optional<micro_visit_t> micro_visit_;
+  ///\brief the backpack and the locker as Holdings counts them: one's own data, goods and assets
+  [[nodiscard]]
+  auto held_lists() const -> std::pair<std::vector<holdings::held_t>, std::vector<holdings::held_t>>;
+  ///\brief applies the balance of a visit to the carrier's store, less what went over its bartender's counter
+  auto close_micro_visit(std::chrono::sys_seconds when) -> void;
   bool personal_{true};
 
   current_state_t(main_window_t * p, std::string db_path, std::string journal_path) :
