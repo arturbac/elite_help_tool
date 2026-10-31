@@ -321,6 +321,8 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
     bool update_mission_info{};
     bool update_factions{};
     bool update_micro_resources{};
+    ///\brief only the holdings changed - the backpack or the ship's locker - which the Assets window shows
+    bool update_holdings{};
     bool route_changed{};
     std::visit(
       [&](auto && event)
@@ -831,6 +833,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
         else if constexpr(std::same_as<T, events::backpack_change_t>)
           {
           apply_backpack_change(backpack, event);
+          update_holdings = true;
           if(not event.Added.empty())
             update_micro_resources = true;
           for(events::backpack_item_t const & item: event.Added)
@@ -908,6 +911,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
             ship_locker = std::move(inventory);
           else
             backpack = std::move(inventory);
+          update_holdings = true;
           }
         else if constexpr(std::same_as<T, events::buy_micro_resources_t> or std::same_as<T, events::trade_micro_resources_t>)
           {
@@ -1997,13 +2001,28 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
 
     // the summary of finds is a pass over the whole history - worth counting only when finds have been
     // added, not at every change of a faction's influence
+    if(update_holdings and not update_micro_resources)
+      QMetaObject::invokeMethod(
+        parent,
+        [target = parent]() mutable
+        {
+          if(target->asset_holdings_view_)
+            target->asset_holdings_view_->refresh_ui();
+        },
+        Qt::QueuedConnection
+      );
     if(update_micro_resources)
       QMetaObject::invokeMethod(
         parent,
         [target = parent]() mutable
         {
-          if(target->micro_resource_view_)
-            target->micro_resource_view_->refresh_ui();
+          for(micro_resource_window_t * view: {
+                target->micro_resource_view_.data(),
+                target->commodity_stock_view_.data(),
+                target->asset_holdings_view_.data()
+              })
+            if(view)
+              view->refresh_ui();
         },
         Qt::QueuedConnection
       );

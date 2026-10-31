@@ -51,13 +51,17 @@ enum struct window_type_e
   surface,
   network_incident,
   credits,
-  community_goal
+  community_goal,
+  ///\brief the commodities on the carriers - once a tab of the data window, which is now the asset trade
+  commodity_stock,
+  ///\brief what is held of data, goods and assets
+  asset_holdings
   };
 
 consteval auto adl_enum_bounds(window_type_e)
   {
   using enum window_type_e;
-  return simple_enum::adl_info{none, community_goal};
+  return simple_enum::adl_info{none, asset_holdings};
   }
 
 class main_window_t : public QMainWindow
@@ -79,7 +83,10 @@ public:
   QPointer<route_window_t> route_view_;
   QPointer<faction_window_t> faction_view_;
   QPointer<faction_state_window_t> faction_state_view_;
+  ///\brief the asset trade; the commodities and the holdings are windows of the same class
   QPointer<micro_resource_window_t> micro_resource_view_;
+  QPointer<micro_resource_window_t> commodity_stock_view_;
+  QPointer<micro_resource_window_t> asset_holdings_view_;
   QPointer<bgs_window_t> bgs_view_;
   QPointer<construction_window_t> construction_view_;
   QPointer<ships_window_t> ships_view_;

@@ -3,6 +3,9 @@
 #include <data/micro_resources.h>
 #include <data/progress.h>
 #include <bar_sales.h>
+#include <holdings.h>
+#include <events/micro_resources.h>
+#include <qlineedit.h>
 #include <biology.h>
 #include <cmath>
 #include <ranges>
@@ -191,9 +194,13 @@ auto acquisition_model_t::update_data(std::vector<info::acquisition_summary_t> &
   endResetModel();
   }
 
-micro_resource_window_t::micro_resource_window_t(std::string db_path, QWidget * parent) :
+micro_resource_window_t::micro_resource_window_t(
+  std::string db_path, data_pages_e pages, current_state_t const & state, QWidget * parent
+) :
     QMdiSubWindow(parent),
-    db_{db_path}
+    db_{db_path},
+    pages_{pages},
+    state_{state}
   {
   if(auto res{db_.open()}; not res)
     spdlog::error("micro resource window: failed to open {}", db_path);
@@ -201,15 +208,62 @@ micro_resource_window_t::micro_resource_window_t(std::string db_path, QWidget * 
   setup_ui();
   }
 
+namespace
+  {
+auto period_choice(QWidget * parent) -> QComboBox *
+  {
+  auto * combo = new QComboBox(parent);
+  combo->addItem("Last 30 days", 30);
+  combo->addItem("Last 90 days", 90);
+  combo->addItem("All", 0);
+  return combo;
+  }
+
+auto numbers_table(QWidget * parent, QStringList const & headers) -> QTableWidget *
+  {
+  auto * table = new QTableWidget(parent);
+  table->setColumnCount(int(headers.size()));
+  table->setHorizontalHeaderLabels(headers);
+  table->verticalHeader()->setVisible(false);
+  table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+  table->setSelectionBehavior(QAbstractItemView::SelectRows);
+  table->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
+  table->horizontalHeader()->setStretchLastSection(true);
+  return table;
+  }
+  }  // namespace
+
 auto micro_resource_window_t::setup_ui() -> void
   {
-  setWindowTitle("Micro resources");
+  using enum data_pages_e;
+  setWindowTitle(pages_ == commodities ? "Commodities" : pages_ == assets ? "Assets" : "Asset trade");
   resize(900, 620);
 
   auto * central_widget = new QWidget(this);
   auto * layout = new QVBoxLayout(central_widget);
   auto * tabs = new QTabWidget(central_widget);
+  switch(pages_)
+    {
+    case commodities: setup_commodities(tabs); break;
+    case assets: setup_assets(tabs); break;
+    case asset_trade: setup_trade(tabs); break;
+    }
+  layout->addWidget(tabs, 1);
+  setWidget(central_widget);
 
+  refresh_timer_ = new QTimer(this);
+  refresh_timer_->setSingleShot(true);
+  refresh_timer_->setInterval(std::chrono::seconds{1});
+  connect(
+    refresh_timer_, &QTimer::timeout, this, [this] { eht::event_guard("micro resources refresh", [this] { refresh_now(); }); }
+  );
+  // the first reading comes with the first showing
+  }
+
+///\brief the bartender's shelf, where things come from, the counters, one's own bar's sales and the missions'
+/// worth at it - the trade in data, goods and assets
+auto micro_resource_window_t::setup_trade(QTabWidget * tabs) -> void
+  {
   // --- the carrier's shelf ---
   auto * stock_page = new QWidget(tabs);
   auto * stock_layout = new QVBoxLayout(stock_page);
@@ -273,27 +327,6 @@ auto micro_resource_window_t::setup_ui() -> void
   acquisition_view_->horizontalHeader()->setStretchLastSection(true);
   acquisition_layout->addWidget(acquisition_view_, 1);
   tabs->addTab(acquisition_page, "Acquisition");
-
-  auto const period_choice = [](QWidget * parent) -> QComboBox *
-  {
-    auto * combo = new QComboBox(parent);
-    combo->addItem("Last 30 days", 30);
-    combo->addItem("Last 90 days", 90);
-    combo->addItem("All", 0);
-    return combo;
-  };
-  auto const numbers_table = [](QWidget * parent, QStringList const & headers) -> QTableWidget *
-  {
-    auto * table = new QTableWidget(parent);
-    table->setColumnCount(int(headers.size()));
-    table->setHorizontalHeaderLabels(headers);
-    table->verticalHeader()->setVisible(false);
-    table->setEditTriggers(QAbstractItemView::NoEditTriggers);
-    table->setSelectionBehavior(QAbstractItemView::SelectRows);
-    table->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
-    table->horizontalHeader()->setStretchLastSection(true);
-    return table;
-  };
 
   // --- what went through the counters ---
   auto * bartender_page = new QWidget(tabs);
@@ -381,6 +414,119 @@ auto micro_resource_window_t::setup_ui() -> void
     }
   tabs->addTab(mission_page, "Mission value");
 
+
+  connect(
+    carrier_combo_,
+    &QComboBox::activated,
+    this,
+    [this](int index)
+    {
+      if(index < 0)
+        return;
+
+      // the mark belongs to the chosen carrier, so it follows the choice
+      reload_carriers();
+      show_stock(carrier_combo_->itemData(index).toString().toStdString());
+    }
+  );
+
+  connect(
+    mark_mine_,
+    &QCheckBox::toggled,
+    this,
+    [this](bool mine)
+    {
+      auto const chosen{carrier_combo_->currentData().toString().toStdString()};
+      if(chosen.empty())
+        return;
+
+      if(auto res{db_.set_carrier_tracked(chosen, mine)}; not res)
+        spdlog::error("failed to mark carrier {}", chosen);
+
+      reload_carriers();
+      // the Bar sales and Mission value tabs list only tracked carriers - marking one here would
+      // otherwise not show up there until something else caused a refresh
+      show_bar_sales();
+      show_mission_value();
+    }
+  );
+
+  connect(only_mine_, &QCheckBox::toggled, this, [this](bool) { reload_carriers(); });
+
+  connect(period_combo_, &QComboBox::activated, this, [this](int) { show_acquisitions(); });
+  connect(bartender_period_, &QComboBox::activated, this, [this](int) { show_bartender(); });
+  connect(bar_period_, &QComboBox::activated, this, [this](int) { show_bar_sales(); });
+  connect(bar_carrier_, &QComboBox::activated, this, [this](int) { show_bar_sales(); show_mission_value(); });
+  connect(mission_period_, &QComboBox::activated, this, [this](int) { show_mission_value(); });
+  }
+
+///\brief what one holds - on foot, in the ship's locker and on one's own carrier's bar - and what was used up on foot
+auto micro_resource_window_t::setup_assets(QTabWidget * tabs) -> void
+  {
+  // --- what is held, and where ---
+  auto * holdings_page = new QWidget(tabs);
+  auto * holdings_layout = new QVBoxLayout(holdings_page);
+  auto * holdings_row = new QHBoxLayout();
+  holdings_row->addWidget(new QLabel("Carrier:", holdings_page));
+  holdings_carrier_ = new QComboBox(holdings_page);
+  holdings_carrier_->setToolTip("One's own carrier whose bar is counted");
+  holdings_row->addWidget(holdings_carrier_, 1);
+  holdings_row->addWidget(new QLabel("Find:", holdings_page));
+  holdings_filter_ = new QLineEdit(holdings_page);
+  holdings_filter_->setClearButtonEnabled(true);
+  holdings_row->addWidget(holdings_filter_, 1);
+  holdings_layout->addLayout(holdings_row);
+  holdings_note_ = new QLabel(holdings_page);
+  holdings_note_->setWordWrap(true);
+  holdings_layout->addWidget(holdings_note_);
+  for(size_t ix{}; char const * heading: {"Data", "Goods", "Assets"})
+    {
+    auto * label = new QLabel(QString::fromUtf8(heading), holdings_page);
+    holdings_layout->addWidget(label);
+    auto * view = numbers_table(holdings_page, {"Name", "Backpack", "Ship locker", "Bar", "Total"});
+    // the bar's count is the one that may be corrected; the backpack and the locker are the game's own lists
+    view->setEditTriggers(QAbstractItemView::DoubleClicked | QAbstractItemView::EditKeyPressed);
+    holdings_layout->addWidget(view, 1);
+    connect(
+      view,
+      &QTableWidget::cellChanged,
+      this,
+      [this, view](int row, int column)
+      {
+        eht::event_guard(
+          "holdings edit",
+          [&]
+          {
+            if(holdings_filling_ or column != 3)
+              return;
+            bool ok{};
+            int64_t const count{view->item(row, 3)->text().toLongLong(&ok)};
+            uint64_t const carrier{holdings_carrier_->currentData().toULongLong()};
+            if(not ok or count < 0 or carrier == 0u)
+              {
+              show_holdings();
+              return;
+              }
+            if(auto res{db_.store(info::carrier_micro_count_t{
+                 .timestamp = std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now()),
+                 .carrier_id = carrier,
+                 .name = view->item(row, 0)->data(Qt::UserRole).toString().toStdString(),
+                 .count = count
+               })};
+               not res)
+              spdlog::error("holdings: failed to set a count on the bar of {}", carrier);
+            show_holdings();
+          }
+        );
+      }
+    );
+    holdings_views_[ix] = view;
+    holdings_headings_[ix++] = label;
+    }
+  tabs->addTab(holdings_page, "Holdings");
+  connect(holdings_carrier_, &QComboBox::activated, this, [this](int) { show_holdings(); });
+  connect(holdings_filter_, &QLineEdit::textChanged, this, [this](QString const &) { show_holdings(); });
+
   // --- on foot: what was used up, and what was killed with what ---
   auto * on_foot_page = new QWidget(tabs);
   auto * on_foot_layout = new QVBoxLayout(on_foot_page);
@@ -405,6 +551,12 @@ auto micro_resource_window_t::setup_ui() -> void
   on_foot_layout->addLayout(on_foot_tables, 1);
   tabs->addTab(on_foot_page, "On foot");
 
+  connect(on_foot_period_, &QComboBox::activated, this, [this](int) { show_on_foot(); });
+  }
+
+///\brief the commodities on the carriers, and where the carriers are
+auto micro_resource_window_t::setup_commodities(QTabWidget * tabs) -> void
+  {
   // --- where the carriers are, and where they go ---
   carriers_view_ = new QTableWidget(tabs);
   carriers_view_->setColumnCount(6);
@@ -521,90 +673,136 @@ auto micro_resource_window_t::setup_ui() -> void
   carriers_timer->start(5000);
   show_carriers();
 
-  layout->addWidget(tabs, 1);
+  }
 
-  connect(
-    carrier_combo_,
-    &QComboBox::activated,
-    this,
-    [this](int index)
+auto micro_resource_window_t::show_holdings() -> void
+  {
+  // one's own fleet carriers - a squadron's carrier has no bar of its own to count
+  if(auto carriers{db_.load_carriers()}; carriers)
     {
-      if(index < 0)
-        return;
-
-      // the mark belongs to the chosen carrier, so it follows the choice
-      reload_carriers();
-      show_stock(carrier_combo_->itemData(index).toString().toStdString());
+    QVariant const previous{holdings_carrier_->currentData()};
+    QSignalBlocker const block{holdings_carrier_};
+    holdings_carrier_->clear();
+    for(info::carrier_t const & c: *carriers)
+      if(c.tracked and c.carrier_type == "FleetCarrier")
+        {
+        holdings_carrier_->addItem(
+          qformat("{} ({})", c.carrier_name, c.carrier_id), QVariant::fromValue(qulonglong{c.market_id})
+        );
+        holdings_carrier_->setItemData(holdings_carrier_->count() - 1, QString::fromStdString(c.carrier_id), Qt::UserRole + 1);
+        }
+    if(int const index{holdings_carrier_->findData(previous)}; index >= 0)
+      holdings_carrier_->setCurrentIndex(index);
     }
-  );
 
-  connect(
-    mark_mine_,
-    &QCheckBox::toggled,
-    this,
-    [this](bool mine)
+  // the game's own lists, copied under the state's lock; a mission's thing is the mission's, not one's own
+  std::vector<holdings::held_t> backpack;
+  std::vector<holdings::held_t> locker;
+  {
+  std::scoped_lock const lock{state_.mutex_};
+  auto const copy = [](auto const & inventory, std::vector<holdings::held_t> & into)
+  {
+    events::for_each_item(
+      inventory,
+      [&into](events::locker_item_t const & item, std::string_view category)
+      {
+        if(item.MissionID == 0u)
+          into.push_back(holdings::held_t{
+            .name = micro_resource_key(item.Name),
+            .shown = item.Name_Localised,
+            .category = std::string{category},
+            .count = item.Count
+          });
+      }
+    );
+  };
+  copy(state_.backpack, backpack);
+  copy(state_.ship_locker, locker);
+  }
+
+  holdings::bar_t bar;
+  uint64_t const market{holdings_carrier_->currentData().toULongLong()};
+  std::string const callsign{holdings_carrier_->currentData(Qt::UserRole + 1).toString().toStdString()};
+  if(market != 0u)
     {
-      auto const chosen{carrier_combo_->currentData().toString().toStdString()};
-      if(chosen.empty())
-        return;
-
-      if(auto res{db_.set_carrier_tracked(chosen, mine)}; not res)
-        spdlog::error("failed to mark carrier {}", chosen);
-
-      reload_carriers();
-      // the Bar sales and Mission value tabs list only tracked carriers - marking one here would
-      // otherwise not show up there until something else caused a refresh
-      show_bar_sales();
-      show_mission_value();
+    if(auto shelf{db_.load_carrier_stock(callsign)}; shelf)
+      for(info::carrier_stock_t const & item: *shelf)
+        {
+        bar.read = bar.read ? std::max(*bar.read, item.timestamp) : item.timestamp;
+        bar.shelf.push_back(
+          holdings::shelf_t{.name = item.name, .shown = item.localised, .category = item.category, .stock = item.stock}
+        );
+        }
+    if(auto items{db_.load_counter_items(market, bar.read.value_or(std::chrono::sys_seconds{}))}; items)
+      for(info::counter_item_t const & item: *items)
+        {
+        // handed in at the bar adds to its shelf, bought there takes from it; a barter is not a bar's business
+        if(item.kind == info::micro_trade_e::sold)
+          bar.moves.push_back(holdings::move_t{.when = item.timestamp, .name = item.name, .delta = item.count});
+        else if(item.kind == info::micro_trade_e::bought)
+          bar.moves.push_back(holdings::move_t{.when = item.timestamp, .name = item.name, .delta = -int64_t{item.count}});
+        }
+    if(auto sets{db_.load_carrier_micro_counts(market)}; sets)
+      for(info::carrier_micro_count_t const & set: *sets)
+        bar.sets.push_back(holdings::set_t{.when = set.timestamp, .name = set.name, .count = set.count});
     }
-  );
 
-  connect(only_mine_, &QCheckBox::toggled, this, [this](bool) { reload_carriers(); });
+  std::map<std::string, std::pair<std::string, std::string>, std::less<>> names;
+  if(auto dictionary{db_.load_micro_resources()}; dictionary)
+    for(info::micro_resource_t const & item: *dictionary)
+      names.try_emplace(item.name, item.localised, item.category);
 
-  // --- what cartographic data paid against the estimate ---
-  auto * cartography_page = new QWidget(tabs);
-  auto * cartography_layout = new QVBoxLayout(cartography_page);
-  cartography_note_ = new QLabel(cartography_page);
-  cartography_note_->setWordWrap(true);
-  cartography_layout->addWidget(cartography_note_);
-  cartography_view_ = new QTableWidget(cartography_page);
-  cartography_view_->setColumnCount(9);
-  cartography_view_->setHorizontalHeaderLabels(
-    {"Sold (UTC)", "Systems", "Bodies sold", "Bodies priced", "Estimate", "Base", "Bonus", "Paid", "Base / estimate"}
-  );
-  cartography_view_->verticalHeader()->setVisible(false);
-  cartography_view_->setEditTriggers(QAbstractItemView::NoEditTriggers);
-  cartography_view_->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
-  cartography_view_->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
-  cartography_layout->addWidget(cartography_view_, 1);
-  tabs->addTab(cartography_page, "Cartography");
-  connect(
-    tabs,
-    &QTabWidget::currentChanged,
-    this,
-    [this, tabs, cartography_page](int index)
+  holdings_note_->setText(QString::fromStdString(
+    market == 0u ? std::string{"No carrier of one's own - mark it as \"mine\" in Asset trade, Carrier stock."}
+    : bar.read
+      ? std::format(
+          "The bar as read at the bartender on {:%d.%m.%Y %H:%M} UTC, with what was handed in or bought there since."
+          " Sales to other commanders are not in the journal: double-click a count on the bar to correct it.",
+          *bar.read
+        )
+      : std::string{"The bar has not been read yet - open the bartender on the carrier. Until then it counts what was"
+                    " handed in or bought there."}
+  ));
+
+  QString const filter{holdings_filter_->text().trimmed()};
+  std::array<std::vector<holdings::row_t>, 3> by_kind;
+  for(holdings::row_t & row: holdings::rows(backpack, locker, bar, names))
+    if(filter.isEmpty() or QString::fromStdString(row.shown).contains(filter, Qt::CaseInsensitive))
+      by_kind[size_t(row.kind)].push_back(std::move(row));
+
+  holdings_filling_ = true;
+  for(size_t ix{}; ix != by_kind.size(); ++ix)
     {
-      if(tabs->widget(index) == cartography_page)
-        show_cartography(true);
+    QTableWidget * view{holdings_views_[ix]};
+    auto const & rows{by_kind[ix]};
+    view->setRowCount(int(rows.size()));
+    int64_t total{};
+    for(auto const & [r, row]: rows | std::views::enumerate)
+      {
+      auto const cell = [](QString const & text, bool editable) -> QTableWidgetItem *
+      {
+        auto * item{new QTableWidgetItem(text)};
+        item->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+        if(not editable)
+          item->setFlags(item->flags() & ~Qt::ItemIsEditable);
+        return item;
+      };
+      auto * name{new QTableWidgetItem(QString::fromStdString(row.shown))};
+      name->setFlags(name->flags() & ~Qt::ItemIsEditable);
+      name->setData(Qt::UserRole, QString::fromStdString(row.name));
+      view->setItem(int(r), 0, name);
+      view->setItem(int(r), 1, cell(QString::number(row.backpack), false));
+      view->setItem(int(r), 2, cell(QString::number(row.locker), false));
+      view->setItem(int(r), 3, cell(QString::number(row.bar), market != 0u));
+      int64_t const all{int64_t{row.backpack} + int64_t{row.locker} + row.bar};
+      view->setItem(int(r), 4, cell(QString::number(all), false));
+      total += all;
+      }
+    holdings_headings_[ix]->setText(
+      qformat("{}: {} kinds, {} in all", ix == 0u ? "Data" : ix == 1u ? "Goods" : "Assets", rows.size(), total)
+    );
     }
-  );
-
-  connect(period_combo_, &QComboBox::activated, this, [this](int) { show_acquisitions(); });
-  connect(bartender_period_, &QComboBox::activated, this, [this](int) { show_bartender(); });
-  connect(on_foot_period_, &QComboBox::activated, this, [this](int) { show_on_foot(); });
-  connect(bar_period_, &QComboBox::activated, this, [this](int) { show_bar_sales(); });
-  connect(bar_carrier_, &QComboBox::activated, this, [this](int) { show_bar_sales(); show_mission_value(); });
-  connect(mission_period_, &QComboBox::activated, this, [this](int) { show_mission_value(); });
-
-  setWidget(central_widget);
-
-  refresh_timer_ = new QTimer(this);
-  refresh_timer_->setSingleShot(true);
-  refresh_timer_->setInterval(std::chrono::seconds{1});
-  connect(
-    refresh_timer_, &QTimer::timeout, this, [this] { eht::event_guard("micro resources refresh", [this] { refresh_now(); }); }
-  );
-  // the first reading comes with the first showing
+  holdings_filling_ = false;
   }
 
 auto micro_resource_window_t::reload_carriers() -> void
@@ -700,95 +898,33 @@ auto micro_resource_window_t::showEvent(QShowEvent * event) -> void
 auto micro_resource_window_t::refresh_now() -> void
   {
   stale_ = false;
-  reload_carriers();
-
-  if(carrier_combo_->count() == 0)
+  switch(pages_)
     {
-    stock_model_->update_data({});
-    // the shelf is known only from a visit to the bartender, so before the first one there is nothing to show
-    stock_header_->setText("No bartender reading yet - dock at a carrier and open the bartender");
-    }
-  else
-    show_stock(carrier_combo_->currentData().toString().toStdString());
+    case data_pages_e::commodities:
+      show_carriers();
+      show_carrier_cargo();
+      break;
 
-  show_acquisitions();
-  show_bartender();
-  show_bar_sales();
-  show_mission_value();
-  show_on_foot();
-  show_cartography(false);
-  }
+    case data_pages_e::assets:
+      show_holdings();
+      show_on_foot();
+      break;
 
-auto micro_resource_window_t::show_cartography(bool now) -> void
-  {
-  // read only while in view, and then not at every change of the game's state
-  if(not cartography_view_->isVisible() and not now)
-    return;
-  auto const clock{std::chrono::steady_clock::now()};
-  if(not now and clock - cartography_read_ < std::chrono::minutes{1})
-    return;
-  cartography_read_ = clock;
-
-  std::string fid;
-  if(auto owner{db_.load_owner()}; owner and *owner)
-    fid = (*owner)->fid;
-  auto sales{bio::cartography_sales("journal-dir", fid)};
-  std::ranges::reverse(sales);
-
-  std::string note{
-    "Each sale of cartographic data from the journals, against what EHT reckoned the bodies scanned there were worth"
-    " at the moment of the sale - the same reckoning as the cartography a death would cost. The game writes one sum"
-    " for all the systems of a sale and nothing for a body, so only a sale of one system gives an exact price:"
-    " sell system by system to learn more. The base is what the bodies are worth and is set against the estimate;"
-    " the bonus is paid for a system scanned or mapped in full, and a fleet carrier keeps a quarter of the base."
-  };
-  if(auto const accuracy{bio::estimate_accuracy(sales)}; accuracy)
-    note += std::format(
-      "\n{} sales of one system: a base of {:.2f} times the estimate (median), from {:.2f} to {:.2f}.",
-      accuracy->sales,
-      accuracy->median,
-      accuracy->lowest,
-      accuracy->highest
-    );
-  cartography_note_->setText(QString::fromStdString(note));
-
-  auto const cell = [](std::string const & text, bool number) -> QTableWidgetItem *
-  {
-    auto * item{new QTableWidgetItem(QString::fromStdString(text))};
-    if(number)
-      item->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
-    return item;
-  };
-  cartography_view_->setRowCount(int(sales.size()));
-  for(auto const & [row, sale]: sales | std::views::enumerate)
-    {
-    int const r{int(row)};
-    bool const single{sale.systems.size() == 1u};
-    std::string systems{single ? sale.systems.front() : std::format("{} systems", sale.systems.size())};
-    cartography_view_->setItem(r, 0, cell(std::format("{:%d.%m.%Y %H:%M}", sale.when), false));
-    auto * names{cell(systems, false)};
-    if(not single)
-      {
-      std::string all;
-      for(std::string const & name: sale.systems)
-        all += (all.empty() ? "" : "\n") + name;
-      names->setToolTip(QString::fromStdString(all));
-      }
-    cartography_view_->setItem(r, 1, names);
-    cartography_view_->setItem(r, 2, cell(sale.bodies != 0u ? std::format("{}", sale.bodies) : std::string{}, true));
-    cartography_view_->setItem(r, 3, cell(std::format("{}", sale.priced), true));
-    cartography_view_->setItem(r, 4, cell(format_credits_value(sale.estimate), true));
-    cartography_view_->setItem(r, 5, cell(format_credits_value(sale.base_value), true));
-    cartography_view_->setItem(r, 6, cell(format_credits_value(sale.bonus), true));
-    cartography_view_->setItem(r, 7, cell(format_credits_value(sale.total), true));
-    // a sale of several systems is a sum over all of them, so its ratio is shown but says less
-    auto * ratio{cell(
-      sale.estimate != 0u ? std::format("{:.2f}", double(sale.base_value) / double(sale.estimate)) : std::string{"-"},
-      true
-    )};
-    if(not single)
-      ratio->setForeground(QBrush{QColor{0x8a, 0x8a, 0x8a}});
-    cartography_view_->setItem(r, 8, ratio);
+    case data_pages_e::asset_trade:
+      reload_carriers();
+      if(carrier_combo_->count() == 0)
+        {
+        stock_model_->update_data({});
+        // the shelf is known only from a visit to the bartender, so before the first one there is nothing to show
+        stock_header_->setText("No bartender reading yet - dock at a carrier and open the bartender");
+        }
+      else
+        show_stock(carrier_combo_->currentData().toString().toStdString());
+      show_acquisitions();
+      show_bartender();
+      show_bar_sales();
+      show_mission_value();
+      break;
     }
   }
 

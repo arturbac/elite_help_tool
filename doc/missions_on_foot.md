@@ -22,7 +22,7 @@ settlement's overall war status and its conflict zone intensity are read as part
   owner once had influence in the system and is missing from the newest reading of its factions is
   listed under the controlling faction until a docking there records the owner again. Engineer
   bases and megaships, whose owners never had influence there, keep their names.
-- **On foot**: the consumables used up (grenades by type, medkits, energy cells, e-breaches), and
+- **On foot** (a tab of the Assets window): the consumables used up (grenades by type, medkits, energy cells, e-breaches), and
   the kills on foot, conflict zones apart from settlements. The game does not say what made a kill,
   so a kill 2 to 4 seconds after a frag grenade was thrown counts as the grenade's - the delay at
   which kills stand out from the rest in the journals. The weapon in hand is read from

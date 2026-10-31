@@ -87,10 +87,22 @@ public:
   auto update_data(std::vector<info::acquisition_summary_t> && new_data) -> void;
   };
 
+///\brief which of the three windows the class makes - the tabs of one each
+enum struct data_pages_e : uint8_t
+  {
+  ///\brief the commodities on the carriers, and where the carriers are
+  commodities,
+  ///\brief what is held of data, goods and assets, and what was used up on foot
+  assets,
+  ///\brief the bartender's shelf, the counters, one's own bar's sales, the missions' worth at it
+  asset_trade
+  };
+
 ///\brief managing micro resources - what sits on the carrier and where it comes from
 class QTableWidget;
 class QCheckBox;
 class QSpinBox;
+class QLineEdit;
 
 class micro_resource_window_t final : public QMdiSubWindow
   {
@@ -143,19 +155,23 @@ public:
   ///\brief data and goods, one under the other - assets are left out, they are a lure on the bar
   std::array<QTableWidget *, 2> mission_views_{};
 
+  ///\brief what is held of data, goods and assets - the backpack, the ship's locker, one's own carrier's bar
+  QComboBox * holdings_carrier_{};
+  QLineEdit * holdings_filter_{};
+  QLabel * holdings_note_{};
+  std::array<QTableWidget *, 3> holdings_views_{};
+  std::array<QLabel *, 3> holdings_headings_{};
+  ///\brief the tables are being filled, so a changed cell is not an edit
+  bool holdings_filling_{};
   ///\brief the consumables used up and the kills made on foot
   QComboBox * on_foot_period_{};
   QLabel * on_foot_totals_{};
   QTableWidget * consumables_view_{};
   QTableWidget * kills_view_{};
 
-  ///\brief the sales of cartographic data, what each paid against EHT's estimate
-  QLabel * cartography_note_{};
-  QTableWidget * cartography_view_{};
-  ///\brief the journals are read again at most this often while the tab is on top - the whole archive takes a second
-  std::chrono::steady_clock::time_point cartography_read_{};
-
-  explicit micro_resource_window_t(std::string db_path, QWidget * parent = nullptr);
+  micro_resource_window_t(
+    std::string db_path, data_pages_e pages, current_state_t const & state, QWidget * parent = nullptr
+  );
 
   ///\brief called when the game state has changed - read again at most once a second, and only while the
   /// window is shown; a hidden one is read when it is shown next
@@ -176,6 +192,12 @@ protected:
   auto showEvent(QShowEvent * event) -> void override;
 
 private:
+  data_pages_e pages_;
+  ///\brief the backpack and the ship's locker, read under its mutex
+  current_state_t const & state_;
+  auto setup_trade(QTabWidget * tabs) -> void;
+  auto setup_assets(QTabWidget * tabs) -> void;
+  auto setup_commodities(QTabWidget * tabs) -> void;
   ///\brief the reading refresh_ui puts off
   auto refresh_now() -> void;
   QTimer * refresh_timer_{};
@@ -191,5 +213,5 @@ private:
   auto show_bar_sales() -> void;
   auto show_mission_value() -> void;
   auto show_on_foot() -> void;
-  auto show_cartography(bool now) -> void;
+  auto show_holdings() -> void;
   };

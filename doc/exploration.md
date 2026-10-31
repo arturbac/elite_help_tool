@@ -54,7 +54,7 @@ than 600k in `gui.value_high`.
 Navigating on foot to a codex entry or a place tipped off by a guide is its own window, in
 [surface_navigation.md](surface_navigation.md).
 
-**What cartography really pays.** The *Cartography* tab of the Data window lists every sale of
+**What cartography really pays.** The *Cartography* tab of the Exploration window lists every sale of
 cartographic data in the journals: when, which systems, the bodies sold and those EHT could price,
 EHT's estimate at the moment of the sale (the same reckoning as the cartography a death would cost),
 and what the game paid - base, bonus and the sum that reached the account. The game writes one sum for

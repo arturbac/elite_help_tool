@@ -476,6 +476,42 @@ auto database_storage_t::load_bartender_summary(std::chrono::sys_seconds since)
   );
   }
 
+auto database_storage_t::load_counter_items(uint64_t market_id, std::chrono::sys_seconds since)
+  -> expected_ec<std::vector<info::counter_item_t>>
+  {
+  return sqlite::select_from<info::counter_item_t>(
+    db_->db,
+    std::format(
+      "(SELECT s.timestamp AS timestamp, i.name AS name, s.kind AS kind, i.count AS count, i.received AS received"
+      " FROM {0} i JOIN {1} s ON s.oid = i.sale_oid"
+      " WHERE s.market_id = {2} AND s.timestamp >= '{3:%Y-%m-%dT%H:%M:%SZ}' ORDER BY s.timestamp)",
+      sql_iface::tables::micro_sale_item,
+      sql_iface::tables::micro_sale,
+      market_id,
+      since
+    ),
+    ""
+  );
+  }
+
+auto database_storage_t::load_micro_resources() -> expected_ec<std::vector<info::micro_resource_t>>
+  {
+  return sqlite::select_from<info::micro_resource_t>(db_->db, sql_iface::tables::micro_resource, "");
+  }
+
+auto database_storage_t::load_carrier_micro_counts(uint64_t carrier_id)
+  -> expected_ec<std::vector<info::carrier_micro_count_t>>
+  {
+  return sqlite::select_from<info::carrier_micro_count_t>(
+    db_->db, sql_iface::tables::carrier_micro_count, std::format(" WHERE carrier_id = {} ORDER BY timestamp", carrier_id)
+  );
+  }
+
+auto database_storage_t::store(info::carrier_micro_count_t const & value) -> expected_ec<void>
+  {
+  return sqlite::insert_into(db_->db, "oid"sv, sql_iface::tables::carrier_micro_count, value);
+  }
+
 auto database_storage_t::load_bartender_totals(std::chrono::sys_seconds since)
   -> expected_ec<std::vector<info::bartender_total_t>>
   {

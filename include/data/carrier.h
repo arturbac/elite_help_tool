@@ -67,6 +67,17 @@ struct carrier_cargo_change_t
   std::string source;
   };
 
+///\brief a count of a micro resource on a carrier's bar set by hand - for what other commanders bought, which no
+/// journal says; the latest one per kind holds until the next reading of the shelf
+struct carrier_micro_count_t
+  {
+  int64_t oid{-1};
+  std::chrono::sys_seconds timestamp;
+  uint64_t carrier_id;
+  std::string name;
+  int64_t count;
+  };
+
 struct fcmaterial_t
 {
   int64_t oid;

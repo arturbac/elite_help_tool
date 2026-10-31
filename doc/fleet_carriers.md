@@ -3,7 +3,7 @@
 ![Carrier positions, a jump in progress and its cargo, on the overlay](images/fleet_carrier.png)
 
 - **Where each carrier is, and where it goes.** For your own carrier and your squadron's, the overlay
-  (with the logistics, bottom left) and the *Carriers* tab of the Data window show where it stands, or,
+  (with the logistics, bottom left) and the *Carriers* tab of the Commodities window show where it stands, or,
   once a jump is ordered: from where to where, when it leaves (UTC, with a countdown) and when it can
   be sent on again, five minutes after it arrives. The overlay adds how far it is from you in light
   years, or from where it is going once a jump is ordered - out in deep space, how far the way back is.
@@ -16,7 +16,7 @@
   to the carrier and what it has more of is taken off. While docked, the Construction window and the
   overlay already count what has been moved across on the carrier. A ship changed there - a small one taken so as
   not to run far across the pad - stays with its whole hold, and leaving by escape pod leaves the load
-  too; taking the big ship back and flying off with its hold takes it off the carrier again. The *Carrier cargo* tab of the Data window shows it and lets you correct any count by hand, or add a
+  too; taking the big ship back and flying off with its hold takes it off the carrier again. The *Carrier cargo* tab of the Commodities window shows it and lets you correct any count by hand, or add a
   commodity picked from the list of those not yet on the carrier, narrowed by default to what colonies
   are built from. Sales to other commanders at the carrier's market are not in the journal, so they
   need that correction too.

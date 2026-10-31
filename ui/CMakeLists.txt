@@ -47,6 +47,7 @@ target_sources(elite_help_tool
             include/logic.h
             include/qformat.h
             include/system_window.h
+            include/cartography_page.h
             include/ship_loadout.h
             include/main_window.h
             include/mission_window.h

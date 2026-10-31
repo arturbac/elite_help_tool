@@ -4,6 +4,7 @@
 #include <netstate.h>
 #include <event_guard.h>
 #include <main_window.h>
+#include <cartography_page.h>
 #include <spdlog/spdlog.h>
 #include <spdlog/cfg/env.h>
 
@@ -349,6 +350,7 @@ auto main_window_t::setup_ui() -> void
   setup_toolbox();
 
   system_view_ = new system_window_t(state_);
+  system_view_->add_tab(new cartography_page_t{db_path_}, "Cartography");
   add_tool_window(system_view_, window_type_e::system);
 
   ship_view_ = new ship_loadout_window_t(state_.ship_loadout);
@@ -369,7 +371,11 @@ auto main_window_t::setup_ui() -> void
   faction_state_view_ = new faction_state_window_t{state_, db_path_};
   add_tool_window(faction_state_view_, window_type_e::faction_state);
 
-  micro_resource_view_ = new micro_resource_window_t{db_path_};
+  commodity_stock_view_ = new micro_resource_window_t{db_path_, data_pages_e::commodities, state_};
+  add_tool_window(commodity_stock_view_, window_type_e::commodity_stock);
+  asset_holdings_view_ = new micro_resource_window_t{db_path_, data_pages_e::assets, state_};
+  add_tool_window(asset_holdings_view_, window_type_e::asset_holdings);
+  micro_resource_view_ = new micro_resource_window_t{db_path_, data_pages_e::asset_trade, state_};
   add_tool_window(micro_resource_view_, window_type_e::micro_resource);
 
   bgs_view_ = new bgs_window_t{db_path_};
@@ -428,6 +434,8 @@ auto main_window_t::subwindow_for(window_type_e type) const -> QMdiSubWindow *
     case window_type_e::faction:       return faction_view_;
     case window_type_e::faction_state: return faction_state_view_;
     case window_type_e::micro_resource: return micro_resource_view_;
+    case window_type_e::commodity_stock: return commodity_stock_view_;
+    case window_type_e::asset_holdings: return asset_holdings_view_;
     case window_type_e::bgs: return bgs_view_;
     case window_type_e::construction: return construction_view_;
     case window_type_e::ships:        return ships_view_;
@@ -485,7 +493,9 @@ auto main_window_t::setup_toolbox() -> void
     {window_type_e::mission, "Missions"},
     {window_type_e::route, "Route"},
     {window_type_e::ship, "Ship"},
-    {window_type_e::micro_resource, "Data"},
+    {window_type_e::commodity_stock, "Commodities"},
+    {window_type_e::asset_holdings, "Assets"},
+    {window_type_e::micro_resource, "Asset trade"},
     {window_type_e::bgs, "BGS"},
     {window_type_e::construction, "Construction"},
     {window_type_e::ships, "Ships"},

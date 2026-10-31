@@ -7,6 +7,7 @@
 #include <qlabel.h>
 #include <qtreeview.h>
 #include <qsortfilterproxymodel.h>
+#include <qtabwidget.h>
 
 struct body_info_t
   {
@@ -148,8 +149,13 @@ public:
   QLabel * phenomena_label_{};
   QTreeView * tree_view{};
   QTreeView *signals_view{};
+  ///\brief the system as the first tab; the exploration's rewards beside it
+  QTabWidget * tabs_{};
 
   explicit system_window_t(current_state_t const & state, QWidget * parent = nullptr);
+
+  ///\brief a page beside the system's, built elsewhere - one that needs what this window does not hold
+  auto add_tab(QWidget * page, QString const & title) -> void;
 
   auto refresh_ui() -> void;
 

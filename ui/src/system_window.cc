@@ -563,6 +563,8 @@ auto system_window_t::refresh_ui() -> void
   signals_model_->refresh(std::move(signal_data));
   }
 
+auto system_window_t::add_tab(QWidget * page, QString const & title) -> void { tabs_->addTab(page, title); }
+
 auto system_window_t::setup_ui() -> void
   {
   setWindowTitle("Exploration");
@@ -642,7 +644,9 @@ auto system_window_t::setup_ui() -> void
   // add the splitter to the main layout
   main_layout->addWidget(splitter);
 
-  setWidget(central_widget);
+  tabs_ = new QTabWidget();
+  tabs_->addTab(central_widget, "System");
+  setWidget(tabs_);
   update_labels();  // the first filling
   setAttribute(Qt::WA_DeleteOnClose);
   }

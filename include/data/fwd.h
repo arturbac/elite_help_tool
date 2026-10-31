@@ -29,6 +29,7 @@ struct war_countdown_t;
 struct war_onset_t;
 // data/carrier.h
 struct carrier_cargo_change_t;
+struct carrier_micro_count_t;
 struct carrier_cargo_t;
 struct carrier_movement_t;
 struct carrier_state_t;
@@ -54,6 +55,7 @@ struct trade_option_t;
 enum struct acquisition_source_e : uint8_t;
 struct acquisition_summary_t;
 struct bartender_summary_t;
+struct counter_item_t;
 struct bartender_total_t;
 struct consumable_summary_t;
 struct consumable_use_t;

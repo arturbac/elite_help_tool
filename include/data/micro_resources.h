@@ -168,6 +168,17 @@ struct acquisition_summary_t
 };
 
 ///\brief a transaction row, joined to the dictionary by the internal name
+///\brief one kind that went through a counter, with the time and the way it went - what a bar was handed or sold
+struct counter_item_t
+{
+  std::chrono::sys_seconds timestamp;
+  std::string name;
+  micro_trade_e kind{micro_trade_e::sold};
+  uint32_t count;
+  ///\brief came into our hands - bought, or the one kind a barter gave
+  bool received{};
+};
+
 struct micro_sale_item_t
 {
   int64_t oid{-1};

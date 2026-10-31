@@ -570,6 +570,8 @@ namespace tables
   // the balance of every docking; none of it can be rebuilt from journals
   inline constexpr std::string_view carrier_cargo{"live.carrier_cargo"};
   inline constexpr std::string_view carrier_cargo_change{"live.carrier_cargo_change"};
+  // the counts of micro resources set by hand on a carrier's bar - none of it is in a journal
+  inline constexpr std::string_view carrier_micro_count{"live.carrier_micro_count"};
   inline constexpr std::string_view carrier{"live.carrier"};
   inline constexpr std::string_view carrier_materials{"live.carrier_materials"};
   }  // namespace tables

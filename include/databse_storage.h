@@ -176,6 +176,24 @@ struct database_storage_t
   [[nodiscard]]
   auto load_bartender_summary(std::chrono::sys_seconds since) -> expected_ec<std::vector<info::bartender_summary_t>>;
 
+  ///\brief every kind that went through the counter of one market since the moment - at one's own carrier, what its
+  /// bar was handed and what was bought from it
+  [[nodiscard]]
+  auto load_counter_items(uint64_t market_id, std::chrono::sys_seconds since)
+    -> expected_ec<std::vector<info::counter_item_t>>;
+
+  ///\brief the micro resource dictionary - readable names and categories by internal name
+  [[nodiscard]]
+  auto load_micro_resources() -> expected_ec<std::vector<info::micro_resource_t>>;
+
+  ///\brief the counts of micro resources set by hand on a carrier's bar, oldest first
+  [[nodiscard]]
+  auto load_carrier_micro_counts(uint64_t carrier_id) -> expected_ec<std::vector<info::carrier_micro_count_t>>;
+
+  ///\brief sets a micro resource on a carrier's bar to a count, by hand
+  [[nodiscard]]
+  auto store(info::carrier_micro_count_t const & value) -> expected_ec<void>;
+
   ///\brief the transactions and their credits since the moment, sold, bought and bartered apart
   [[nodiscard]]
   auto load_bartender_totals(std::chrono::sys_seconds since) -> expected_ec<std::vector<info::bartender_total_t>>;
