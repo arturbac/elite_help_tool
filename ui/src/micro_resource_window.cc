@@ -1393,12 +1393,38 @@ auto micro_resource_window_t::show_stock(std::string_view carrier_id) -> void
 
   // the time of the reading is the most important number here - it says how old this picture is
   auto const seen{res->front().timestamp};
+
+  // one's own fleet carrier: the bartender keeps nothing of its own, it lists kinds out of the carrier's store - so
+  // the reading says which kinds are on sale and at what price, and the count is the store's, as Holdings has it
+  bool own_store{};
+  if(auto carrier{db_.load_carrier(carrier_id)}; carrier and *carrier)
+    if(info::carrier_t const & c{**carrier}; c.carrier_type != "SquadronCarrier" and carrier_owner::ours(c, commander_fid()))
+      if(auto kept{db_.load_carrier_micro(c.market_id)}; kept)
+        {
+        own_store = true;
+        std::map<std::string, int64_t, std::less<>> store;
+        for(info::carrier_micro_t const & item: *kept)
+          store[item.name] += item.count;
+        for(info::carrier_stock_t & item: *res)
+          {
+          auto const it{store.find(item.name)};
+          item.stock = it == store.end() ? 0u : uint32_t(std::clamp<int64_t>(it->second, 0, UINT32_MAX));
+          }
+        }
+
   uint32_t total{};
   for(info::carrier_stock_t const & item: *res)
     total += item.stock;
 
   stock_header_->setText(QString::fromStdString(
-    qformat("{} items on the shelf, as known on {:%Y-%m-%d %H:%M} UTC", total, seen).toStdString()
+    (own_store ? qformat(
+                   "{} items on sale out of the carrier's store (Holdings); the kinds on sale and their prices as read on"
+                   " {:%Y-%m-%d %H:%M} UTC",
+                   total,
+                   seen
+                 )
+               : qformat("{} items on the shelf, as known on {:%Y-%m-%d %H:%M} UTC", total, seen))
+      .toStdString()
     + carrier_stats_line(carrier_id)
   ));
 

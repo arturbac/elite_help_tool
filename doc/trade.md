@@ -70,7 +70,12 @@ once a second as items are picked up; a hidden window is read when it is shown a
   marked kinds are hidden in all three tables - clear it to see them again and take the mark off. The
   mark is kept in the micro resource dictionary in `live.sqlite`, the same for both commanders. It is kept in `live.sqlite` and counts only while EHT runs.
 - **Bartender stock** (the first tab of Asset trade): the bartender's shelf of every carrier as last
-  read, what is for sale and at what price - read it before and after adding to see what sold. With
+  read, what is for sale and at what price - read it before and after adding to see what sold. The
+  bartender of your own fleet carrier keeps nothing of its own: it lists kinds out of the carrier's store,
+  and which kinds and at what price is yours to choose. So for your own carrier the tab shows the kinds on
+  sale and their prices from the last reading, and the count from the store, as in Holdings; a kind in the
+  store that is not on sale is only in Holdings. A reading newer than the store's last change sets the
+  store's count of the kinds on sale - also one taken before the store was counted, at the next start. With
   `eddn.listen` on, the shelf of your own fleet carrier is read for you too whenever another commander
   opens its bar with a tool that sends to EDDN (see [privacy.md](privacy.md)); such a reading shows
   the shelf before their purchase, and the next one shows what they bought.

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <cstdint>
 #include <map>
 #include <optional>
@@ -80,6 +81,17 @@ auto rows(
   std::span<counts_t const> stores,
   std::map<std::string, std::pair<std::string, std::string>, std::less<>> const & names
 ) -> std::vector<row_t>;
+
+///\brief whether a reading of one's own fleet carrier's bartender is to set its store: the bartender keeps no store of
+/// its own, it lists kinds out of the carrier's, so a reading newer than the store's last change is the store's
+/// count of every kind on sale - and an older one, as one's own reading heard back from EDDN after the visit's
+/// balance was booked, says nothing new
+[[nodiscard]]
+constexpr auto
+  reading_applies(std::optional<std::chrono::sys_seconds> last_change, std::chrono::sys_seconds reading) noexcept
+  -> bool
+  { return not last_change or *last_change < reading; }
+
 ///\brief marks the rows of the kinds named junk, and leaves those out when they are to be hidden
 [[nodiscard]]
 auto with_junk(std::vector<row_t> rows, std::set<std::string, std::less<>> const & junk, bool hide)

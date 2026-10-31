@@ -2244,6 +2244,37 @@ auto current_state_t::apply_bar_reading(events::fcmaterials_t const & shelf) -> 
   ++carrier_changes_;
   }
 
+auto current_state_t::apply_unseen_bar_readings() -> void
+  {
+  auto carriers{db_.load_carriers()};
+  if(not carriers)
+    return;
+  for(info::carrier_t const & carrier: *carriers)
+    {
+    if(carrier.carrier_type == "SquadronCarrier" or not carrier_owner::ours(carrier, owner_fid_))
+      continue;
+    auto shelf{db_.load_carrier_stock(carrier.carrier_id)};
+    if(not shelf or shelf->empty())
+      continue;
+    std::chrono::sys_seconds read{};
+    for(info::carrier_stock_t const & item: *shelf)
+      read = std::max(read, item.timestamp);
+    auto last{db_.last_carrier_micro_change(carrier.market_id)};
+    if(not last or not holdings::reading_applies(*last, read))
+      continue;
+    for(info::carrier_stock_t const & item: *shelf)
+      if(auto res{db_.set_carrier_micro(carrier.market_id, item.name, item.stock, read, "bartender")}; not res)
+        spdlog::error("failed to set the store of {} from its bartender", carrier.carrier_id);
+    spdlog::info(
+      "holdings: the store of {} set from its bartender's reading of {} UTC, {} kinds on sale",
+      carrier.carrier_id,
+      std::format("{:%Y-%m-%d %H:%M:%S}", read),
+      shelf->size()
+    );
+    ++carrier_changes_;
+    }
+  }
+
 auto current_state_t::close_micro_visit(std::chrono::sys_seconds when) -> void
   {
   if(not micro_visit_)

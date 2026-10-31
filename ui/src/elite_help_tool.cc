@@ -696,6 +696,8 @@ auto main_window_t::background_worker(std::stop_token stoken) -> void
       std::scoped_lock const lock{state_.mutex_};
       state_.catching_up_ = false;
       state_.forget_live_combat();
+      // a reading of one's own carrier's bartender taken while stores were not counted counts now
+      state_.apply_unseen_bar_readings();
       state_.remember_progress();
       bool const inhabited{not state_.system_factions.empty()};
       QMetaObject::invokeMethod(

@@ -101,4 +101,14 @@ auto main() -> int
     expect(fatal(hidden.size() == 1u));
     expect(hidden[0].name == "insight");
   };
+
+  "a bartender's reading sets the store when it is newer than the store's last change"_test = []
+  {
+    using namespace std::chrono_literals;
+    constexpr std::chrono::sys_seconds read{std::chrono::sys_days{std::chrono::year{2026} / 10 / 30}};
+    expect(holdings::reading_applies(std::nullopt, read));
+    expect(holdings::reading_applies(read - 1h, read));
+    expect(not holdings::reading_applies(read, read));
+    expect(not holdings::reading_applies(read + 1min, read));
+  };
   }

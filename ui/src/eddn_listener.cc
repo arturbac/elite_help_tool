@@ -6,6 +6,7 @@
 #include <data/progress.h>
 #include <databse_storage.h>
 #include <eddn_listen.h>
+#include <holdings.h>
 #include <eht_settings.h>
 #include <event_guard.h>
 #include <events/micro_resources.h>
@@ -250,7 +251,7 @@ namespace
         }
       // the bar sells out of the carrier's store, so the reading is the store's count of the kinds on sale - unless
       // the store changed since, as when one's own reading comes back here after the visit's balance was booked
-      if(auto last{db_.last_carrier_micro_change(shelf->MarketID)}; last and (not *last or **last < shelf->timestamp))
+      if(auto last{db_.last_carrier_micro_change(shelf->MarketID)}; last and holdings::reading_applies(*last, shelf->timestamp))
         for(events::fcmaterial_t const & item: shelf->Items)
           if(auto res{db_.set_carrier_micro(
                shelf->MarketID, micro_resource_key(item.Name), item.Stock, shelf->timestamp, "eddn"

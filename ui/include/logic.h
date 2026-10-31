@@ -242,6 +242,9 @@ struct current_state_t : public generic_state_t
   auto close_micro_visit(std::chrono::sys_seconds when) -> void;
   ///\brief a reading of one's own fleet carrier's bartender: the store's count of every kind on sale
   auto apply_bar_reading(events::fcmaterials_t const & shelf) -> void;
+  ///\brief the last reading of each of one's own fleet carriers' bartenders, when newer than the store's last change,
+  /// sets the store - so a reading taken while the tool was not counting stores still counts; at the end of the replay
+  auto apply_unseen_bar_readings() -> void;
   bool personal_{true};
 
   current_state_t(main_window_t * p, std::string db_path, std::string journal_path) :
