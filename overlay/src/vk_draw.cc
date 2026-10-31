@@ -425,6 +425,13 @@ namespace
     float const cell{grid.cell};
     if(cell <= 0.f)
       return;
+    // the rows take only the grid's width, so the block - sized to what it holds - grounds just the pictures;
+    // without a box the grid spans the band as before
+    uint32_t const used{std::min<uint32_t>(columns, uint32_t(std::max<size_t>(shown, 1u)))};
+    float const across{
+      block.picture_box_width > 0.f or block.picture_box_height > 0.f ? float(used) * cell + gap * float(used - 1u)
+                                                                       : available
+    };
 
     ImDrawList * const draw{ImGui::GetWindowDrawList()};
     uint32_t column{};
@@ -446,14 +453,14 @@ namespace
 
       if(++column == columns)
         {
-        ImGui::Dummy(ImVec2{available, row_height});
+        ImGui::Dummy(ImVec2{across, row_height});
         row_origin = ImGui::GetCursorScreenPos();
         column = 0u;
         row_height = 0.f;
         }
       }
     if(column != 0u)
-      ImGui::Dummy(ImVec2{available, row_height});
+      ImGui::Dummy(ImVec2{across, row_height});
     }
 
   ///\brief draws one emblem at the cursor, and says how wide it turned out
