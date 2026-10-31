@@ -5567,7 +5567,9 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
             .color = colour_heading()
           }},
           .pictures = std::move(pictures),
-          .picture_columns = eht::settings()->exploration.scanner_columns
+          .picture_columns = eht::settings()->exploration.scanner_columns,
+          .picture_box_width = eht::settings()->exploration.scanner_box_width,
+          .picture_box_height = eht::settings()->exploration.scanner_box_height
         }
       );
 

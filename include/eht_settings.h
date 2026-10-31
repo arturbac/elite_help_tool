@@ -260,8 +260,13 @@ struct exploration_settings_t
   uint32_t scanner_views{6u};
   ///\brief the side of the thumbnails in the band, in pixels
   uint32_t scanner_thumbnail{400u};
-  ///\brief how many thumbnails stand side by side
+  ///\brief the most thumbnails side by side; within the box below the overlay takes as many of them as make
+  /// the thumbnails largest
   uint32_t scanner_columns{3u};
+  ///\brief the box the thumbnails keep within at the bottom of the left band: a share of the band's width and
+  /// of the screen's height - the lower left quarter of the band by default; 0 lets them take the band's width
+  float scanner_box_width{0.5f};
+  float scanner_box_height{0.5f};
   };
 
 ///\brief screenshots of the whole screen, overlay and all, taken by the layer at a key

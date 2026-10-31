@@ -12,6 +12,7 @@
 #include <imgui.h>
 
 #include <overlay_emblems.h>
+#include <picture_grid.h>
 #include <world_follow.h>
 
 #include <algorithm>
@@ -390,13 +391,38 @@ namespace
       }
     }
 
-  ///\brief the pictures of a block in a grid as wide as the band
+  ///\brief the pictures of a block in a grid as wide as the band, or within the block's box
   auto draw_pictures(swapchain_data_t const & data, overlay::block_t const & block, float available) -> void
     {
     ImFontAtlas & atlas{*ImGui::GetIO().Fonts};
-    uint32_t const columns{std::clamp(block.picture_columns, 1u, 8u)};
+    auto const rect_of = [&](overlay::picture_t const & picture) -> ImFontAtlasCustomRect const *
+    {
+      auto const it{std::ranges::find(data.picture_paths, picture.path)};
+      if(it == data.picture_paths.end())
+        return nullptr;
+      int const index{data.picture_rects[size_t(it - data.picture_paths.begin())]};
+      if(index < 0)
+        return nullptr;
+      ImFontAtlasCustomRect const * const rect{atlas.GetCustomRectByIndex(index)};
+      return rect->Width == 0 ? nullptr : rect;
+    };
+    size_t shown{};
+    float aspect{};
+    for(overlay::picture_t const & picture: block.pictures)
+      if(ImFontAtlasCustomRect const * const rect{rect_of(picture)})
+        {
+        ++shown;
+        aspect = std::max(aspect, float(rect->Height) / float(rect->Width));
+        }
+
     float const gap{ImGui::GetStyle().ItemSpacing.x};
-    float const cell{(available - gap * float(columns - 1u)) / float(columns)};
+    float const box_width{block.picture_box_width > 0.f ? std::min(available, available * block.picture_box_width) : available};
+    float const box_height{block.picture_box_height > 0.f ? ImGui::GetIO().DisplaySize.y * block.picture_box_height : 0.f};
+    overlay::pictures::grid_t const grid{
+      overlay::pictures::grid(shown, block.picture_columns, box_width, box_height, gap, aspect)
+    };
+    uint32_t const columns{grid.columns};
+    float const cell{grid.cell};
     if(cell <= 0.f)
       return;
 
@@ -406,14 +432,8 @@ namespace
     ImVec2 row_origin{ImGui::GetCursorScreenPos()};
     for(overlay::picture_t const & picture: block.pictures)
       {
-      auto const it{std::ranges::find(data.picture_paths, picture.path)};
-      if(it == data.picture_paths.end())
-        continue;
-      int const index{data.picture_rects[size_t(it - data.picture_paths.begin())]};
-      if(index < 0)
-        continue;
-      ImFontAtlasCustomRect const * const rect{atlas.GetCustomRectByIndex(index)};
-      if(rect->Width == 0)
+      ImFontAtlasCustomRect const * const rect{rect_of(picture)};
+      if(not rect)
         continue;
 
       ImVec2 uv_min{};

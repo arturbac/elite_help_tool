@@ -77,3 +77,8 @@ target_include_directories(overlay_world_ut PRIVATE ${PROJECT_SOURCE_DIR}/overla
 target_link_libraries(overlay_world_ut PRIVATE Boost::ut)
 target_compile_options(overlay_world_ut PUBLIC -Wno-global-constructors)
 add_test(NAME "overlay_world_ut" COMMAND overlay_world_ut)
+add_executable(overlay_pictures_ut overlay_pictures_ut.cc)
+target_include_directories(overlay_pictures_ut PRIVATE ${PROJECT_SOURCE_DIR}/overlay/include)
+target_link_libraries(overlay_pictures_ut PRIVATE Boost::ut)
+target_compile_options(overlay_pictures_ut PUBLIC -Wno-global-constructors)
+add_test(NAME "overlay_pictures_ut" COMMAND overlay_pictures_ut)

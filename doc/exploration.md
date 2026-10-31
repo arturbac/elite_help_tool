@@ -146,6 +146,14 @@ scanner's own marks on it - the white dot, the needle, the thin cyan rings - are
 them. When every view is painted by a filter, only the relief is kept and the colour comes from the
 lit side of the body in its sky album photo, or from its class when there is no photo.
 
+On the ground the views come back as thumbnails at the bottom of the left band, under "scanner views of
+<body>" (`scanner_pictures`, on by default; not while the scanner itself is open): its filters showed from
+orbit where each genus grows. Up to `scanner_views` (6) views of a body are kept, each a thumbnail of
+`scanner_thumbnail` (400) pixels. They keep within a box of `scanner_box_width` (0.5) of the band's width and
+`scanner_box_height` (0.5) of the screen's height - the lower left quarter of the band - and in it the
+overlay takes the number of columns, up to `scanner_columns` (3), that makes them largest: six views stand in
+two columns of three. A box of 0 lets them take the band's width in `scanner_columns`.
+
 The way to a body gives faces too, and in the body's true colours. With a planet of this system set as
 the destination and the ship's own view in supercruise, the layer is asked for a small sample of the
 middle of the screen four times a second: shrunk on the graphics card by halving it again and again,

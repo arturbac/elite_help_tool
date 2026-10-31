@@ -300,6 +300,11 @@ struct block_t
   bool middle{false};
   float middle_y{};
   float middle_width{};
+  ///\brief the box the pictures' grid keeps within: a share of the band's width and of the screen's height.
+  /// Within it the layer takes the column count, up to picture_columns, that makes the pictures largest.
+  /// 0 is no box - the grid across the band in picture_columns, which is also what an older layer draws
+  float picture_box_width{};
+  float picture_box_height{};
   };
 
 ///\brief how the layer lays the overlay out - sent by the tool with every frame

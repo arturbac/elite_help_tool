@@ -181,6 +181,14 @@ The swapchain additionally gets `TRANSFER_SRC`. A driver that does not accept it
 without pictures, not without the overlay. A picture that fails once is not tried again. An older
 layer skips the new field and simply takes no pictures.
 
+## Pictures in a block
+
+A block's `pictures` stand in a grid under its text, `picture_columns` side by side across the band.
+With `picture_box_width` (a share of the band's width) and `picture_box_height` (a share of the screen's
+height) the grid keeps within that box instead, and the layer takes the column count, from 1 up to
+`picture_columns`, that makes the pictures largest in it (`include/picture_grid.h`). An older layer skips
+both fields and draws the grid across the band.
+
 ## Screenshot at a key
 
 In the game, **F11** takes a screenshot of the whole screen **with the overlay**, as the player
