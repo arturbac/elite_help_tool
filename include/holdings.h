@@ -12,7 +12,8 @@
 ///\brief what is held of data, goods and assets: in the backpack, in the ship's locker and in our carriers' stores
 ///\detail the backpack and the locker are the game's own lists. A carrier's store is in no journal: what the backpack
 /// and the locker have less of on leaving one of our carriers than on docking was left there, what they have more of
-/// was taken from it - less what went over its bartender's counter - and a count may be set by hand
+/// was taken from it, and a count may be set by hand. The bartender of one's own fleet carrier sells out of the store,
+/// so a reading of its shelf is the store's count of every kind on sale
 namespace holdings
   {
 enum struct kind_e : uint8_t
@@ -51,10 +52,10 @@ using counts_t = std::map<std::string, int64_t, std::less<>>;
 [[nodiscard]]
 auto totals(std::span<held_t const> backpack, std::span<held_t const> locker) -> counts_t;
 
-///\brief what a visit to one of our carriers left in its store (positive) or took from it (negative)
-///\param counter what its bartender's counter gave (bought, positive) or took (handed in, negative) meanwhile
+///\brief what a visit to one of our carriers left in its store (positive) or took from it (negative) - handed in at
+/// one's own bar is left in it too: the bar sells out of the store
 [[nodiscard]]
-auto visit_balance(counts_t const & docked, counts_t const & leaving, counts_t const & counter) -> counts_t;
+auto visit_balance(counts_t const & docked, counts_t const & leaving) -> counts_t;
 
 struct row_t
   {

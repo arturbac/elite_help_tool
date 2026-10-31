@@ -554,7 +554,7 @@ auto database_storage_t::change_carrier_micro(info::carrier_micro_change_t const
   }
 
 auto database_storage_t::set_carrier_micro(
-  uint64_t carrier_id, std::string_view name, int64_t count, std::chrono::sys_seconds when
+  uint64_t carrier_id, std::string_view name, int64_t count, std::chrono::sys_seconds when, std::string_view source
 ) -> expected_ec<void>
   {
   int64_t now_count{};
@@ -568,9 +568,24 @@ auto database_storage_t::set_carrier_micro(
   return change_carrier_micro(
     info::carrier_micro_change_t{
       .timestamp = when, .carrier_id = carrier_id, .name = std::string{name},
-      .delta = std::max<int64_t>(count, 0) - now_count, .source = "edit"
+      .delta = std::max<int64_t>(count, 0) - now_count, .source = std::string{source}
     }
   );
+  }
+
+auto database_storage_t::last_carrier_micro_change(uint64_t carrier_id)
+  -> expected_ec<std::optional<std::chrono::sys_seconds>>
+  {
+  auto rows{sqlite::select_from<info::carrier_micro_change_t>(
+    db_->db,
+    sql_iface::tables::carrier_micro_change,
+    std::format(" WHERE carrier_id={} ORDER BY timestamp DESC LIMIT 1", carrier_id)
+  )};
+  if(not rows) [[unlikely]]
+    return cxx23::unexpected{rows.error()};
+  if(rows->empty())
+    return std::optional<std::chrono::sys_seconds>{};
+  return std::optional<std::chrono::sys_seconds>{rows->front().timestamp};
   }
 
 auto database_storage_t::load_bartender_totals(std::chrono::sys_seconds since)

@@ -59,8 +59,12 @@ once a second as items are picked up; a hidden window is read when it is shown a
   backpack - so the backpack counts as emptied of them then. A carrier's store is in no journal, so it is
   kept as the cargo is: on docking at one of our carriers the backpack and the locker are noted
   together, and on leaving what they have less of was left in the store, what they have more of was
-  taken from it - less what went over that carrier's bartender's counter. Double-click a carrier's count
-  to correct it. Tick *Junk* on a kind to mark it as junk; with *No junk* (on at every start)
+  taken from it - handed in at your own bar included. The bar of your own fleet carrier sells out of its
+  store, so a reading of its bartender - yours in the game, or another commander's heard through EDDN -
+  is the store's count of every kind on sale, a sold out one at 0; a kind not on sale keeps the count of
+  the visits. A reading during a visit books what was moved so far and measures afresh from it, so what
+  is added between two readings counts once; one heard from EDDN that is older than the store's last
+  change is not applied. Double-click a carrier's count to correct it. Tick *Junk* on a kind to mark it as junk; with *No junk* (on at every start)
   marked kinds are hidden in all three tables - clear it to see them again and take the mark off. The
   mark is kept in the micro resource dictionary in `live.sqlite`, the same for both commanders. It is kept in `live.sqlite` and counts only while EHT runs.
 - **Bartender stock** (the first tab of Asset trade): the bartender's shelf of every carrier as last

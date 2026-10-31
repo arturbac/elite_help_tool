@@ -39,29 +39,28 @@ auto main() -> int
   {
     counts_t const docked{{"suitschematic", 11}};
     counts_t const leaving{{"suitschematic", 11}};
-    expect(holdings::visit_balance(docked, leaving, {}).empty());
+    expect(holdings::visit_balance(docked, leaving).empty());
   };
 
   "less on leaving was left in the store, more was taken from it"_test = []
   {
     counts_t const docked{{"suitschematic", 11}, {"insight", 2}};
     counts_t const leaving{{"suitschematic", 6}, {"insight", 5}, {"graphene", 1}};
-    auto const balance{holdings::visit_balance(docked, leaving, {})};
+    auto const balance{holdings::visit_balance(docked, leaving)};
     expect(balance.size() == 3u);
     expect(balance.at("suitschematic") == 5);
     expect(balance.at("insight") == -3);
     expect(balance.at("graphene") == -1);
   };
 
-  "what went over the bartender's counter is not the store's"_test = []
+  "handed in at one's own bar is left in the store: the bar sells out of it"_test = []
   {
-    // 4 handed in at the bar and 1 more left in the store; 2 bought at the bar
-    counts_t const docked{{"weaponschematic", 10}, {"insight", 0}};
-    counts_t const leaving{{"weaponschematic", 5}, {"insight", 2}};
-    counts_t const counter{{"weaponschematic", -4}, {"insight", 2}};
-    auto const balance{holdings::visit_balance(docked, leaving, counter)};
+    // 4 handed in at the bar and 1 more left in the store - all 5 are in the store now
+    counts_t const docked{{"weaponschematic", 10}};
+    counts_t const leaving{{"weaponschematic", 5}};
+    auto const balance{holdings::visit_balance(docked, leaving)};
     expect(balance.size() == 1u);
-    expect(balance.at("weaponschematic") == 1);
+    expect(balance.at("weaponschematic") == 5);
   };
 
   "the rows: each kind in its places and its stores, by kind and name"_test = []

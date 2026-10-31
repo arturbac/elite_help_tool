@@ -17,10 +17,10 @@ auto totals(std::span<held_t const> backpack, std::span<held_t const> locker) ->
   return result;
   }
 
-auto visit_balance(counts_t const & docked, counts_t const & leaving, counts_t const & counter) -> counts_t
+auto visit_balance(counts_t const & docked, counts_t const & leaving) -> counts_t
   {
   std::set<std::string, std::less<>> names;
-  for(counts_t const * list: {&docked, &leaving, &counter})
+  for(counts_t const * list: {&docked, &leaving})
     for(auto const & [name, count]: *list)
       names.insert(name);
   auto const of = [](counts_t const & list, std::string const & name) -> int64_t
@@ -28,10 +28,10 @@ auto visit_balance(counts_t const & docked, counts_t const & leaving, counts_t c
     auto const it{list.find(name)};
     return it == list.end() ? 0 : it->second;
   };
-  // what the counter explains is not the store's: the rest of what the lists lost went into it
+  // what the lists lost went into the store, what they gained came out of it
   counts_t result;
   for(std::string const & name: names)
-    if(int64_t const delta{of(docked, name) - of(leaving, name) + of(counter, name)}; delta != 0)
+    if(int64_t const delta{of(docked, name) - of(leaving, name)}; delta != 0)
       result[name] = delta;
   return result;
   }

@@ -15,6 +15,7 @@
 #include <simple_enum/simple_enum.hpp>
 #include <databse_storage.h>
 #include <holdings.h>
+#include <events/carrier.h>
 #include <biology.h>
 #include <fleet.h>
 #include <mutex>
@@ -235,8 +236,10 @@ struct current_state_t : public generic_state_t
   ///\brief the backpack and the locker as Holdings counts them: one's own data, goods and assets
   [[nodiscard]]
   auto held_lists() const -> std::pair<std::vector<holdings::held_t>, std::vector<holdings::held_t>>;
-  ///\brief applies the balance of a visit to the carrier's store, less what went over its bartender's counter
+  ///\brief applies the balance of a visit to the carrier's store - handed in at the bar included, it sells from it
   auto close_micro_visit(std::chrono::sys_seconds when) -> void;
+  ///\brief a reading of one's own fleet carrier's bartender: the store's count of every kind on sale
+  auto apply_bar_reading(events::fcmaterials_t const & shelf) -> void;
   bool personal_{true};
 
   current_state_t(main_window_t * p, std::string db_path, std::string journal_path) :

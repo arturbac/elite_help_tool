@@ -198,10 +198,16 @@ struct database_storage_t
   [[nodiscard]]
   auto change_carrier_micro(info::carrier_micro_change_t const & change) -> expected_ec<void>;
 
-  ///\brief sets a micro resource in a carrier's store to a count, by hand - the change is written down too
+  ///\brief sets a micro resource in a carrier's store to a count - by hand, or from a reading of its bartender's
+  /// shelf - and writes the change down with its source
   [[nodiscard]]
-  auto set_carrier_micro(uint64_t carrier_id, std::string_view name, int64_t count, std::chrono::sys_seconds when)
-    -> expected_ec<void>;
+  auto set_carrier_micro(
+    uint64_t carrier_id, std::string_view name, int64_t count, std::chrono::sys_seconds when, std::string_view source
+  ) -> expected_ec<void>;
+
+  ///\brief when a carrier's store last changed, by any source; nullopt when it never did
+  [[nodiscard]]
+  auto last_carrier_micro_change(uint64_t carrier_id) -> expected_ec<std::optional<std::chrono::sys_seconds>>;
 
   ///\brief the transactions and their credits since the moment, sold, bought and bartered apart
   [[nodiscard]]

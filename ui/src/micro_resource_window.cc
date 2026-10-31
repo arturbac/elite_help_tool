@@ -482,8 +482,9 @@ auto micro_resource_window_t::setup_assets(QTabWidget * tabs) -> void
   holdings_note_ = new QLabel(
     "The backpack and the ship's locker are the game's own lists; a mission's thing and the consumables are left out."
     " A carrier's store is in no journal: what the backpack and the locker have less of on leaving one of our"
-    " carriers than on docking was left there, what they have more of was taken from it - less what went over its"
-    " bartender's counter. Double-click a carrier's count to correct it.",
+    " carriers than on docking was left there, what they have more of was taken from it - handed in at one's own bar"
+    " included. That bar sells out of the store, so a reading of its bartender is the store's count of every kind on"
+    " sale, sold out ones at 0. Double-click a carrier's count to correct it.",
     holdings_page
   );
   holdings_note_->setWordWrap(true);
@@ -539,7 +540,8 @@ auto micro_resource_window_t::setup_assets(QTabWidget * tabs) -> void
                    holdings_carriers_[size_t(store)],
                    view->item(row, 0)->data(Qt::UserRole).toString().toStdString(),
                    count,
-                   std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())
+                   std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now()),
+                   "edit"
                  )};
                  not res)
                 spdlog::error("holdings: failed to set the store of {}", holdings_carriers_[size_t(store)]);

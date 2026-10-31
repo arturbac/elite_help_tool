@@ -1884,6 +1884,8 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
                 // FCMaterials.json is overwritten the next time the bartender is opened anywhere - same
                 // reasoning as a market's Market.json, so this reading goes straight into the backup too
                 backup_live_now(commander_name_, db_.live_db_path_);
+                apply_bar_reading(fcmat);
+                update_holdings = true;
                 }
               }
             }
@@ -2211,6 +2213,34 @@ auto current_state_t::held_lists() const -> std::pair<std::vector<holdings::held
   return {copy(backpack), copy(ship_locker)};
   }
 
+auto current_state_t::apply_bar_reading(events::fcmaterials_t const & shelf) -> void
+  {
+  if(catching_up_)
+    return;
+  auto known{db_.load_carrier(shelf.CarrierID)};
+  if(not known or not *known)
+    return;
+  info::carrier_t const & carrier{**known};
+  // the bartender of one's own fleet carrier sells out of its store: every kind on the shelf is the store's count
+  if(carrier.carrier_type == "SquadronCarrier" or not carrier_owner::ours(carrier, owner_fid_))
+    return;
+  // a visit under way: what was moved so far is booked first, then the reading stands for the kinds on sale, and
+  // the moves are measured afresh from here - so what is added between two readings is not counted twice
+  bool const visiting{micro_visit_ and micro_visit_->carrier_id == shelf.MarketID};
+  if(visiting)
+    close_micro_visit(shelf.timestamp);
+  for(events::fcmaterial_t const & item: shelf.Items)
+    if(auto res{db_.set_carrier_micro(shelf.MarketID, micro_resource_key(item.Name), item.Stock, shelf.timestamp, "bartender")};
+       not res)
+      spdlog::error("failed to set the store of {} from its bartender", shelf.CarrierID);
+  if(visiting)
+    {
+    auto const [carried, locked]{held_lists()};
+    micro_visit_ = micro_visit_t{.carrier_id = shelf.MarketID, .since = shelf.timestamp, .held = holdings::totals(carried, locked)};
+    }
+  ++carrier_changes_;
+  }
+
 auto current_state_t::close_micro_visit(std::chrono::sys_seconds when) -> void
   {
   if(not micro_visit_)
@@ -2218,21 +2248,8 @@ auto current_state_t::close_micro_visit(std::chrono::sys_seconds when) -> void
   micro_visit_t const visit{std::move(*micro_visit_)};
   micro_visit_.reset();
 
-  // what the carrier's bartender took (handed in) or gave (bought) is the counter's, not the store's
-  holdings::counts_t counter;
-  if(auto items{db_.load_counter_items(visit.carrier_id, visit.since)}; items)
-    {
-    for(info::counter_item_t const & item: *items)
-      if(item.kind == info::micro_trade_e::sold)
-        counter[item.name] -= item.count;
-      else if(item.kind == info::micro_trade_e::bought)
-        counter[item.name] += item.count;
-    }
-  else
-    spdlog::error("failed to read the counter of carrier {} for its store", visit.carrier_id);
-
   auto const [carried, locked]{held_lists()};
-  for(auto const & [name, delta]: holdings::visit_balance(visit.held, holdings::totals(carried, locked), counter))
+  for(auto const & [name, delta]: holdings::visit_balance(visit.held, holdings::totals(carried, locked)))
     if(auto res{db_.change_carrier_micro(
          info::carrier_micro_change_t{
            .timestamp = when, .carrier_id = visit.carrier_id, .name = name, .delta = delta, .source = "visit"

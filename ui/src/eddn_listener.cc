@@ -248,6 +248,15 @@ namespace
         )
           spdlog::error("eddn listen: failed to store a shelf row of {}", shelf->CarrierID);
         }
+      // the bar sells out of the carrier's store, so the reading is the store's count of the kinds on sale - unless
+      // the store changed since, as when one's own reading comes back here after the visit's balance was booked
+      if(auto last{db_.last_carrier_micro_change(shelf->MarketID)}; last and (not *last or **last < shelf->timestamp))
+        for(events::fcmaterial_t const & item: shelf->Items)
+          if(auto res{db_.set_carrier_micro(
+               shelf->MarketID, micro_resource_key(item.Name), item.Stock, shelf->timestamp, "eddn"
+             )};
+             not res)
+            spdlog::error("eddn listen: failed to set the store of {}", shelf->CarrierID);
       spdlog::info(
         "eddn listen: the bar of {} as of {} UTC, {} kinds",
         shelf->CarrierID,
