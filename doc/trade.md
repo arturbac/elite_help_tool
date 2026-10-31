@@ -50,8 +50,8 @@ These are the tabs of the Asset trade window. It reads its tables only while it 
 once a second as items are picked up; a hidden window is read when it is shown again.
 
 - **Holdings**, in the Assets window: every kind of data, goods and assets you hold, in three tables,
-  with how many are in the backpack, in the ship's locker, in the store of each of our carriers (the one
-  marked "mine" in Bartender stock, and the squadron's) and the total - to see at the mission board
+  with how many are in the backpack, in the ship's locker, in the store of each of our carriers (your own
+  fleet carrier and the squadron's carrier) and the total - to see at the mission board
   whether a reward is one you lack or one you have plenty of. The backpack and the locker are the
   game's own lists; a mission's thing to deliver is left out, and so are consumables. The game writes
   what is picked up or taken out of the locker on foot at once; what is moved while aboard it carries out

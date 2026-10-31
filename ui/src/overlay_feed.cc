@@ -16,6 +16,7 @@
 #include <netstate.h>
 #include <picture_records.h>
 #include <live_state.h>
+#include <carrier_owner.h>
 #include <ship_health.h>
 #include <port_model.h>
 #include <commodity_facts.h>
@@ -2339,18 +2340,21 @@ auto overlay_feed_t::refresh_construction(current_state_t const & state) -> void
   if(carrier_cargo_changes_ != state.carrier_changes_ or construction_read_ == now)
     {
     carrier_cargo_changes_ = state.carrier_changes_;
-    auto totals{db_.load_carrier_cargo_totals()};
-    carrier_cargo_ = totals ? std::move(*totals) : std::map<std::string, int64_t>{};
+    // ours only - the squadron's carrier and this commander's own fleet carrier; another's is not ours to unload
+    carrier_cargo_.clear();
     cargo_by_carrier_.clear();
     carrier_callsigns_.clear();
     if(auto carriers{db_.load_carriers()}; carriers)
       for(info::carrier_t const & carrier: *carriers)
-        if(carrier.tracked or carrier.carrier_type == "SquadronCarrier")
+        if(carrier_owner::ours(carrier, state.owner_fid_))
           {
           carrier_callsigns_[carrier.market_id] = carrier.carrier_id;
           if(auto cargo{db_.load_carrier_cargo(carrier.market_id)}; cargo)
             for(info::carrier_cargo_t const & item: *cargo)
+              {
               cargo_by_carrier_[carrier.market_id][item.key] += item.count;
+              carrier_cargo_[item.key] += item.count;
+              }
           }
     }
   // the port's market is read again when the port changes, or with the sites

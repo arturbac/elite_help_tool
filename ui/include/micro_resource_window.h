@@ -215,4 +215,7 @@ private:
   auto show_mission_value() -> void;
   auto show_on_foot() -> void;
   auto show_holdings() -> void;
+  ///\brief the commander of this tool, whose fleet carrier is shown
+  [[nodiscard]]
+  auto commander_fid() -> std::string;
   };

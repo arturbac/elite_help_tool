@@ -4,6 +4,7 @@
 #include <data/progress.h>
 #include <bar_sales.h>
 #include <holdings.h>
+#include <carrier_owner.h>
 #include <events/micro_resources.h>
 #include <qlineedit.h>
 #include <qsplitter.h>
@@ -614,7 +615,7 @@ auto micro_resource_window_t::setup_commodities(QTabWidget * tabs) -> void
 
   if(auto carriers{db_.load_carriers()}; carriers)
     for(info::carrier_t const & c: *carriers)
-      if(c.tracked or c.carrier_type == "SquadronCarrier")
+      if(carrier_owner::ours(c, commander_fid()))
         cargo_carrier_->addItem(
           qformat("{} ({})", c.carrier_name, c.carrier_id), QVariant::fromValue(qulonglong{c.market_id})
         );
@@ -682,6 +683,13 @@ auto micro_resource_window_t::setup_commodities(QTabWidget * tabs) -> void
 
   }
 
+auto micro_resource_window_t::commander_fid() -> std::string
+  {
+  if(auto owner{db_.load_owner()}; owner and *owner)
+    return (*owner)->fid;
+  return {};
+  }
+
 auto micro_resource_window_t::show_holdings() -> void
   {
   // our carriers - the one marked mine and the squadron's - a column each, as in Carrier cargo
@@ -690,7 +698,7 @@ auto micro_resource_window_t::show_holdings() -> void
   std::vector<holdings::counts_t> stores;
   if(auto carriers{db_.load_carriers()}; carriers)
     for(info::carrier_t const & c: *carriers)
-      if(c.tracked or c.carrier_type == "SquadronCarrier")
+      if(carrier_owner::ours(c, commander_fid()))
         {
         holdings_carriers_.push_back(c.market_id);
         headers.push_back(QString::fromStdString(c.carrier_id));

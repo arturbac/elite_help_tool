@@ -1,3 +1,4 @@
+#include <carrier_owner.h>
 #include <live_state.h>
 
 #include <boost/ut.hpp>
@@ -50,6 +51,26 @@ auto main() -> int
   {
     std::vector const modules{module("int_cargorack_size6_class1"), module("int_hyperdrive_size5_class5")};
     expect(not live::has_fighter_bay(modules));
+  };
+
+  "a fleet carrier is its owner's, the squadron's carrier everyone's"_test = []
+  {
+    info::carrier_t maria{};
+    maria.carrier_type = "FleetCarrier";
+    maria.owner_fid = "F1";
+    expect(carrier_owner::ours(maria, "F1"));
+    expect(not carrier_owner::ours(maria, "F2"));
+    expect(not carrier_owner::ours(maria, ""));
+    info::carrier_t squadron{};
+    squadron.carrier_type = "SquadronCarrier";
+    expect(carrier_owner::ours(squadron, "F1") and carrier_owner::ours(squadron, "F2"));
+    // never managed yet: the mark of one's own decides, as before
+    info::carrier_t unknown{};
+    unknown.carrier_type = "FleetCarrier";
+    unknown.tracked = true;
+    expect(carrier_owner::ours(unknown, "F2"));
+    unknown.tracked = false;
+    expect(not carrier_owner::ours(unknown, "F2"));
   };
 
   "no Loadout yet hides nothing"_test = [] { expect(live::has_fighter_bay(std::vector<::events::module_t>{})); };

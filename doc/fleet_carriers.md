@@ -11,6 +11,10 @@
 - The game writes a carrier's position at login and about a minute after a jump while you are in the
   game, which is taken as the arrival; when you are not, the arrival is reckoned a minute after the
   departure, as the journals show, and the time is marked with a tilde.
+- **Whose carrier.** A fleet carrier is its owner's alone - only the owner loads and unloads it; anyone else
+  only trades at its market. The owner is the commander in whose game its state (CarrierStats) comes, so with
+  two commanders on one machine each sees their own fleet carrier, and both the squadron's carrier. A carrier
+  never managed yet counts as yours when it is marked "mine" in Bartender stock.
 - **What is on each carrier.** The game does not say what a squadron's carrier holds, so EHT keeps it:
   on docking at one of our carriers it notes the hold, and on leaving what the hold has less of is added
   to the carrier and what it has more of is taken off. While docked, the Construction window and the

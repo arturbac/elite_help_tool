@@ -154,6 +154,8 @@ auto database_storage_t::migrate_live_schema() -> expected_ec<void>
        addition_t{sql_iface::tables::carrier, "balance"sv, "INTEGER DEFAULT 0"sv},
        addition_t{sql_iface::tables::carrier, "available_balance"sv, "INTEGER DEFAULT 0"sv},
        addition_t{sql_iface::tables::carrier, "stats_seen"sv, "TEXT DEFAULT ''"sv},
+       // carriers seen before the owner was kept stay without one until their next CarrierStats
+       addition_t{sql_iface::tables::carrier, "owner_fid"sv, "TEXT DEFAULT ''"sv},
        addition_t{sql_iface::tables::commodity, "key"sv, "TEXT DEFAULT ''"sv},
        // ships flown before it was kept stay empty until a rebuild from journals
        addition_t{sql_iface::tables::ship, "flown"sv, "TEXT DEFAULT ''"sv},

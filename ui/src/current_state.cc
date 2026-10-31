@@ -16,6 +16,7 @@
 #include <main_window.h>
 #include <picture_records.h>
 #include <live_state.h>
+#include <carrier_owner.h>
 #include <ship_health.h>
 #include <spdlog/spdlog.h>
 #include <stralgo/stralgo.h>
@@ -1002,7 +1003,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
               if(std::ranges::any_of(
                    *carriers,
                    [&](info::carrier_t const & c)
-                   { return c.market_id == event.MarketID and (c.tracked or c.carrier_type == "SquadronCarrier"); }
+                   { return c.market_id == event.MarketID and carrier_owner::ours(c, owner_fid_); }
                  ))
                 {
                 auto const [carried, locked]{held_lists()};
@@ -1802,6 +1803,9 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           carrier.balance = event.Finance.CarrierBalance;
           carrier.available_balance = event.Finance.AvailableBalance;
           carrier.stats_seen = timestamp;
+          // only the owner manages a fleet carrier, so the session it comes in names the owner
+          if(event.CarrierType != "SquadronCarrier" and not commander_fid_.empty())
+            carrier.owner_fid = commander_fid_;
 
           if(auto res{db_.update_carrier(carrier)}; not res)
             spdlog::error("failed to store carrier stats for {}", event.Callsign);

@@ -1,4 +1,5 @@
 #include <construction_window.h>
+#include <carrier_owner.h>
 #include <data/carrier.h>
 #include <data/colonisation.h>
 #include <data/market.h>
@@ -68,7 +69,7 @@ auto construction_window_t::setup_ui() -> void
   carrier_combo_->addItem("all our carriers", QVariant::fromValue(qulonglong{0}));
   if(auto carriers{db_.load_carriers()}; carriers)
     for(info::carrier_t const & c: *carriers)
-      if(c.tracked or c.carrier_type == "SquadronCarrier")
+      if(carrier_owner::ours(c, state_.owner_fid_))
         carrier_combo_->addItem(
           qformat("{} ({})", c.carrier_name, c.carrier_id), QVariant::fromValue(qulonglong{c.market_id})
         );
@@ -351,8 +352,12 @@ auto construction_window_t::show_site() -> void
 
   // what our carriers hold, together - kept by hand and by every docking's balance
   std::map<std::string, int64_t> carriers;
-  if(auto totals{db_.load_carrier_cargo_totals()}; totals)
-    carriers = std::move(*totals);
+  if(auto known{db_.load_carriers()}; known)
+    for(info::carrier_t const & c: *known)
+      if(carrier_owner::ours(c, state_.owner_fid_))
+        if(auto cargo{db_.load_carrier_cargo(c.market_id)}; cargo)
+          for(info::carrier_cargo_t const & item: *cargo)
+            carriers[item.key] += item.count;
   // the hold counts as well - bought for the carrier or for the site, it is on its way
   std::map<std::string, int64_t> on_board;
   for(auto const & [key, count]: hold)

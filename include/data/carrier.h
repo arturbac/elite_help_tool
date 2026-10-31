@@ -124,6 +124,9 @@ struct carrier_t
   uint64_t balance;
   uint64_t available_balance;
   std::chrono::sys_seconds stats_seen;
+  ///\brief the commander whose session the carrier's CarrierStats came in - a fleet carrier's owner, the only one
+  /// who loads and unloads it; empty for the squadron's and for one never managed
+  std::string owner_fid;
 };
 
 ///\brief a bartender shelf row after joining with the dictionary
