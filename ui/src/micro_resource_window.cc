@@ -811,29 +811,34 @@ auto micro_resource_window_t::show_holdings() -> void
       if(item.junk)
         junk.insert(item.name);
       }
-  // the kinds to set on a carrier: those of the three tables only, so each lands in its own
-  if(names.size() != holdings_add_known_)
-    {
-    holdings_add_known_ = names.size();
-    std::vector<std::tuple<holdings::kind_e, std::string, std::string>> kinds;
-    for(auto const & [name, shown_category]: names)
-      if(auto const kind{holdings::kind_of(shown_category.second)}; kind)
-        kinds.emplace_back(*kind, shown_category.first.empty() ? name : shown_category.first, name);
-    std::ranges::sort(kinds);
-    QSignalBlocker const quiet{holdings_add_kind_};
-    holdings_add_kind_->clear();
-    for(auto const & [kind, shown, name]: kinds)
-      holdings_add_kind_->addItem(
-        qformat("{} ({})", shown, kind == holdings::kind_e::data ? "Data" : kind == holdings::kind_e::goods ? "Goods" : "Assets"),
-        QString::fromStdString(name)
-      );
-    holdings_add_kind_->setCurrentIndex(-1);
-    }
+  auto all_rows{holdings::rows(backpack, locker, stores, names)};
+  // the kinds to set on a carrier: those held nowhere yet - a held one is edited in its table - and of the three
+  // tables only, so each lands in its own
+  {
+  std::set<std::string, std::less<>> held;
+  for(holdings::row_t const & row: all_rows)
+    held.insert(row.name);
+  std::vector<std::tuple<holdings::kind_e, std::string, std::string>> kinds;
+  for(auto const & [name, shown_category]: names)
+    if(auto const kind{holdings::kind_of(shown_category.second)}; kind and not held.contains(name))
+      kinds.emplace_back(*kind, shown_category.first.empty() ? name : shown_category.first, name);
+  std::ranges::sort(kinds);
+  QVariant const chosen{holdings_add_kind_->currentData()};
+  QSignalBlocker const quiet{holdings_add_kind_};
+  holdings_add_kind_->clear();
+  for(auto const & [kind, shown, name]: kinds)
+    holdings_add_kind_->addItem(
+      qformat(
+        "{} ({})", shown, kind == holdings::kind_e::data ? "Data" : kind == holdings::kind_e::goods ? "Goods" : "Assets"
+      ),
+      QString::fromStdString(name)
+    );
+  holdings_add_kind_->setCurrentIndex(holdings_add_kind_->findData(chosen));
+  }
 
   QString const filter{holdings_filter_->text().trimmed()};
   std::array<std::vector<holdings::row_t>, 3> by_kind;
-  for(holdings::row_t & row:
-      holdings::with_junk(holdings::rows(backpack, locker, stores, names), junk, holdings_no_junk_->isChecked()))
+  for(holdings::row_t & row: holdings::with_junk(std::move(all_rows), junk, holdings_no_junk_->isChecked()))
     if(filter.isEmpty() or QString::fromStdString(row.shown).contains(filter, Qt::CaseInsensitive))
       by_kind[size_t(row.kind)].push_back(std::move(row));
 

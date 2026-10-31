@@ -64,9 +64,9 @@ once a second as items are picked up; a hidden window is read when it is shown a
   is the store's count of every kind on sale, a sold out one at 0; a kind not on sale keeps the count of
   the visits. A reading during a visit books what was moved so far and measures afresh from it, so what
   is added between two readings counts once; one heard from EDDN that is older than the store's last
-  change is not applied. Double-click a carrier's count to correct it; a kind held nowhere else - many lie in a
-  carrier's store only - is set with the row under the tables (carrier, kind, count, *Set*), and shows in
-  the table of its kind. Tick *Junk* on a kind to mark it as junk; with *No junk* (on at every start)
+  change is not applied. Double-click a carrier's count to correct it; a kind held nowhere yet - many lie in a
+  carrier's store only - is set with the row under the tables (carrier, kind, count, *Set*), whose list
+  has only the kinds not in the tables; it then shows in the table of its kind. Tick *Junk* on a kind to mark it as junk; with *No junk* (on at every start)
   marked kinds are hidden in all three tables - clear it to see them again and take the mark off. The
   mark is kept in the micro resource dictionary in `live.sqlite`, the same for both commanders. It is kept in `live.sqlite` and counts only while EHT runs.
 - **Bartender stock** (the first tab of Asset trade): the bartender's shelf of every carrier as last
