@@ -703,6 +703,9 @@ auto main_window_t::background_worker(std::stop_token stoken) -> void
         [this, inhabited]()
         {
           std::scoped_lock const lock{state_.mutex_};
+          // two tools may run side by side, one a commander - the title says whose this one is
+          if(not state_.owner_name_.empty())
+            setWindowTitle(QString::fromStdString(std::format("Elite Dangerous Help Tool - {}", state_.owner_name_)));
           choose_opening_window(inhabited);
           // the route's progress stood still through the replay; the system we are in now moves it on
           if(route_view_)

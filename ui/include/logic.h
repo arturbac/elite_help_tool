@@ -199,6 +199,8 @@ struct current_state_t : public generic_state_t
   ///\detail if someone logged into a second account from this game profile, their missions and finds
   /// must not land in somebody else's career - the world we still take, because the galaxy is shared
   std::string owner_fid_;
+  ///\brief that account's commander name - in the window's title, so two tools side by side are told apart
+  std::string owner_name_;
   ///\brief the commander of the session being read - a colonisation claim is theirs
   std::string commander_name_;
   ///\brief that commander's account (FID) - progress along a neutron route is kept per account

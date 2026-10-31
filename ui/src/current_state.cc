@@ -380,7 +380,10 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
         {
         if(owner_fid_.empty())
           if(auto owner{db_.load_owner()}; owner and *owner)
+            {
             owner_fid_ = (*owner)->fid;
+            owner_name_ = (*owner)->name;
+            }
 
         personal_ = owner_fid_.empty() or event.FID == owner_fid_;
         commander_name_ = event.Name;

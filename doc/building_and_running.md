@@ -295,7 +295,9 @@ for a few seconds.
 
 ## Two accounts at once
 
-Each game + EHT pair needs its **own socket** and its **own working directory**:
+Each game + EHT pair needs its **own socket** and its **own working directory**. Once it has read the
+journals, each tool's window title names the commander its database belongs to, so two windows side by
+side are told apart:
 
 ```sh
 # second account's EHT, started from its own directory with its own journal-dir link
