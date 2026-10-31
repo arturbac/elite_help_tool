@@ -107,6 +107,7 @@ If your clang has a different name, override it:
 `cmake --preset eht-release -DCMAKE_CXX_COMPILER=clang++`.
 
 Other presets: `eht-debug`, `eht-release-asan`, `eht-release-tsan`, `eht-release-unit-tests`.
+`kdev-eht-debug` and `kdev-eht-release` set no build directory, for an IDE (e.g. KDevelop) that chooses its own.
 
 ### JSON and glaze in the code
 

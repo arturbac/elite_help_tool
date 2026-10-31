@@ -114,6 +114,18 @@
       ]
     },
     {
+      "name": "kdev-eht-release",
+      "inherits": [
+        "cfg-base",
+        "cfg-nologging",
+        "cfg-build-static",
+        "cfg-release"
+      ],
+      "cacheVariables": {
+        "DISABLE_WARNINGS": "ON"
+      }
+    },
+    {
       "name": "eht-debug",
       "inherits": [
         "cfg-build-dir",
