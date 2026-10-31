@@ -499,6 +499,24 @@ auto database_storage_t::load_micro_resources() -> expected_ec<std::vector<info:
   return sqlite::select_from<info::micro_resource_t>(db_->db, sql_iface::tables::micro_resource, "");
   }
 
+auto database_storage_t::set_micro_resource_junk(std::string_view name, bool junk) -> expected_ec<void>
+  {
+  if(name.empty())
+    return {};
+  if(auto res{store(info::micro_resource_t{.name = std::string{name}, .id = 0u, .localised = {}, .category = {}})}; not res)
+    [[unlikely]]
+    return res;
+  return sqlite::execute_query_no_result(
+    db_->db,
+    std::format(
+      "UPDATE {} SET junk={} WHERE name='{}'",
+      sql_iface::tables::micro_resource,
+      junk ? 1 : 0,
+      sqlite::escape_sql_quotes(name)
+    )
+  );
+  }
+
 auto database_storage_t::load_carrier_micro(uint64_t carrier_id) -> expected_ec<std::vector<info::carrier_micro_t>>
   {
   return sqlite::select_from<info::carrier_micro_t>(

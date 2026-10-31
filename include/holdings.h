@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <map>
 #include <optional>
+#include <set>
 #include <span>
 #include <string>
 #include <string_view>
@@ -64,6 +65,8 @@ struct row_t
   uint32_t locker{};
   ///\brief one count a carrier, in the order the stores were given
   std::vector<int64_t> stores;
+  ///\brief marked as junk by the commander
+  bool junk{};
   };
 
 ///\brief every kind of data, goods and assets held anywhere, by kind and then name
@@ -76,4 +79,8 @@ auto rows(
   std::span<counts_t const> stores,
   std::map<std::string, std::pair<std::string, std::string>, std::less<>> const & names
 ) -> std::vector<row_t>;
+///\brief marks the rows of the kinds named junk, and leaves those out when they are to be hidden
+[[nodiscard]]
+auto with_junk(std::vector<row_t> rows, std::set<std::string, std::less<>> const & junk, bool hide)
+  -> std::vector<row_t>;
   }  // namespace holdings

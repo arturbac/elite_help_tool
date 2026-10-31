@@ -8,6 +8,7 @@
 #include <events/micro_resources.h>
 #include <qlineedit.h>
 #include <qsplitter.h>
+#include <set>
 #include <biology.h>
 #include <cmath>
 #include <ranges>
@@ -473,6 +474,10 @@ auto micro_resource_window_t::setup_assets(QTabWidget * tabs) -> void
   holdings_filter_ = new QLineEdit(holdings_page);
   holdings_filter_->setClearButtonEnabled(true);
   holdings_row->addWidget(holdings_filter_, 1);
+  holdings_no_junk_ = new QCheckBox("No junk", holdings_page);
+  holdings_no_junk_->setChecked(true);
+  holdings_no_junk_->setToolTip("Hide the kinds marked as junk - clear it to see them and take the mark off");
+  holdings_row->addWidget(holdings_no_junk_);
   holdings_layout->addLayout(holdings_row);
   holdings_note_ = new QLabel(
     "The backpack and the ship's locker are the game's own lists; a mission's thing and the consumables are left out."
@@ -495,7 +500,7 @@ auto micro_resource_window_t::setup_assets(QTabWidget * tabs) -> void
     part_layout->setContentsMargins(0, 0, 0, 0);
     auto * label = new QLabel(QString::fromUtf8(heading), part);
     part_layout->addWidget(label);
-    auto * view = numbers_table(part, {"Name", "Backpack", "Ship locker", "Total"});
+    auto * view = numbers_table(part, {"Name", "Junk", "Backpack", "Ship locker", "Total"});
     // a carrier's count is the one that may be corrected; the backpack and the locker are the game's own lists
     view->setEditTriggers(QAbstractItemView::DoubleClicked | QAbstractItemView::EditKeyPressed);
     part_layout->addWidget(view, 1);
@@ -510,8 +515,22 @@ auto micro_resource_window_t::setup_assets(QTabWidget * tabs) -> void
           "holdings edit",
           [&]
           {
-            int const store{column - 3};
-            if(holdings_filling_ or store < 0 or size_t(store) >= holdings_carriers_.size())
+            if(holdings_filling_)
+              return;
+            if(column == 1)
+              {
+              QTableWidgetItem const * mark{view->item(row, 1)};
+              if(auto res{db_.set_micro_resource_junk(
+                   view->item(row, 0)->data(Qt::UserRole).toString().toStdString(), mark->checkState() == Qt::Checked
+                 )};
+                 not res)
+                spdlog::error("holdings: failed to mark a kind as junk");
+              // deferred: the table is refilled, and the cell that signalled must outlive this call
+              QTimer::singleShot(0, this, [this] { eht::event_guard("holdings refresh", [this] { show_holdings(); }); });
+              return;
+              }
+            int const store{column - 4};
+            if(store < 0 or size_t(store) >= holdings_carriers_.size())
               return;
             bool ok{};
             int64_t const count{view->item(row, column)->text().toLongLong(&ok)};
@@ -524,7 +543,7 @@ auto micro_resource_window_t::setup_assets(QTabWidget * tabs) -> void
                  )};
                  not res)
                 spdlog::error("holdings: failed to set the store of {}", holdings_carriers_[size_t(store)]);
-            show_holdings();
+            QTimer::singleShot(0, this, [this] { eht::event_guard("holdings refresh", [this] { show_holdings(); }); });
           }
         );
       }
@@ -534,6 +553,7 @@ auto micro_resource_window_t::setup_assets(QTabWidget * tabs) -> void
     }
   tabs->addTab(holdings_page, "Holdings");
   connect(holdings_filter_, &QLineEdit::textChanged, this, [this](QString const &) { show_holdings(); });
+  connect(holdings_no_junk_, &QCheckBox::toggled, this, [this](bool) { show_holdings(); });
 
   // --- on foot: what was used up, and what was killed with what ---
   auto * on_foot_page = new QWidget(tabs);
@@ -694,7 +714,7 @@ auto micro_resource_window_t::show_holdings() -> void
   {
   // our carriers - the one marked mine and the squadron's - a column each, as in Carrier cargo
   holdings_carriers_.clear();
-  QStringList headers{"Name", "Backpack", "Ship locker"};
+  QStringList headers{"Name", "Junk", "Backpack", "Ship locker"};
   std::vector<holdings::counts_t> stores;
   if(auto carriers{db_.load_carriers()}; carriers)
     for(info::carrier_t const & c: *carriers)
@@ -719,13 +739,19 @@ auto micro_resource_window_t::show_holdings() -> void
                                 }()};
 
   std::map<std::string, std::pair<std::string, std::string>, std::less<>> names;
+  std::set<std::string, std::less<>> junk;
   if(auto dictionary{db_.load_micro_resources()}; dictionary)
     for(info::micro_resource_t const & item: *dictionary)
+      {
       names.try_emplace(item.name, item.localised, item.category);
+      if(item.junk)
+        junk.insert(item.name);
+      }
 
   QString const filter{holdings_filter_->text().trimmed()};
   std::array<std::vector<holdings::row_t>, 3> by_kind;
-  for(holdings::row_t & row: holdings::rows(backpack, locker, stores, names))
+  for(holdings::row_t & row:
+      holdings::with_junk(holdings::rows(backpack, locker, stores, names), junk, holdings_no_junk_->isChecked()))
     if(filter.isEmpty() or QString::fromStdString(row.shown).contains(filter, Qt::CaseInsensitive))
       by_kind[size_t(row.kind)].push_back(std::move(row));
 
@@ -752,15 +778,19 @@ auto micro_resource_window_t::show_holdings() -> void
       name->setFlags(name->flags() & ~Qt::ItemIsEditable);
       name->setData(Qt::UserRole, QString::fromStdString(row.name));
       view->setItem(int(r), 0, name);
-      view->setItem(int(r), 1, cell(QString::number(row.backpack), false));
-      view->setItem(int(r), 2, cell(QString::number(row.locker), false));
+      auto * mark{new QTableWidgetItem()};
+      mark->setFlags((mark->flags() | Qt::ItemIsUserCheckable) & ~Qt::ItemIsEditable);
+      mark->setCheckState(row.junk ? Qt::Checked : Qt::Unchecked);
+      view->setItem(int(r), 1, mark);
+      view->setItem(int(r), 2, cell(QString::number(row.backpack), false));
+      view->setItem(int(r), 3, cell(QString::number(row.locker), false));
       int64_t all{int64_t{row.backpack} + int64_t{row.locker}};
       for(auto const & [s, count]: row.stores | std::views::enumerate)
         {
-        view->setItem(int(r), 3 + int(s), cell(QString::number(count), true));
+        view->setItem(int(r), 4 + int(s), cell(QString::number(count), true));
         all += count;
         }
-      view->setItem(int(r), 3 + int(row.stores.size()), cell(QString::number(all), false));
+      view->setItem(int(r), 4 + int(row.stores.size()), cell(QString::number(all), false));
       total += all;
       }
     holdings_headings_[ix]->setText(

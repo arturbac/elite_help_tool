@@ -60,7 +60,9 @@ once a second as items are picked up; a hidden window is read when it is shown a
   kept as the cargo is: on docking at one of our carriers the backpack and the locker are noted
   together, and on leaving what they have less of was left in the store, what they have more of was
   taken from it - less what went over that carrier's bartender's counter. Double-click a carrier's count
-  to correct it. It is kept in `live.sqlite` and counts only while EHT runs.
+  to correct it. Tick *Junk* on a kind to mark it as junk; with *No junk* (on at every start)
+  marked kinds are hidden in all three tables - clear it to see them again and take the mark off. The
+  mark is kept in the micro resource dictionary in `live.sqlite`, the same for both commanders. It is kept in `live.sqlite` and counts only while EHT runs.
 - **Bartender stock** (the first tab of Asset trade): the bartender's shelf of every carrier as last
   read, what is for sale and at what price - read it before and after adding to see what sold. With
   `eddn.listen` on, the shelf of your own fleet carrier is read for you too whenever another commander

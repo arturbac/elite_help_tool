@@ -186,6 +186,10 @@ struct database_storage_t
   [[nodiscard]]
   auto load_micro_resources() -> expected_ec<std::vector<info::micro_resource_t>>;
 
+  ///\brief marks a micro resource as junk, or takes the mark off - a kind not in the dictionary yet is added to it
+  [[nodiscard]]
+  auto set_micro_resource_junk(std::string_view name, bool junk) -> expected_ec<void>;
+
   ///\brief what is in a carrier's store of micro resources
   [[nodiscard]]
   auto load_carrier_micro(uint64_t carrier_id) -> expected_ec<std::vector<info::carrier_micro_t>>;

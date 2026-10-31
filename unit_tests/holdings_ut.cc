@@ -87,4 +87,19 @@ auto main() -> int
     expect(rows[2].kind == kind_e::assets and rows[2].locker == 4u);
     expect(rows[2].stores == std::vector<int64_t>{0, 7});
   };
+
+  "junk: marked, and hidden when asked"_test = []
+  {
+    std::vector<holdings::row_t> const rows{
+      {.kind = kind_e::data, .name = "insight", .shown = "Insight"},
+      {.kind = kind_e::data, .name = "spyware", .shown = "Spyware"},
+    };
+    std::set<std::string, std::less<>> const junk{"spyware"};
+    auto const shown{holdings::with_junk(rows, junk, false)};
+    expect(fatal(shown.size() == 2u));
+    expect(not shown[0].junk and shown[1].junk);
+    auto const hidden{holdings::with_junk(rows, junk, true)};
+    expect(fatal(hidden.size() == 1u));
+    expect(hidden[0].name == "insight");
+  };
   }

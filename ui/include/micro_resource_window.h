@@ -159,6 +159,8 @@ public:
   ///\brief the carriers of the store columns, by market id, in their order
   std::vector<uint64_t> holdings_carriers_;
   QLineEdit * holdings_filter_{};
+  ///\brief hides the kinds marked as junk - on at every start
+  QCheckBox * holdings_no_junk_{};
   QLabel * holdings_note_{};
   std::array<QTableWidget *, 3> holdings_views_{};
   std::array<QLabel *, 3> holdings_headings_{};

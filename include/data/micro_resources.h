@@ -17,6 +17,8 @@ struct micro_resource_t
   uint64_t id;
   std::string localised;
   std::string category;
+  ///\brief marked as junk by the commander in Holdings, which hides it there - nothing a journal says
+  bool junk{};
 };
 
 ///\brief a micro resource sale - dropped at a station's bartender or delivered to a player's carrier

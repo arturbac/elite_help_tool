@@ -96,4 +96,14 @@ auto rows(
   std::ranges::sort(result, {}, [](row_t const & r) { return std::tie(r.kind, r.shown); });
   return result;
   }
+
+auto with_junk(std::vector<row_t> rows, std::set<std::string, std::less<>> const & junk, bool hide)
+  -> std::vector<row_t>
+  {
+  for(row_t & row: rows)
+    row.junk = junk.contains(row.name);
+  if(hide)
+    std::erase_if(rows, [](row_t const & row) { return row.junk; });
+  return rows;
+  }
   }  // namespace holdings
