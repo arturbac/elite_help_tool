@@ -608,7 +608,23 @@ auto micro_resource_window_t::setup_assets(QTabWidget * tabs) -> void
 
   tabs->addTab(holdings_page, "Holdings");
   connect(holdings_filter_, &QLineEdit::textChanged, this, [this](QString const &) { show_holdings(); });
-  connect(holdings_no_junk_, &QCheckBox::toggled, this, [this](bool) { show_holdings(); });
+  connect(
+    holdings_no_junk_,
+    &QCheckBox::toggled,
+    this,
+    [this](bool on)
+    {
+      eht::event_guard(
+        "holdings junk filter",
+        [this, on]
+        {
+          spdlog::info("holdings: No junk {}", on ? "on" : "off");
+          holdings_log_next_ = true;
+          show_holdings();
+        }
+      );
+    }
+  );
 
   // --- on foot: what was used up, and what was killed with what ---
   auto * on_foot_page = new QWidget(tabs);
@@ -838,7 +854,20 @@ auto micro_resource_window_t::show_holdings() -> void
 
   QString const filter{holdings_filter_->text().trimmed()};
   std::array<std::vector<holdings::row_t>, 3> by_kind;
-  for(holdings::row_t & row: holdings::with_junk(std::move(all_rows), junk, holdings_no_junk_->isChecked()))
+  size_t const before_junk{all_rows.size()};
+  auto kept_rows{holdings::with_junk(std::move(all_rows), junk, holdings_no_junk_->isChecked())};
+  if(holdings_log_next_)
+    {
+    holdings_log_next_ = false;
+    spdlog::info(
+      "holdings: {} kinds held, {} marked junk, {} after the junk filter, find '{}'",
+      before_junk,
+      junk.size(),
+      kept_rows.size(),
+      filter.toStdString()
+    );
+    }
+  for(holdings::row_t & row: kept_rows)
     if(filter.isEmpty() or QString::fromStdString(row.shown).contains(filter, Qt::CaseInsensitive))
       by_kind[size_t(row.kind)].push_back(std::move(row));
 

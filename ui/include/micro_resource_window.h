@@ -163,6 +163,8 @@ public:
   QComboBox * holdings_add_carrier_{};
   QComboBox * holdings_add_kind_{};
   QSpinBox * holdings_add_count_{};
+  ///\brief the next filling of the tables is logged - after the junk filter was switched
+  bool holdings_log_next_{};
   ///\brief hides the kinds marked as junk - on at every start
   QCheckBox * holdings_no_junk_{};
   QLabel * holdings_note_{};
