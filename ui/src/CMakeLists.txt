@@ -32,4 +32,5 @@ target_sources(elite_help_tool
   sensor_watch.cc
   netstate_watch.cc
   eddn_sender.cc
+  eddn_listener.cc
   )

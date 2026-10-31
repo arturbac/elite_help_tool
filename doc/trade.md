@@ -62,7 +62,10 @@ once a second as items are picked up; a hidden window is read when it is shown a
   taken from it - less what went over that carrier's bartender's counter. Double-click a carrier's count
   to correct it. It is kept in `live.sqlite` and counts only while EHT runs.
 - **Bartender stock** (the first tab of Asset trade): the bartender's shelf of every carrier as last
-  read, what is for sale and at what price - read it before and after adding to see what sold.
+  read, what is for sale and at what price - read it before and after adding to see what sold. With
+  `eddn.listen` on, the shelf of your own fleet carrier is read for you too whenever another commander
+  opens its bar with a tool that sends to EDDN (see [privacy.md](privacy.md)); such a reading shows
+  the shelf before their purchase, and the next one shows what they bought.
 
 On-foot consumables and kills are tracked too, but that lives with the rest of the on-foot combat
 tracking in [missions_on_foot.md](missions_on_foot.md).

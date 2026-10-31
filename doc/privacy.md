@@ -8,7 +8,9 @@ Status files. The galaxy in its databases is the galaxy *you* have flown, scanne
 That is what makes the knowledge yours: the species guessed on a new world come only from what you
 have sampled yourself, so the prediction learns from your own work and gets better the more you
 explore, instead of handing you someone else's answers. The only other source it will read is the
-`galaxy.sqlite` of another of your own accounts, if you point `exploration.shared_galaxies` at it.
+`galaxy.sqlite` of another of your own accounts, if you point `exploration.shared_galaxies` at it -
+and, only if you turn it on, the bar of your own fleet carrier as other commanders' tools send it to
+EDDN (below).
 
 **Little goes out, and only what you allow.** The one connection EHT ever makes is to
 [EDDN](https://github.com/EDCD/EDDN), the players' shared data network, and only when you turn it
@@ -29,6 +31,14 @@ on:
 - **No markets, missions, BGS or cargo** are ever sent, and where you are shows only through the
   exploration messages above, after the sale. Localised text is stripped as EDDN asks. The message header carries your commander name as `uploaderID`, as with every EDDN
   sender.
+- **Your carrier's bar, heard back** (`eddn.listen`, `false` by default). With it on, EHT stays
+  connected to EDDN's relay (`tcp://eddn.edcd.io:9500`) and keeps the bartender's shelf of your own
+  fleet carrier whenever another commander's tool sends it - on opening the bar there, so it is the
+  shelf as it stood before their purchase. Each one is kept as a reading of the shelf, so Bartender
+  stock and Bar sales show what sold without flying there. Nothing is sent to the relay but the
+  connection's greeting and its subscription; the relay sends everything EDDN carries and EHT keeps
+  only that shelf. A connection that breaks is tried again after 30 seconds, then less often, up to
+  every five minutes. The relay is spoken to in ZMTP 3, without a ZeroMQ library.
 - **Never stuck on the gateway.** Each step of an upload (connecting, the TLS handshake, sending,
   the answer) has ten seconds, and the whole exchange forty; a gateway that stops answering costs
   one failed message, not a sender - or a closing of the tool - that waits for ever.

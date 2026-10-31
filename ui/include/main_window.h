@@ -18,6 +18,7 @@
 #include <eht_extension.h>
 #include <overlay_feed.h>
 #include <eddn_sender.h>
+#include <eddn_listener.h>
 
 #include <simple_enum/simple_enum.hpp>
 #include <optional>
@@ -73,6 +74,8 @@ public:
   ///\brief what goes to EDDN - declared before the journal's thread, so they outlive what feeds them
   std::unique_ptr<eddn::sender_t> eddn_sender_;
   std::unique_ptr<eddn::publisher_t> eddn_publisher_;
+  ///\brief the bar of one's own carrier as other commanders read it, from EDDN's relay
+  std::unique_ptr<eddn::listener_t> eddn_listener_;
   ///\brief an extension built in from outside the repository, or none
   std::unique_ptr<eht::extension::extension_t> extension_;
   current_state_t state_;

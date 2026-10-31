@@ -1,0 +1,27 @@
+#pragma once
+
+#include <functional>
+#include <string>
+#include <thread>
+
+///\brief hears EDDN's relay for the bartender's shelf of the commander's own fleet carrier, as other commanders'
+/// tools send it on opening the bar there, and keeps each as a reading of the shelf - so Bartender stock and Bar
+/// sales show what sold without flying to the carrier
+///\detail a thread of its own with a database connection of its own; the relay sends everything EDDN carries and
+/// the filtering is here. Nothing is sent to the relay but the greeting and the subscription. Off unless
+/// eddn.listen is set; the setting is read live
+namespace eddn
+  {
+class listener_t final
+  {
+public:
+  ///\param stored called from the listener's thread after a reading was kept
+  listener_t(std::string db_path, std::function<void()> stored);
+  listener_t(listener_t const &) = delete;
+  auto operator=(listener_t const &) -> listener_t & = delete;
+  ~listener_t() = default;
+
+private:
+  std::jthread worker_;
+  };
+  }  // namespace eddn

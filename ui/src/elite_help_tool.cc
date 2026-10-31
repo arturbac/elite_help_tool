@@ -301,6 +301,21 @@ auto main_window_t::start_monitoring() -> void
     std::filesystem::path{"eddn_held.jsonl"},
     [this](eddn::message_t && message) { eddn_sender_->enqueue(std::move(message)); }
   );
+  eddn_listener_ = std::make_unique<eddn::listener_t>(
+    db_path_,
+    [this]
+    {
+      QMetaObject::invokeMethod(
+        this,
+        [this]
+        {
+          if(micro_resource_view_)
+            micro_resource_view_->refresh_ui();
+        },
+        Qt::QueuedConnection
+      );
+    }
+  );
   extension_ = eht::extension::make_extension(std::filesystem::path{state_.journal_dir_path_});
   if(extension_ and extension_->sets_destination() and route_view_)
     route_view_->set_destination_handler([this](std::string const & system) { extension_->set_destination(system); });
@@ -829,6 +844,8 @@ auto main(int argc, char * argv[]) -> int
 void main_window_t::closeEvent(QCloseEvent * event)
   {
   save_settings();
+  // its thread posts to the windows - it stops before they go
+  eddn_listener_.reset();
   QMainWindow::closeEvent(event);
   }
 

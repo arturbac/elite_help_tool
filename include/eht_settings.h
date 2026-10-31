@@ -373,6 +373,9 @@ struct eddn_settings_t
   std::vector<std::string> exploration_commanders{};
   std::vector<std::string> bartender_commanders{};
   std::string upload_url{"https://eddn.edcd.io:4430/upload/"};
+  ///\brief hear EDDN's relay for the bartender's shelf of one's own fleet carrier, as other commanders' tools send
+  /// it - each one kept as a reading of the shelf, so the bar's sales show without flying there
+  bool listen{false};
   };
 
 struct windows_settings_t
