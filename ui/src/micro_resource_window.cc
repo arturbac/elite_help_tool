@@ -6,6 +6,7 @@
 #include <holdings.h>
 #include <events/micro_resources.h>
 #include <qlineedit.h>
+#include <qsplitter.h>
 #include <biology.h>
 #include <cmath>
 #include <ranges>
@@ -481,14 +482,23 @@ auto micro_resource_window_t::setup_assets(QTabWidget * tabs) -> void
   );
   holdings_note_->setWordWrap(true);
   holdings_layout->addWidget(holdings_note_);
+  // the three tables share the height as the commander divides it - the main window keeps the division by this name
+  auto * holdings_split = new QSplitter(Qt::Vertical, holdings_page);
+  holdings_split->setObjectName("holdings_kinds");
+  holdings_split->setChildrenCollapsible(false);
+  holdings_layout->addWidget(holdings_split, 1);
   for(size_t ix{}; char const * heading: {"Data", "Goods", "Assets"})
     {
-    auto * label = new QLabel(QString::fromUtf8(heading), holdings_page);
-    holdings_layout->addWidget(label);
-    auto * view = numbers_table(holdings_page, {"Name", "Backpack", "Ship locker", "Total"});
+    auto * part = new QWidget(holdings_split);
+    auto * part_layout = new QVBoxLayout(part);
+    part_layout->setContentsMargins(0, 0, 0, 0);
+    auto * label = new QLabel(QString::fromUtf8(heading), part);
+    part_layout->addWidget(label);
+    auto * view = numbers_table(part, {"Name", "Backpack", "Ship locker", "Total"});
     // a carrier's count is the one that may be corrected; the backpack and the locker are the game's own lists
     view->setEditTriggers(QAbstractItemView::DoubleClicked | QAbstractItemView::EditKeyPressed);
-    holdings_layout->addWidget(view, 1);
+    part_layout->addWidget(view, 1);
+    holdings_split->addWidget(part);
     connect(
       view,
       &QTableWidget::cellChanged,
