@@ -57,9 +57,12 @@ once a second as items are picked up; a hidden window is read when it is shown a
   what is picked up or taken out of the locker on foot at once; what is moved while aboard it carries out
   only on leaving the ship, and on boarding the backpack goes into the locker without a word for the
   backpack - so the backpack counts as emptied of them then. A carrier's store is in no journal, so it is
-  kept as the cargo is: on docking at one of our carriers the backpack and the locker are noted
-  together, and on leaving what they have less of was left in the store, what they have more of was
-  taken from it - handed in at your own bar included. The bar of your own fleet carrier sells out of its
+  kept from the locker: on docking at one of our carriers the backpack and the locker are noted
+  together, and at every change of the locker while docked - and again on leaving - what they have less
+  of was left in the store, what they have more of was taken from it - handed in at your own bar
+  included. So the store changes at once as you put things in or take them out. Started while docked,
+  or the game started docked, the tool counts from what is held then; what was moved while it was not
+  running is not known. The bar of your own fleet carrier sells out of its
   store, so a reading of its bartender - yours in the game, or another commander's heard through EDDN -
   is the store's count of every kind on sale, a sold out one at 0; a kind not on sale keeps the count of
   the visits. A reading during a visit books what was moved so far and measures afresh from it, so what

@@ -705,6 +705,7 @@ auto main_window_t::background_worker(std::stop_token stoken) -> void
       state_.forget_live_combat();
       // a reading of one's own carrier's bartender taken while stores were not counted counts now
       state_.apply_unseen_bar_readings();
+      state_.resume_micro_visit();
       state_.remember_progress();
       bool const inhabited{not state_.system_factions.empty()};
       QMetaObject::invokeMethod(

@@ -490,6 +490,9 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
             }
           else
             settlement_market_id_ = 0u;
+          // the game started docked: at one of our carriers the store follows the locker from here, as after Docked
+          if(not catching_up_ and event.Docked)
+            open_micro_visit(event.MarketID, timestamp);
           f_route_progress(event.SystemAddress);
           update_system = true;
           }
@@ -915,7 +918,12 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           );
 
           if constexpr(std::same_as<T, events::ship_locker_t>)
+            {
             ship_locker = std::move(inventory);
+            // docked at one of our carriers the locker changes only by what is put in its store or taken out
+            if(not catching_up_)
+              book_micro_visit(timestamp);
+            }
           else
             backpack = std::move(inventory);
           update_holdings = true;
@@ -1002,17 +1010,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
           // at one of our own carriers - one marked mine, or the squadron's - the store is measured from here
           micro_visit_.reset();
           if(not catching_up_ and event.StationType == "FleetCarrier")
-            if(auto carriers{db_.load_carriers()}; carriers)
-              if(std::ranges::any_of(
-                   *carriers,
-                   [&](info::carrier_t const & c)
-                   { return c.market_id == event.MarketID and carrier_owner::ours(c, account_fid()); }
-                 ))
-                {
-                auto const [carried, locked]{held_lists()};
-                micro_visit_
-                  = micro_visit_t{.carrier_id = event.MarketID, .since = timestamp, .held = holdings::totals(carried, locked)};
-                }
+            open_micro_visit(event.MarketID, timestamp);
           }
         // conflict zones on foot: where the commander stands, and the kills that tell a zone's intensity
         else if constexpr(std::same_as<T, events::faction_kill_bond_t>)
@@ -2338,7 +2336,10 @@ auto current_state_t::close_micro_visit(std::chrono::sys_seconds when) -> void
   micro_visit_.reset();
 
   auto const [carried, locked]{held_lists()};
-  for(auto const & [name, delta]: holdings::visit_balance(visit.held, holdings::totals(carried, locked)))
+  holdings::counts_t const balance{holdings::visit_balance(visit.held, holdings::totals(carried, locked))};
+  if(balance.empty())
+    return;
+  for(auto const & [name, delta]: balance)
     if(auto res{db_.change_carrier_micro(
          info::carrier_micro_change_t{
            .timestamp = when, .carrier_id = visit.carrier_id, .name = name, .delta = delta, .source = "visit"
@@ -2346,7 +2347,45 @@ auto current_state_t::close_micro_visit(std::chrono::sys_seconds when) -> void
        )};
        not res)
       spdlog::error("failed to change the store of carrier {}", visit.carrier_id);
+  spdlog::info("holdings: {} kinds left in or taken from the store of carrier {}", balance.size(), visit.carrier_id);
   ++carrier_changes_;
+  }
+
+auto current_state_t::book_micro_visit(std::chrono::sys_seconds when) -> void
+  {
+  if(not micro_visit_)
+    return;
+  uint64_t const carrier{micro_visit_->carrier_id};
+  close_micro_visit(when);
+  auto const [carried, locked]{held_lists()};
+  micro_visit_ = micro_visit_t{.carrier_id = carrier, .since = when, .held = holdings::totals(carried, locked)};
+  }
+
+auto current_state_t::open_micro_visit(uint64_t market_id, std::chrono::sys_seconds when) -> void
+  {
+  micro_visit_.reset();
+  if(market_id == 0u)
+    return;
+  auto carriers{db_.load_carriers()};
+  if(not carriers)
+    {
+    spdlog::error("holdings: failed to load carriers");
+    return;
+    }
+  if(not std::ranges::any_of(
+       *carriers,
+       [&](info::carrier_t const & c) { return c.market_id == market_id and carrier_owner::ours(c, account_fid()); }
+     ))
+    return;
+  auto const [carried, locked]{held_lists()};
+  micro_visit_ = micro_visit_t{.carrier_id = market_id, .since = when, .held = holdings::totals(carried, locked)};
+  spdlog::info("holdings: at carrier {}, its store follows the locker", market_id);
+  }
+
+auto current_state_t::resume_micro_visit() -> void
+  {
+  if(not micro_visit_)
+    open_micro_visit(settlement_market_id_, std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now()));
   }
 
 auto current_state_t::start_weapon_watch() -> void

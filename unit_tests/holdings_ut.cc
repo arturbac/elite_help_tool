@@ -53,6 +53,18 @@ auto main() -> int
     expect(balance.at("graphene") == -1);
   };
 
+  "booked at every change of the locker, the store ends as booked once on leaving"_test = []
+  {
+    counts_t const docked{{"digitaldesigns", 20}};
+    counts_t const put_in{{"digitaldesigns", 5}};
+    counts_t const taken_back{{"digitaldesigns", 10}};
+    auto const first{holdings::visit_balance(docked, put_in)};
+    auto const second{holdings::visit_balance(put_in, taken_back)};
+    auto const once{holdings::visit_balance(docked, taken_back)};
+    expect(first.at("digitaldesigns") == 15 and second.at("digitaldesigns") == -5);
+    expect(first.at("digitaldesigns") + second.at("digitaldesigns") == once.at("digitaldesigns"));
+  };
+
   "handed in at one's own bar is left in the store: the bar sells out of it"_test = []
   {
     // 4 handed in at the bar and 1 more left in the store - all 5 are in the store now

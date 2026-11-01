@@ -486,9 +486,9 @@ auto micro_resource_window_t::setup_assets(QTabWidget * tabs) -> void
   holdings_layout->addLayout(holdings_row);
   holdings_note_ = new QLabel(
     "The backpack and the ship's locker are the game's own lists; a mission's thing and the consumables are left out."
-    " A carrier's store is in no journal: what the backpack and the locker have less of on leaving one of our"
-    " carriers than on docking was left there, what they have more of was taken from it - handed in at one's own bar"
-    " included. That bar sells out of the store, so a reading of its bartender is the store's count of every kind on"
+    " A carrier's store is in no journal: docked at one of our carriers, what the backpack and the locker have less of"
+    " at each change of the locker was left there, what they have more of was taken from it - handed in at one's own"
+    " bar included. That bar sells out of the store, so a reading of its bartender is the store's count of every kind on"
     " sale, sold out ones at 0. Double-click a carrier's count to correct it.",
     holdings_page
   );

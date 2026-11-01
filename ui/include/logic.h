@@ -251,6 +251,14 @@ struct current_state_t : public generic_state_t
   auto held_lists() const -> std::pair<std::vector<holdings::held_t>, std::vector<holdings::held_t>>;
   ///\brief applies the balance of a visit to the carrier's store - handed in at the bar included, it sells from it
   auto close_micro_visit(std::chrono::sys_seconds when) -> void;
+  ///\brief books what the visit moved so far and measures the moves afresh from here - at every change of the locker,
+  /// so the store follows it while docked
+  auto book_micro_visit(std::chrono::sys_seconds when) -> void;
+  ///\brief at the port: when it is one of our carriers, the visit is measured from what is held now
+  auto open_micro_visit(uint64_t market_id, std::chrono::sys_seconds when) -> void;
+  ///\brief at the end of the replay, docked at one of our carriers: the visit goes on from what is held now - what
+  /// was moved while the tool was not running is not known
+  auto resume_micro_visit() -> void;
   ///\brief a reading of one's own fleet carrier's bartender: the store's count of every kind on sale
   auto apply_bar_reading(events::fcmaterials_t const & shelf) -> void;
   ///\brief the last reading of each of one's own fleet carriers' bartenders, when newer than the store's last change,
