@@ -500,7 +500,9 @@ auto record_screenshot(swapchain_data_t & data, frame_resources_t & frame, uint3
     uint64_t const moment{uint64_t(
       std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count()
     )};
-    std::string path{std::format("{}/{}{}.ppm", overlay::default_spool_path(), overlay::screenshot_prefix, moment)};
+    std::string path{std::format(
+      "{}/{}{}{}.ppm", overlay::default_spool_path(), overlay::socket_stem(), overlay::screenshot_infix, moment
+    )};
     if(not record_copy(data, frame, image_index, VkRect2D{.offset = {0, 0}, .extent = data.extent}, std::move(path)))
       return false;
     // the whole screen needs a buffer many times the size of a picture; it goes once the copy is read

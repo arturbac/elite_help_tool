@@ -464,8 +464,34 @@ constexpr auto dump_done_draws(std::string_view text) noexcept -> std::optional<
   return digits ? std::optional<uint32_t>{draws} : std::nullopt;
   }
 
-///\brief how the layer names a screenshot in the spool, before the moment and the extension
+///\brief how an older layer names a screenshot in the spool, before the moment and the extension - with no socket's
+/// stem, so whichever tool looks first takes it
 inline constexpr std::string_view screenshot_prefix{"screenshot_"};
+
+///\brief how the layer names a screenshot in the spool, after the socket's stem and before the moment:
+/// <stem>_screenshot_<moment>.ppm, so that two accounts playing at once each take only their own
+inline constexpr std::string_view screenshot_infix{"_screenshot_"};
+
+///\brief the moment (milliseconds, as digits) of a screenshot of the tool with this socket stem in the spool -
+/// its own <stem>_screenshot_<moment>.ppm or an older layer's screenshot_<moment>.ppm; nothing for any other file
+[[nodiscard]]
+constexpr auto screenshot_moment(std::string_view file_name, std::string_view stem) noexcept
+  -> std::optional<std::string_view>
+  {
+  constexpr std::string_view extension{".ppm"};
+  if(not file_name.ends_with(extension))
+    return std::nullopt;
+  file_name.remove_suffix(extension.size());
+  if(file_name.starts_with(screenshot_prefix))
+    file_name.remove_prefix(screenshot_prefix.size());
+  else if(file_name.starts_with(stem) and file_name.substr(stem.size()).starts_with(screenshot_infix))
+    file_name.remove_prefix(stem.size() + screenshot_infix.size());
+  else
+    return std::nullopt;
+  if(file_name.empty() or file_name.find_first_not_of("0123456789") != std::string_view::npos)
+    return std::nullopt;
+  return file_name;
+  }
 
 ///\brief a patch painted over the game's own interface, to hide a mistake of the game and put it right
 ///\detail The place is measured on the middle screen, in shares of its height and from its centre: the game
@@ -521,8 +547,8 @@ inline auto default_socket_path() -> std::string
   return std::string{home != nullptr ? home : "/tmp"} + "/.local/share/elite_help_tool/overlay.sock";
   }
 
-///\brief where the layer writes its pictures and the tool reads them - beside the socket, so each account
-/// running with a socket of its own has a spool of its own too
+///\brief where the layer writes its pictures and the tool reads them - beside the socket; the sockets of two
+/// accounts lie in one directory, so they share the spool and their files are told apart by the socket's stem
 [[nodiscard]]
 inline auto default_spool_path() -> std::string
   {

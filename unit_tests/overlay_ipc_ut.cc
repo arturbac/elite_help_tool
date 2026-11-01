@@ -105,6 +105,22 @@ auto main() -> int
     expect(not overlay::is_dump_flag("overlay-alt_dump_.flag", "overlay-alt")) << "no moment";
   };
 
+  "a screenshot is told by the socket's stem"_test = []
+  {
+    using overlay::screenshot_moment;
+    expect(screenshot_moment("overlay-alt_screenshot_1792500000000.ppm", "overlay-alt") == "1792500000000");
+    expect(screenshot_moment("overlay_screenshot_1792500000000.ppm", "overlay") == "1792500000000");
+    expect(not screenshot_moment("overlay_screenshot_1792500000000.ppm", "overlay-alt")) << "the other account's";
+    expect(not screenshot_moment("overlay-alt_screenshot_1792500000000.ppm", "overlay"))
+      << "a stem that begins the other one's";
+    expect(screenshot_moment("screenshot_1792500000000.ppm", "overlay-alt") == "1792500000000")
+      << "an older layer's, taken by either tool";
+    expect(not screenshot_moment("overlay_screenshot_1792500000000.ppm.part", "overlay")) << "still being written";
+    expect(not screenshot_moment("overlay_screenshot_.ppm", "overlay")) << "no moment";
+    expect(not screenshot_moment("overlay_screenshot_17925x.ppm", "overlay"));
+    expect(not screenshot_moment("overlay_shot_1792500000000_codex.ppm", "overlay"));
+  };
+
   "edworld's dump_done gives the dump's draw count"_test = []
   {
     expect(overlay::dump_done_draws("20261020T190744_312Z 2568\n") == std::optional<uint32_t>{2568u});

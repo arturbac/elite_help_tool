@@ -210,8 +210,9 @@ With two games at once only the one whose window is active counts (`_NET_ACTIVE_
 the overlay; the layer only watches.
 
 The copy of the whole image is made **after** the overlay is drawn. It goes into the spool as
-`screenshot_<ms>.ppm`, and the tool, in a thread of its own, saves it as `ED <date time>.png` and
-deletes the PPM. Screenshots taken while the tool was not running are saved at its next start. It
+`<socket stem>_screenshot_<ms>.ppm`, and the tool, in a thread of its own, saves it as `ED <date time>.png` and
+deletes the PPM. Two accounts playing at once share the spool; each tool takes only the screenshots under its
+own socket's stem, and an older layer's `screenshot_<ms>.ppm` (no stem) as before. Screenshots taken while the tool was not running are saved at its next start. It
 needs `EHT_OVERLAY_CAPTURE=1`, like the codex pictures.
 
 It works only with the game in an X11 window (XWayland), which is how Proton starts it by default.
