@@ -1635,12 +1635,15 @@ auto overlay_feed_t::refresh_factions(
   auto const now{std::chrono::steady_clock::now()};
   bool const same_system{system_address == view.system};
 
-  // influence moves once a day, so asking the database every frame would be a waste
-  if(same_system and now - view.loaded < faction_refresh())
+  // influence moves once a day, so asking the database every frame would be a waste - except after a new
+  // reading: StartJump names the destination before FSDJump brings its influence, so the copy loaded in
+  // the tunnel is the last visit's, and waiting out the interval would show it after the arrival
+  if(same_system and state.factions_generation_ == view.generation and now - view.loaded < faction_refresh())
     return;
 
   view.system = system_address;
   view.loaded = now;
+  view.generation = state.factions_generation_;
   view.lines.clear();
   view.conflicts.clear();
   bool war_running{};

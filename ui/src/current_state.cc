@@ -2009,6 +2009,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
 
     if(update_factions)
       {
+      ++factions_generation_;
       load_factions();
       QMetaObject::invokeMethod(
         parent,

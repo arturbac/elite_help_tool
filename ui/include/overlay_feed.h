@@ -104,6 +104,8 @@ private:
     {
     uint64_t system{};
     std::chrono::steady_clock::time_point loaded{};
+    ///\brief the state's factions_generation_ at the loading - a newer reading reloads at once
+    uint64_t generation{};
     std::vector<overlay::line_t> lines;
     std::vector<overlay::line_t> conflicts;
     ///\brief the influence chart - empty when there is too little history

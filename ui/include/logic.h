@@ -57,6 +57,8 @@ struct current_state_t : public generic_state_t
   star_system_t system;
   std::vector<info::faction_info_t> system_factions;
   std::vector<info::faction_info_t> known_factions;
+  ///\brief moves on at every new reading of the factions, so the overlay knows its copy of the influence is old
+  uint64_t factions_generation_{};
   std::vector<info::mission_t> active_missions;
   ///\brief the notable stellar phenomena reported somewhere and never visited, the newest first
   std::vector<unvisited_phenomenon_t> unvisited_phenomena;

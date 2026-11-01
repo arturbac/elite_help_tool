@@ -3,7 +3,9 @@
 ![A system's factions with their states, influence chart and tick histogram](images/bgs_influence.png)
 
 - **Influence at a glance.** In a system, the overlay shows the factions with their influence and
-  states, a chart of the last 20 days of influence, and the last tick. The states are the system's own:
+  states, a chart of the last 20 days of influence, and the last tick. A new reading - the arrival after a
+  jump, a login - replaces them at once; otherwise they are read again every `overlay.refresh.factions_s`
+  seconds (60). The states are the system's own:
   the journal's FactionState is a state of the faction taken from one of its systems, so a retreat
   from where it is weak would show in every system it is in. While nothing is active, the states the
   faction is recovering from are shown instead, as in `Expansion (recovering)` - the cooldown after an
