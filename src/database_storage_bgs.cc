@@ -248,6 +248,39 @@ auto database_storage_t::load_recent_ticks(info::tick_kind_e kind, uint32_t with
   return facts;
   }
 
+auto database_storage_t::load_latest_window(info::tick_kind_e kind)
+  -> expected_ec<std::optional<info::tick_fact_t>>
+  {
+  auto rows{sqlite::select_from<info::tick_observation_t>(
+    db_->db,
+    sql_iface::tables::tick_observation,
+    std::format(
+      // the last day only - an older window, however narrow, bounds an older tick
+      " WHERE kind='{0}' AND window_end >="
+      " (SELECT strftime('%Y-%m-%dT%H:%M:%SZ', max(window_end), '-1 days') FROM {1} WHERE kind='{0}'){2}"
+      " ORDER BY julianday(window_end) - julianday(window_begin) ASC, window_end DESC LIMIT 1",
+      simple_enum::enum_name(kind),
+      sql_iface::tables::tick_observation,
+      settled_colony_clause()
+    )
+  )};
+  if(not rows) [[unlikely]]
+    return cxx23::unexpected{rows.error()};
+  if(rows->empty())
+    return std::optional<info::tick_fact_t>{};
+
+  info::tick_observation_t const & window{rows->front()};
+  return std::optional{info::tick_fact_t{
+    .kind = kind,
+    .start_begin = window.window_begin - client_lag(),
+    .start_end = window.window_end,
+    .end_begin = window.window_begin,
+    .end_end = window.window_end,
+    .samples = 1u,
+    .systems = 1u
+  }};
+  }
+
 auto database_storage_t::last_local_tick(uint64_t system_address, info::tick_kind_e kind)
   -> expected_ec<std::optional<std::chrono::sys_seconds>>
   {

@@ -1659,6 +1659,8 @@ auto overlay_feed_t::refresh_factions(
   auto const tick_line = [&](info::tick_kind_e kind, std::string_view caption) -> overlay::line_t
   {
     tick_view_t const tick{describe_tick(db_, view.system, kind, wall_clock)};
+    if(not tick.away.empty())
+      return overlay::line_t{.text = std::format("{} {}", caption, tick.away), .color = colour_plain()};
     return overlay::line_t{
       .text = std::format(
         "{} {}{}",

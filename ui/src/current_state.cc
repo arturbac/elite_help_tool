@@ -2145,6 +2145,14 @@ auto describe_tick(
       "{:%d.%m %H:%M}-{:%H:%M} UTC ({} sys) - {}", wave.start_begin, wave.end_end, wave.systems, regularity
     );
     }
+  // Every session began after the tick, so every window spans a night away and none makes a wave. The
+  // narrowest of the last day still bounds the last tick from above, which is what handing missions in needs
+  else if(auto latest{db.load_latest_window(kind)}; not latest)
+    spdlog::error("failed to read the latest tick window");
+  else if(*latest and (*latest)->end_end >= now - std::chrono::days{window_days})
+    view.away = std::format(
+      "between {:%d.%m %H:%M} and {:%d.%m %H:%M} UTC (away)", (*latest)->start_begin, (*latest)->end_end
+    );
 
   return view;
   }

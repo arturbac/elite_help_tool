@@ -42,6 +42,11 @@ that some tick happened during that week, which is useless. Therefore:
 - a window wider than **24 h** is not stored at all (`ticks.max_window_h`);
 - only windows of **≤ 3 h** are used when building waves (`load_recent_ticks`).
 
+When no wave can be built from the last 14 days - every session began after the tick, so every window
+spans a night away - the overlay and the system window show the narrowest window of the last day of
+observations instead, as `BGS tick between 31.10 23:09 and 01.11 09:51 UTC (away)` (`load_latest_window`).
+Its start is moved back as a wave's is. It bounds the last tick from above and says nothing more.
+
 Useful observations come from moments when you entered a system, the tick passed, and you were back
 there within a few hours. For example, you were hopping between systems in one area, relogging, or
 passing through the same system on a route. **How rarely you visit a system over weeks does not

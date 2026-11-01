@@ -1325,7 +1325,11 @@ auto faction_state_window_t::update_tick_labels(uint64_t system_address) -> void
       );
 
     here->setText(QString::fromStdString(local));
-    galaxy->setText(QString::fromStdString(view.galaxy.empty() ? std::string{"-"} : view.galaxy));
+    galaxy->setText(QString::fromStdString(
+      not view.galaxy.empty() ? view.galaxy
+      : not view.away.empty() ? view.away
+                              : std::string{"-"}
+    ));
   };
 
   describe(info::tick_kind_e::influence, bgs_tick_label_, bgs_galaxy_label_);

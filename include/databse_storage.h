@@ -289,6 +289,12 @@ struct database_storage_t
   auto load_recent_ticks(info::tick_kind_e kind, uint32_t within_days)
     -> expected_ec<std::vector<info::tick_fact_t>>;
 
+  ///\brief the narrowest window from the last day of observations, the wide ones included
+  ///\detail when no wave can be built - every session began after the tick - it is the only bound on the
+  /// last one there is; its start moved back as a wave's is, and the window counted as one wave of one system
+  [[nodiscard]]
+  auto load_latest_window(info::tick_kind_e kind) -> expected_ec<std::optional<info::tick_fact_t>>;
+
   ///\brief when what the tick recalculates last changed in this system
   ///
   /// The question "has it recalculated here" is answered by the change itself, with no bracketing: influence

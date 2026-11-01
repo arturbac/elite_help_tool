@@ -454,6 +454,30 @@ int main()
     expect(last and last->has_value() and **last == tick) << "a state named anew was taken for the tick";
   };
 
+  "without a wave the last tick is bounded by the narrowest window of the last day"_test = [&]
+  {
+    using namespace std::chrono;
+    constexpr uint64_t away{4242424250ull};
+    sys_seconds const morning{sys_days{2026y / 11 / 1} + 9h};
+
+    auto const window = [&](sys_seconds end, hours width) -> bool
+    {
+      return bool(dbs.store(info::tick_observation_t{
+        .kind = info::tick_kind_e::influence, .system_address = away, .window_begin = end - width, .window_end = end
+      }));
+    };
+    // a narrow one three days back bounds an older tick, the two nights away bound the last one
+    expect(window(morning - 72h, 1h));
+    expect(window(morning, 10h));
+    expect(window(morning - 5h, 7h));
+
+    auto latest{dbs.load_latest_window(info::tick_kind_e::influence)};
+    expect(latest and latest->has_value());
+    expect(latest and latest->has_value() and (*latest)->end_end == morning - 5h) << "not the narrowest of the day";
+    expect(latest and latest->has_value() and (*latest)->start_begin == morning - 12h - 5min)
+      << "the start is not moved back as a wave's";
+  };
+
   "the territory is every system one's factions are in at its newest reading, the ones gone left out"_test = [&]
   {
     using namespace std::chrono;

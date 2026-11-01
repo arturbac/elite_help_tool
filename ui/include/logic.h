@@ -31,6 +31,9 @@ struct tick_view_t
   std::string here;
   ///\brief the span the last wave took across the galaxy, and how regularly it comes
   std::string galaxy;
+  ///\brief without a wave in the window: the narrowest span of the last day's observations, which the
+  /// absence it comes of makes wide - empty while there is a wave
+  std::string away;
   ///\brief the wave has started but we have not yet seen this system in it - for influence that
   /// means "there is still time to hand missions in", for wars "bonds not recalculated yet"
   bool awaiting;
