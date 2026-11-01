@@ -256,6 +256,9 @@ struct current_state_t : public generic_state_t
   ///\brief the last reading of each of one's own fleet carriers' bartenders, when newer than the store's last change,
   /// sets the store - so a reading taken while the tool was not counting stores still counts; at the end of the replay
   auto apply_unseen_bar_readings() -> void;
+  ///\brief the owner of each fleet carrier managed before the owner was kept, from the journals - once, at the end of
+  /// the replay, on the journal's thread and without the state's lock: it may read many journals
+  auto owners_from_journals() -> void;
   bool personal_{true};
 
   current_state_t(main_window_t * p, std::string db_path, std::string journal_path) :

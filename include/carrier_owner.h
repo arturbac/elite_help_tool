@@ -2,6 +2,12 @@
 
 #include <data/carrier.h>
 
+#include <cstdint>
+#include <filesystem>
+#include <istream>
+#include <map>
+#include <set>
+#include <string>
 #include <string_view>
 
 ///\brief whose carrier a carrier is - a fleet carrier is its owner's alone, the squadron's carrier everyone's
@@ -31,4 +37,18 @@ inline auto may_mark(info::carrier_t const & carrier, std::string_view account_f
   return carrier.carrier_type != "SquadronCarrier" and not account_fid.empty()
          and (carrier.owner_fid.empty() or carrier.owner_fid == account_fid);
   }
+
+using owners_t = std::map<uint64_t, std::string, std::less<>>;
+
+///\brief the owners of fleet carriers one journal tells: the account (FID) of the Commander event before each fleet
+/// carrier's CarrierStats - only the owner manages a fleet carrier; the squadron's carrier is nobody's
+[[nodiscard]]
+auto owners_in_journal(std::istream & journal) -> owners_t;
+
+///\brief the owners of the wanted fleet carriers as the journals of the directory tell, newest journal first, read
+/// until every one is found - a directory copied with a game prefix holds another account's sessions too, so each
+/// journal names its own account
+///\param wanted market ids of fleet carriers whose owner is not known yet
+[[nodiscard]]
+auto owners_from_journals(std::filesystem::path const & journal_dir, std::set<uint64_t> wanted) -> owners_t;
   }  // namespace carrier_owner

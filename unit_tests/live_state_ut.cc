@@ -2,6 +2,7 @@
 #include <live_state.h>
 
 #include <boost/ut.hpp>
+#include <sstream>
 
 #include <vector>
 
@@ -70,6 +71,23 @@ auto main() -> int
     unknown.carrier_type = "FleetCarrier";
     unknown.tracked = true;
     expect(not carrier_owner::ours(unknown, "F1") and not carrier_owner::ours(unknown, "F2"));
+  };
+
+  "a journal names the owner of each fleet carrier managed in it, and never of the squadron's"_test = []
+  {
+    std::istringstream journal{
+      R"({ "timestamp":"2026-10-31T12:00:00Z", "event":"Commander", "FID":"F2", "Name":"DUNKAN" })" "\n"
+      R"({ "timestamp":"2026-10-31T12:59:06Z", "event":"CarrierStats", "CarrierID":43, "CarrierType":"FleetCarrier", "Callsign":"N1M-L8V" })" "\n"
+      R"({ "timestamp":"2026-10-31T13:00:00Z", "event":"CarrierStats", "CarrierID":44, "CarrierType":"SquadronCarrier", "Callsign":"PRNH" })" "\n"
+      R"({ "timestamp":"2026-10-31T14:00:00Z", "event":"Commander", "FID":"F1", "Name":"SJONA" })" "\n"
+      R"({ "timestamp":"2026-10-31T14:01:00Z", "event":"CarrierStats", "CarrierID":42, "CarrierType":"FleetCarrier", "Callsign":"W1V-NXM" })" "\n"};
+    carrier_owner::owners_t const owners{carrier_owner::owners_in_journal(journal)};
+    expect(owners.size() == 2u);
+    expect(owners.contains(43u) and owners.at(43u) == "F2");
+    expect(owners.contains(42u) and owners.at(42u) == "F1");
+    // a CarrierStats before any Commander has no account to name
+    std::istringstream headless{R"({ "event":"CarrierStats", "CarrierID":43, "CarrierType":"FleetCarrier" })" "\n"};
+    expect(carrier_owner::owners_in_journal(headless).empty());
   };
 
   "a fleet carrier may be marked by an account only while nobody else owns it"_test = []

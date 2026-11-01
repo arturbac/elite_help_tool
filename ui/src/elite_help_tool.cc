@@ -697,6 +697,8 @@ auto main_window_t::background_worker(std::stop_token stoken) -> void
         state_.events_handled_,
         state_.events_walked_past_
       );
+      // the owners of carriers managed before the owner was kept - before the lock, it may read many journals
+      state_.owners_from_journals();
       // from here the stream is live, and nothing in it is ever skipped again
       std::scoped_lock const lock{state_.mutex_};
       state_.catching_up_ = false;

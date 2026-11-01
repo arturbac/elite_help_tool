@@ -2284,6 +2284,52 @@ auto current_state_t::apply_unseen_bar_readings() -> void
     }
   }
 
+auto current_state_t::owners_from_journals() -> void
+  {
+  auto carriers{db_.load_carriers()};
+  if(not carriers)
+    {
+    spdlog::error("carrier owners: failed to load carriers");
+    return;
+    }
+  // a CarrierStats was seen, so its session is in some journal; a stranger's carrier never has one
+  std::set<uint64_t> wanted;
+  for(info::carrier_t const & carrier: *carriers)
+    if(
+      carrier.carrier_type != "SquadronCarrier" and carrier.owner_fid.empty()
+      and carrier.stats_seen.time_since_epoch().count() != 0
+    )
+      wanted.insert(carrier.market_id);
+  if(wanted.empty())
+    return;
+  auto const started{std::chrono::steady_clock::now()};
+  carrier_owner::owners_t const found{carrier_owner::owners_from_journals(journal_dir_path_, wanted)};
+  bool changed{};
+  for(info::carrier_t & carrier: *carriers)
+    if(auto const owner{found.find(carrier.market_id)}; owner != found.end())
+      {
+      carrier.owner_fid = owner->second;
+      if(auto res{db_.update_carrier(carrier)}; not res)
+        spdlog::error("carrier owners: failed to store the owner of {}", carrier.carrier_id);
+      else
+        {
+        changed = true;
+        spdlog::info("carrier owners: {} belongs to {}, from the journals", carrier.carrier_id, carrier.owner_fid);
+        }
+      }
+  spdlog::info(
+    "carrier owners: {} of {} found in the journals in {} ms",
+    found.size(),
+    wanted.size(),
+    std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - started).count()
+  );
+  if(changed)
+    {
+    std::scoped_lock const lock{mutex_};
+    ++carrier_changes_;
+    }
+  }
+
 auto current_state_t::close_micro_visit(std::chrono::sys_seconds when) -> void
   {
   if(not micro_visit_)
