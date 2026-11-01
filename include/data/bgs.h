@@ -4,6 +4,7 @@
 #include <optional>
 #include <span>
 #include <string>
+#include <vector>
 #include <simple_enum/simple_enum.hpp>
 
 namespace events
@@ -133,6 +134,17 @@ struct conflict_t
 [[nodiscard]]
 auto to_conflict(uint64_t system_address, std::chrono::sys_seconds timestamp, events::conflict_t const & conflict)
   -> conflict_t;
+
+///\brief the closing rows of the conflicts a reading of a populated system no longer lists although their last
+/// row says they run
+///\detail a war over is listed with an empty status for a few days and then not at all - one that ended while
+/// nobody was here leaves no closing row, and its last row would keep it running for good
+///\param history the system's conflict rows, ascending by time
+///\param listed the conflicts the reading lists
+[[nodiscard]]
+auto vanished_conflicts(
+  std::span<conflict_t const> history, std::span<conflict_t const> listed, std::chrono::sys_seconds when
+) -> std::vector<conflict_t>;
 
 ///\brief the population cut down to its order of magnitude - 74k, 9.9M, 2.0B
 ///

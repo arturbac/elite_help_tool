@@ -305,6 +305,10 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
           );
         if(not event.Conflicts.empty())
           process_conflicts(state.db_, timestamp, event.SystemAddress, event.Conflicts, *previously_seen);
+        // a war that ended while nobody was here is no longer listed at all, with no row to say it is over
+        if(not event.Factions.empty())
+          if(auto closed{state.db_.close_vanished_conflicts(event.SystemAddress, timestamp, event.Conflicts)}; not closed)
+            critical_abort("failed to close the conflicts gone from {}", event.SystemAddress);
         }
       else if constexpr(std::same_as<T, events::fsd_jump_t>)
         {
@@ -348,6 +352,10 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
           );
         if(not event.Conflicts.empty())
           process_conflicts(state.db_, timestamp, event.SystemAddress, event.Conflicts, *previously_seen);
+        // a war that ended while nobody was here is no longer listed at all, with no row to say it is over
+        if(not event.Factions.empty())
+          if(auto closed{state.db_.close_vanished_conflicts(event.SystemAddress, timestamp, event.Conflicts)}; not closed)
+            critical_abort("failed to close the conflicts gone from {}", event.SystemAddress);
         }
       else if constexpr(std::same_as<T, events::fss_discovery_scan_t>)
         {

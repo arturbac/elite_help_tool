@@ -6,6 +6,7 @@
 #include <array>
 #include <cctype>
 #include <cmath>
+#include <map>
 #include <string_view>
 #include <span>
 #include <simple_enum/enum_cast.hpp>
@@ -132,6 +133,43 @@ auto to_conflict(uint64_t system_address, std::chrono::sys_seconds timestamp, ev
     .stake2 = conflict.Faction2.Stake,
     .won_days2 = conflict.Faction2.WonDays
   };
+  }
+
+auto vanished_conflicts(
+  std::span<conflict_t const> history, std::span<conflict_t const> listed, std::chrono::sys_seconds when
+) -> std::vector<conflict_t>
+  {
+  std::map<std::pair<std::string_view, std::string_view>, conflict_t const *> newest;
+  for(conflict_t const & row: history)
+    {
+    auto & slot{newest[{row.faction1, row.faction2}]};
+    if(slot == nullptr or slot->timestamp <= row.timestamp)
+      slot = &row;
+    }
+
+  std::vector<conflict_t> closed;
+  for(auto const & [pair, row]: newest)
+    {
+    // over already, or newer than the reading - a rebuild reads the journals in order, so that is a stray
+    if(row->status.empty() or when <= row->timestamp)
+      continue;
+    bool const still_listed{std::ranges::any_of(
+      listed,
+      [&](conflict_t const & c)
+      {
+        return (c.faction1 == row->faction1 and c.faction2 == row->faction2)
+               or (c.faction1 == row->faction2 and c.faction2 == row->faction1);
+      }
+    )};
+    if(still_listed)
+      continue;
+    conflict_t row_closed{*row};
+    row_closed.oid = -1;
+    row_closed.timestamp = when;
+    row_closed.status.clear();
+    closed.push_back(std::move(row_closed));
+    }
+  return closed;
   }
 
 auto to_influence(

@@ -1,6 +1,7 @@
 // database_storage_t: factions, influence, ticks, wars and territory
 #include "database_storage_impl.h"
 #include <territory.h>
+#include <events/system_info.h>
 
 auto database_storage_t::store_faction_seen(int64_t faction_oid, uint64_t system_address, std::chrono::sys_seconds when)
   -> expected_ec<void>
@@ -1178,6 +1179,26 @@ auto database_storage_t::overrule_retreated_owner(info::station_t & station) -> 
 auto database_storage_t::store(info::conflict_t const & value) -> expected_ec<void>
   {
   return sqlite::insert_into(db_->db, "oid"sv, sql_iface::tables::system_conflict, value);
+  }
+
+auto database_storage_t::close_vanished_conflicts(
+  uint64_t system_address, std::chrono::sys_seconds when, std::span<events::conflict_t const> listed
+) -> expected_ec<size_t>
+  {
+  auto history{load_conflicts(system_address)};
+  if(not history) [[unlikely]]
+    return cxx23::unexpected{history.error()};
+
+  std::vector<info::conflict_t> readings;
+  readings.reserve(listed.size());
+  for(events::conflict_t const & conflict: listed)
+    readings.push_back(info::to_conflict(system_address, when, conflict));
+
+  auto const closed{info::vanished_conflicts(*history, readings, when)};
+  for(info::conflict_t const & row: closed)
+    if(auto res{store(row)}; not res) [[unlikely]]
+      return cxx23::unexpected{res.error()};
+  return closed.size();
   }
 
 auto database_storage_t::last_conflict(uint64_t system_address, std::string_view faction1, std::string_view faction2)

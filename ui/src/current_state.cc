@@ -472,6 +472,17 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
             process_conflicts(db_, timestamp, event.SystemAddress, event.Conflicts, previously_seen);
             update_factions = true;
             }
+          // a war that ended while nobody was here is no longer listed at all, with no row to say it is over
+          if(not event.Factions.empty())
+            {
+            if(auto closed{db_.close_vanished_conflicts(event.SystemAddress, timestamp, event.Conflicts)}; not closed)
+              spdlog::error("failed to close the conflicts gone from {}", event.SystemAddress);
+            else if(*closed != 0u)
+              {
+              spdlog::info("{} conflicts in {} are over, no longer listed", *closed, event.SystemAddress);
+              update_factions = true;
+              }
+            }
           // the system description comes from these two events only
           if(apply_system_info(system, event))
             {
@@ -572,6 +583,17 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
             {
             process_conflicts(db_, timestamp, event.SystemAddress, event.Conflicts, previously_seen);
             update_factions = true;
+            }
+          // a war that ended while nobody was here is no longer listed at all, with no row to say it is over
+          if(not event.Factions.empty())
+            {
+            if(auto closed{db_.close_vanished_conflicts(event.SystemAddress, timestamp, event.Conflicts)}; not closed)
+              spdlog::error("failed to close the conflicts gone from {}", event.SystemAddress);
+            else if(*closed != 0u)
+              {
+              spdlog::info("{} conflicts in {} are over, no longer listed", *closed, event.SystemAddress);
+              update_factions = true;
+              }
             }
           // the system description comes from these two events only
           if(apply_system_info(system, event))

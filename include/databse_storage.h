@@ -19,6 +19,7 @@
 namespace events
   {
 struct atmosphere_element_t;
+struct conflict_t;
 struct genus_t;
 struct signal_t;
   }  // namespace events
@@ -712,6 +713,12 @@ struct database_storage_t
   /// conflicts in a system, ascending by time
   [[nodiscard]]
   auto load_conflicts(uint64_t system_address) -> expected_ec<std::vector<info::conflict_t>>;
+
+  /// closes the conflicts of the system a reading of its factions no longer lists, returns how many
+  [[nodiscard]]
+  auto close_vanished_conflicts(
+    uint64_t system_address, std::chrono::sys_seconds when, std::span<events::conflict_t const> listed
+  ) -> expected_ec<size_t>;
 
   [[nodiscard]]
   auto load_system(uint64_t system_address) -> expected_ec<std::optional<star_system_t>>;

@@ -24,7 +24,9 @@
   and the pluses it took per percentage point. That cost depends on the system's population, so it
   is never averaged across systems.
 - **Wars.** The overlay counts the war ticks left until a conflict is settled, and says when the
-  next one decides it. The BGS window lists the days won on both sides.
+  next one decides it. The BGS window lists the days won on both sides. A war that ended while
+  nobody was there is no longer listed at the next visit; that reading of the system's factions
+  closes it, so it does not stay shown as running.
 - **Settlements in a war.** On entering a system at war, the overlay shows each war's official
   state (sides, days won, status, what each side has at stake), the combat bonds not yet handed in
   for both sides (what the kills paid, and in brackets the likely payout: a hand-in pays about 3.3
