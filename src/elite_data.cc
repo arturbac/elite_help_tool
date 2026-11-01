@@ -7,6 +7,7 @@
 #include <cctype>
 #include <cmath>
 #include <map>
+#include <optional>
 #include <string_view>
 #include <span>
 #include <simple_enum/enum_cast.hpp>
@@ -133,6 +134,63 @@ auto to_conflict(uint64_t system_address, std::chrono::sys_seconds timestamp, ev
     .stake2 = conflict.Faction2.Stake,
     .won_days2 = conflict.Faction2.WonDays
   };
+  }
+
+auto running_conflicts(std::span<conflict_t const> history, std::chrono::sys_seconds now)
+  -> std::vector<conflict_run_t>
+  {
+  using namespace std::chrono_literals;
+  // seven war days and an hour or so for the recalculation to come round; a pending one waits a few days
+  // more - two and a half at most in nine of ten of the author's wars
+  constexpr std::chrono::seconds active_at_most{8 * 24h};
+  constexpr std::chrono::seconds pending_at_most{11 * 24h};
+
+  struct run_t
+    {
+    conflict_t newest;
+    std::chrono::sys_seconds started;
+    std::optional<std::chrono::sys_seconds> active_since;
+    };
+  std::map<std::pair<std::string_view, std::string_view>, run_t> runs;
+  for(conflict_t const & row: history)
+    {
+    auto const key{std::pair<std::string_view, std::string_view>{row.faction1, row.faction2}};
+    auto it{runs.find(key)};
+    if(it == runs.end())
+      it = runs.emplace(key, run_t{row, row.timestamp, {}}).first;
+    else if(it->second.newest.status.empty() and not row.status.empty())
+      it->second = run_t{row, row.timestamp, {}};
+    if(row.status == "active" and not it->second.active_since)
+      it->second.active_since = row.timestamp;
+    it->second.newest = row;
+    }
+
+  std::vector<conflict_run_t> result;
+  for(auto const & [key, run]: runs)
+    {
+    if(run.newest.status != "pending" and run.newest.status != "active")
+      continue;
+    // the run began by the time it was first seen, so it is over by then plus the longest it lasts
+    bool const overdue{
+      run.active_since ? now - *run.active_since > active_at_most : now - run.started > pending_at_most
+    };
+    if(overdue)
+      continue;
+    result.push_back(conflict_run_t{.newest = run.newest, .started = run.started});
+    }
+  return result;
+  }
+
+auto war_ticks_left(conflict_t const & conflict) -> uint32_t
+  {
+  constexpr uint32_t days_to_win{4u};
+  constexpr uint32_t days_at_most{7u};
+  uint32_t const won{std::max(conflict.won_days1, conflict.won_days2)};
+  uint32_t const fought{conflict.won_days1 + conflict.won_days2};
+  uint32_t const to_win{won >= days_to_win ? 0u : days_to_win - won};
+  uint32_t const to_last_day{fought >= days_at_most ? 0u : days_at_most - fought};
+  // an announced one needs one more recalculation just to start
+  return (conflict.status == "active" ? 0u : 1u) + std::min(to_win, to_last_day);
   }
 
 auto vanished_conflicts(

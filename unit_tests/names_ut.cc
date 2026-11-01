@@ -94,4 +94,56 @@ auto main() -> int
     // a reading older than the last row closes nothing
     expect(info::vanished_conflicts(history, {}, std::chrono::sys_seconds{oct + days{18}}).empty());
   };
+  "a war runs seven days at most"_test = []
+  {
+    using std::chrono::days;
+    using std::chrono::sys_days;
+    using namespace std::chrono_literals;
+    auto const row = [](sys_days day, std::string status, uint32_t won1, uint32_t won2) -> info::conflict_t
+    {
+      return info::conflict_t{
+        .system_address = 7u,
+        .timestamp = std::chrono::sys_seconds{day},
+        .war_type = "war",
+        .status = std::move(status),
+        .faction1 = "Dukes",
+        .stake1 = {},
+        .won_days1 = won1,
+        .faction2 = "Cartel",
+        .stake2 = {},
+        .won_days2 = won2
+      };
+    };
+    sys_days const oct{2026y / 10 / 1};
+    std::vector<info::conflict_t> const history{
+      row(oct + days{15}, "pending", 0u, 0u), row(oct + days{16}, "active", 0u, 0u), row(oct + days{20}, "active", 0u, 1u)
+    };
+
+    // the run began at the pending row, and it is under way until eight days past its first active day
+    auto const running{info::running_conflicts(history, std::chrono::sys_seconds{oct + days{23}})};
+    expect(fatal(running.size() == 1u));
+    expect(running.front().started == std::chrono::sys_seconds{oct + days{15}});
+    expect(running.front().newest.won_days2 == 1_u);
+    expect(info::running_conflicts(history, std::chrono::sys_seconds{oct + days{25}}).empty());
+
+    // only announced - a few days more to start
+    std::vector<info::conflict_t> const announced{row(oct + days{15}, "pending", 0u, 0u)};
+    expect(info::running_conflicts(announced, std::chrono::sys_seconds{oct + days{25}}).size() == 1u);
+    expect(info::running_conflicts(announced, std::chrono::sys_seconds{oct + days{27}}).empty());
+
+    // a closed one is not under way, and a new run of the pair starts after it
+    std::vector<info::conflict_t> const again{
+      row(oct + days{1}, "active", 0u, 0u), row(oct + days{5}, "", 4u, 0u), row(oct + days{20}, "pending", 0u, 0u)
+    };
+    auto const second{info::running_conflicts(again, std::chrono::sys_seconds{oct + days{21}})};
+    expect(fatal(second.size() == 1u));
+    expect(second.front().started == std::chrono::sys_seconds{oct + days{20}});
+
+    // four won by one side, or the seventh day, whichever comes first
+    expect(info::war_ticks_left(row(oct, "active", 0u, 1u)) == 3_u);
+    expect(info::war_ticks_left(row(oct, "active", 3u, 3u)) == 1_u);
+    expect(info::war_ticks_left(row(oct, "active", 2u, 3u)) == 1_u);
+    expect(info::war_ticks_left(row(oct, "active", 1u, 1u)) == 3_u);
+    expect(info::war_ticks_left(row(oct, "pending", 0u, 0u)) == 5_u);
+  };
   }

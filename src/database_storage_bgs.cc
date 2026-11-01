@@ -705,29 +705,11 @@ auto database_storage_t::load_war_countdown(uint64_t system_address)
     return cxx23::unexpected{conflicts.error()};
 
   // the database holds the whole history, and only the newest state of each pair can be counted down from
-  std::map<std::pair<std::string, std::string>, info::conflict_t const *> latest;
-  for(info::conflict_t const & conflict: *conflicts)
-    {
-    auto & slot{latest[{conflict.faction1, conflict.faction2}]};
-    if(slot == nullptr or slot->timestamp < conflict.timestamp)
-      slot = &conflict;
-    }
-
-  ///\brief this many days won settles a conflict
-  constexpr uint32_t days_to_win{4};
-
+  auto const now{std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())};
   std::vector<info::war_countdown_t> result;
-  for(auto const & [pair, entry]: latest)
+  for(info::conflict_run_t const & run: info::running_conflicts(*conflicts, now))
     {
-    info::conflict_t const & conflict{*entry};
-
-    // an empty status means the conflict has already closed - there is nothing left to count down
-    if(conflict.status.empty())
-      continue;
-
-    bool const active{conflict.status == "active"};
-    uint32_t const won{std::max(conflict.won_days1, conflict.won_days2)};
-
+    info::conflict_t const & conflict{run.newest};
     result.push_back(info::war_countdown_t{
       .system_address = system_address,
       .war_type = conflict.war_type,
@@ -735,9 +717,8 @@ auto database_storage_t::load_war_countdown(uint64_t system_address)
       .faction2 = conflict.faction2,
       .won_days1 = conflict.won_days1,
       .won_days2 = conflict.won_days2,
-      // an announced one needs one more recalculation just to start
-      .ticks_left = (active ? 0u : 1u) + (won >= days_to_win ? 0u : days_to_win - won),
-      .active = active
+      .ticks_left = info::war_ticks_left(conflict),
+      .active = conflict.status == "active"
     });
     }
 
@@ -1009,25 +990,9 @@ auto database_storage_t::load_war_views(uint64_t system_address) -> expected_ec<
   if(not conflicts) [[unlikely]]
     return cxx23::unexpected{conflicts.error()};
 
-  // A war is the rows of one pair of factions since the last row that said it was over - its start is the
-  // first row after that. What is under way now is a pair whose newest row is pending or active
-  struct run_t
-    {
-    info::conflict_t newest;
-    std::chrono::sys_seconds started;
-    };
-  std::map<std::pair<std::string, std::string>, run_t> runs;
-  for(info::conflict_t const & row: *conflicts)
-    {
-    auto const key{std::pair{row.faction1, row.faction2}};
-    auto it{runs.find(key)};
-    bool const fresh{it == runs.end() or it->second.newest.status.empty()};
-    if(it == runs.end())
-      it = runs.emplace(key, run_t{row, row.timestamp}).first;
-    else if(fresh and not row.status.empty())
-      it->second.started = row.timestamp;
-    it->second.newest = row;
-    }
+  // a war is the rows of one pair since the last row that said it was over, and only one under way counts
+  auto const now{std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())};
+  auto const runs{info::running_conflicts(*conflicts, now)};
 
   auto stations{load_stations(system_address)};
   if(not stations) [[unlikely]]
@@ -1050,11 +1015,9 @@ auto database_storage_t::load_war_views(uint64_t system_address) -> expected_ec<
   };
 
   std::vector<info::war_view_t> views;
-  for(auto const & [key, run]: runs)
+  for(info::conflict_run_t const & run: runs)
     {
     info::conflict_t const & war{run.newest};
-    if(war.status != "pending" and war.status != "active")
-      continue;
     // an election is no fight for settlements
     if(war.war_type == "election")
       continue;

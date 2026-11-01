@@ -135,6 +135,27 @@ struct conflict_t
 auto to_conflict(uint64_t system_address, std::chrono::sys_seconds timestamp, events::conflict_t const & conflict)
   -> conflict_t;
 
+///\brief a conflict under way: the newest row of a pair and when its run began - the first row after the last
+/// one that said it was over
+struct conflict_run_t
+  {
+  conflict_t newest;
+  std::chrono::sys_seconds started;
+  };
+
+///\brief the conflicts of a system under way at the moment: pending or active, and not past the longest a
+/// conflict can run - seven war days, or fewer when one side wins four; a system not visited since keeps the
+/// last row of a long finished one
+///\param history the system's conflict rows, ascending by time
+[[nodiscard]]
+auto running_conflicts(std::span<conflict_t const> history, std::chrono::sys_seconds now)
+  -> std::vector<conflict_run_t>;
+
+///\brief war recalculations left before the conflict is settled at the latest: four days won by one side, or the
+/// seventh day - the drawn days are not in the journal, so it can end sooner
+[[nodiscard]]
+auto war_ticks_left(conflict_t const & conflict) -> uint32_t;
+
 ///\brief the closing rows of the conflicts a reading of a populated system no longer lists although their last
 /// row says they run
 ///\detail a war over is listed with an empty status for a few days and then not at all - one that ended while

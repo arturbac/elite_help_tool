@@ -23,10 +23,13 @@
   handed in, the pluses of influence pushed up or down, the influence before and after the tick,
   and the pluses it took per percentage point. That cost depends on the system's population, so it
   is never averaged across systems.
-- **Wars.** The overlay counts the war ticks left until a conflict is settled, and says when the
-  next one decides it. The BGS window lists the days won on both sides. A war that ended while
-  nobody was there is no longer listed at the next visit; that reading of the system's factions
-  closes it, so it does not stay shown as running.
+- **Wars.** The overlay counts the war ticks left until a conflict is settled at the latest: four
+  days won by one side or the seventh day, whichever comes first (drawn days are not in the
+  journal, so it can end sooner), and says when the next one decides it. The BGS window lists the
+  days won on both sides. A war that ended while nobody was there is no longer listed at the next
+  visit; that reading of the system's factions closes it, so it does not stay shown as running. A
+  system not visited since is not shown at war once the conflict is past the longest it can run:
+  eight days after it was first seen active, eleven after it was first seen announced.
 - **Settlements in a war.** On entering a system at war, the overlay shows each war's official
   state (sides, days won, status, what each side has at stake), the combat bonds not yet handed in
   for both sides (what the kills paid, and in brackets the likely payout: a hand-in pays about 3.3
