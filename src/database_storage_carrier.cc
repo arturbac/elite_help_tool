@@ -682,15 +682,19 @@ auto database_storage_t::carrier_oid( std::string_view name ) -> expected_ec<std
   }
 
 [[nodiscard]]
-auto database_storage_t::set_carrier_tracked(std::string_view carrier_id, bool tracked) -> expected_ec<void>
+auto database_storage_t::set_carrier_owner(std::string_view carrier_id, std::string_view account_fid, bool mine)
+  -> expected_ec<void>
   {
+  std::string const fid{sqlite::escape_sql_quotes(account_fid)};
   return sqlite::execute_query_no_result(
     db_->db,
     std::format(
-      "UPDATE {} SET tracked={} WHERE carrier_id='{}'",
+      "UPDATE {} SET owner_fid='{}' WHERE carrier_id='{}' AND carrier_type<>'SquadronCarrier'"
+      " AND (owner_fid IS NULL OR owner_fid='' OR owner_fid='{}')",
       sql_iface::tables::carrier,
-      tracked ? 1 : 0,
-      sqlite::escape_sql_quotes(carrier_id)
+      mine ? fid : std::string{},
+      sqlite::escape_sql_quotes(carrier_id),
+      fid
     )
   );
   }

@@ -305,6 +305,11 @@ auto main_window_t::start_monitoring() -> void
     db_path_,
     [this]
     {
+      std::scoped_lock const lock{state_.mutex_};
+      return state_.account_fid();
+    },
+    [this]
+    {
       QMetaObject::invokeMethod(
         this,
         [this]

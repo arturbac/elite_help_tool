@@ -69,7 +69,7 @@ auto construction_window_t::setup_ui() -> void
   carrier_combo_->addItem("all our carriers", QVariant::fromValue(qulonglong{0}));
   if(auto carriers{db_.load_carriers()}; carriers)
     for(info::carrier_t const & c: *carriers)
-      if(carrier_owner::ours(c, state_.owner_fid_))
+      if(carrier_owner::ours(c, state_.account_fid()))
         carrier_combo_->addItem(
           qformat("{} ({})", c.carrier_name, c.carrier_id), QVariant::fromValue(qulonglong{c.market_id})
         );
@@ -354,7 +354,7 @@ auto construction_window_t::show_site() -> void
   std::map<std::string, int64_t> carriers;
   if(auto known{db_.load_carriers()}; known)
     for(info::carrier_t const & c: *known)
-      if(carrier_owner::ours(c, state_.owner_fid_))
+      if(carrier_owner::ours(c, state_.account_fid()))
         if(auto cargo{db_.load_carrier_cargo(c.market_id)}; cargo)
           for(info::carrier_cargo_t const & item: *cargo)
             carriers[item.key] += item.count;

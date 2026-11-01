@@ -1006,7 +1006,7 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
               if(std::ranges::any_of(
                    *carriers,
                    [&](info::carrier_t const & c)
-                   { return c.market_id == event.MarketID and carrier_owner::ours(c, owner_fid_); }
+                   { return c.market_id == event.MarketID and carrier_owner::ours(c, account_fid()); }
                  ))
                 {
                 auto const [carried, locked]{held_lists()};
@@ -2234,7 +2234,7 @@ auto current_state_t::apply_bar_reading(events::fcmaterials_t const & shelf) -> 
     return;
   info::carrier_t const & carrier{**known};
   // the bartender of one's own fleet carrier sells out of its store: every kind on the shelf is the store's count
-  if(carrier.carrier_type == "SquadronCarrier" or not carrier_owner::ours(carrier, owner_fid_))
+  if(not carrier_owner::own(carrier, account_fid()))
     return;
   // a visit under way: what was moved so far is booked first, then the reading stands for the kinds on sale, and
   // the moves are measured afresh from here - so what is added between two readings is not counted twice
@@ -2260,7 +2260,7 @@ auto current_state_t::apply_unseen_bar_readings() -> void
     return;
   for(info::carrier_t const & carrier: *carriers)
     {
-    if(carrier.carrier_type == "SquadronCarrier" or not carrier_owner::ours(carrier, owner_fid_))
+    if(not carrier_owner::own(carrier, account_fid()))
       continue;
     auto shelf{db_.load_carrier_stock(carrier.carrier_id)};
     if(not shelf or shelf->empty())

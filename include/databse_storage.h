@@ -250,11 +250,11 @@ struct database_storage_t
   auto load_carrier_history(std::string_view carrier_id, std::chrono::sys_seconds since)
     -> expected_ec<std::vector<info::carrier_stock_t>>;
 
-  ///\brief marks a carrier as one's own, or takes that mark off
-  ///\detail until now the flag existed in the schema and was carefully preserved on every
-  /// price reading, but nothing in the whole program could set it
+  ///\brief marks a fleet carrier as the account's own, or takes that mark off
+  ///\detail the mark is the owner (FID), kept with the carrier: a carrier another account owns is left as it is, and
+  /// taking the mark off clears only the account's own - the next CarrierStats in the owner's session sets it again
   [[nodiscard]]
-  auto set_carrier_tracked(std::string_view carrier_id, bool tracked) -> expected_ec<void>;
+  auto set_carrier_owner(std::string_view carrier_id, std::string_view account_fid, bool mine) -> expected_ec<void>;
 
   ///\brief carriers we have seen, one's own first
   [[nodiscard]]

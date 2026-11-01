@@ -106,7 +106,8 @@ struct carrier_t
   uint64_t market_id;
   std::string carrier_name;
   std::string carrier_id;
-  ///\brief a carrier that concerns me - a stranger's bartender is visible too, but that is only background
+  ///\brief the old mark of one's own carrier, one for every account sharing the database - kept in the schema, no
+  /// longer read: a carrier is one's own by its owner_fid
   bool tracked;
 
   ///\brief the state from the last CarrierStats - empty until we have seen one
@@ -124,8 +125,8 @@ struct carrier_t
   uint64_t balance;
   uint64_t available_balance;
   std::chrono::sys_seconds stats_seen;
-  ///\brief the commander whose session the carrier's CarrierStats came in - a fleet carrier's owner, the only one
-  /// who loads and unloads it; empty for the squadron's and for one never managed
+  ///\brief the commander whose session the carrier's CarrierStats came in, or who marked it mine - a fleet
+  /// carrier's owner, the only one who loads and unloads it; empty for the squadron's and for one never managed
   std::string owner_fid;
 };
 

@@ -544,6 +544,20 @@ int main()
     expect(bool(stock) and stock->size() == 1_u and stock->front().timestamp.time_since_epoch().count() == 1'790'003'600_ll);
   };
 
+  "marking a fleet carrier mine names the account its owner, and leaves another's alone"_test = [&]
+  {
+    expect(bool(dbs.update_carrier(info::carrier_t{.oid = -1, .market_id = 43u, .carrier_name = "Ignacy", .carrier_id = "N1M-L8V", .carrier_type = "FleetCarrier"})));
+    auto const owner = [&] { auto c{dbs.load_carrier("N1M-L8V")}; return c and *c ? (*c)->owner_fid : std::string{"?"}; };
+    expect(bool(dbs.set_carrier_owner("N1M-L8V", "F2", true)));
+    expect(owner() == "F2");
+    // the other account can neither take it over nor take the mark off
+    expect(bool(dbs.set_carrier_owner("N1M-L8V", "F1", true)));
+    expect(bool(dbs.set_carrier_owner("N1M-L8V", "F1", false)));
+    expect(owner() == "F2");
+    expect(bool(dbs.set_carrier_owner("N1M-L8V", "F2", false)));
+    expect(owner().empty());
+  };
+
   // the join order is forced by CROSS JOIN, which must change nothing in what is found: only the
   // market with stock enough is a supply, while every market producing it is a producer
   "a mission's cargo finds the markets with stock enough, and every one producing it"_test = [&]

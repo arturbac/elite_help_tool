@@ -279,7 +279,10 @@ auto micro_resource_window_t::setup_trade(QTabWidget * tabs) -> void
   carrier_row->addWidget(carrier_combo_, 1);
 
   mark_mine_ = new QCheckBox("mine", stock_page);
-  mark_mine_->setToolTip("Mark this carrier as your own");
+  mark_mine_->setToolTip(
+    "Mark this fleet carrier as your own - the owner is known from the journals once you manage it; a carrier "
+    "another commander owns cannot be marked"
+  );
   only_mine_ = new QCheckBox("only mine", stock_page);
   only_mine_->setToolTip("Hide foreign carriers - their bartender shows up at every docking");
   carrier_row->addWidget(mark_mine_);
@@ -445,11 +448,11 @@ auto micro_resource_window_t::setup_trade(QTabWidget * tabs) -> void
       if(chosen.empty())
         return;
 
-      if(auto res{db_.set_carrier_tracked(chosen, mine)}; not res)
+      if(auto res{db_.set_carrier_owner(chosen, commander_fid(), mine)}; not res)
         spdlog::error("failed to mark carrier {}", chosen);
 
       reload_carriers();
-      // the Bar sales and Mission value tabs list only tracked carriers - marking one here would
+      // the Bar sales and Mission value tabs list only one's own carriers - marking one here would
       // otherwise not show up there until something else caused a refresh
       show_bar_sales();
       show_mission_value();
@@ -776,9 +779,8 @@ auto micro_resource_window_t::setup_commodities(QTabWidget * tabs) -> void
 
 auto micro_resource_window_t::commander_fid() -> std::string
   {
-  if(auto owner{db_.load_owner()}; owner and *owner)
-    return (*owner)->fid;
-  return {};
+  std::scoped_lock const lock{state_.mutex_};
+  return state_.account_fid();
   }
 
 auto micro_resource_window_t::show_holdings() -> void
@@ -925,9 +927,11 @@ auto micro_resource_window_t::reload_carriers() -> void
     return;
     }
 
-  // The filter only makes sense once something is marked - otherwise it would leave an empty list and no
+  // The filter only makes sense once something is ours - otherwise it would leave an empty list and no
   // way back, because a carrier can only be marked while it is visible in the list
-  bool const any_mine{std::ranges::any_of(*res, [](info::carrier_t const & c) { return c.tracked; })};
+  std::string const account{commander_fid()};
+  auto const ours = [&account](info::carrier_t const & c) { return carrier_owner::ours(c, account); };
+  bool const any_mine{std::ranges::any_of(*res, ours)};
   only_mine_->setEnabled(any_mine);
   if(not any_mine)
     only_mine_->setChecked(false);
@@ -938,11 +942,11 @@ auto micro_resource_window_t::reload_carriers() -> void
   carrier_combo_->clear();
   for(info::carrier_t const & carrier: *res)
     {
-    if(only_mine_->isChecked() and not carrier.tracked)
+    if(only_mine_->isChecked() and not ours(carrier))
       continue;
 
     carrier_combo_->addItem(
-      qformat("{}{} ({})", carrier.tracked ? "* " : "", carrier.carrier_name, carrier.carrier_id),
+      qformat("{}{} ({})", ours(carrier) ? "* " : "", carrier.carrier_name, carrier.carrier_id),
       QString::fromStdString(carrier.carrier_id)
     );
     }
@@ -950,13 +954,13 @@ auto micro_resource_window_t::reload_carriers() -> void
   if(auto const index{carrier_combo_->findData(previous)}; index >= 0)
     carrier_combo_->setCurrentIndex(index);
 
-  // the mark applies to whatever is selected right now
+  // the mark applies to whatever is selected right now: a fleet carrier nobody owns yet or the account's own -
+  // the squadron's is everyone's and another commander's is theirs, so for those it only shows
   auto const chosen{carrier_combo_->currentData().toString().toStdString()};
+  auto const selected{std::ranges::find(*res, chosen, &info::carrier_t::carrier_id)};
   QSignalBlocker const quiet{mark_mine_};
-  mark_mine_->setEnabled(not chosen.empty());
-  mark_mine_->setChecked(std::ranges::any_of(
-    *res, [&chosen](info::carrier_t const & c) { return c.carrier_id == chosen and c.tracked; }
-  ));
+  mark_mine_->setEnabled(selected != res->end() and carrier_owner::may_mark(*selected, account));
+  mark_mine_->setChecked(selected != res->end() and ours(*selected));
   }
 
 ///\brief the carrier's state from the last CarrierStats, ready to be put under the header
@@ -1160,7 +1164,7 @@ auto micro_resource_window_t::show_bar_sales() -> void
     bar_carrier_->clear();
     if(auto carriers{db_.load_carriers()}; carriers)
       for(info::carrier_t const & c: *carriers)
-        if(c.tracked)
+        if(carrier_owner::own(c, commander_fid()))
           bar_carrier_->addItem(qformat("{} ({})", c.carrier_name, c.carrier_id), QString::fromStdString(c.carrier_id));
     if(auto const index{bar_carrier_->findData(chosen)}; index >= 0)
       bar_carrier_->setCurrentIndex(index);

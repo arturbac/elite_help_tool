@@ -73,8 +73,14 @@ namespace
   class session_t
     {
   public:
-    session_t(database_storage_t & db, std::function<void()> const & stored, std::stop_token stop) :
+    session_t(
+      database_storage_t & db,
+      std::function<std::string()> const & account,
+      std::function<void()> const & stored,
+      std::stop_token stop
+    ) :
         db_{db},
+        account_{account},
         stored_{stored},
         stop_{std::move(stop)}
       {
@@ -187,17 +193,15 @@ namespace
       return false;
       }
 
-    ///\brief the fleet carriers of the commander of this tool, by market id - read again every few minutes
+    ///\brief the fleet carriers of the account of this tool, by market id - read again every few minutes
     auto reload_carriers() -> void
       {
       loaded_ = std::chrono::steady_clock::now();
       ours_.clear();
-      std::string fid;
-      if(auto owner{db_.load_owner()}; owner and *owner)
-        fid = (*owner)->fid;
+      std::string const fid{account_ ? account_() : std::string{}};
       if(auto carriers{db_.load_carriers()}; carriers)
         for(info::carrier_t const & c: *carriers)
-          if(c.carrier_type != "SquadronCarrier" and carrier_owner::ours(c, fid))
+          if(carrier_owner::own(c, fid))
             ours_.insert(c.market_id);
       known_names_.clear();
       if(auto names{db_.load_micro_resources()}; names)
@@ -270,6 +274,7 @@ namespace
 
     asio::io_context context_;
     database_storage_t & db_;
+    std::function<std::string()> const & account_;
     std::function<void()> const & stored_;
     std::stop_token stop_;
     std::set<uint64_t> ours_;
@@ -278,8 +283,8 @@ namespace
     };
   }  // namespace
 
-listener_t::listener_t(std::string db_path, std::function<void()> stored) :
-    worker_{[db_path = std::move(db_path), stored = std::move(stored)](std::stop_token stop)
+listener_t::listener_t(std::string db_path, std::function<std::string()> account, std::function<void()> stored) :
+    worker_{[db_path = std::move(db_path), account = std::move(account), stored = std::move(stored)](std::stop_token stop)
             {
               eht::event_guard(
                 "eddn listen",
@@ -304,7 +309,7 @@ listener_t::listener_t(std::string db_path, std::function<void()> stored) :
                       continue;
                       }
                     listening = true;
-                    if(session_t{db, stored, stop}.run())
+                    if(session_t{db, account, stored, stop}.run())
                       wait = 30s;
                     // the next try waits, longer each time the relay cannot be reached, a second at a time so
                     // that the tool can close

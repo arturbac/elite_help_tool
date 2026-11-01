@@ -2351,7 +2351,7 @@ auto overlay_feed_t::refresh_construction(current_state_t const & state) -> void
     carrier_callsigns_.clear();
     if(auto carriers{db_.load_carriers()}; carriers)
       for(info::carrier_t const & carrier: *carriers)
-        if(carrier_owner::ours(carrier, state.owner_fid_))
+        if(carrier_owner::ours(carrier, state.account_fid()))
           {
           carrier_callsigns_[carrier.market_id] = carrier.carrier_id;
           if(auto cargo{db_.load_carrier_cargo(carrier.market_id)}; cargo)

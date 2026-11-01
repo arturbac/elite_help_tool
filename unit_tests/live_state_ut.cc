@@ -64,13 +64,26 @@ auto main() -> int
     info::carrier_t squadron{};
     squadron.carrier_type = "SquadronCarrier";
     expect(carrier_owner::ours(squadron, "F1") and carrier_owner::ours(squadron, "F2"));
-    // never managed yet: the mark of one's own decides, as before
+    expect(not carrier_owner::own(squadron, "F1"));
+    // never managed yet: nobody's, whatever the old shared mark says - one account's mark is not the other's
     info::carrier_t unknown{};
     unknown.carrier_type = "FleetCarrier";
     unknown.tracked = true;
-    expect(carrier_owner::ours(unknown, "F2"));
-    unknown.tracked = false;
-    expect(not carrier_owner::ours(unknown, "F2"));
+    expect(not carrier_owner::ours(unknown, "F1") and not carrier_owner::ours(unknown, "F2"));
+  };
+
+  "a fleet carrier may be marked by an account only while nobody else owns it"_test = []
+  {
+    info::carrier_t ignacy{};
+    ignacy.carrier_type = "FleetCarrier";
+    expect(carrier_owner::may_mark(ignacy, "F2"));
+    expect(not carrier_owner::may_mark(ignacy, ""));
+    ignacy.owner_fid = "F2";
+    expect(carrier_owner::may_mark(ignacy, "F2"));
+    expect(not carrier_owner::may_mark(ignacy, "F1"));
+    info::carrier_t squadron{};
+    squadron.carrier_type = "SquadronCarrier";
+    expect(not carrier_owner::may_mark(squadron, "F1"));
   };
 
   "no Loadout yet hides nothing"_test = [] { expect(live::has_fighter_bay(std::vector<::events::module_t>{})); };

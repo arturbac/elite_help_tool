@@ -14,7 +14,9 @@
 - **Whose carrier.** A fleet carrier is its owner's alone - only the owner loads and unloads it; anyone else
   only trades at its market. The owner is the commander in whose game its state (CarrierStats) comes, so with
   two commanders on one machine each sees their own fleet carrier, and both the squadron's carrier. A carrier
-  never managed yet counts as yours when it is marked "mine" in Bartender stock.
+  never managed since is yours once you mark it "mine" in Bartender stock: the mark names your account its
+  owner, so it is not shared with the other commander, and a carrier another commander owns cannot be marked.
+  Until the tool has read a Commander event it knows no account and counts only the squadron's carrier.
 - **What is on each carrier.** The game does not say what a squadron's carrier holds, so EHT keeps it:
   on docking at one of our carriers it notes the hold, and on leaving what the hold has less of is added
   to the carrier and what it has more of is taken off. While docked, the Construction window and the
