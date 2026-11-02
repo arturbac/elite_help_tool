@@ -303,6 +303,14 @@ namespace
         if(id == commodity_ids_.end())
           {
           ++heard_.unknown_commodities;
+          // a rare kind sells at one place only, so it is never in a dictionary filled from one's own markets
+          if(unknown_names_.insert(c.name).second)
+            spdlog::info(
+              "eddn listen: commodity '{}' of {} | {} is not in the dictionary, skipped",
+              c.name,
+              market->systemName,
+              market->stationName
+            );
           continue;
           }
         auto const count = [](int64_t v) { return uint32_t(std::clamp<int64_t>(v, 0, std::numeric_limits<uint32_t>::max())); };
@@ -424,6 +432,8 @@ namespace
     std::map<std::string, uint64_t> commodity_ids_;
     std::map<std::string, std::array<double, 3>> positions_;
     std::set<std::string> unplaced_;
+    ///\brief the commodities not in the dictionary already named in the log
+    std::set<std::string> unknown_names_;
     struct heard_t
       {
       uint64_t markets{};

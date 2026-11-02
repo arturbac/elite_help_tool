@@ -127,7 +127,8 @@ The **Trade** window (its button on the left bar) holds three tabs:
   commander is in - the system's position from the relay's own messages or from the systems known here;
   a market of a system with no known position is skipped. A reading replaces the one kept only when it is
   newer, one's own included, and it keeps the owner seen at one's own last reading. A commodity not yet in
-  the dictionary - the dictionary is filled from one's own markets - is skipped. The places come from the
+  the dictionary - the dictionary is filled from one's own markets, so a rare kind sold at one place only is
+  often missing - is skipped, and named in the log once. The places come from the
   relayed `Docked` events, with their type, pads, Ls, position and owner, and are kept apart from the
   stations read from the journals; a station known from the journals keeps what they say. Commanders
   sharing one `live.sqlite` need it set in one tool only. Every ten minutes the log says how many markets
