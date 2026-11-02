@@ -24,6 +24,7 @@
 #include <chrono>
 #include <optional>
 #include <set>
+#include <vector>
 
 namespace eddn
   {
@@ -209,14 +210,39 @@ namespace
           known_names_.insert(item.name);
       }
 
+    ///\brief one line on what the relay said of markets since the last one - nothing of it is kept yet
+    auto report_probe() -> void
+      {
+      probed_ = std::chrono::steady_clock::now();
+      std::vector<std::string> const systems{probe_.market_systems.begin(), probe_.market_systems.end()};
+      std::size_t known{};
+      if(auto positions{db_.load_system_positions(systems)}; positions)
+        known = positions->size();
+      spdlog::info(
+        "eddn listen: in 10 min {} markets from {} systems, {} of them known here; {} Docked, {} with the station type, {} "
+        "with pads; {} with a position",
+        probe_.markets,
+        systems.size(),
+        known,
+        probe_.docked,
+        probe_.docked_type,
+        probe_.docked_pads,
+        probe_.star_pos
+      );
+      probe_ = {};
+      }
+
     auto take(std::string const & packed) -> void
       {
       if(std::chrono::steady_clock::now() - loaded_ > 5min)
         reload_carriers();
-      if(ours_.empty())
-        return;
       auto text{inflate_message(packed)};
       if(not text)
+        return;
+      probe_.note(*text);
+      if(std::chrono::steady_clock::now() - probed_ > 10min)
+        report_probe();
+      if(ours_.empty())
         return;
       auto shelf{eddn_listen::fcmaterials(*text)};
       if(not shelf or not ours_.contains(shelf->MarketID))
@@ -280,6 +306,8 @@ namespace
     std::set<uint64_t> ours_;
     std::set<std::string> known_names_;
     std::chrono::steady_clock::time_point loaded_{};
+    eddn_listen::market_probe_t probe_;
+    std::chrono::steady_clock::time_point probed_{std::chrono::steady_clock::now()};
     };
   }  // namespace
 

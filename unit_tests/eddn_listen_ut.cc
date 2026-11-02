@@ -123,4 +123,21 @@ auto main() -> int
     no_market.replace(no_market.find("3706381824"), 10u, "0");
     expect(not eddn_listen::fcmaterials(no_market));
   };
+
+  "the probe counts markets with their systems, and what a relayed Docked tells"_test = []
+  {
+    eddn_listen::market_probe_t probe;
+    probe.note(R"({"$schemaRef": "https://eddn.edcd.io/schemas/commodity/3", "message": {"systemName": "Sol", "marketId": 1}})");
+    probe.note(R"({"$schemaRef": "https://eddn.edcd.io/schemas/commodity/3/test", "message": {"systemName": "Lave"}})");
+    probe.note(
+      R"({"$schemaRef": "https://eddn.edcd.io/schemas/journal/1", "message": {"event": "Docked", "StationType": "Orbis", "StarPos": [0,0,0]}})"
+    );
+    probe.note(
+      R"({"$schemaRef": "https://eddn.edcd.io/schemas/journal/1", "message": {"event": "FSDJump", "StarPos": [1,2,3]}})"
+    );
+    expect(probe.markets == 1u);
+    expect(probe.market_systems.contains("Sol") and probe.market_systems.size() == 1u);
+    expect(probe.docked == 1u and probe.docked_type == 1u and probe.docked_pads == 0u);
+    expect(probe.star_pos == 2u);
+  };
   }

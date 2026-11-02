@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <deque>
 #include <optional>
+#include <set>
 #include <string>
 #include <string_view>
 
@@ -70,4 +71,22 @@ inline constexpr std::string_view fcmaterials_schema{"https://eddn.edcd.io/schem
 /// schema and everything else is not
 [[nodiscard]]
 auto fcmaterials(std::string const & json) -> std::optional<events::fcmaterials_t>;
+
+///\brief what the relay says of markets and places, counted only - to learn what a search for where to buy could take
+/// from it before anything is kept
+struct market_probe_t
+  {
+  ///\brief commodity/3 messages - a whole market each
+  uint64_t markets{};
+  ///\brief journal/1 Docked messages, and of them those naming the station's type and its pads
+  uint64_t docked{};
+  uint64_t docked_type{};
+  uint64_t docked_pads{};
+  ///\brief journal/1 messages giving a system's position
+  uint64_t star_pos{};
+  ///\brief the systems the markets were in
+  std::set<std::string> market_systems;
+
+  auto note(std::string_view json) -> void;
+  };
   }  // namespace eddn_listen

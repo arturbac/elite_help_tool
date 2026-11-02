@@ -110,6 +110,44 @@ struct glz::meta<eddn_listen::envelope_t>
 
 namespace eddn_listen
   {
+namespace detail
+  {
+  struct market_message_t
+    {
+    std::string systemName;
+    };
+
+  struct market_envelope_t
+    {
+    market_message_t message;
+    };
+  }  // namespace detail
+
+auto market_probe_t::note(std::string_view json) -> void
+  {
+  if(json.contains("/schemas/commodity/3\""))
+    {
+    ++markets;
+    detail::market_envelope_t envelope{};
+    constexpr glz::opts opts{.error_on_unknown_keys = false, .error_on_missing_keys = false};
+    if(not glz::read<opts>(envelope, std::string{json}) and not envelope.message.systemName.empty())
+      market_systems.insert(std::move(envelope.message.systemName));
+    }
+  else if(json.contains("/schemas/journal/1\""))
+    {
+    if(json.contains("\"StarPos\""))
+      ++star_pos;
+    if(json.contains("\"event\": \"Docked\"") or json.contains("\"event\":\"Docked\""))
+      {
+      ++docked;
+      if(json.contains("\"StationType\""))
+        ++docked_type;
+      if(json.contains("\"LandingPads\""))
+        ++docked_pads;
+      }
+    }
+  }
+
 auto fcmaterials(std::string const & json) -> std::optional<events::fcmaterials_t>
   {
   // most of the stream is other schemas - a look for the name spares parsing them
