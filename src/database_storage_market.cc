@@ -368,6 +368,26 @@ auto database_storage_t::load_buy_offers(std::vector<std::string> const & commod
   );
   }
 
+auto database_storage_t::store_pads_scan(std::string_view last_journal) -> expected_ec<void>
+  {
+  return sqlite::execute_query_no_result(
+    db_->db,
+    std::format(
+      "INSERT INTO {0} (id, last_journal) VALUES (1, '{1}')"
+      " ON CONFLICT(id) DO UPDATE SET last_journal = excluded.last_journal",
+      sql_iface::tables::pads_scan,
+      sqlite::escape_sql_quotes(last_journal)
+    )
+  );
+  }
+
+auto database_storage_t::load_pads_scan() -> expected_ec<std::optional<std::string>>
+  {
+  return sqlite::select_signle_from<std::string>(
+    db_->db, std::format("SELECT last_journal FROM {} WHERE id=1", sql_iface::tables::pads_scan)
+  );
+  }
+
 auto database_storage_t::load_stations_without_pads() -> expected_ec<std::vector<info::station_t>>
   {
   return sqlite::select_from<info::station_t>(db_->db, sql_iface::tables::station, " WHERE pads_large IS NULL");

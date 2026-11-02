@@ -211,28 +211,29 @@ auto pads_in_journal(std::istream & journal) -> std::map<uint64_t, events::landi
   return pads;
   }
 
-auto pads_from_journals(std::filesystem::path const & journal_dir, std::set<uint64_t> wanted)
-  -> std::map<uint64_t, events::landing_pads_t>
+auto pads_from_journals(std::filesystem::path const & journal_dir, std::set<uint64_t> wanted, std::string_view after)
+  -> journal_pads_t
   {
-  std::map<uint64_t, events::landing_pads_t> found;
-  if(wanted.empty())
-    return found;
+  journal_pads_t result;
   std::vector<std::filesystem::path> journals;
   std::error_code ec;
   for(auto const & entry: std::filesystem::directory_iterator{journal_dir, ec})
-    if(auto const name{entry.path().filename().string()}; name.starts_with("Journal.") and name.ends_with(".log"))
+    if(auto const name{entry.path().filename().string()};
+       name.starts_with("Journal.") and name.ends_with(".log") and name > after)
       journals.push_back(entry.path());
   // the names carry the date, so the newest reading of a place comes first
   std::ranges::sort(journals, std::ranges::greater{});
+  if(not journals.empty())
+    result.newest_journal = journals.front().filename().string();
   for(std::filesystem::path const & path: journals)
     {
+    if(wanted.empty())
+      break;
     std::ifstream in{path, std::ios::binary};
     for(auto const & [market_id, pads]: pads_in_journal(in))
       if(wanted.erase(market_id) != 0u)
-        found.emplace(market_id, pads);
-    if(wanted.empty())
-      break;
+        result.found.emplace(market_id, pads);
     }
-  return found;
+  return result;
   }
   }  // namespace buy_search

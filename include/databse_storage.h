@@ -125,6 +125,12 @@ struct database_storage_t
   [[nodiscard]]
   auto load_stations_without_pads() -> expected_ec<std::vector<info::station_t>>;
 
+  ///\brief the newest journal read for the pads - the next start reads only the newer ones
+  [[nodiscard]]
+  auto store_pads_scan(std::string_view last_journal) -> expected_ec<void>;
+  [[nodiscard]]
+  auto load_pads_scan() -> expected_ec<std::optional<std::string>>;
+
   ///\brief markets that produce the commodity, even when they happen to have none in stock
   [[nodiscard]]
   auto load_producers() -> expected_ec<std::vector<info::supply_option_t>>;

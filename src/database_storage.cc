@@ -284,6 +284,10 @@ auto database_storage_t::create_database() -> expected_ec<void>
     [[unlikely]]
     return res;
 
+  if(auto res{sqlite::create_table<info::pads_scan_t>(db_->db, "id"sv, sql_iface::tables::pads_scan)}; not res)
+    [[unlikely]]
+    return res;
+
   if(auto res{sqlite::create_table<info::settlement_owner_t>(db_->db, "oid"sv, sql_iface::tables::settlement_owner)};
      not res) [[unlikely]]
     return res;

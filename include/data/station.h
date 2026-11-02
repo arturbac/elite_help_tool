@@ -63,6 +63,15 @@ inline auto is_ground_settlement(station_t const & station) -> bool
          and not station.name.starts_with("Orbital Construction Site:");
   }
 
+///\brief the newest journal read for the pads of places docked at before they were kept - the next start reads only
+/// journals newer than this
+struct pads_scan_t
+  {
+  ///\brief always 1; the key exists so the write has something to conflict on
+  uint32_t id;
+  std::string last_journal;
+  };
+
 ///\brief who held a settlement over a stretch of time - one row per owner in turn
 ///\detail a war can hand a settlement over, and what was at stake is said by whom it belonged to before
 struct settlement_owner_t

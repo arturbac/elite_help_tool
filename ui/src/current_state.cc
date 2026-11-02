@@ -2320,10 +2320,19 @@ auto current_state_t::pads_from_journals() -> void
   std::set<uint64_t> wanted;
   for(info::station_t const & station: *stations)
     wanted.insert(station.market_id);
-  if(wanted.empty())
+  // a place never docked at is in no journal - the journals read once are not read again for it
+  auto scanned{db_.load_pads_scan()};
+  if(not scanned)
+    {
+    spdlog::error("station pads: failed to load the last journal read");
     return;
+    }
+  std::string const after{scanned->value_or(std::string{})};
   auto const started{std::chrono::steady_clock::now()};
-  auto const found{buy_search::pads_from_journals(journal_dir_path_, wanted)};
+  auto const [found, newest]{buy_search::pads_from_journals(journal_dir_path_, wanted, after)};
+  if(not newest.empty())
+    if(auto res{db_.store_pads_scan(newest)}; not res)
+      spdlog::error("station pads: failed to store the last journal read");
   for(info::station_t & station: *stations)
     if(auto const pads{found.find(station.market_id)}; pads != found.end())
       {
@@ -2334,9 +2343,10 @@ auto current_state_t::pads_from_journals() -> void
         spdlog::error("station pads: failed to store the pads of {}", station.market_id);
       }
   spdlog::info(
-    "station pads: {} of {} found in the journals in {} ms",
+    "station pads: {} of {} found in the journals after '{}' in {} ms",
     found.size(),
     wanted.size(),
+    after,
     std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - started).count()
   );
   }

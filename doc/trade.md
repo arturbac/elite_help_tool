@@ -31,8 +31,9 @@
   (off at the start - a carrier moves away, and its market with it), the largest pad at least S, M or
   L, places whose pads are not known, and readings no older than so many days
   (`windows.buy_max_age_d`, 30 by default, the starting value of the field). The pads come from
-  docking: a place docked at with the tool running has them at once, and one docked at before is
-  found in the journals at the next start, newest first - one never docked at keeps them unknown.
+  docking: a place docked at has them as soon as the tool reads that Docked. Places docked at before the
+  pads were kept were found by reading every journal once; after that a start reads only the journals newer than
+  the last one read. A place never docked at keeps them unknown.
 - **Best known trades**: what to bring here and what to take from here, against every market you
   have ever opened. Each line gives the margin per tonne, the tonnes (capped by your hold, the stock
   and the demand), the profit of the run and the station. With a route plotted, it looks for what to

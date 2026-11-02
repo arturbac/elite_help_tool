@@ -1,6 +1,7 @@
 #include <boost/ut.hpp>
 #include <buy_search.h>
 
+#include <fstream>
 #include <sstream>
 
 namespace
@@ -159,5 +160,27 @@ auto main() -> int
     auto const pads{buy_search::pads_in_journal(journal)};
     expect(pads.size() == 1u);
     expect(pads.contains(7u) and pads.at(7u).Large == 3u and pads.at(7u).Medium == 2u);
+  };
+
+  "only the journals newer than the last one read are read again"_test = []
+  {
+    // the tests run from an empty directory of their own
+    std::filesystem::path const dir{"pads_journals"};
+    std::filesystem::create_directory(dir);
+    std::ofstream{dir / "Journal.2026-10-01T100000.01.log"}
+      << R"({ "event":"Docked", "MarketID":7, "LandingPads":{ "Small":1, "Medium":1, "Large":1 } })" << '\n';
+    std::ofstream{dir / "Journal.2026-11-01T100000.01.log"}
+      << R"({ "event":"Docked", "MarketID":8, "LandingPads":{ "Small":1, "Medium":0, "Large":0 } })" << '\n';
+
+    auto const all{buy_search::pads_from_journals(dir, {7u, 8u, 9u}, "")};
+    expect(all.found.size() == 2u);
+    expect(all.newest_journal == std::string{"Journal.2026-11-01T100000.01.log"});
+
+    auto const newer{buy_search::pads_from_journals(dir, {7u, 9u}, "Journal.2026-10-01T100000.01.log")};
+    expect(newer.found.empty());
+    expect(newer.newest_journal == std::string{"Journal.2026-11-01T100000.01.log"});
+
+    auto const none{buy_search::pads_from_journals(dir, {7u}, all.newest_journal)};
+    expect(none.found.empty() and none.newest_journal.empty());
   };
   }

@@ -518,6 +518,7 @@ namespace tables
   inline constexpr std::string_view system_conflict{"galaxy.system_conflict"};
   inline constexpr std::string_view system_signal{"galaxy.system_signal"};
   inline constexpr std::string_view station{"galaxy.station"};
+  inline constexpr std::string_view pads_scan{"galaxy.pads_scan"};
   // who held a settlement when, and the kills on foot that tell a conflict zone's intensity - facts of the
   // galaxy, rebuilt from journals
   inline constexpr std::string_view settlement_owner{"galaxy.settlement_owner"};

@@ -142,9 +142,16 @@ auto jumps(double ly, float range) -> std::optional<unsigned>;
 [[nodiscard]]
 auto pads_in_journal(std::istream & journal) -> std::map<uint64_t, events::landing_pads_t>;
 
-///\brief the pads of the wanted places as the journals of the directory tell, newest journal first, read until each is
-/// found or the journals run out
+///\brief the pads found, and the newest journal there was to read
+struct journal_pads_t
+  {
+  std::map<uint64_t, events::landing_pads_t> found;
+  std::string newest_journal;
+  };
+
+///\brief the pads of the wanted places as the journals of the directory newer than `after` tell, newest journal first,
+/// read until each is found or the journals run out
 [[nodiscard]]
-auto pads_from_journals(std::filesystem::path const & journal_dir, std::set<uint64_t> wanted)
-  -> std::map<uint64_t, events::landing_pads_t>;
+auto pads_from_journals(std::filesystem::path const & journal_dir, std::set<uint64_t> wanted, std::string_view after)
+  -> journal_pads_t;
   }  // namespace buy_search
