@@ -248,7 +248,8 @@ than 250 ms, or with `follow_width` 0, the patch stays where `x`, `y` put it. An
 fields and its patch stays put.
 
 The other way round, the tool tells edworld what its database knows of a jump's destination: once per new
-FSDTarget it writes `target` into the same tmpfs directory (`edworld.dir` in `eht_settings.json`, default
+FSDTarget, and again for the same destination after any newer influence reading (jumping to one system again and
+again keeps the destination, so the factions would otherwise stay those of the first jump), it writes `target` into the same tmpfs directory (`edworld.dir` in `eht_settings.json`, default
 `/dev/shm/eht`; layout `edworld::target_t`, written under a seqlock by `include/world_target.h`): the system's
 address, whether the database has it, its allegiance and name, and - when the database has influence readings
 of the system - its factions by influence (at most `edworld::max_target_factions`): name, influence, allegiance,

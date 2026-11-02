@@ -142,7 +142,8 @@ process carries no state of ours.
   move with the panel when the cockpit camera swings. edworld reads the superpower from the panel's own
   text. The tool tells edworld what its database knows of the destination's factions, in `target` in the
   tmpfs directory `edworld.dir` (default `/dev/shm/eht`, empty: nothing written): their influence, states
-  and the last tick's trend when the tool has influence readings of the system; else edworld takes the whole
+  and the last tick's trend when the tool has influence readings of the system, written again after every
+  newer reading, so repeated jumps to one system list its latest influence; else edworld takes the whole
   list from EDSM and says so. Each commander's tool needs a directory of its own (for example
   `/dev/shm/eht-<commander>`, the same in that game's edworld ini as `shm_dir`). The first tool to write
   a directory holds a lock on `.writer` in it; a second one started on the same directory writes nothing

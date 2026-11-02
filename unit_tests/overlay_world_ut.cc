@@ -103,6 +103,14 @@ int main()
     expect(not overlay::world::holds(shared, 1487912553027ull)) << "the other commander's tool wrote its destination";
   };
 
+  "the same destination is told again after a newer influence reading, not before"_test = []
+  {
+    expect(overlay::world::told_as_known(42ull, 7ull, 42ull, 7ull)) << "nothing new: the record stands";
+    expect(not overlay::world::told_as_known(42ull, 7ull, 42ull, 8ull)) << "a reading since: jumping there again";
+    expect(not overlay::world::told_as_known(42ull, 7ull, 43ull, 7ull)) << "another destination";
+    expect(not overlay::world::told_as_known(0ull, 0ull, 42ull, 0ull)) << "nothing told yet";
+  };
+
   "a place on a body is told with where it stands only when both coordinates are known"_test = []
   {
     auto const golds{overlay::world::make_surface(1487912553027ull, 11u, "Golds Base", -12.5, 52.25, now_ms)};

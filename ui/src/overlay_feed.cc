@@ -4631,7 +4631,7 @@ auto overlay_feed_t::publish_edworld_target(current_state_t const & state) -> vo
   uint64_t const target{state.next_target.SystemAddress};
   if(target == 0u)
     return;
-  if(target == edworld_system_)
+  if(overlay::world::told_as_known(edworld_system_, edworld_generation_, target, state.factions_generation_))
     {
     // told again once per destination at most: two tools on one file would otherwise take turns every frame
     if(overlay::world::holds(*edworld_target_, target) or edworld_retold_ == target)
@@ -4646,6 +4646,7 @@ auto overlay_feed_t::publish_edworld_target(current_state_t const & state) -> vo
     );
     }
   edworld_system_ = target;
+  edworld_generation_ = state.factions_generation_;
   bool known{};
   std::string allegiance;
   std::string controlling;

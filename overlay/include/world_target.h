@@ -101,6 +101,17 @@ inline auto holds(edworld::target_t & shared, uint64_t system_address) noexcept 
   return std::atomic_ref<uint64_t>{shared.system_address}.load(std::memory_order_acquire) == system_address;
   }
 
+///\brief whether the record last written still tells the destination as the tool knows it now: the same system,
+/// and no influence reading since (the state's factions_generation_). Jumping to one system again and again
+/// keeps the destination, so a reading of it from an earlier jump has to be told without a new FSDTarget
+[[nodiscard]]
+constexpr auto told_as_known(
+  uint64_t told_system, uint64_t told_generation, uint64_t system_address, uint64_t generation
+) noexcept -> bool
+  {
+  return told_system == system_address and told_generation == generation;
+  }
+
 ///\brief puts the record into the shared one under its seqlock: odd while inside, even when done
 template<typename record_type>
 inline auto write_record(record_type & shared, record_type const & value) noexcept -> void

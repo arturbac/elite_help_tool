@@ -246,6 +246,8 @@ private:
   edworld::target_t * edworld_target_{};
   std::string edworld_dir_;
   uint64_t edworld_system_{};
+  ///\brief the state's factions_generation_ when edworld_system_ was told - a newer reading tells it again
+  uint64_t edworld_generation_{};
   ///\brief the destination told again after another writer replaced it (once per destination)
   uint64_t edworld_retold_{};
   bool edworld_failed_{};
