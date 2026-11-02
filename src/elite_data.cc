@@ -136,6 +136,26 @@ auto to_conflict(uint64_t system_address, std::chrono::sys_seconds timestamp, ev
   };
   }
 
+auto owner_at_war_start(
+  std::optional<std::string> const & before,
+  std::optional<std::string> const & since,
+  std::string const & known,
+  std::string_view side1,
+  std::string_view side2
+) -> std::string
+  {
+  std::vector<std::string> candidates;
+  if(before)
+    candidates.push_back(*before);
+  if(since)
+    candidates.push_back(*since);
+  candidates.push_back(known);
+  for(std::string const & owner: candidates)
+    if(not owner.empty() and (owner == side1 or owner == side2))
+      return owner;
+  return candidates.front();
+  }
+
 auto running_conflicts(std::span<conflict_t const> history, std::chrono::sys_seconds now)
   -> std::vector<conflict_run_t>
   {

@@ -2,6 +2,7 @@
 #include <chrono>
 #include <cstdint>
 #include <optional>
+#include <string_view>
 #include <span>
 #include <string>
 #include <vector>
@@ -150,6 +151,20 @@ struct conflict_run_t
 [[nodiscard]]
 auto running_conflicts(std::span<conflict_t const> history, std::chrono::sys_seconds now)
   -> std::vector<conflict_run_t>;
+
+///\brief the owner of a settlement when a war began, among the sightings: the last before the war, the first since,
+/// and the owner known now - the first of them that is a side of the war, else the first there is
+///\detail a settlement changes hands only at the end of a war, or when its owner retreats from the system. So a
+/// sighting since the war began, while the war still runs, shows the owner at its start just as well - and better
+/// when the last before it is old, from before an earlier war handed the place over unseen
+[[nodiscard]]
+auto owner_at_war_start(
+  std::optional<std::string> const & before,
+  std::optional<std::string> const & since,
+  std::string const & known,
+  std::string_view side1,
+  std::string_view side2
+) -> std::string;
 
 ///\brief war recalculations left before the conflict is settled at the latest: four days won by one side, or the
 /// seventh day - the drawn days are not in the journal, so it can end sooner

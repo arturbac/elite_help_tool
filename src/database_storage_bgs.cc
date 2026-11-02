@@ -1029,9 +1029,7 @@ auto database_storage_t::load_war_views(uint64_t system_address) -> expected_ec<
       if(not info::is_ground_settlement(station))
         continue;
 
-      // the owner when the war began: the last seen before it, else the first seen since, else the
-      // one the place is known by now - a war hands a settlement over only when it ends
-      std::string owner{station.controlling_faction};
+      // the owner when the war began - see owner_at_war_start
       auto before{sqlite::select_from<info::settlement_owner_t>(
         db_->db,
         sql_iface::tables::settlement_owner,
@@ -1042,10 +1040,13 @@ auto database_storage_t::load_war_views(uint64_t system_address) -> expected_ec<
         sql_iface::tables::settlement_owner,
         std::format(" WHERE market_id={} AND first_seen>'{}' ORDER BY first_seen LIMIT 1", station.market_id, start)
       )};
-      if(before and not before->empty())
-        owner = before->front().faction;
-      else if(since and not since->empty())
-        owner = since->front().faction;
+      std::string const owner{info::owner_at_war_start(
+        before and not before->empty() ? std::optional<std::string>{before->front().faction} : std::nullopt,
+        since and not since->empty() ? std::optional<std::string>{since->front().faction} : std::nullopt,
+        station.controlling_faction,
+        war.faction1,
+        war.faction2
+      )};
 
       if(owner != war.faction1 and owner != war.faction2)
         continue;

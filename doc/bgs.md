@@ -34,7 +34,10 @@
   state (sides, days won, status, what each side has at stake), the combat bonds not yet handed in
   for both sides (what the kills paid, and in brackets the likely payout: a hand-in pays about 3.3
   times that, the median of 386 hand-ins, since it adds sums the journal does not record), and every settlement of both sides with its owner when the war began and the
-  intensity of its conflict zone on foot: `unknown`, `Low?` (seen in an earlier war; it never falls
+  intensity of its conflict zone on foot. A settlement changes hands only when a war ends or its owner
+  retreats from the system, so the owner at the start is whichever sighting is a side of this war: the
+  last one before it, or the first one since - the last one before can be old, from before an earlier
+  war handed the place over unseen. The intensity: `unknown`, `Low?` (seen in an earlier war; it never falls
   from one war to the next) or `Low` (confirmed in this one). The intensity is read from what a
   kill pays: the game pays kills on foot from fixed tables, low 1.9k-4.6k, medium 7.2k-33.8k,
   high 39.6k-87.4k per kill. The settlement a kill is made at is the one last approached, docked

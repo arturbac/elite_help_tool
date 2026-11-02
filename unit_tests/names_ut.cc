@@ -146,4 +146,26 @@ auto main() -> int
     expect(info::war_ticks_left(row(oct, "active", 1u, 1u)) == 3_u);
     expect(info::war_ticks_left(row(oct, "pending", 0u, 0u)) == 5_u);
   };
+
+  "a settlement's owner at the war's start is the sighting that is a side of it"_test = []
+  {
+    // Suh's Genetics, 2 November: last seen under the Dukes before an earlier war handed it to the Crew unseen
+    expect(
+      info::owner_at_war_start(
+        std::string{"The Dukes of Mikunn"}, std::string{"Crew of Pethes"}, "Crew of Pethes", "Crew of Pethes", "Cartel"
+      )
+      == std::string{"Crew of Pethes"}
+    );
+    // the last before the war wins when it is a side
+    expect(
+      info::owner_at_war_start(std::string{"Cartel"}, std::string{"Crew of Pethes"}, "Crew of Pethes", "Crew of Pethes", "Cartel")
+      == std::string{"Cartel"}
+    );
+    // nobody's side: the last before stays, and the settlement is no stake of this war
+    expect(
+      info::owner_at_war_start(std::string{"The Dukes of Mikunn"}, std::nullopt, "The Dukes of Mikunn", "Crew of Pethes", "Cartel")
+      == std::string{"The Dukes of Mikunn"}
+    );
+    expect(info::owner_at_war_start(std::nullopt, std::nullopt, "Cartel", "Crew of Pethes", "Cartel") == std::string{"Cartel"});
+  };
   }
