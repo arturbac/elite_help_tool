@@ -124,6 +124,30 @@ struct buy_offer_t
   int64_t mean_price;
   };
 
+///\brief a place in a system our commanders claimed, with what is known of its market - a row of the list of markets
+/// to read
+struct market_to_update_t
+  {
+  uint64_t system_address;
+  std::string system;
+  uint64_t market_id;
+  std::string station;
+  std::string station_type;
+  double dist_from_star_ls;
+  std::optional<uint16_t> pads_small;
+  std::optional<uint16_t> pads_medium;
+  std::optional<uint16_t> pads_large;
+  ///\brief who holds the place now
+  std::string owner;
+  ///\brief when the market was last read - none when never
+  std::optional<std::chrono::sys_seconds> updated;
+  ///\brief who held it at that reading - empty for readings taken before it was kept
+  std::string read_owner;
+  ///\brief since when the present owner is seen holding it, and how many owners it is known to have had
+  std::optional<std::chrono::sys_seconds> owner_since;
+  uint32_t owners;
+  };
+
 ///\brief whether the commodity cannot be bought, only mined
 ///
 /// a station can pay very well for such a resource, but for a trader it is a dead end -

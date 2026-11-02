@@ -392,3 +392,36 @@ auto database_storage_t::load_stations_without_pads() -> expected_ec<std::vector
   {
   return sqlite::select_from<info::station_t>(db_->db, sql_iface::tables::station, " WHERE pads_large IS NULL");
   }
+
+auto database_storage_t::load_markets_to_update() -> expected_ec<std::vector<info::market_to_update_t>>
+  {
+  return sqlite::select_from<info::market_to_update_t>(
+    db_->db,
+    std::format(
+      "(SELECT cc.system_address AS system_address,"
+      " coalesce(ss.name, cc.system) AS system,"
+      " st.market_id AS market_id,"
+      " st.name AS station,"
+      " st.station_type AS station_type,"
+      " st.dist_from_star_ls AS dist_from_star_ls,"
+      " st.pads_small AS pads_small, st.pads_medium AS pads_medium, st.pads_large AS pads_large,"
+      " st.controlling_faction AS owner,"
+      " m.updated AS updated,"
+      " coalesce(m.controlling_faction,'') AS read_owner,"
+      " (SELECT max(so.first_seen) FROM {4} so WHERE so.market_id = st.market_id AND so.faction = st.controlling_faction)"
+      "   AS owner_since,"
+      " (SELECT count(*) FROM {4} so WHERE so.market_id = st.market_id) AS owners"
+      " FROM {0} cc"
+      " JOIN {1} st ON st.system_address = cc.system_address"
+      " LEFT JOIN {2} ss ON ss.system_address = cc.system_address"
+      " LEFT JOIN {3} m ON m.market_id = st.market_id"
+      " WHERE cc.released = 0)",
+      sql_iface::tables::colony_claim,
+      sql_iface::tables::station,
+      sql_iface::tables::star_system,
+      sql_iface::tables::market,
+      sql_iface::tables::settlement_owner
+    ),
+    ""
+  );
+  }

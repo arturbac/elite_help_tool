@@ -391,6 +391,20 @@ auto main_window_t::setup_ui() -> void
   faction_state_view_ = new faction_state_window_t{state_, db_path_};
   add_tool_window(faction_state_view_, window_type_e::faction_state);
 
+  trade_view_ = new trade_window_t{state_, db_path_};
+  add_tool_window(trade_view_, window_type_e::trade);
+  // a station clicked in System info: its market is in the Trade window
+  connect(
+    faction_state_view_,
+    &faction_state_window_t::station_market_wanted,
+    this,
+    [this](qulonglong system_address, QString const & station)
+    {
+      trade_view_->show_market(system_address, station.toStdString());
+      activate_window(window_type_e::trade);
+    }
+  );
+
   commodity_stock_view_ = new micro_resource_window_t{db_path_, data_pages_e::commodities, state_};
   add_tool_window(commodity_stock_view_, window_type_e::commodity_stock);
   asset_holdings_view_ = new micro_resource_window_t{db_path_, data_pages_e::assets, state_};
@@ -455,6 +469,7 @@ auto main_window_t::subwindow_for(window_type_e type) const -> QMdiSubWindow *
     case window_type_e::faction_state: return faction_state_view_;
     case window_type_e::micro_resource: return micro_resource_view_;
     case window_type_e::commodity_stock: return commodity_stock_view_;
+    case window_type_e::trade:         return trade_view_;
     case window_type_e::asset_holdings: return asset_holdings_view_;
     case window_type_e::bgs: return bgs_view_;
     case window_type_e::construction: return construction_view_;
@@ -513,6 +528,7 @@ auto main_window_t::setup_toolbox() -> void
     {window_type_e::mission, "Missions"},
     {window_type_e::route, "Route"},
     {window_type_e::ship, "Ship"},
+    {window_type_e::trade, "Trade"},
     {window_type_e::commodity_stock, "Commodities"},
     {window_type_e::asset_holdings, "Assets"},
     {window_type_e::micro_resource, "Asset trade"},

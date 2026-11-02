@@ -8,6 +8,7 @@
 #include <faction_window.h>
 #include <faction_state_window.h>
 #include <micro_resource_window.h>
+#include <trade_window.h>
 #include <bgs_window.h>
 #include <construction_window.h>
 #include <network_incident_window.h>
@@ -56,13 +57,15 @@ enum struct window_type_e
   ///\brief the commodities on the carriers - once a tab of the data window, which is now the asset trade
   commodity_stock,
   ///\brief what is held of data, goods and assets
-  asset_holdings
+  asset_holdings,
+  ///\brief where to buy, a station's market, our systems' markets to read
+  trade
   };
 
 consteval auto adl_enum_bounds(window_type_e)
   {
   using enum window_type_e;
-  return simple_enum::adl_info{none, asset_holdings};
+  return simple_enum::adl_info{none, trade};
   }
 
 class main_window_t : public QMainWindow
@@ -89,6 +92,7 @@ public:
   ///\brief the asset trade; the commodities and the holdings are windows of the same class
   QPointer<micro_resource_window_t> micro_resource_view_;
   QPointer<micro_resource_window_t> commodity_stock_view_;
+  QPointer<trade_window_t> trade_view_;
   QPointer<micro_resource_window_t> asset_holdings_view_;
   QPointer<bgs_window_t> bgs_view_;
   QPointer<construction_window_t> construction_view_;

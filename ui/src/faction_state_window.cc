@@ -5,7 +5,6 @@
 #include <data/progress.h>
 #include <data/station.h>
 #include <data/war.h>
-#include <buy_search_tab.h>
 #include <faction_state_window.h>
 #include <qformat.h>
 #include <qboxlayout.h>
@@ -743,58 +742,6 @@ auto faction_state_window_t::setup_ui() -> void
   war_layout->addWidget(war_settlements_, 1);
   tabs->addTab(war_page, "Settlements at war");
 
-  // --- the tab with the clicked station's market ---
-  auto * market_page = new QWidget(tabs);
-  auto * market_layout = new QVBoxLayout(market_page);
-
-  market_header_ = new QLabel(market_page);
-  market_layout->addWidget(market_header_);
-
-  auto * market_splitter = new QSplitter(Qt::Vertical, market_page);
-  market_splitter->setObjectName("system_market");
-
-  auto make_market_side = [this, market_splitter](bool station_sells, char const * caption) -> QTableView *
-  {
-    auto * container = new QWidget();
-    auto * side_layout = new QVBoxLayout(container);
-    side_layout->addWidget(new QLabel(caption));
-
-    auto * model = new market_model_t(station_sells, this);
-    auto * proxy = new QSortFilterProxyModel(this);
-    proxy->setSourceModel(model);
-    proxy->setSortRole(market_model_t::sort_role);
-
-    auto * view = new QTableView();
-    view->setModel(proxy);
-    view->setSortingEnabled(true);
-    // the best opportunities on top - buying, the cheaper against the average the better; selling, the reverse
-    view->sortByColumn(4, station_sells ? Qt::AscendingOrder : Qt::DescendingOrder);
-    view->setSelectionBehavior(QAbstractItemView::SelectRows);
-    view->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
-    view->horizontalHeader()->setStretchLastSection(true);
-    side_layout->addWidget(view);
-    market_splitter->addWidget(container);
-
-    (station_sells ? market_sells_model_ : market_buys_model_) = model;
-    return view;
-  };
-
-  market_sells_view_ = make_market_side(true, "Station sells:");
-  market_buys_view_ = make_market_side(false, "Station buys:");
-
-  market_layout->addWidget(market_splitter, 1);
-  tabs->addTab(market_page, "Market");
-  market_page_ = market_page;
-
-  auto * buy_tab{new buy_search_tab_t(state_, db_, this)};
-  tabs->addTab(buy_tab, "Buy");
-  connect(
-    buy_tab,
-    &buy_search_tab_t::market_clicked,
-    this,
-    [this](uint64_t market_id, QString const & system) { show_market_of(market_id, system.toStdString()); }
-  );
-
   tabs_ = tabs;
 
   connect(hide_carriers_, &QCheckBox::toggled, this, [this](bool) { update_stations(shown_system_); });
@@ -808,7 +755,8 @@ auto faction_state_window_t::setup_ui() -> void
     {
       if(not index.isValid())
         return;
-      show_market(index.sibling(index.row(), 1).data().toString().toStdString());
+      // the market lives in the Trade window
+      emit station_market_wanted(qulonglong{shown_system_}, index.sibling(index.row(), 1).data().toString());
     }
   );
 
@@ -1213,86 +1161,6 @@ auto faction_state_window_t::update_stations(uint64_t system_address) -> void
 
   stations_model_->update_data(std::move(stations));
   stations_view_->resizeColumnsToContents();
-  }
-
-auto faction_state_window_t::show_market(std::string_view station_name) -> void
-  {
-  market_sells_model_->update_data({});
-  market_buys_model_->update_data({});
-  if(auto const index{tabs_->indexOf(market_page_)}; index >= 0)
-    tabs_->setCurrentIndex(index);
-
-  auto station{db_.load_station(shown_system_, station_name)};
-  if(not station)
-    {
-    spdlog::error("failed to load station {}", station_name);
-    return;
-    }
-
-  if(not *station)
-    {
-    // stations are known from a system signal, a market only from a visit with the tool running
-    market_header_->setText(qformat("{} - no market recorded, dock there with the tool running", station_name));
-    return;
-    }
-  show_market_of(**station, {});
-  }
-
-auto faction_state_window_t::show_market_of(uint64_t market_id, std::string_view system) -> void
-  {
-  market_sells_model_->update_data({});
-  market_buys_model_->update_data({});
-  if(auto const index{tabs_->indexOf(market_page_)}; index >= 0)
-    tabs_->setCurrentIndex(index);
-
-  auto station{db_.load_station(market_id)};
-  if(not station or not *station)
-    {
-    spdlog::error("failed to load station {}", market_id);
-    return;
-    }
-  show_market_of(**station, system);
-  }
-
-auto faction_state_window_t::show_market_of(info::station_t const & station, std::string_view system) -> void
-  {
-  auto entries{db_.load_market_entries(station.market_id)};
-  if(not entries)
-    {
-    spdlog::error("failed to load market {}", station.market_id);
-    return;
-    }
-
-  if(entries->empty())
-    {
-    market_header_->setText(qformat("{} - no market recorded, dock there with the tool running", station.name));
-    return;
-    }
-
-  // a station reached from the buying search says which system it is in
-  std::string const name{system.empty() ? station.name : std::format("{} | {}", system, station.name)};
-
-  // the time of the reading lives with the market, because the reading itself cannot be rebuilt
-  auto reading{db_.load_market_info(station.market_id)};
-  if(reading and *reading)
-    market_header_->setText(qformat("{} - prices as of {:%Y-%m-%d %H:%M}", name, (*reading)->updated));
-  else
-    market_header_->setText(QString::fromStdString(name));
-
-  std::vector<info::market_entry_t> sells;
-  std::vector<info::market_entry_t> buys;
-  for(info::market_entry_t const & entry: *entries)
-    {
-    if(entry.stock != 0)
-      sells.push_back(entry);
-    if(entry.demand != 0)
-      buys.push_back(entry);
-    }
-
-  market_sells_model_->update_data(std::move(sells));
-  market_buys_model_->update_data(std::move(buys));
-  market_sells_view_->resizeColumnsToContents();
-  market_buys_view_->resizeColumnsToContents();
   }
 
 auto faction_state_window_t::update_missions() -> void

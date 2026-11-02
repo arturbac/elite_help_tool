@@ -142,6 +142,23 @@ auto jumps(double ly, float range) -> std::optional<unsigned>;
 [[nodiscard]]
 auto pads_in_journal(std::istream & journal) -> std::map<uint64_t, events::landing_pads_t>;
 
+///\brief what the list of markets to read says of a place
+enum struct market_state_e : uint8_t
+  {
+  never_read,
+  ///\brief someone else holds the place since the reading - after a war, say - so its market may differ
+  owner_changed,
+  read
+  };
+
+[[nodiscard]]
+auto market_state(info::market_to_update_t const & place) -> market_state_e;
+
+///\brief whether a place belongs on the list of markets to read at all - a building site, a carrier or a place of
+/// unknown kind has no market of its own worth reading
+[[nodiscard]]
+auto worth_reading(info::market_to_update_t const & place) -> bool;
+
 ///\brief the pads found, and the newest journal there was to read
 struct journal_pads_t
   {

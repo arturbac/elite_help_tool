@@ -197,6 +197,27 @@ auto jumps(double ly, float range) -> std::optional<unsigned>
   return unsigned(std::ceil(ly / double(range)));
   }
 
+auto market_state(info::market_to_update_t const & place) -> market_state_e
+  {
+  if(not place.updated)
+    return market_state_e::never_read;
+  // the owner at the reading, when it was kept, says it at once
+  if(not place.read_owner.empty() and not place.owner.empty() and place.read_owner != place.owner)
+    return market_state_e::owner_changed;
+  // otherwise the history of owners: a takeover after the reading. With one owner only the first sighting could
+  // fall after a reading taken before the owners were kept, and that is no change
+  if(place.owners > 1u and place.owner_since and *place.owner_since > *place.updated)
+    return market_state_e::owner_changed;
+  return market_state_e::read;
+  }
+
+auto worth_reading(info::market_to_update_t const & place) -> bool
+  {
+  place_e const kind{place_of(place.station_type)};
+  return kind != place_e::other and kind != place_e::carrier and not place.station.empty()
+         and not place.station.starts_with('$') and not place.station.contains("Construction Site");
+  }
+
 auto pads_in_journal(std::istream & journal) -> std::map<uint64_t, events::landing_pads_t>
   {
   constexpr auto opts{glz::opts{.error_on_unknown_keys = false, .error_on_missing_keys = false}};

@@ -121,6 +121,10 @@ struct database_storage_t
   [[nodiscard]]
   auto load_buy_offers(std::vector<std::string> const & commodities) -> expected_ec<std::vector<info::buy_offer_t>>;
 
+  ///\brief every place in the systems our commanders claimed and still hold, with what is known of its market
+  [[nodiscard]]
+  auto load_markets_to_update() -> expected_ec<std::vector<info::market_to_update_t>>;
+
   ///\brief the places whose pads were never read - a Docked written before they were kept may still tell them
   [[nodiscard]]
   auto load_stations_without_pads() -> expected_ec<std::vector<info::station_t>>;

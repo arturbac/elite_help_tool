@@ -294,13 +294,6 @@ public:
   QTableView * mission_view_{};
 
   QTabWidget * tabs_{};
-  ///\brief the market tab cannot be addressed by index - new ones appear and the numbers shift
-  QWidget * market_page_{};
-  QLabel * market_header_{};
-  market_model_t * market_sells_model_{};
-  market_model_t * market_buys_model_{};
-  QTableView * market_sells_view_{};
-  QTableView * market_buys_view_{};
 
   explicit faction_state_window_t(current_state_t const & state, std::string db_path, QWidget * parent = nullptr);
 
@@ -308,6 +301,10 @@ public:
   auto refresh_ui() -> void;
 
   auto setup_ui() -> void;
+
+signals:
+  ///\brief a station of the list was clicked - its market is shown in the Trade window
+  void station_market_wanted(qulonglong system_address, QString station);
 
 private:
   auto reload_system_list() -> void;
@@ -322,11 +319,6 @@ private:
   /// known of their conflict zone's intensity
   auto update_war_settlements(uint64_t system_address) -> void;
 
-  ///\brief shows the market of the station clicked in the list and switches to its tab
-  auto show_market(std::string_view station_name) -> void;
-  ///\brief shows the market of a station of any system - clicked in the buying search
-  auto show_market_of(uint64_t market_id, std::string_view system) -> void;
-  auto show_market_of(info::station_t const & station, std::string_view system) -> void;
 
   auto update_missions() -> void;
 

@@ -12,6 +12,7 @@ target_sources(elite_help_tool
   faction_window.cc
   faction_state_window.cc
   buy_search_tab.cc
+  trade_window.cc
   micro_resource_window.cc
   bgs_window.cc
   construction_window.cc

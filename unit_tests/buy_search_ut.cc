@@ -162,6 +162,48 @@ auto main() -> int
     expect(pads.contains(7u) and pads.at(7u).Large == 3u and pads.at(7u).Medium == 2u);
   };
 
+  "a market is to update when never read, or when the place changed hands after the reading"_test = []
+  {
+    using buy_search::market_state_e;
+    info::market_to_update_t place{
+      .system_address = 1u,
+      .system = "S",
+      .market_id = 7u,
+      .station = "Port",
+      .station_type = "Outpost",
+      .dist_from_star_ls = 10.0,
+      .pads_small = {},
+      .pads_medium = {},
+      .pads_large = {},
+      .owner = "Dukes",
+      .updated = {},
+      .read_owner = "",
+      .owner_since = now - std::chrono::days{20},
+      .owners = 1u
+    };
+    expect(buy_search::market_state(place) == market_state_e::never_read);
+
+    // one owner first seen after a reading kept before owners were: no change
+    place.updated = now - std::chrono::days{30};
+    expect(buy_search::market_state(place) == market_state_e::read);
+
+    place.owners = 2u;
+    expect(buy_search::market_state(place) == market_state_e::owner_changed);
+
+    place.owner_since = now - std::chrono::days{40};
+    expect(buy_search::market_state(place) == market_state_e::read);
+
+    place.read_owner = "Cartel";
+    expect(buy_search::market_state(place) == market_state_e::owner_changed);
+
+    expect(buy_search::worth_reading(place));
+    place.station = "Orbital Construction Site: Port";
+    expect(not buy_search::worth_reading(place));
+    place.station = "Port";
+    place.station_type = "FleetCarrier";
+    expect(not buy_search::worth_reading(place));
+  };
+
   "only the journals newer than the last one read are read again"_test = []
   {
     // the tests run from an empty directory of their own
