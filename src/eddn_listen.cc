@@ -112,40 +112,64 @@ namespace eddn_listen
   {
 namespace detail
   {
-  struct market_message_t
+  template<typename message_type>
+  struct relayed_t
     {
-    std::string systemName;
-    };
-
-  struct market_envelope_t
-    {
-    market_message_t message;
+    std::string schema_ref;
+    message_type message;
     };
   }  // namespace detail
+  }  // namespace eddn_listen
 
-auto market_probe_t::note(std::string_view json) -> void
+template<typename message_type>
+struct glz::meta<eddn_listen::detail::relayed_t<message_type>>
   {
-  if(json.contains("/schemas/commodity/3\""))
+  using T = eddn_listen::detail::relayed_t<message_type>;
+  static constexpr auto value = glz::object("$schemaRef", &T::schema_ref, "message", &T::message);
+  };
+
+namespace eddn_listen
+  {
+auto market(std::string const & json) -> std::optional<market_t>
+  {
+  if(not json.contains("/schemas/commodity/3\""))
+    return std::nullopt;
+  detail::relayed_t<market_t> relayed{};
+  constexpr glz::opts opts{.error_on_unknown_keys = false, .error_on_missing_keys = false};
+  if(auto const err{glz::read<opts>(relayed, json)}; err)
+    return std::nullopt;
+  if(relayed.schema_ref != commodity_schema or relayed.message.marketId == 0u or relayed.message.systemName.empty()
+     or relayed.message.timestamp.time_since_epoch().count() == 0)
+    return std::nullopt;
+  return std::move(relayed.message);
+  }
+
+auto journal(std::string const & json) -> std::optional<journal_t>
+  {
+  if(not json.contains("/schemas/journal/1\"") or not json.contains("\"StarPos\""))
+    return std::nullopt;
+  detail::relayed_t<journal_t> relayed{};
+  constexpr glz::opts opts{.error_on_unknown_keys = false, .error_on_missing_keys = false};
+  if(auto const err{glz::read<opts>(relayed, json)}; err)
+    return std::nullopt;
+  if(relayed.schema_ref != journal_schema or relayed.message.StarSystem.empty() or not relayed.message.StarPos)
+    return std::nullopt;
+  return std::move(relayed.message);
+  }
+
+auto in_reach(std::array<double, 3> const & position, std::span<std::array<double, 3> const> centres, double radius)
+  -> bool
+  {
+  return std::ranges::any_of(
+    centres,
+    [&](std::array<double, 3> const & c)
     {
-    ++markets;
-    detail::market_envelope_t envelope{};
-    constexpr glz::opts opts{.error_on_unknown_keys = false, .error_on_missing_keys = false};
-    if(not glz::read<opts>(envelope, std::string{json}) and not envelope.message.systemName.empty())
-      market_systems.insert(std::move(envelope.message.systemName));
+      double const dx{position[0] - c[0]};
+      double const dy{position[1] - c[1]};
+      double const dz{position[2] - c[2]};
+      return dx * dx + dy * dy + dz * dz <= radius * radius;
     }
-  else if(json.contains("/schemas/journal/1\""))
-    {
-    if(json.contains("\"StarPos\""))
-      ++star_pos;
-    if(json.contains("\"event\": \"Docked\"") or json.contains("\"event\":\"Docked\""))
-      {
-      ++docked;
-      if(json.contains("\"StationType\""))
-        ++docked_type;
-      if(json.contains("\"LandingPads\""))
-        ++docked_pads;
-      }
-    }
+  );
   }
 
 auto fcmaterials(std::string const & json) -> std::optional<events::fcmaterials_t>

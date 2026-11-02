@@ -37,9 +37,12 @@ on:
   shelf as it stood before their purchase. Each one is kept as a reading of the shelf, so Bartender
   stock and Bar sales show what sold without flying there. Nothing is sent to the relay but the
   connection's greeting and its subscription; the relay sends everything EDDN carries and EHT keeps
-  only that shelf. Every ten minutes the log gets one line counting what the relay said of markets -
-  how many, from how many systems, how many of those systems are known here, and how many relayed
-  `Docked` events name a station's type and pads; none of it is kept. A connection that breaks is tried again after 30 seconds, then less often, up to
+  only that shelf - and, with `eddn.market_radius_ly` above 0 (0 by default), the markets and the
+  places other commanders' tools sent from within that many light years of a system the commanders of
+  the journal directory claimed and still hold, or of the one the commander is in: each market's
+  prices and stocks, and of each place its name, type, pads, distance from the arrival star, position
+  and controlling faction, all marked as heard on EDDN, in `live.sqlite`. Every ten minutes the log gets
+  one line counting them. A connection that breaks is tried again after 30 seconds, then less often, up to
   every five minutes. The relay is spoken to in ZMTP 3, without a ZeroMQ library.
 - **Never stuck on the gateway.** Each step of an upload (connecting, the TLS handshake, sending,
   the answer) has ten seconds, and the whole exchange forty; a gateway that stops answering costs

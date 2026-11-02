@@ -79,6 +79,8 @@ struct place_t
   std::chrono::sys_seconds updated{};
   ///\brief the wanted commodities it sells, in the order they were asked for
   std::vector<offer_t> offers;
+  ///\brief empty for one's own reading, "eddn" for one heard on the relay
+  std::string source;
   };
 
 ///\brief what the search keeps
@@ -89,6 +91,8 @@ struct filter_t
   pad_e min_pad{pad_e::none};
   bool unknown_pads{true};
   std::chrono::days max_age{30};
+  ///\brief whether the markets heard on EDDN's relay count
+  bool eddn{true};
   };
 
 ///\brief the rows of the database gathered by market, with the distance from where the commander is

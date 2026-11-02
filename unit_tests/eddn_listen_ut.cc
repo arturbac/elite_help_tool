@@ -124,20 +124,52 @@ auto main() -> int
     expect(not eddn_listen::fcmaterials(no_market));
   };
 
-  "the probe counts markets with their systems, and what a relayed Docked tells"_test = []
+  "a relayed market is read whole, the test schema not"_test = []
   {
-    eddn_listen::market_probe_t probe;
-    probe.note(R"({"$schemaRef": "https://eddn.edcd.io/schemas/commodity/3", "message": {"systemName": "Sol", "marketId": 1}})");
-    probe.note(R"({"$schemaRef": "https://eddn.edcd.io/schemas/commodity/3/test", "message": {"systemName": "Lave"}})");
-    probe.note(
-      R"({"$schemaRef": "https://eddn.edcd.io/schemas/journal/1", "message": {"event": "Docked", "StationType": "Orbis", "StarPos": [0,0,0]}})"
-    );
-    probe.note(
-      R"({"$schemaRef": "https://eddn.edcd.io/schemas/journal/1", "message": {"event": "FSDJump", "StarPos": [1,2,3]}})"
-    );
-    expect(probe.markets == 1u);
-    expect(probe.market_systems.contains("Sol") and probe.market_systems.size() == 1u);
-    expect(probe.docked == 1u and probe.docked_type == 1u and probe.docked_pads == 0u);
-    expect(probe.star_pos == 2u);
+    std::string const market{
+      R"({"$schemaRef": "https://eddn.edcd.io/schemas/commodity/3", "header": {"uploaderID": "x"}, "message": {)"
+      R"("systemName": "Bleia Eohn MQ-F b31-4", "stationName": "Fearnley Horizons", "marketId": 4380064515,)"
+      R"( "horizons": true, "timestamp": "2026-11-02T21:00:00Z", "commodities": [)"
+      R"({"name": "gold", "meanPrice": 47113, "buyPrice": 44540, "stock": 123, "stockBracket": 1, "sellPrice": 44000,)"
+      R"( "demand": 0, "demandBracket": 0},)"
+      R"({"name": "steel", "meanPrice": 4179, "buyPrice": 0, "stock": 0, "sellPrice": 5000, "demand": 900}]}})"
+    };
+    auto const read{eddn_listen::market(market)};
+    expect(read.has_value());
+    expect(read->marketId == 4380064515u and read->systemName == std::string{"Bleia Eohn MQ-F b31-4"});
+    expect(read->commodities.size() == 2u and read->commodities[0].name == std::string{"gold"});
+    expect(read->commodities[0].buyPrice == 44540 and read->commodities[0].stock == 123);
+    expect(read->timestamp.time_since_epoch().count() != 0);
+
+    std::string test{market};
+    test.replace(test.find("commodity/3"), 11u, "commodity/3/test");
+    expect(not eddn_listen::market(test));
+  };
+
+  "a relayed Docked gives the place, its type, pads and position"_test = []
+  {
+    std::string const docked{
+      R"({"$schemaRef": "https://eddn.edcd.io/schemas/journal/1", "message": {"event": "Docked",)"
+      R"( "timestamp": "2026-11-02T21:00:00Z", "StarSystem": "Sol", "SystemAddress": 10477373803, "StarPos": [0.0, 0.0, 0.0],)"
+      R"( "StationName": "Abraham Lincoln", "StationType": "Orbis", "MarketID": 128016640, "DistFromStarLS": 497.5,)"
+      R"( "LandingPads": {"Small": 8, "Medium": 12, "Large": 8}, "StationFaction": {"Name": "Mother Gaia"}}})"
+    };
+    auto const read{eddn_listen::journal(docked)};
+    expect(read.has_value());
+    expect(read->event == std::string{"Docked"} and read->MarketID == 128016640u);
+    expect(read->LandingPads.has_value() and read->LandingPads->Large == 8u);
+    expect(read->StationFaction.Name == std::string{"Mother Gaia"} and read->StationType == std::string{"Orbis"});
+    expect(read->StarPos.has_value());
+
+    expect(not eddn_listen::journal(
+      R"({"$schemaRef": "https://eddn.edcd.io/schemas/journal/1", "message": {"event": "Docked", "StarSystem": "Sol"}})"
+    ));
+  };
+
+  "a position is in reach of the nearest centre"_test = []
+  {
+    std::array<std::array<double, 3>, 2> const centres{{{0.0, 0.0, 0.0}, {100.0, 0.0, 0.0}}};
+    expect(eddn_listen::in_reach({90.0, 0.0, 0.0}, centres, 50.0));
+    expect(not eddn_listen::in_reach({50.0, 60.0, 0.0}, centres, 50.0));
   };
   }

@@ -29,7 +29,8 @@ auto row(uint64_t market_id, std::string commodity, int64_t price, int64_t stock
     .commodity = std::move(commodity),
     .buy_price = price,
     .stock = stock,
-    .mean_price = 1000
+    .mean_price = 1000,
+    .source = {}
   };
   }
 
@@ -122,6 +123,13 @@ auto main() -> int
     auto old{offer};
     old.updated = now - std::chrono::days{31};
     expect(not kept(every_place(), old));
+
+    auto heard{offer};
+    heard.source = "eddn";
+    buy_search::filter_t own_only{every_place()};
+    own_only.eddn = false;
+    expect(kept(every_place(), heard));
+    expect(not kept(own_only, heard));
   };
 
   "a pair is offered only when no single place has everything"_test = []
@@ -182,7 +190,8 @@ auto main() -> int
       .updated = {},
       .read_owner = "",
       .owner_since = now - std::chrono::days{20},
-      .owners = 1u
+      .owners = 1u,
+      .source = {}
     };
     expect(buy_search::market_state(place) == market_state_e::never_read);
 

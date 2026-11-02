@@ -376,6 +376,10 @@ struct eddn_settings_t
   ///\brief hear EDDN's relay for the bartender's shelf of one's own fleet carrier, as other commanders' tools send
   /// it - each one kept as a reading of the shelf, so the bar's sales show without flying there
   bool listen{false};
+  ///\brief with listen on, the markets heard on the relay within this many light years of a system our commanders
+  /// claimed, or of the one the commander is in, are kept for the Trade window; 0 keeps none. One tool of those
+  /// sharing live.sqlite is enough
+  double market_radius_ly{0.0};
   };
 
 struct windows_settings_t

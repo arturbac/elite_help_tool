@@ -36,6 +36,28 @@ struct market_info_t
   ///\brief the controlling faction seen at the moment of this reading, to notice a takeover since -
   /// what is legal to trade here can depend on who runs the place, and the game never warns of it
   std::string controlling_faction{};
+  ///\brief where the reading came from: empty for one's own, "eddn" for another commander's heard on the relay
+  std::string source{};
+  };
+
+///\brief a place heard of on EDDN's relay, from another commander's Docked - the journals of this machine never
+/// name it, so it is kept apart from the stations rebuilt from them
+struct eddn_place_t
+  {
+  uint64_t market_id;
+  uint64_t system_address;
+  std::string system;
+  std::string station;
+  std::string station_type;
+  double dist_from_star_ls;
+  std::optional<uint16_t> pads_small;
+  std::optional<uint16_t> pads_medium;
+  std::optional<uint16_t> pads_large;
+  double loc_x;
+  double loc_y;
+  double loc_z;
+  std::string controlling_faction;
+  std::chrono::sys_seconds seen;
   };
 
 ///\brief the commodity dictionary; mean_price is the galactic average, a constant of the commodity
@@ -122,6 +144,8 @@ struct buy_offer_t
   int64_t buy_price;
   int64_t stock;
   int64_t mean_price;
+  ///\brief empty for one's own reading, "eddn" for one heard on the relay
+  std::string source;
   };
 
 ///\brief a place in a system our commanders claimed, with what is known of its market - a row of the list of markets
@@ -149,6 +173,8 @@ struct market_to_update_t
   ///\brief since when the present owner is seen holding it, and how many owners it is known to have had
   std::optional<std::chrono::sys_seconds> owner_since;
   uint32_t owners;
+  ///\brief where the reading came from - empty for one's own, "eddn" for one heard on the relay
+  std::string source;
   };
 
 ///\brief whether the commodity cannot be bought, only mined

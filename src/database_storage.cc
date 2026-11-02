@@ -118,6 +118,8 @@ auto database_storage_t::migrate_live_schema() -> expected_ec<void>
        // the faction running the place when we last read it - rows written before it was kept stay
        // empty, so a takeover since is never flagged for a reading taken before this was added
        addition_t{sql_iface::tables::market, "controlling_faction"sv, "TEXT DEFAULT ''"sv},
+       // where a reading came from - every one before the relay was heard was one's own
+       addition_t{sql_iface::tables::market, "source"sv, "TEXT DEFAULT ''"sv},
        addition_t{sql_iface::tables::station, "controlling_faction"sv, "TEXT DEFAULT ''"sv},
        addition_t{sql_iface::tables::station, "dist_from_star_ls"sv, "REAL DEFAULT 0"sv},
        addition_t{sql_iface::tables::station, "body_id"sv, "INTEGER"sv},
@@ -318,6 +320,10 @@ auto database_storage_t::create_database() -> expected_ec<void>
 
   if(auto res{sqlite::create_table<info::market_info_t>(db_->db, "market_id"sv, sql_iface::tables::market)}; not res)
     [[unlikely]]
+    return res;
+
+  if(auto res{sqlite::create_table<info::eddn_place_t>(db_->db, "market_id"sv, sql_iface::tables::eddn_place)};
+     not res) [[unlikely]]
     return res;
 
   if(auto res{sqlite::create_table<info::commodity_t>(db_->db, "id"sv, sql_iface::tables::commodity)}; not res)

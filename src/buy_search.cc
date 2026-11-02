@@ -79,7 +79,8 @@ auto places_of(std::vector<info::buy_offer_t> const & rows, std::optional<std::a
         .position = {},
         .ly = {},
         .updated = row.updated,
-        .offers = {}
+        .offers = {},
+        .source = row.source
       };
       if(row.loc_x and row.loc_y and row.loc_z)
         place.position = std::array{*row.loc_x, *row.loc_y, *row.loc_z};
@@ -133,6 +134,8 @@ auto passes(place_t const & place, filter_t const & filter, std::chrono::sys_sec
   if(kind == place_e::other or not filter.places.contains(kind))
     return false;
   if(now - place.updated > filter.max_age)
+    return false;
+  if(place.source == "eddn" and not filter.eddn)
     return false;
   if(not place.pad)
     return filter.unknown_pads;

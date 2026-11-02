@@ -46,6 +46,7 @@ enum struct column_e : int
   cost,
   balance,
   age,
+  source,
   column_max
   };
 
@@ -158,6 +159,8 @@ buy_search_tab_t::buy_search_tab_t(current_state_t const & state, database_stora
   filter_row->addWidget(min_pad_);
   unknown_pads_ = check("Unknown pads", true);
   unknown_pads_->setToolTip("Places whose pads were never read - docking there once tells them");
+  eddn_prices_ = check("EDDN prices", true);
+  eddn_prices_->setToolTip("Markets other commanders' tools sent to EDDN, heard around our systems");
   filter_row->addStretch(1);
   layout->addLayout(filter_row);
 
@@ -186,7 +189,9 @@ buy_search_tab_t::buy_search_tab_t(current_state_t const & state, database_stora
   note_->setWordWrap(true);
   layout->addWidget(note_);
 
-  QStringList const headers{"Hits", "System | Station", "Type", "Pad", "ly", "Jumps", "Ls", "Cost", "Balance", "Age"};
+  QStringList const headers{
+    "Hits", "System | Station", "Type", "Pad", "ly", "Jumps", "Ls", "Cost", "Balance", "Age", "Source"
+  };
 
   pairs_caption_ = new QLabel("No single place has everything - pairs that together do, the shortest way first:");
   layout->addWidget(pairs_caption_);
@@ -332,7 +337,8 @@ auto buy_search_tab_t::filter() const -> buy_search::filter_t
     .places = {},
     .min_pad = buy_search::pad_e(min_pad_->currentData().toInt()),
     .unknown_pads = unknown_pads_->isChecked(),
-    .max_age = std::chrono::days{max_age_->value()}
+    .max_age = std::chrono::days{max_age_->value()},
+    .eddn = eddn_prices_->isChecked()
   };
   for(auto const & [box, place]: {std::pair{space_stations_, space_station},
                                   std::pair{outposts_, outpost},
@@ -383,7 +389,7 @@ auto buy_search_tab_t::search() -> void
   };
   note_->setText(
     ranked.empty() ? QString{"No market read has any of them - the filters may leave the rest out."}
-                   : qformat("{} places, from the markets opened with the tool running.", ranked.size())
+                   : qformat("{} places, from the markets opened with the tool running and heard on EDDN.", ranked.size())
   );
   show_places(ranked, wanted_now);
   show_pairs(ranked, wanted_now);
@@ -431,6 +437,8 @@ auto place_item(
     age < std::chrono::hours{48} ? qformat("{} h", age.count()) : qformat("{} d", age.count() / 24),
     qlonglong(age.count())
   );
+  QString const source{place.source == "eddn" ? "EDDN" : "own"};
+  set(item, column_e::source, source, source);
   item->setData(0, market_role, qulonglong(place.market_id));
   item->setData(0, system_role, QString::fromStdString(place.system));
 

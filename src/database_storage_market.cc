@@ -340,29 +340,35 @@ auto database_storage_t::load_buy_offers(std::vector<std::string> const & commod
     db_->db,
     std::format(
       "(SELECT i.market_id AS market_id,"
-      " coalesce(st.name,'') AS station,"
-      " coalesce(st.station_type,'') AS station_type,"
-      " coalesce(ss.name,'') AS system,"
-      " ss.loc_x AS loc_x, ss.loc_y AS loc_y, ss.loc_z AS loc_z,"
-      " coalesce(st.dist_from_star_ls,0) AS dist_from_star_ls,"
-      " st.pads_small AS pads_small, st.pads_medium AS pads_medium, st.pads_large AS pads_large,"
+      // a place known from the journals first, one heard of on the relay otherwise
+      " coalesce(st.name, ep.station, '') AS station,"
+      " coalesce(st.station_type, ep.station_type, '') AS station_type,"
+      " coalesce(ss.name, ep.system, '') AS system,"
+      " coalesce(ss.loc_x, ep.loc_x) AS loc_x, coalesce(ss.loc_y, ep.loc_y) AS loc_y,"
+      " coalesce(ss.loc_z, ep.loc_z) AS loc_z,"
+      " coalesce(st.dist_from_star_ls, ep.dist_from_star_ls, 0) AS dist_from_star_ls,"
+      " coalesce(st.pads_small, ep.pads_small) AS pads_small, coalesce(st.pads_medium, ep.pads_medium) AS pads_medium,"
+      " coalesce(st.pads_large, ep.pads_large) AS pads_large,"
       " m.updated AS updated,"
       " c.name AS commodity,"
       " i.buy_price AS buy_price,"
       " i.stock AS stock,"
-      " c.mean_price AS mean_price"
+      " c.mean_price AS mean_price,"
+      " m.source AS source"
       " FROM {0} c"
       " CROSS JOIN {1} i ON i.commodity_id = c.id AND i.buy_price > 0 AND i.stock > 0"
       " JOIN {2} m ON m.market_id = i.market_id"
       " LEFT JOIN {3} st ON st.market_id = i.market_id"
       " LEFT JOIN {4} ss ON ss.system_address = st.system_address"
+      " LEFT JOIN {6} ep ON ep.market_id = i.market_id"
       " WHERE lower(c.name) IN ({5}))",
       sql_iface::tables::commodity,
       sql_iface::tables::market_item,
       sql_iface::tables::market,
       sql_iface::tables::station,
       sql_iface::tables::star_system,
-      names
+      names,
+      sql_iface::tables::eddn_place
     ),
     ""
   );
@@ -411,18 +417,134 @@ auto database_storage_t::load_markets_to_update() -> expected_ec<std::vector<inf
       " coalesce(m.controlling_faction,'') AS read_owner,"
       " (SELECT max(so.first_seen) FROM {4} so WHERE so.market_id = st.market_id AND so.faction = st.controlling_faction)"
       "   AS owner_since,"
-      " (SELECT count(*) FROM {4} so WHERE so.market_id = st.market_id) AS owners"
+      " (SELECT count(*) FROM {4} so WHERE so.market_id = st.market_id) AS owners,"
+      " coalesce(m.source,'') AS source"
       " FROM {0} cc"
       " JOIN {1} st ON st.system_address = cc.system_address"
       " LEFT JOIN {2} ss ON ss.system_address = cc.system_address"
       " LEFT JOIN {3} m ON m.market_id = st.market_id"
-      " WHERE cc.released = 0)",
+      " WHERE cc.released = 0"
+      // a place no journal here names, heard of on the relay
+      " UNION ALL SELECT cc.system_address, coalesce(ss.name, cc.system), ss.loc_x, ss.loc_y, ss.loc_z,"
+      " ep.market_id, ep.station, ep.station_type, ep.dist_from_star_ls, ep.pads_small, ep.pads_medium,"
+      " ep.pads_large, ep.controlling_faction, m.updated, coalesce(m.controlling_faction,''), NULL, 0,"
+      " coalesce(m.source,'')"
+      " FROM {0} cc"
+      " JOIN {5} ep ON ep.system_address = cc.system_address"
+      " LEFT JOIN {2} ss ON ss.system_address = cc.system_address"
+      " LEFT JOIN {3} m ON m.market_id = ep.market_id"
+      " WHERE cc.released = 0 AND ep.market_id NOT IN (SELECT market_id FROM {1}))",
       sql_iface::tables::colony_claim,
       sql_iface::tables::station,
       sql_iface::tables::star_system,
       sql_iface::tables::market,
-      sql_iface::tables::settlement_owner
+      sql_iface::tables::settlement_owner,
+      sql_iface::tables::eddn_place
     ),
     ""
   );
+  }
+
+auto database_storage_t::store_eddn_market(
+  uint64_t market_id, std::chrono::sys_seconds updated, std::span<info::market_item_t const> items
+) -> expected_ec<bool>
+  {
+  auto known{sqlite::select_from<info::market_info_t>(
+    db_->db, sql_iface::tables::market, std::format(" WHERE market_id={}", market_id)
+  )};
+  if(not known) [[unlikely]]
+    return cxx23::unexpected{known.error()};
+  // a reading as old as the one kept, or older, says nothing new - one's own included
+  if(not known->empty() and known->front().updated >= updated)
+    return false;
+  // the owner comes with one's own Docked; a relayed market does not name it, so the one kept stays
+  std::string const owner{known->empty() ? std::string{} : known->front().controlling_faction};
+
+  if(
+    auto res{sqlite::execute_query_no_result(
+      db_->db, std::format("DELETE FROM {} WHERE market_id={}", sql_iface::tables::market_item, market_id)
+    )};
+    not res
+  ) [[unlikely]]
+    return cxx23::unexpected{res.error()};
+  for(info::market_item_t const & item: items)
+    if(auto res{sqlite::insert_into(db_->db, "oid"sv, sql_iface::tables::market_item, item)}; not res) [[unlikely]]
+      return cxx23::unexpected{res.error()};
+  if(
+    auto res{sqlite::execute_query_no_result(
+      db_->db, std::format("DELETE FROM {} WHERE market_id={}", sql_iface::tables::market, market_id)
+    )};
+    not res
+  ) [[unlikely]]
+    return cxx23::unexpected{res.error()};
+  if(
+    auto res{sqlite::insert_into<info::market_info_t, true>(
+      db_->db,
+      "market_id"sv,
+      sql_iface::tables::market,
+      info::market_info_t{.market_id = market_id, .updated = updated, .controlling_faction = owner, .source = "eddn"}
+    )};
+    not res
+  ) [[unlikely]]
+    return cxx23::unexpected{res.error()};
+  return true;
+  }
+
+auto database_storage_t::store(info::eddn_place_t const & value) -> expected_ec<void>
+  {
+  auto known{sqlite::select_from<info::eddn_place_t>(
+    db_->db, sql_iface::tables::eddn_place, std::format(" WHERE market_id={}", value.market_id)
+  )};
+  if(not known) [[unlikely]]
+    return cxx23::unexpected{known.error()};
+  if(known->empty())
+    return sqlite::insert_into<info::eddn_place_t, true>(db_->db, "market_id"sv, sql_iface::tables::eddn_place, value);
+  if(known->front().seen >= value.seen)
+    return {};
+  return sqlite::update_pk(db_->db, "market_id"sv, sql_iface::tables::eddn_place, value, value.market_id);
+  }
+
+auto database_storage_t::load_commodity_ids() -> expected_ec<std::map<std::string, uint64_t>>
+  {
+  auto rows{sqlite::select_from<info::commodity_t>(db_->db, sql_iface::tables::commodity, "")};
+  if(not rows) [[unlikely]]
+    return cxx23::unexpected{rows.error()};
+  std::map<std::string, uint64_t> ids;
+  for(info::commodity_t const & c: *rows)
+    {
+    ids.emplace(c.key.empty() ? info::commodity_key(c.name) : c.key, c.id);
+    // the relay names a commodity by its internal name, which is not always the shown one
+    ids.emplace(info::commodity_key(c.name), c.id);
+    }
+  return ids;
+  }
+
+namespace sql_iface
+  {
+struct claim_position_t
+  {
+  double loc_x;
+  double loc_y;
+  double loc_z;
+  };
+  }  // namespace sql_iface
+
+auto database_storage_t::load_claim_positions() -> expected_ec<std::vector<std::array<double, 3>>>
+  {
+  auto rows{sqlite::select_from<sql_iface::claim_position_t>(
+    db_->db,
+    std::format(
+      "(SELECT ss.loc_x AS loc_x, ss.loc_y AS loc_y, ss.loc_z AS loc_z FROM {0} cc"
+      " JOIN {1} ss ON ss.system_address = cc.system_address WHERE cc.released = 0)",
+      sql_iface::tables::colony_claim,
+      sql_iface::tables::star_system
+    ),
+    ""
+  )};
+  if(not rows) [[unlikely]]
+    return cxx23::unexpected{rows.error()};
+  std::vector<std::array<double, 3>> positions;
+  for(sql_iface::claim_position_t const & row: *rows)
+    positions.push_back({row.loc_x, row.loc_y, row.loc_z});
+  return positions;
   }

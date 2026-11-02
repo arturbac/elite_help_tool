@@ -534,6 +534,7 @@ namespace tables
   inline constexpr std::string_view tick_observation{"galaxy.tick_observation"};
   // what cannot be rebuilt sits in a separate file attached as the live schema
   inline constexpr std::string_view market{"live.market"};
+  inline constexpr std::string_view eddn_place{"live.eddn_place"};
   inline constexpr std::string_view commodity{"live.commodity"};
   inline constexpr std::string_view market_item{"live.market_item"};
   // what THIS character did - it stays in the personal database, with natural keys so it survives a galaxy rebuild

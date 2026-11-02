@@ -1,12 +1,15 @@
 #pragma once
 
 #include <events/carrier.h>
+#include <events/station.h>
 
 #include <array>
+#include <chrono>
 #include <cstdint>
 #include <deque>
 #include <optional>
-#include <set>
+#include <span>
+#include <vector>
 #include <string>
 #include <string_view>
 
@@ -72,21 +75,61 @@ inline constexpr std::string_view fcmaterials_schema{"https://eddn.edcd.io/schem
 [[nodiscard]]
 auto fcmaterials(std::string const & json) -> std::optional<events::fcmaterials_t>;
 
-///\brief what the relay says of markets and places, counted only - to learn what a search for where to buy could take
-/// from it before anything is kept
-struct market_probe_t
-  {
-  ///\brief commodity/3 messages - a whole market each
-  uint64_t markets{};
-  ///\brief journal/1 Docked messages, and of them those naming the station's type and its pads
-  uint64_t docked{};
-  uint64_t docked_type{};
-  uint64_t docked_pads{};
-  ///\brief journal/1 messages giving a system's position
-  uint64_t star_pos{};
-  ///\brief the systems the markets were in
-  std::set<std::string> market_systems;
+inline constexpr std::string_view commodity_schema{"https://eddn.edcd.io/schemas/commodity/3"};
+inline constexpr std::string_view journal_schema{"https://eddn.edcd.io/schemas/journal/1"};
 
-  auto note(std::string_view json) -> void;
+///\brief one commodity of a relayed market, by its internal name
+struct commodity_t
+  {
+  std::string name;
+  int64_t meanPrice{};
+  int64_t buyPrice{};
+  int64_t stock{};
+  int64_t sellPrice{};
+  int64_t demand{};
   };
+
+///\brief a whole market another commander's tool sent
+struct market_t
+  {
+  std::string systemName;
+  std::string stationName;
+  uint64_t marketId{};
+  std::chrono::sys_seconds timestamp{};
+  std::vector<commodity_t> commodities;
+  };
+
+///\brief the market in a relayed message, when it is one of commodity/3 and whole; the test schema is not
+[[nodiscard]]
+auto market(std::string const & json) -> std::optional<market_t>;
+
+struct station_faction_t
+  {
+  std::string Name;
+  };
+
+///\brief a relayed journal event, as far as a system's position and a station's description go
+struct journal_t
+  {
+  std::string event;
+  std::chrono::sys_seconds timestamp{};
+  std::string StarSystem;
+  uint64_t SystemAddress{};
+  std::optional<std::array<double, 3>> StarPos;
+  std::string StationName;
+  std::string StationType;
+  uint64_t MarketID{};
+  double DistFromStarLS{};
+  std::optional<events::landing_pads_t> LandingPads;
+  station_faction_t StationFaction;
+  };
+
+///\brief the journal event in a relayed message, when it is one of journal/1 and names a system with its position
+[[nodiscard]]
+auto journal(std::string const & json) -> std::optional<journal_t>;
+
+///\brief whether a position lies within the radius of any of the centres
+[[nodiscard]]
+auto in_reach(std::array<double, 3> const & position, std::span<std::array<double, 3> const> centres, double radius)
+  -> bool;
   }  // namespace eddn_listen

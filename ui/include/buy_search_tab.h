@@ -65,6 +65,7 @@ private:
   QCheckBox * carriers_{};
   QComboBox * min_pad_{};
   QCheckBox * unknown_pads_{};
+  QCheckBox * eddn_prices_{};
   QSpinBox * max_age_{};
   QSpinBox * reward_{};
   QLabel * note_{};

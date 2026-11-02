@@ -2,6 +2,7 @@
 
 #include <carrier_owner.h>
 #include <data/carrier.h>
+#include <data/market.h>
 #include <data/micro_resources.h>
 #include <data/progress.h>
 #include <databse_storage.h>
@@ -23,7 +24,10 @@
 #include <algorithm>
 #include <chrono>
 #include <optional>
+#include <limits>
+#include <map>
 #include <set>
+#include <span>
 #include <vector>
 
 namespace eddn
@@ -78,12 +82,14 @@ namespace
       database_storage_t & db,
       std::function<std::string()> const & account,
       std::function<void()> const & stored,
+      std::function<std::optional<std::array<double, 3>>()> const & here,
       std::stop_token stop
     ) :
         db_{db},
         account_{account},
         stored_{stored},
-        stop_{std::move(stop)}
+        stop_{std::move(stop)},
+        here_{here}
       {
       }
 
@@ -204,32 +210,139 @@ namespace
         for(info::carrier_t const & c: *carriers)
           if(carrier_owner::own(c, fid))
             ours_.insert(c.market_id);
+      if(auto claims{db_.load_claim_positions()}; claims)
+        claims_ = std::move(*claims);
+      if(auto ids{db_.load_commodity_ids()}; ids)
+        commodity_ids_ = std::move(*ids);
+      unplaced_.clear();
       known_names_.clear();
       if(auto names{db_.load_micro_resources()}; names)
         for(info::micro_resource_t const & item: *names)
           known_names_.insert(item.name);
       }
 
-    ///\brief one line on what the relay said of markets since the last one - nothing of it is kept yet
-    auto report_probe() -> void
+    ///\brief where a system lies - from the relay's own messages, or from the systems known here
+    [[nodiscard]]
+    auto position_of(std::string const & system) -> std::optional<std::array<double, 3>>
       {
-      probed_ = std::chrono::steady_clock::now();
-      std::vector<std::string> const systems{probe_.market_systems.begin(), probe_.market_systems.end()};
-      std::size_t known{};
-      if(auto positions{db_.load_system_positions(systems)}; positions)
-        known = positions->size();
+      if(auto const it{positions_.find(system)}; it != positions_.end())
+        return it->second;
+      if(unplaced_.contains(system))
+        return std::nullopt;
+      std::array<std::string, 1> const names{system};
+      if(auto known{db_.load_system_positions(names)}; known and not known->empty())
+        return positions_[system] = known->begin()->second;
+      unplaced_.insert(system);
+      return std::nullopt;
+      }
+
+    [[nodiscard]]
+    auto within(std::array<double, 3> const & position, double radius) -> bool
+      {
+      if(eddn_listen::in_reach(position, claims_, radius))
+        return true;
+      auto const where{here_ ? here_() : std::nullopt};
+      return where and eddn_listen::in_reach(position, std::span{&*where, 1u}, radius);
+      }
+
+    ///\brief the markets and places around our systems, as other commanders' tools send them
+    auto keep_markets(std::string const & text) -> void
+      {
+      double const radius{eht::settings()->eddn.market_radius_ly};
+      if(radius <= 0.0)
+        return;
+      if(auto event{eddn_listen::journal(text)}; event)
+        {
+        // a bounded memory: the relay names some thousands of systems an hour
+        if(positions_.size() > 50'000u)
+          positions_.clear();
+        positions_[event->StarSystem] = *event->StarPos;
+        unplaced_.erase(event->StarSystem);
+        if(event->event != "Docked" or event->MarketID == 0u or not within(*event->StarPos, radius))
+          return;
+        info::eddn_place_t const place{
+          .market_id = event->MarketID,
+          .system_address = event->SystemAddress,
+          .system = event->StarSystem,
+          .station = event->StationName,
+          .station_type = event->StationType,
+          .dist_from_star_ls = event->DistFromStarLS,
+          .pads_small = events::pads_of(event->LandingPads, &events::landing_pads_t::Small),
+          .pads_medium = events::pads_of(event->LandingPads, &events::landing_pads_t::Medium),
+          .pads_large = events::pads_of(event->LandingPads, &events::landing_pads_t::Large),
+          .loc_x = (*event->StarPos)[0],
+          .loc_y = (*event->StarPos)[1],
+          .loc_z = (*event->StarPos)[2],
+          .controlling_faction = event->StationFaction.Name,
+          .seen = event->timestamp
+        };
+        if(auto res{db_.store(place)}; not res)
+          spdlog::error("eddn listen: failed to store the place {}", event->MarketID);
+        else
+          ++heard_.places;
+        return;
+        }
+
+      auto market{eddn_listen::market(text)};
+      if(not market)
+        return;
+      ++heard_.markets;
+      auto const position{position_of(market->systemName)};
+      if(not position)
+        {
+        ++heard_.unplaced;
+        return;
+        }
+      if(not within(*position, radius))
+        return;
+      ++heard_.in_reach;
+      std::vector<info::market_item_t> items;
+      for(eddn_listen::commodity_t const & c: market->commodities)
+        {
+        auto const id{commodity_ids_.find(info::commodity_key(c.name))};
+        if(id == commodity_ids_.end())
+          {
+          ++heard_.unknown_commodities;
+          continue;
+          }
+        auto const count = [](int64_t v) { return uint32_t(std::clamp<int64_t>(v, 0, std::numeric_limits<uint32_t>::max())); };
+        items.push_back(
+          info::market_item_t{
+            .market_id = market->marketId,
+            .commodity_id = id->second,
+            .buy_price = count(c.buyPrice),
+            .sell_price = count(c.sellPrice),
+            .stock = count(c.stock),
+            .demand = count(c.demand),
+            // the relay does not say what a station produces; what it has to sell stands for it
+            .producer = c.stock > 0,
+            .consumer = c.demand > 0
+          }
+        );
+        }
+      if(auto stored{db_.store_eddn_market(market->marketId, market->timestamp, items)}; not stored)
+        spdlog::error("eddn listen: failed to store the market {}", market->marketId);
+      else if(*stored)
+        ++heard_.stored;
+      }
+
+    ///\brief one line on the markets heard since the last one
+    auto report_markets() -> void
+      {
+      reported_ = std::chrono::steady_clock::now();
+      if(eht::settings()->eddn.market_radius_ly <= 0.0)
+        return;
       spdlog::info(
-        "eddn listen: in 10 min {} markets from {} systems, {} of them known here; {} Docked, {} with the station type, {} "
-        "with pads; {} with a position",
-        probe_.markets,
-        systems.size(),
-        known,
-        probe_.docked,
-        probe_.docked_type,
-        probe_.docked_pads,
-        probe_.star_pos
+        "eddn listen: in 10 min {} markets heard, {} in reach, {} kept as newer; {} in systems of no known position; "
+        "{} commodities not in the dictionary; {} places kept",
+        heard_.markets,
+        heard_.in_reach,
+        heard_.stored,
+        heard_.unplaced,
+        heard_.unknown_commodities,
+        heard_.places
       );
-      probe_ = {};
+      heard_ = {};
       }
 
     auto take(std::string const & packed) -> void
@@ -239,9 +352,9 @@ namespace
       auto text{inflate_message(packed)};
       if(not text)
         return;
-      probe_.note(*text);
-      if(std::chrono::steady_clock::now() - probed_ > 10min)
-        report_probe();
+      keep_markets(*text);
+      if(std::chrono::steady_clock::now() - reported_ > 10min)
+        report_markets();
       if(ours_.empty())
         return;
       auto shelf{eddn_listen::fcmaterials(*text)};
@@ -306,13 +419,34 @@ namespace
     std::set<uint64_t> ours_;
     std::set<std::string> known_names_;
     std::chrono::steady_clock::time_point loaded_{};
-    eddn_listen::market_probe_t probe_;
-    std::chrono::steady_clock::time_point probed_{std::chrono::steady_clock::now()};
+    std::function<std::optional<std::array<double, 3>>()> const & here_;
+    std::vector<std::array<double, 3>> claims_;
+    std::map<std::string, uint64_t> commodity_ids_;
+    std::map<std::string, std::array<double, 3>> positions_;
+    std::set<std::string> unplaced_;
+    struct heard_t
+      {
+      uint64_t markets{};
+      uint64_t in_reach{};
+      uint64_t stored{};
+      uint64_t unplaced{};
+      uint64_t unknown_commodities{};
+      uint64_t places{};
+      } heard_;
+    std::chrono::steady_clock::time_point reported_{std::chrono::steady_clock::now()};
     };
   }  // namespace
 
-listener_t::listener_t(std::string db_path, std::function<std::string()> account, std::function<void()> stored) :
-    worker_{[db_path = std::move(db_path), account = std::move(account), stored = std::move(stored)](std::stop_token stop)
+listener_t::listener_t(
+  std::string db_path,
+  std::function<std::string()> account,
+  std::function<void()> stored,
+  std::function<std::optional<std::array<double, 3>>()> here
+) :
+    worker_{[db_path = std::move(db_path),
+             account = std::move(account),
+             stored = std::move(stored),
+             here = std::move(here)](std::stop_token stop)
             {
               eht::event_guard(
                 "eddn listen",
@@ -337,7 +471,7 @@ listener_t::listener_t(std::string db_path, std::function<std::string()> account
                       continue;
                       }
                     listening = true;
-                    if(session_t{db, account, stored, stop}.run())
+                    if(session_t{db, account, stored, here, stop}.run())
                       wait = 30s;
                     // the next try waits, longer each time the relay cannot be reached, a second at a time so
                     // that the tool can close

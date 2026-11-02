@@ -1,6 +1,8 @@
 #pragma once
 
+#include <array>
 #include <functional>
+#include <optional>
 #include <string>
 #include <thread>
 
@@ -17,7 +19,13 @@ class listener_t final
 public:
   ///\param account called from the listener's thread for the account whose fleet carrier is heard
   ///\param stored called from the listener's thread after a reading was kept
-  listener_t(std::string db_path, std::function<std::string()> account, std::function<void()> stored);
+  ///\param here called from the listener's thread for where the commander is - the markets around are kept
+  listener_t(
+    std::string db_path,
+    std::function<std::string()> account,
+    std::function<void()> stored,
+    std::function<std::optional<std::array<double, 3>>()> here
+  );
   listener_t(listener_t const &) = delete;
   auto operator=(listener_t const &) -> listener_t & = delete;
   ~listener_t() = default;

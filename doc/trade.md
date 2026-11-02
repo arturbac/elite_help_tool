@@ -86,19 +86,20 @@ once a second as items are picked up; a hidden window is read when it is shown a
 The **Trade** window (its button on the left bar) holds three tabs:
 
 - **Current Market**: the whole market of one station, what it sells and what it buys against the galactic
-  average, with the time of the reading. A station clicked in the System info window's list, or
+  average, with the time of the reading - *(EDDN)* after it when the reading was heard on the relay. A station clicked in the System info window's list, or
   double-clicked in Search or To update, shows here.
 - **To update**: the places in the systems our commanders claimed and still hold whose market is
   worth reading - *never read*, or *owner changed since* when someone else took the place after the
   reading, as after a war (from the owner kept with the reading, or from the history of owners), with
-  how many of each system's places are to update. The systems go by their light years from the one you are in,
+  how many of each system's places are to update. A market heard on EDDN counts as read and says
+  *EDDN* after its date; a place known only from the relay is listed too. The systems go by their light years from the one you are in,
   the nearest first, and the places of a system by their Ls; a heading sorts by itself instead. Its type, largest pad, Ls and the date of the
   reading go with each; building sites, carriers and places of unknown kind are left out. The kinds
   of place can be left out as in Search, and *Only to update* (on at the start) hides the markets
   read since the present owner took over. A place seen in no journal is not known to the tool.
   Double-click a place to see its market.
 - **Search**: where a handful of commodities can be bought,
-  among every market you have opened. Type a commodity and pick it from the list - up to nine, each
+  among every market you have opened, and those heard on EDDN's relay around your systems. Type a commodity and pick it from the list - up to nine, each
   with the tonnes wanted (0 for any stock at all) - or take what the open missions still need with
   *From my missions*. A market counts for a commodity when it sells it with at least the tonnes wanted
   in stock. The places with the most of them come first, then the nearest; a click on a heading sorts
@@ -113,11 +114,24 @@ The **Trade** window (its button on the left bar) holds three tabs:
   a floor, a real route may need more.
   The filters keep space stations, outposts, ports on the ground, settlements and fleet carriers
   (off at the start - a carrier moves away, and its market with it), the largest pad at least S, M or
-  L, places whose pads are not known, and readings no older than so many days
+  L, places whose pads are not known, markets heard on EDDN (*EDDN prices*; the *Source* column says
+  *own* or *EDDN*), and readings no older than so many days
   (`windows.buy_max_age_d`, 30 by default, the starting value of the field). The pads come from
   docking: a place docked at has them as soon as the tool reads that Docked. Places docked at before the
   pads were kept were found by reading every journal once; after that a start reads only the journals newer than
   the last one read. A place never docked at keeps them unknown.
+
+  **Markets from EDDN.** With `eddn.listen` on and `eddn.market_radius_ly` above 0 (0 by default), the
+  markets other commanders' tools send to EDDN are kept when their system lies within that many light
+  years of a system the commanders of this journal directory claimed and still hold, or of the one the
+  commander is in - the system's position from the relay's own messages or from the systems known here;
+  a market of a system with no known position is skipped. A reading replaces the one kept only when it is
+  newer, one's own included, and it keeps the owner seen at one's own last reading. A commodity not yet in
+  the dictionary - the dictionary is filled from one's own markets - is skipped. The places come from the
+  relayed `Docked` events, with their type, pads, Ls, position and owner, and are kept apart from the
+  stations read from the journals; a station known from the journals keeps what they say. Commanders
+  sharing one `live.sqlite` need it set in one tool only. Every ten minutes the log says how many markets
+  were heard, how many were in reach, kept, or skipped and why.
 
 On-foot consumables and kills are tracked too, but that lives with the rest of the on-foot combat
 tracking in [missions_on_foot.md](missions_on_foot.md).

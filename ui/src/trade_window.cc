@@ -214,7 +214,10 @@ auto to_update_tab_t::refresh() -> void
     if(row.updated)
       {
       auto const days{std::chrono::floor<std::chrono::days>(now - *row.updated).count()};
-      item->setText(int(column_e::read), qformat("{:%Y-%m-%d} ({} d)", *row.updated, days));
+      item->setText(
+        int(column_e::read),
+        qformat("{:%Y-%m-%d} ({} d){}", *row.updated, days, row.source == "eddn" ? " EDDN" : "")
+      );
       item->setData(int(column_e::read), sort_role, qlonglong(row.updated->time_since_epoch().count()));
       }
     item->setData(0, market_role, qulonglong(row.market_id));
@@ -366,7 +369,12 @@ auto trade_window_t::show_market_of(info::station_t const & station, std::string
   // the time of the reading lives with the market, because the reading itself cannot be rebuilt
   auto reading{db_.load_market_info(station.market_id)};
   if(reading and *reading)
-    market_header_->setText(qformat("{} - prices as of {:%Y-%m-%d %H:%M}", name, (*reading)->updated));
+    market_header_->setText(qformat(
+      "{} - prices as of {:%Y-%m-%d %H:%M}{}",
+      name,
+      (*reading)->updated,
+      (*reading)->source == "eddn" ? " (EDDN)" : ""
+    ));
   else
     market_header_->setText(QString::fromStdString(name));
 

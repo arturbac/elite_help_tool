@@ -125,6 +125,24 @@ struct database_storage_t
   [[nodiscard]]
   auto load_markets_to_update() -> expected_ec<std::vector<info::market_to_update_t>>;
 
+  ///\brief a market heard on EDDN's relay, kept when newer than the reading there is - the answer says whether it was
+  [[nodiscard]]
+  auto store_eddn_market(
+    uint64_t market_id, std::chrono::sys_seconds updated, std::span<info::market_item_t const> items
+  ) -> expected_ec<bool>;
+
+  ///\brief a place heard of on the relay, kept when newer than what is known of it
+  [[nodiscard]]
+  auto store(info::eddn_place_t const & value) -> expected_ec<void>;
+
+  ///\brief the ids of the commodity dictionary by the commodity key of their names
+  [[nodiscard]]
+  auto load_commodity_ids() -> expected_ec<std::map<std::string, uint64_t>>;
+
+  ///\brief where the systems our commanders claimed and still hold lie
+  [[nodiscard]]
+  auto load_claim_positions() -> expected_ec<std::vector<std::array<double, 3>>>;
+
   ///\brief the places whose pads were never read - a Docked written before they were kept may still tell them
   [[nodiscard]]
   auto load_stations_without_pads() -> expected_ec<std::vector<info::station_t>>;

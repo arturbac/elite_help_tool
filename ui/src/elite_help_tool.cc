@@ -319,6 +319,13 @@ auto main_window_t::start_monitoring() -> void
         },
         Qt::QueuedConnection
       );
+    },
+    [this]() -> std::optional<std::array<double, 3>>
+    {
+      std::scoped_lock const lock{state_.mutex_};
+      if(state_.system.system_address == 0u)
+        return std::nullopt;
+      return state_.system.system_location;
     }
   );
   extension_ = eht::extension::make_extension(std::filesystem::path{state_.journal_dir_path_});
