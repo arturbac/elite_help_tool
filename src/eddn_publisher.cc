@@ -634,9 +634,10 @@ auto publisher_t::impl_t::envelope(std::string_view schema, json_t message) cons
   std::ranges::transform(version_lower, version_lower.begin(), [](char c) { return char(std::tolower(c)); });
   bool const test{cfg->eddn.test or version_lower.contains("alpha") or version_lower.contains("beta")};
 
-  json_t whole{make(object_t{})};
+  // not braces: from a json_t they pick the initializer list and make an array holding it
+  json_t whole = make(object_t{});
   put(whole, "$schemaRef", make(std::format("https://eddn.edcd.io/schemas/{}{}", schema, test ? "/test" : "")));
-  json_t header{make(object_t{})};
+  json_t header = make(object_t{});
   put(header, "uploaderID", make(commander_name_));
   put(header, "softwareName", make(std::string{software_name}));
   put(header, "softwareVersion", make(std::string{software_version}));
