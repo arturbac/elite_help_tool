@@ -24,10 +24,10 @@ if(NOT simple_enum_FOUND)
     GITHUB_REPOSITORY
     arturbac/simple_enum
     VERSION
-    0.9.4
-    # tag v0.9.4, pinned to its commit - a tag can be moved
+    0.9.5
+    # tag v0.9.5, pinned to its commit - a tag can be moved
     GIT_TAG
-    44d89a3c54db481d0b2203709049d485b13c16cb)
+    e4d7eae8df7f8d27993b446ce4bb51e3d2a857dd)
   add_library(
     simple_enum::simple_enum
     ALIAS
@@ -53,10 +53,10 @@ if(NOT small_vectors_FOUND)
     GITHUB_REPOSITORY
     arturbac/small_vectors
     VERSION
-    3.3.6
-    # tag v3.3.6, pinned to its commit - a tag can be moved
+    3.4.0
+    # tag v3.4.0, pinned to its commit - a tag can be moved
     GIT_TAG
-    642904df68d9c931a3e36c36b08b8d4d3bc61ae2)
+    768316b4050952988376cf216eddb93eaeeb697e)
 
   add_library(
     small_vectors::small_vectors
@@ -82,10 +82,10 @@ if(NOT stralgo_FOUND)
     GITHUB_REPOSITORY
     arturbac/stralgo
     VERSION
-    1.4.1
-    # tag v1.4.1, pinned to its commit - a tag can be moved
+    1.5.0
+    # tag v1.5.0, pinned to its commit - a tag can be moved
     GIT_TAG
-    348d45b07f40253e365873b57e32b90e8b9269f6
+    b9ad0230efcb7f4450d4c5c2646ab7515c590f80
     OPTIONS
     "STRALGO_ENABLE_UNIT_TESTS OFF")
 

@@ -5,9 +5,9 @@ cpmaddpackage(
   arturbac/ut-ext
   VERSION
   2.0.1
-  # tag v2.0.1_5, pinned to its commit - a tag can be moved
+  # tag v2.0.1_10, pinned to its commit - a tag can be moved
   GIT_TAG
-  6309cc3da0daf21626ceb9f91a803d0aedceb769)
+  22d3e7091ca178f07d681311ba3fd922b171f049)
 find_package(ut-ext REQUIRED)
 
 function(add_ut_test source_file_name)
