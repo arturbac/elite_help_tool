@@ -16,6 +16,7 @@ target_sources(eht
   bar_sales.cc
   holdings.cc
   carrier_owner.cc
+  buy_search.cc
   eddn_listen.cc
   bartender_prices.cc
   legal.cc

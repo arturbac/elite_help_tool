@@ -750,7 +750,10 @@ void database_import_state_t::handle(std::chrono::sys_seconds timestamp, events:
           .economy = event.StationEconomy_Localised,
           .government = event.StationGovernment_Localised,
           .controlling_faction = event.StationFaction.Name,
-          .dist_from_star_ls = event.DistFromStarLS
+          .dist_from_star_ls = event.DistFromStarLS,
+          .pads_small = events::pads_of(event.LandingPads, &events::landing_pads_t::Small),
+          .pads_medium = events::pads_of(event.LandingPads, &events::landing_pads_t::Medium),
+          .pads_large = events::pads_of(event.LandingPads, &events::landing_pads_t::Large)
         };
 
         if(auto res{state.db_.store(station)}; not res) [[unlikely]]

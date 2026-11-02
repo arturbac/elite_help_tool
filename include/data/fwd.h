@@ -45,6 +45,7 @@ struct construction_depot_t;
 struct construction_need_t;
 struct construction_site_t;
 // data/market.h
+struct buy_offer_t;
 struct cargo_need_t;
 struct commodity_t;
 struct market_entry_t;

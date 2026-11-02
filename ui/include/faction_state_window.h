@@ -2,6 +2,7 @@
 #include <data/bgs.h>
 #include <data/market.h>
 #include <data/missions.h>
+#include <data/station.h>
 #include "logic.h"
 #include <qwidget.h>
 #include <qmdiarea.h>
@@ -323,6 +324,9 @@ private:
 
   ///\brief shows the market of the station clicked in the list and switches to its tab
   auto show_market(std::string_view station_name) -> void;
+  ///\brief shows the market of a station of any system - clicked in the buying search
+  auto show_market_of(uint64_t market_id, std::string_view system) -> void;
+  auto show_market_of(info::station_t const & station, std::string_view system) -> void;
 
   auto update_missions() -> void;
 

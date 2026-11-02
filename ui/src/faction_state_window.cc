@@ -5,6 +5,7 @@
 #include <data/progress.h>
 #include <data/station.h>
 #include <data/war.h>
+#include <buy_search_tab.h>
 #include <faction_state_window.h>
 #include <qformat.h>
 #include <qboxlayout.h>
@@ -785,6 +786,15 @@ auto faction_state_window_t::setup_ui() -> void
   tabs->addTab(market_page, "Market");
   market_page_ = market_page;
 
+  auto * buy_tab{new buy_search_tab_t(state_, db_, this)};
+  tabs->addTab(buy_tab, "Buy");
+  connect(
+    buy_tab,
+    &buy_search_tab_t::market_clicked,
+    this,
+    [this](uint64_t market_id, QString const & system) { show_market_of(market_id, system.toStdString()); }
+  );
+
   tabs_ = tabs;
 
   connect(hide_carriers_, &QCheckBox::toggled, this, [this](bool) { update_stations(shown_system_); });
@@ -1225,26 +1235,49 @@ auto faction_state_window_t::show_market(std::string_view station_name) -> void
     market_header_->setText(qformat("{} - no market recorded, dock there with the tool running", station_name));
     return;
     }
+  show_market_of(**station, {});
+  }
 
-  auto entries{db_.load_market_entries((*station)->market_id)};
+auto faction_state_window_t::show_market_of(uint64_t market_id, std::string_view system) -> void
+  {
+  market_sells_model_->update_data({});
+  market_buys_model_->update_data({});
+  if(auto const index{tabs_->indexOf(market_page_)}; index >= 0)
+    tabs_->setCurrentIndex(index);
+
+  auto station{db_.load_station(market_id)};
+  if(not station or not *station)
+    {
+    spdlog::error("failed to load station {}", market_id);
+    return;
+    }
+  show_market_of(**station, system);
+  }
+
+auto faction_state_window_t::show_market_of(info::station_t const & station, std::string_view system) -> void
+  {
+  auto entries{db_.load_market_entries(station.market_id)};
   if(not entries)
     {
-    spdlog::error("failed to load market {}", (*station)->market_id);
+    spdlog::error("failed to load market {}", station.market_id);
     return;
     }
 
   if(entries->empty())
     {
-    market_header_->setText(qformat("{} - no market recorded, dock there with the tool running", station_name));
+    market_header_->setText(qformat("{} - no market recorded, dock there with the tool running", station.name));
     return;
     }
 
+  // a station reached from the buying search says which system it is in
+  std::string const name{system.empty() ? station.name : std::format("{} | {}", system, station.name)};
+
   // the time of the reading lives with the market, because the reading itself cannot be rebuilt
-  auto reading{db_.load_market_info((*station)->market_id)};
+  auto reading{db_.load_market_info(station.market_id)};
   if(reading and *reading)
-    market_header_->setText(qformat("{} - prices as of {:%Y-%m-%d %H:%M}", (*station)->name, (*reading)->updated));
+    market_header_->setText(qformat("{} - prices as of {:%Y-%m-%d %H:%M}", name, (*reading)->updated));
   else
-    market_header_->setText(QString::fromStdString((*station)->name));
+    market_header_->setText(QString::fromStdString(name));
 
   std::vector<info::market_entry_t> sells;
   std::vector<info::market_entry_t> buys;

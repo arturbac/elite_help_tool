@@ -1,6 +1,7 @@
 #pragma once
 #include <chrono>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -100,6 +101,27 @@ struct supply_option_t
   uint32_t needed;
   uint32_t stock;
   uint32_t buy_price;
+  };
+
+///\brief one commodity on sale at one market, with what is known of the place - a row of the buying search
+struct buy_offer_t
+  {
+  uint64_t market_id;
+  std::string station;
+  std::string station_type;
+  std::string system;
+  std::optional<double> loc_x;
+  std::optional<double> loc_y;
+  std::optional<double> loc_z;
+  double dist_from_star_ls;
+  std::optional<uint16_t> pads_small;
+  std::optional<uint16_t> pads_medium;
+  std::optional<uint16_t> pads_large;
+  std::chrono::sys_seconds updated;
+  std::string commodity;
+  int64_t buy_price;
+  int64_t stock;
+  int64_t mean_price;
   };
 
 ///\brief whether the commodity cannot be bought, only mined

@@ -125,6 +125,10 @@ auto database_storage_t::migrate_live_schema() -> expected_ec<void>
        // before it was kept, or where the approach came from orbit rather than on foot
        addition_t{sql_iface::tables::station, "latitude"sv, "REAL"sv},
        addition_t{sql_iface::tables::station, "longitude"sv, "REAL"sv},
+       // the pads of each size - places not docked at since they were kept stay NULL until the journals are read
+       addition_t{sql_iface::tables::station, "pads_small"sv, "INTEGER"sv},
+       addition_t{sql_iface::tables::station, "pads_medium"sv, "INTEGER"sv},
+       addition_t{sql_iface::tables::station, "pads_large"sv, "INTEGER"sv},
        // when the scan behind a body's orbital elements was taken - rows written before it was kept
        // stay at the epoch, as distant in the past as a position "now" could ever be carried forward to
        addition_t{sql_iface::tables::body, "scanned_at"sv, "TEXT DEFAULT '1970-01-01T00:00:00Z'"sv},

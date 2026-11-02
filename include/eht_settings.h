@@ -387,6 +387,8 @@ struct windows_settings_t
   ///\brief a state lasting longer than this is taken for a missed ending
   uint32_t faction_max_duration_d{7u};
   uint32_t faction_tick_refresh_s{60u};
+  ///\brief the buying search leaves out prices read longer ago than this - its starting value, changed in the tab
+  uint32_t buy_max_age_d{30u};
   };
 
 ///\brief the colours of the tool's own windows

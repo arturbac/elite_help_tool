@@ -33,6 +33,10 @@ struct station_t
   /// settlement of the same body be a real surface distance instead of a Ls one
   std::optional<double> latitude;
   std::optional<double> longitude;
+  ///\brief the pads of each size, from Docked - unknown for a place not docked at since they were kept
+  std::optional<uint16_t> pads_small;
+  std::optional<uint16_t> pads_medium;
+  std::optional<uint16_t> pads_large;
   };
 
 ///\brief whether a place is a colonisation building site, in space or on the ground - it takes deliveries

@@ -13,6 +13,26 @@
   the market has a reading, but the station's controlling faction has since changed and the market
   itself was never reopened. The game gives no notice when this happens, and what is legal to trade
   can depend on who runs the place, so the old reading may no longer be trustworthy.
+- **Buy** (a tab of the System window, beside Market): where a handful of commodities can be bought,
+  among every market you have opened. Type a commodity and pick it from the list - up to nine, each
+  with the tonnes wanted (0 for any stock at all) - or take what the open missions still need with
+  *From my missions*. A market counts for a commodity when it sells it with at least the tonnes wanted
+  in stock. The places with the most of them come first, then the nearest; a click on a heading sorts
+  by it instead: hits, place, type, largest pad, light years and jumps from where you are, Ls from the
+  arrival star, the cost of all the wanted tonnes (only where every one is there and every amount is
+  given), the balance against a *Mission reward* typed in from the mission board, and the age of the
+  reading. Under each place a line per commodity gives its price, its stock and how far the price is
+  from the galactic average, or says it is not sold there or too little is. When no single place has
+  them all, up to three pairs of places that together do are shown above, the shortest way first: to
+  the nearer one and on to the other. Double-click a place to see its whole market. Jumps are the
+  distance over the jump range the game gives for the ship flown (`MaxJumpRange` of `Loadout`), rounded up -
+  a floor, a real route may need more.
+  The filters keep space stations, outposts, ports on the ground, settlements and fleet carriers
+  (off at the start - a carrier moves away, and its market with it), the largest pad at least S, M or
+  L, places whose pads are not known, and readings no older than so many days
+  (`windows.buy_max_age_d`, 30 by default, the starting value of the field). The pads come from
+  docking: a place docked at with the tool running has them at once, and one docked at before is
+  found in the journals at the next start, newest first - one never docked at keeps them unknown.
 - **Best known trades**: what to bring here and what to take from here, against every market you
   have ever opened. Each line gives the margin per tonne, the tonnes (capped by your hold, the stock
   and the demand), the profit of the run and the station. With a route plotted, it looks for what to

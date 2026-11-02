@@ -81,6 +81,13 @@ auto database_storage_t::store(info::station_t const & value) -> expected_ec<voi
     merged.latitude = value.latitude;
   if(value.longitude)
     merged.longitude = value.longitude;
+  // the three come together from one Docked, or not at all
+  if(value.pads_large)
+    {
+    merged.pads_small = value.pads_small;
+    merged.pads_medium = value.pads_medium;
+    merged.pads_large = value.pads_large;
+    }
   if(merged.system_address == 0)
     merged.system_address = value.system_address;
 
@@ -319,4 +326,49 @@ auto database_storage_t::load_market_info(uint64_t market_id) -> expected_ec<std
     return std::optional<info::market_info_t>{};
 
   return std::optional<info::market_info_t>{std::move((*res)[0])};
+  }
+
+auto database_storage_t::load_buy_offers(std::vector<std::string> const & commodities)
+  -> expected_ec<std::vector<info::buy_offer_t>>
+  {
+  if(commodities.empty())
+    return std::vector<info::buy_offer_t>{};
+  std::string names;
+  for(std::string const & name: commodities)
+    names += std::format("{}lower('{}')", names.empty() ? "" : ",", sqlite::escape_sql_quotes(name));
+  return sqlite::select_from<info::buy_offer_t>(
+    db_->db,
+    std::format(
+      "(SELECT i.market_id AS market_id,"
+      " coalesce(st.name,'') AS station,"
+      " coalesce(st.station_type,'') AS station_type,"
+      " coalesce(ss.name,'') AS system,"
+      " ss.loc_x AS loc_x, ss.loc_y AS loc_y, ss.loc_z AS loc_z,"
+      " coalesce(st.dist_from_star_ls,0) AS dist_from_star_ls,"
+      " st.pads_small AS pads_small, st.pads_medium AS pads_medium, st.pads_large AS pads_large,"
+      " m.updated AS updated,"
+      " c.name AS commodity,"
+      " i.buy_price AS buy_price,"
+      " i.stock AS stock,"
+      " c.mean_price AS mean_price"
+      " FROM {0} c"
+      " CROSS JOIN {1} i ON i.commodity_id = c.id AND i.buy_price > 0 AND i.stock > 0"
+      " JOIN {2} m ON m.market_id = i.market_id"
+      " LEFT JOIN {3} st ON st.market_id = i.market_id"
+      " LEFT JOIN {4} ss ON ss.system_address = st.system_address"
+      " WHERE lower(c.name) IN ({5}))",
+      sql_iface::tables::commodity,
+      sql_iface::tables::market_item,
+      sql_iface::tables::market,
+      sql_iface::tables::station,
+      sql_iface::tables::star_system,
+      names
+    ),
+    ""
+  );
+  }
+
+auto database_storage_t::load_stations_without_pads() -> expected_ec<std::vector<info::station_t>>
+  {
+  return sqlite::select_from<info::station_t>(db_->db, sql_iface::tables::station, " WHERE pads_large IS NULL");
   }

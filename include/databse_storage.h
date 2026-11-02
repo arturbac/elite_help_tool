@@ -117,6 +117,14 @@ struct database_storage_t
   [[nodiscard]]
   auto load_cargo_needs() -> expected_ec<std::vector<info::cargo_need_t>>;
 
+  ///\brief every market selling any of the commodities, by readable name, with what is known of the place
+  [[nodiscard]]
+  auto load_buy_offers(std::vector<std::string> const & commodities) -> expected_ec<std::vector<info::buy_offer_t>>;
+
+  ///\brief the places whose pads were never read - a Docked written before they were kept may still tell them
+  [[nodiscard]]
+  auto load_stations_without_pads() -> expected_ec<std::vector<info::station_t>>;
+
   ///\brief markets that produce the commodity, even when they happen to have none in stock
   [[nodiscard]]
   auto load_producers() -> expected_ec<std::vector<info::supply_option_t>>;

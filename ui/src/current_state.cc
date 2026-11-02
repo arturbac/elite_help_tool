@@ -16,6 +16,7 @@
 #include <main_window.h>
 #include <picture_records.h>
 #include <live_state.h>
+#include <buy_search.h>
 #include <carrier_owner.h>
 #include <ship_health.h>
 #include <spdlog/spdlog.h>
@@ -1005,7 +1006,10 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
             .economy = event.StationEconomy_Localised,
             .government = event.StationGovernment_Localised,
             .controlling_faction = event.StationFaction.Name,
-            .dist_from_star_ls = event.DistFromStarLS
+            .dist_from_star_ls = event.DistFromStarLS,
+            .pads_small = events::pads_of(event.LandingPads, &events::landing_pads_t::Small),
+            .pads_medium = events::pads_of(event.LandingPads, &events::landing_pads_t::Medium),
+            .pads_large = events::pads_of(event.LandingPads, &events::landing_pads_t::Large)
           };
 
           if(auto res{db_.store(station)}; not res)
@@ -1484,7 +1488,8 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
             .CargoCapacity = event.CargoCapacity,
             .FuelCapacity = event.FuelCapacity,
             .Modules = std::move(event.Modules),
-            .JumpsSinceFsdHealth = 0u
+            .JumpsSinceFsdHealth = 0u,
+            .MaxJumpRange = event.MaxJumpRange
           };
           std::ranges::sort(
             ship_loadout.Modules, std::less{}, [](events::module_t const & mod) -> uint8_t { return mod.Priority; }
@@ -2302,6 +2307,38 @@ auto current_state_t::apply_unseen_bar_readings() -> void
     );
     ++carrier_changes_;
     }
+  }
+
+auto current_state_t::pads_from_journals() -> void
+  {
+  auto stations{db_.load_stations_without_pads()};
+  if(not stations)
+    {
+    spdlog::error("station pads: failed to load the stations");
+    return;
+    }
+  std::set<uint64_t> wanted;
+  for(info::station_t const & station: *stations)
+    wanted.insert(station.market_id);
+  if(wanted.empty())
+    return;
+  auto const started{std::chrono::steady_clock::now()};
+  auto const found{buy_search::pads_from_journals(journal_dir_path_, wanted)};
+  for(info::station_t & station: *stations)
+    if(auto const pads{found.find(station.market_id)}; pads != found.end())
+      {
+      station.pads_small = pads->second.Small;
+      station.pads_medium = pads->second.Medium;
+      station.pads_large = pads->second.Large;
+      if(auto res{db_.store(station)}; not res)
+        spdlog::error("station pads: failed to store the pads of {}", station.market_id);
+      }
+  spdlog::info(
+    "station pads: {} of {} found in the journals in {} ms",
+    found.size(),
+    wanted.size(),
+    std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - started).count()
+  );
   }
 
 auto current_state_t::owners_from_journals() -> void

@@ -76,6 +76,19 @@ struct embark_t
   bool Taxi{};
   };
 
+///\brief how many pads of each size a place has, as Docked gives them
+struct landing_pads_t
+  {
+  uint16_t Small{};
+  uint16_t Medium{};
+  uint16_t Large{};
+  };
+
+///\brief the count of one size of pad, when the pads were given at all
+[[nodiscard]]
+inline auto pads_of(std::optional<landing_pads_t> const & pads, uint16_t landing_pads_t::*size) -> std::optional<uint16_t>
+  { return pads ? std::optional<uint16_t>{(*pads).*size} : std::nullopt; }
+
 ///\brief docking - this is where a station's identity comes from, its type included
 ///\detail StationType tells a player's carrier from an ordinary station, which is what tells selling
 /// micro resources to players from dropping them at a station
@@ -93,6 +106,8 @@ struct docked_t
   double DistFromStarLS;
   ///\brief what the place offers - "exploration" is Universal Cartographics, where cartography is sold
   std::vector<std::string> StationServices;
+  ///\brief absent in journals written before the game gave it
+  std::optional<landing_pads_t> LandingPads;
   };
 
 ///\brief the tower's answer to a request to land: which pad (PoC)

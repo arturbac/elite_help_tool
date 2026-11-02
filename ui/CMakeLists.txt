@@ -54,6 +54,7 @@ target_sources(elite_help_tool
             include/route_window.h
             include/faction_window.h
             include/faction_state_window.h
+            include/buy_search_tab.h
             include/micro_resource_window.h
             include/bgs_window.h
             include/construction_window.h

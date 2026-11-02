@@ -267,6 +267,9 @@ struct current_state_t : public generic_state_t
   ///\brief the owner of each fleet carrier managed before the owner was kept, from the journals - once, at the end of
   /// the replay, on the journal's thread and without the state's lock: it may read many journals
   auto owners_from_journals() -> void;
+  ///\brief the pads of places docked at before they were kept, from the journals - a place never docked at keeps
+  /// them unknown, so its search walks every journal at each start
+  auto pads_from_journals() -> void;
   bool personal_{true};
 
   current_state_t(main_window_t * p, std::string db_path, std::string journal_path) :
