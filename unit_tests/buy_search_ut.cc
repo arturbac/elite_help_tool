@@ -168,6 +168,9 @@ auto main() -> int
     info::market_to_update_t place{
       .system_address = 1u,
       .system = "S",
+      .loc_x = {},
+      .loc_y = {},
+      .loc_z = {},
       .market_id = 7u,
       .station = "Port",
       .station_type = "Outpost",

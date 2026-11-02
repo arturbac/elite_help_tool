@@ -24,7 +24,7 @@ class to_update_tab_t final : public QWidget
   Q_OBJECT
 
 public:
-  to_update_tab_t(database_storage_t & db, QWidget * parent = nullptr);
+  to_update_tab_t(current_state_t const & state, database_storage_t & db, QWidget * parent = nullptr);
 
   auto refresh() -> void;
 
@@ -35,6 +35,7 @@ protected:
   auto showEvent(QShowEvent * event) -> void override;
 
 private:
+  current_state_t const & state_;
   database_storage_t & db_;
   QCheckBox * space_stations_{};
   QCheckBox * outposts_{};

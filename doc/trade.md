@@ -91,7 +91,8 @@ The **Trade** window (its button on the left bar) holds three tabs:
 - **To update**: the places in the systems our commanders claimed and still hold whose market is
   worth reading - *never read*, or *owner changed since* when someone else took the place after the
   reading, as after a war (from the owner kept with the reading, or from the history of owners), with
-  how many of each system's places are to update. Its type, largest pad, Ls and the date of the
+  how many of each system's places are to update. The systems go by their light years from the one you are in,
+  the nearest first, and the places of a system by their Ls; a heading sorts by itself instead. Its type, largest pad, Ls and the date of the
   reading go with each; building sites, carriers and places of unknown kind are left out. The kinds
   of place can be left out as in Search, and *Only to update* (on at the start) hides the markets
   read since the present owner took over. A place seen in no journal is not known to the tool.

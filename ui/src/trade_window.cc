@@ -5,6 +5,7 @@
 #include <data/market.h>
 #include <data/station.h>
 #include <faction_state_window.h>
+#include <logic.h>
 #include <qformat.h>
 
 #include <qboxlayout.h>
@@ -19,13 +20,50 @@
 
 #include <spdlog/spdlog.h>
 
+#include <array>
 #include <chrono>
+#include <cmath>
 #include <map>
+#include <mutex>
+#include <optional>
 
 namespace
   {
+constexpr int sort_role{Qt::UserRole + 1};
 constexpr int market_role{Qt::UserRole + 2};
 constexpr int system_role{Qt::UserRole + 3};
+
+enum struct column_e : int
+  {
+  place,
+  ly,
+  type,
+  pad,
+  ls,
+  market,
+  read,
+  column_max
+  };
+
+///\brief sorts by the value of the column - a system by its light years from here, a place within it by its Ls -
+/// and puts what has none after what has one
+class sorted_item_t final : public QTreeWidgetItem
+  {
+public:
+  using QTreeWidgetItem::QTreeWidgetItem;
+
+  auto operator<(QTreeWidgetItem const & other) const -> bool override
+    {
+    int const column{treeWidget() != nullptr ? treeWidget()->sortColumn() : 0};
+    QVariant const a{data(column, sort_role)};
+    QVariant const b{other.data(column, sort_role)};
+    if(a.isValid() and b.isValid())
+      return QVariant::compare(a, b) == QPartialOrdering::Less;
+    if(a.isValid() or b.isValid())
+      return a.isValid();
+    return QTreeWidgetItem::operator<(other);
+    }
+  };
 
 [[nodiscard]]
 auto pad_name(std::optional<buy_search::pad_e> pad) -> QString
@@ -43,7 +81,10 @@ auto pad_name(std::optional<buy_search::pad_e> pad) -> QString
   }
   }  // namespace
 
-to_update_tab_t::to_update_tab_t(database_storage_t & db, QWidget * parent) : QWidget{parent}, db_{db}
+to_update_tab_t::to_update_tab_t(current_state_t const & state, database_storage_t & db, QWidget * parent) :
+    QWidget{parent},
+    state_{state},
+    db_{db}
   {
   auto * layout{new QVBoxLayout(this)};
   auto * filter_row{new QHBoxLayout()};
@@ -70,10 +111,11 @@ to_update_tab_t::to_update_tab_t(database_storage_t & db, QWidget * parent) : QW
   layout->addWidget(note_);
 
   view_ = new QTreeWidget();
-  view_->setColumnCount(6);
-  view_->setHeaderLabels({"System | Place", "Type", "Pad", "Ls", "Market", "Read"});
+  view_->setColumnCount(int(column_e::column_max));
+  view_->setHeaderLabels({"System | Place", "ly", "Type", "Pad", "Ls", "Market", "Read"});
   view_->setSortingEnabled(true);
-  view_->sortByColumn(0, Qt::AscendingOrder);
+  // the nearest system first, and within it the place nearest the arrival star
+  view_->sortByColumn(int(column_e::ly), Qt::AscendingOrder);
   layout->addWidget(view_, 1);
 
   connect(
@@ -109,7 +151,14 @@ auto to_update_tab_t::refresh() -> void
   std::map<buy_search::place_e, QCheckBox *> const kinds{
     {space_station, space_stations_}, {outpost, outposts_}, {surface_port, surface_ports_}, {settlement, settlements_}
   };
+  std::optional<std::array<double, 3>> here;
+  {
+  std::scoped_lock const lock{state_.mutex_};
+  if(state_.system.system_address != 0u)
+    here = state_.system.system_location;
+  }
   auto const now{std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())};
+  view_->setSortingEnabled(false);
   std::map<uint64_t, QTreeWidgetItem *> systems;
   std::map<uint64_t, std::pair<unsigned, unsigned>> counts;
   unsigned never{};
@@ -135,26 +184,38 @@ auto to_update_tab_t::refresh() -> void
     auto & system{systems[row.system_address]};
     if(system == nullptr)
       {
-      system = new QTreeWidgetItem(view_);
+      system = new sorted_item_t(view_);
       system->setExpanded(true);
+      if(here and row.loc_x and row.loc_y and row.loc_z)
+        {
+        double const ly{std::hypot((*here)[0] - *row.loc_x, (*here)[1] - *row.loc_y, (*here)[2] - *row.loc_z)};
+        system->setText(int(column_e::ly), qformat("{:.1f}", ly));
+        system->setData(int(column_e::ly), sort_role, ly);
+        }
       }
-    auto * item{new QTreeWidgetItem(system)};
-    item->setText(0, QString::fromStdString(row.station));
-    item->setText(1, QString::fromStdString(row.station_type));
-    item->setText(2, pad_name(buy_search::largest_pad(row.pads_small, row.pads_medium, row.pads_large)));
-    item->setText(3, qformat("{:.0f}", row.dist_from_star_ls));
+    auto * item{new sorted_item_t(system)};
+    item->setText(int(column_e::place), QString::fromStdString(row.station));
+    item->setText(int(column_e::type), QString::fromStdString(row.station_type));
+    item->setText(
+      int(column_e::pad), pad_name(buy_search::largest_pad(row.pads_small, row.pads_medium, row.pads_large))
+    );
+    item->setText(int(column_e::ls), qformat("{:.0f}", row.dist_from_star_ls));
+    item->setData(int(column_e::ls), sort_role, row.dist_from_star_ls);
+    // under a system the places go by their distance from the arrival star whichever way the systems are sorted
+    item->setData(int(column_e::ly), sort_role, row.dist_from_star_ls);
     switch(state)
       {
-      case buy_search::market_state_e::never_read: item->setText(4, "never read"); break;
+      case buy_search::market_state_e::never_read: item->setText(int(column_e::market), "never read"); break;
       case buy_search::market_state_e::owner_changed:
-        item->setText(4, qformat("owner changed since - now {}", row.owner));
+        item->setText(int(column_e::market), qformat("owner changed since - now {}", row.owner));
         break;
-      case buy_search::market_state_e::read: item->setText(4, "read"); break;
+      case buy_search::market_state_e::read: item->setText(int(column_e::market), "read"); break;
       }
     if(row.updated)
       {
       auto const days{std::chrono::floor<std::chrono::days>(now - *row.updated).count()};
-      item->setText(5, qformat("{:%Y-%m-%d} ({} d)", *row.updated, days));
+      item->setText(int(column_e::read), qformat("{:%Y-%m-%d} ({} d)", *row.updated, days));
+      item->setData(int(column_e::read), sort_role, qlonglong(row.updated->time_since_epoch().count()));
       }
     item->setData(0, market_role, qulonglong(row.market_id));
     item->setData(0, system_role, QString::fromStdString(row.system));
@@ -163,9 +224,13 @@ auto to_update_tab_t::refresh() -> void
   for(auto const & [address, system]: systems)
     {
     auto const [to_update, all]{counts[address]};
-    system->setText(0, qformat("{} - {} of {} to update", system->data(0, Qt::UserRole).toString().toStdString(), to_update, all));
-    system->setFirstColumnSpanned(true);
+    system->setText(
+      int(column_e::place),
+      qformat("{} - {} of {} to update", system->data(0, Qt::UserRole).toString().toStdString(), to_update, all)
+    );
+    system->setData(int(column_e::place), sort_role, system->data(0, Qt::UserRole));
     }
+  view_->setSortingEnabled(true);
   note_->setText(qformat(
     "{} never read, {} changed hands since the reading - in the systems our commanders claimed and still hold. "
     "A place seen in no journal is not known here.",
@@ -228,7 +293,7 @@ trade_window_t::trade_window_t(current_state_t const & state, std::string db_pat
   market_layout->addWidget(market_splitter, 1);
   tabs_->addTab(market_page_, "Current Market");
 
-  to_update_ = new to_update_tab_t(db_, tabs_);
+  to_update_ = new to_update_tab_t(state, db_, tabs_);
   tabs_->addTab(to_update_, "To update");
 
   auto const open_market = [this](uint64_t market_id, QString const & system)

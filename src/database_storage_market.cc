@@ -400,6 +400,7 @@ auto database_storage_t::load_markets_to_update() -> expected_ec<std::vector<inf
     std::format(
       "(SELECT cc.system_address AS system_address,"
       " coalesce(ss.name, cc.system) AS system,"
+      " ss.loc_x AS loc_x, ss.loc_y AS loc_y, ss.loc_z AS loc_z,"
       " st.market_id AS market_id,"
       " st.name AS station,"
       " st.station_type AS station_type,"

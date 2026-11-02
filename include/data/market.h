@@ -130,6 +130,9 @@ struct market_to_update_t
   {
   uint64_t system_address;
   std::string system;
+  std::optional<double> loc_x;
+  std::optional<double> loc_y;
+  std::optional<double> loc_z;
   uint64_t market_id;
   std::string station;
   std::string station_type;
