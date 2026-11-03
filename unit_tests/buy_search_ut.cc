@@ -91,7 +91,34 @@ auto main() -> int
     expect(buy_search::hits(ranked[0], wanted) == 2u);
     expect(buy_search::cost(ranked[0], wanted) == std::optional<int64_t>{950 * 1000 + 9000 * 50});
     expect(not buy_search::cost(ranked[1], wanted).has_value());
-    expect(not buy_search::cost(ranked[0], {{"Steel", 0u}}).has_value());
+    expect(buy_search::cost(ranked[0], {{"Steel", 0u}}) == std::optional<int64_t>{950}) << "0 t counts as one";
+  };
+
+  "by price the cheapest goes first when buying, the dearest when selling, a tie to the nearer"_test = []
+  {
+    std::vector<info::buy_offer_t> const rows{
+      row(1u, "Steel", 900, 5000, 10.0),
+      row(2u, "Steel", 950, 5000, 5.0),
+      row(3u, "Steel", 900, 5000, 2.0),
+      row(3u, "Gold", 9000, 5000, 2.0),
+      row(4u, "Gold", 100, 5000, 1.0)
+    };
+    auto const places{buy_search::places_of(rows, std::array{0.0, 0.0, 0.0})};
+    std::vector<buy_search::wanted_t> const wanted{{"Steel", 0u}, {"Gold", 2u}};
+    auto const ids = [&](buy_search::order_e order)
+    {
+      buy_search::filter_t filter{every_place()};
+      filter.order = order;
+      std::vector<uint64_t> result;
+      for(buy_search::place_t const & p: buy_search::rank(places, wanted, filter, now))
+        result.push_back(p.market_id);
+      return result;
+    };
+    // 3 has both, so it leads whatever the order; the rest have one each
+    expect(ids(buy_search::order_e::distance) == std::vector<uint64_t>{3u, 4u, 2u, 1u});
+    expect(ids(buy_search::order_e::cheapest) == std::vector<uint64_t>{3u, 4u, 1u, 2u});
+    expect(ids(buy_search::order_e::dearest) == std::vector<uint64_t>{3u, 2u, 1u, 4u});
+    expect(buy_search::price_sum(places[2], wanted) == int64_t{900 + 2 * 9000});
   };
 
   "the filter leaves out the kind, the small pad, the unknown pad and the old reading"_test = []

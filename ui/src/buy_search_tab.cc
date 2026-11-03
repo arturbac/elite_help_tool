@@ -190,6 +190,17 @@ buy_search_tab_t::buy_search_tab_t(current_state_t const & state, database_stora
   connect(max_ly_, &QSpinBox::valueChanged, this, [this](int) { search(); });
   second_row->addWidget(max_ly_);
   second_row->addSpacing(12);
+  second_row->addWidget(new QLabel("Order by"));
+  order_ = new QComboBox();
+  order_->addItem("Distance");
+  order_->addItem("Price");
+  order_->setToolTip(
+    "After the number of hits: the nearest first, or the best price - the cheapest when buying, the dearest when "
+    "selling - for the wanted tonnes, 0 t counted as one"
+  );
+  connect(order_, &QComboBox::currentIndexChanged, this, [this](int) { search(); });
+  second_row->addWidget(order_);
+  second_row->addSpacing(12);
   second_row->addWidget(new QLabel("Mission reward"));
   reward_ = new QSpinBox();
   reward_->setRange(0, std::numeric_limits<int>::max());
@@ -369,7 +380,10 @@ auto buy_search_tab_t::filter() const -> buy_search::filter_t
     .unknown_pads = unknown_pads_->isChecked(),
     .max_age = std::chrono::days{max_age_->value()},
     .eddn = eddn_prices_->isChecked(),
-    .max_ly = max_ly_->value() > 0 ? std::optional<double>{max_ly_->value()} : std::nullopt
+    .max_ly = max_ly_->value() > 0 ? std::optional<double>{max_ly_->value()} : std::nullopt,
+    .order = order_->currentIndex() == 0 ? buy_search::order_e::distance
+             : selling_->isChecked()     ? buy_search::order_e::dearest
+                                         : buy_search::order_e::cheapest
   };
   for(auto const & [box, place]: {std::pair{space_stations_, space_station},
                                   std::pair{outposts_, outpost},
@@ -462,7 +476,8 @@ auto place_item(
   if(auto const cost{buy_search::cost(place, wanted)}; cost)
     {
     set(item, column_e::cost, signed_credits(*cost), qlonglong(*cost));
-    if(reward > 0)
+    // a reward is weighed against the cost of what the mission wants, so every amount must be given
+    if(reward > 0 and std::ranges::none_of(wanted, [](buy_search::wanted_t const & w) { return w.tonnes == 0u; }))
       set(item, column_e::balance, signed_credits(reward - *cost), qlonglong(reward - *cost));
     }
   auto const age{std::chrono::duration_cast<std::chrono::hours>(now - place.updated)};

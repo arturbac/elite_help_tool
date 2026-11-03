@@ -69,6 +69,8 @@ private:
   QCheckBox * selling_{};
   QSpinBox * max_age_{};
   QSpinBox * max_ly_{};
+  ///\brief after the hits: by distance, or by price - the cheapest when buying, the dearest when selling
+  QComboBox * order_{};
   QSpinBox * reward_{};
   QLabel * note_{};
   QLabel * pairs_caption_{};

@@ -113,19 +113,21 @@ auto hits(place_t const & place, std::vector<wanted_t> const & wanted) -> unsign
   ));
   }
 
-auto cost(place_t const & place, std::vector<wanted_t> const & wanted) -> std::optional<int64_t>
+auto price_sum(place_t const & place, std::vector<wanted_t> const & wanted) -> int64_t
   {
   int64_t sum{};
   for(wanted_t const & w: wanted)
-    {
-    if(w.tonnes == 0u)
-      return std::nullopt;
-    auto const it{std::ranges::find_if(place.offers, [&](offer_t const & o) { return covers(o, w); })};
-    if(it == place.offers.end())
-      return std::nullopt;
-    sum += it->buy_price * int64_t(w.tonnes);
-    }
-  return wanted.empty() ? std::nullopt : std::optional<int64_t>{sum};
+    if(auto const it{std::ranges::find_if(place.offers, [&](offer_t const & o) { return covers(o, w); })};
+       it != place.offers.end())
+      sum += it->buy_price * int64_t(std::max(w.tonnes, 1u));
+  return sum;
+  }
+
+auto cost(place_t const & place, std::vector<wanted_t> const & wanted) -> std::optional<int64_t>
+  {
+  if(wanted.empty() or hits(place, wanted) != wanted.size())
+    return std::nullopt;
+  return price_sum(place, wanted);
   }
 
 auto passes(place_t const & place, filter_t const & filter, std::chrono::sys_seconds now) -> bool
@@ -149,9 +151,15 @@ auto rank(
 ) -> std::vector<place_t>
   {
   std::erase_if(places, [&](place_t const & p) { return not passes(p, filter, now) or hits(p, wanted) == 0u; });
-  // a place of unknown distance goes after every known one with as many hits
+  // a place of unknown distance goes after every known one with as many hits and the same price
   auto const key = [&](place_t const & p)
-  { return std::tuple{-int(hits(p, wanted)), p.ly.has_value() ? 0 : 1, p.ly.value_or(0.0)}; };
+  {
+    int64_t const sum{price_sum(p, wanted)};
+    int64_t const price{
+      filter.order == order_e::cheapest ? sum : filter.order == order_e::dearest ? -sum : int64_t{}
+    };
+    return std::tuple{-int(hits(p, wanted)), price, p.ly.has_value() ? 0 : 1, p.ly.value_or(0.0)};
+  };
   std::ranges::stable_sort(places, std::less{}, key);
   return places;
   }

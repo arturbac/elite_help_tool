@@ -91,6 +91,17 @@ struct place_t
   std::string source;
   };
 
+///\brief how the places that have as many of the wanted go
+enum struct order_e : uint8_t
+  {
+  ///\brief the nearest first
+  distance,
+  ///\brief the lowest price first - for buying
+  cheapest,
+  ///\brief the highest price first - for selling
+  dearest
+  };
+
 ///\brief what the search keeps
 struct filter_t
   {
@@ -104,6 +115,8 @@ struct filter_t
   ///\brief the farthest from where the commander is, in light years; a place of unknown distance is left out with
   /// it - none for no limit
   std::optional<double> max_ly{};
+  ///\brief after the number of hits; a tie goes to the nearer
+  order_e order{order_e::distance};
   };
 
 ///\brief the rows of the database gathered by market, with the distance from where the commander is
@@ -119,7 +132,12 @@ auto covers(offer_t const & offer, wanted_t const & wanted) -> bool;
 [[nodiscard]]
 auto hits(place_t const & place, std::vector<wanted_t> const & wanted) -> unsigned;
 
-///\brief what the wanted amounts cost there - only when it has them all and every amount is given
+///\brief the price of the wanted it has in the wanted amounts, each amount at least a tonne - an amount of 0 counts
+/// as the price of one
+[[nodiscard]]
+auto price_sum(place_t const & place, std::vector<wanted_t> const & wanted) -> int64_t;
+
+///\brief what the wanted amounts cost there, as price_sum - only when it has them all
 [[nodiscard]]
 auto cost(place_t const & place, std::vector<wanted_t> const & wanted) -> std::optional<int64_t>;
 
