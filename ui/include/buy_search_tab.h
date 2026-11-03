@@ -17,8 +17,7 @@ class QSpinBox;
 class QTableWidget;
 class QTreeWidget;
 
-///\brief where a handful of commodities can be bought, among the markets read - in the System window, beside the
-/// Market tab
+///\brief where a handful of commodities can be bought, or sold, among the markets read - in the Trade window
 ///\detail the places with the most of them in the wanted amounts come first; when none has them all, the pairs that
 /// do are shown above. The search runs again at every change of what is wanted or of a filter, and when shown
 class buy_search_tab_t final : public QWidget
@@ -66,6 +65,8 @@ private:
   QComboBox * min_pad_{};
   QCheckBox * unknown_pads_{};
   QCheckBox * eddn_prices_{};
+  ///\brief the stations buying the commodities instead of the ones selling them
+  QCheckBox * selling_{};
   QSpinBox * max_age_{};
   QSpinBox * reward_{};
   QLabel * note_{};

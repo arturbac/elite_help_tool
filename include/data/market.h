@@ -126,6 +126,8 @@ struct supply_option_t
   };
 
 ///\brief one commodity on sale at one market, with what is known of the place - a row of the buying search
+///\detail a row of the selling search is the same: the price the station pays stands in buy_price, and how much it
+/// wants in stock
 struct buy_offer_t
   {
   uint64_t market_id;
@@ -144,6 +146,19 @@ struct buy_offer_t
   int64_t buy_price;
   int64_t stock;
   int64_t mean_price;
+  ///\brief empty for one's own reading, "eddn" for one heard on the relay
+  std::string source;
+  };
+
+///\brief a place whose market was read, by its system - what the market info picks from
+struct market_place_t
+  {
+  uint64_t market_id;
+  uint64_t system_address;
+  std::string system;
+  std::string station;
+  std::string station_type;
+  std::chrono::sys_seconds updated;
   ///\brief empty for one's own reading, "eddn" for one heard on the relay
   std::string source;
   };

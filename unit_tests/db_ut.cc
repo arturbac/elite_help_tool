@@ -591,6 +591,44 @@ int main()
     expect(bool(producers) and producers->size() == 2_u) << "a producer short of stock is still a producer";
   };
 
+  "the selling search finds the stations buying, and a trade is taken off the reading kept"_test = [&]
+  {
+    std::array const commodities{
+      info::commodity_t{.id = 9011u, .name = "Tritium", .category = "Chemicals", .mean_price = 50000u, .key = "tritium"}
+    };
+    // one buying it, one producing it and so taking it back at a loss
+    std::array const buyer{
+      info::market_item_t{.oid = -1, .market_id = 7711u, .commodity_id = 9011u, .buy_price = 0u, .sell_price = 52000u, .stock = 0u, .demand = 300u, .producer = false, .consumer = true}
+    };
+    std::array const producer{
+      info::market_item_t{.oid = -1, .market_id = 7712u, .commodity_id = 9011u, .buy_price = 49000u, .sell_price = 48000u, .stock = 900u, .demand = 1u, .producer = true, .consumer = false}
+    };
+    using namespace std::chrono;
+    sys_seconds const read{sys_days{2026y / 11 / 3}};
+    expect(bool(dbs.replace_market(7711u, read, commodities, buyer, "")));
+    expect(bool(dbs.replace_market(7712u, read, commodities, producer, "")));
+
+    auto offers{dbs.load_sell_offers({"tritium"})};
+    expect(bool(offers) and offers->size() == 1_u);
+    if(offers and offers->size() == 1u)
+      expect(offers->front().market_id == 7711_ull and offers->front().buy_price == 52000_ll and offers->front().stock == 300_ll);
+
+    auto const demand = [&]
+    {
+      auto entries{dbs.load_market_entries(7711u)};
+      return entries and entries->size() == 1u ? entries->front().demand : 9999u;
+    };
+    expect(dbs.store_trade(7711u, "tritium", 120u, true, read + 1h).value_or(false));
+    expect(demand() == 180_u);
+    expect(dbs.store_trade(7711u, "tritium", 500u, true, read + 2h).value_or(false));
+    expect(demand() == 0_u) << "a demand never falls below nothing";
+    expect(not dbs.store_trade(7711u, "tritium", 10u, true, read - 1h).value_or(true)) << "the reading has it already";
+    expect(not dbs.store_trade(7711u, "unobtainium", 10u, true, read + 3h).value_or(true));
+    expect(dbs.store_trade(7712u, "tritium", 100u, false, read + 1h).value_or(false));
+    auto entries{dbs.load_market_entries(7712u)};
+    expect(entries and entries->size() == 1u and entries->front().stock == 800_u) << "a purchase is taken off the stock";
+  };
+
   // live.sqlite is one file for both accounts: each keeps its own place along the same route
   "the progress along a route is the account's, and none on a route never flown"_test = [&]
   {

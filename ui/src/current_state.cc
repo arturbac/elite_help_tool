@@ -1286,6 +1286,29 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
             backup_live_now(commander_name_, db_.live_db_path_);
             }
           }
+        else if constexpr(std::same_as<T, events::market_sell_t> or std::same_as<T, events::market_buy_t>)
+          {
+          // Market.json is written only when the market is opened, so the reading kept is taken down by the trade
+          // until the next one - on the way back to the present a trade may come before a reading already read
+          if(catching_up_)
+            return;
+          constexpr bool sold{std::same_as<T, events::market_sell_t>};
+          auto taken{db_.store_trade(event.MarketID, event.Type, event.Count, sold, timestamp)};
+          if(not taken)
+            spdlog::error("market {}: failed to take {} t of {} off the reading", event.MarketID, event.Count, event.Type);
+          else if(*taken)
+            spdlog::info(
+              "market {}: {} {} t of {}, taken off the {}", event.MarketID, sold ? "sold" : "bought", event.Count,
+              event.Type, sold ? "demand" : "stock"
+            );
+          else
+            spdlog::info(
+              "market {}: {} t of {} left as read - no reading before the trade, or a commodity not in the dictionary",
+              event.MarketID,
+              event.Count,
+              event.Type
+            );
+          }
         else if constexpr(std::same_as<T, events::fss_signal_discovered_t>)
           {
           // a USS expires after a few minutes, in the database it would be nothing but litter

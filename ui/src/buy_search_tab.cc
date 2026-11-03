@@ -105,7 +105,7 @@ buy_search_tab_t::buy_search_tab_t(current_state_t const & state, database_stora
   // what is wanted: a name picked from the commodities ever seen at a market, and how much of it
   auto * pick_row{new QHBoxLayout()};
   commodity_edit_ = new QLineEdit();
-  commodity_edit_->setPlaceholderText("Commodity to buy - type and pick");
+  commodity_edit_->setPlaceholderText("Commodity - type and pick");
   QStringList names;
   if(auto known{db_.load_commodity_names()}; known)
     for(auto const & [key, name]: *known)
@@ -165,6 +165,13 @@ buy_search_tab_t::buy_search_tab_t(current_state_t const & state, database_stora
   layout->addLayout(filter_row);
 
   auto * second_row{new QHBoxLayout()};
+  selling_ = new QCheckBox("Stations buying");
+  selling_->setToolTip(
+    "Where to sell them: the stations buying them, as much as they want. A station takes back what it sells too, "
+    "at a loss - that is no market for it and is left out"
+  );
+  second_row->addWidget(selling_);
+  second_row->addSpacing(12);
   second_row->addWidget(new QLabel("Prices at most"));
   max_age_ = new QSpinBox();
   max_age_->setRange(1, 3650);
@@ -241,6 +248,19 @@ buy_search_tab_t::buy_search_tab_t(current_state_t const & state, database_stora
     }
   );
   connect(from_missions, &QPushButton::clicked, this, [this]() { add_from_missions(); });
+  connect(
+    selling_,
+    &QCheckBox::toggled,
+    this,
+    [this](bool on)
+    {
+      // a reward pays for what is bought for a mission; selling earns by itself
+      reward_->setEnabled(not on);
+      for(QTreeWidget * view: {places_view_, pairs_view_})
+        view->headerItem()->setText(int(column_e::cost), on ? "Earns" : "Cost");
+      search();
+    }
+  );
   connect(
     clear,
     &QPushButton::clicked,
@@ -357,17 +377,20 @@ auto buy_search_tab_t::search() -> void
   pairs_view_->hide();
   pairs_caption_->hide();
 
+  bool const selling{selling_->isChecked()};
   std::vector<buy_search::wanted_t> const wanted_now{wanted()};
   if(wanted_now.empty())
     {
-    note_->setText("Pick the commodities to buy - the places with the most of them come first.");
+    note_->setText(qformat(
+      "Pick the commodities to {} - the places with the most of them come first.", selling ? "sell" : "buy"
+    ));
     return;
     }
 
   std::vector<std::string> names;
   for(buy_search::wanted_t const & w: wanted_now)
     names.push_back(w.commodity);
-  auto rows{db_.load_buy_offers(names)};
+  auto rows{selling ? db_.load_sell_offers(names) : db_.load_buy_offers(names)};
   if(not rows)
     {
     spdlog::error("buy search: failed to load the markets");
@@ -388,7 +411,7 @@ auto buy_search_tab_t::search() -> void
     buy_search::rank(buy_search::places_of(*rows, here), wanted_now, filter(), now)
   };
   note_->setText(
-    ranked.empty() ? QString{"No market read has any of them - the filters may leave the rest out."}
+    ranked.empty() ? qformat("No market read {} any of them - the filters may leave the rest out.", selling ? "buys" : "has")
                    : qformat("{} places, from the markets opened with the tool running and heard on EDDN.", ranked.size())
   );
   show_places(ranked, wanted_now);
@@ -403,6 +426,7 @@ auto place_item(
   std::vector<buy_search::wanted_t> const & wanted,
   float jump_range,
   int64_t reward,
+  bool selling,
   std::chrono::sys_seconds now
 ) -> QTreeWidgetItem *
   {
@@ -455,7 +479,7 @@ auto place_item(
       }
     )};
     if(offer == place.offers.end())
-      line->setText(0, qformat("{} - not sold here", w.commodity));
+      line->setText(0, qformat("{} - not {} here", w.commodity, selling ? "bought" : "sold"));
     else
       {
       double const deviation{
@@ -464,12 +488,16 @@ auto place_item(
       line->setText(
         0,
         qformat(
-          "{} - {} Cr, {} t in stock, {:+.0f}% against the average{}",
+          "{} - {} Cr, {} t {}, {:+.0f}% against the average{}",
           offer->commodity,
           format_credits_value(uint64_t(offer->buy_price)),
           offer->stock,
+          selling ? "wanted" : "in stock",
           deviation,
-          buy_search::covers(*offer, w) ? "" : std::format(" - fewer than the {} t wanted", w.tonnes)
+          buy_search::covers(*offer, w)
+            ? ""
+            : selling ? std::format(" - wants fewer than the {} t to sell", w.tonnes)
+                      : std::format(" - fewer than the {} t wanted", w.tonnes)
         )
       );
       }
@@ -489,7 +517,10 @@ auto buy_search_tab_t::show_places(
   places_view_->setSortingEnabled(false);
   for(buy_search::place_t const & place: ranked)
     {
-    places_view_->addTopLevelItem(place_item(place, wanted, jump_range_, reward_->value(), now));
+    bool const selling{selling_->isChecked()};
+    places_view_->addTopLevelItem(
+      place_item(place, wanted, jump_range_, selling ? 0 : reward_->value(), selling, now)
+    );
     for(int i{}; i != places_view_->topLevelItem(places_view_->topLevelItemCount() - 1)->childCount(); ++i)
       places_view_->topLevelItem(places_view_->topLevelItemCount() - 1)->child(i)->setFirstColumnSpanned(true);
     }
@@ -521,8 +552,8 @@ auto buy_search_tab_t::show_pairs(
     if(auto const jumps{buy_search::jumps(pair.ly, jump_range_)}; jumps)
       item->setText(int(column_e::jumps), qformat("{}", *jumps));
     pairs_view_->addTopLevelItem(item);
-    item->addChild(place_item(a, wanted, jump_range_, 0, now));
-    item->addChild(place_item(b, wanted, jump_range_, 0, now));
+    item->addChild(place_item(a, wanted, jump_range_, 0, selling_->isChecked(), now));
+    item->addChild(place_item(b, wanted, jump_range_, 0, selling_->isChecked(), now));
     for(int i{}; i != item->childCount(); ++i)
       for(int j{}; j != item->child(i)->childCount(); ++j)
         item->child(i)->child(j)->setFirstColumnSpanned(true);

@@ -10,8 +10,14 @@
 
 #include <qboxlayout.h>
 #include <qcheckbox.h>
+#include <qcombobox.h>
+#include <qcompleter.h>
 #include <qheaderview.h>
 #include <qlabel.h>
+#include <qlineedit.h>
+#include <qpushbutton.h>
+#include <QSignalBlocker>
+#include <qstringlistmodel.h>
 #include <qsortfilterproxymodel.h>
 #include <qsplitter.h>
 #include <qtableview.h>
@@ -26,6 +32,7 @@
 #include <map>
 #include <mutex>
 #include <optional>
+#include <set>
 
 namespace
   {
@@ -246,6 +253,7 @@ auto to_update_tab_t::refresh() -> void
 
 trade_window_t::trade_window_t(current_state_t const & state, std::string db_path, QWidget * parent) :
     QMdiSubWindow{parent},
+    state_{state},
     db_{db_path}
   {
   if(auto res{db_.open()}; not res)
@@ -259,10 +267,27 @@ trade_window_t::trade_window_t(current_state_t const & state, std::string db_pat
   search_ = new buy_search_tab_t(state, db_, tabs_);
   tabs_->addTab(search_, "Search");
 
-  // --- the market of one station: clicked in the System info window, in Search or in To update ---
+  // --- the market of one place: picked by its system, or clicked in System info, in Search or in To update ---
   market_page_ = new QWidget(tabs_);
   auto * market_layout{new QVBoxLayout(market_page_)};
-  market_header_ = new QLabel("Click a station in System info, Search or To update to see its market.");
+  auto * pick_row{new QHBoxLayout()};
+  pick_row->addWidget(new QLabel("System"));
+  system_edit_ = new QLineEdit();
+  system_edit_->setPlaceholderText("A system with a market read - type and pick");
+  systems_model_ = new QStringListModel(this);
+  auto * completer{new QCompleter(systems_model_, system_edit_)};
+  completer->setCaseSensitivity(Qt::CaseInsensitive);
+  completer->setFilterMode(Qt::MatchContains);
+  system_edit_->setCompleter(completer);
+  pick_row->addWidget(system_edit_, 1);
+  place_combo_ = new QComboBox();
+  place_combo_->setSizeAdjustPolicy(QComboBox::AdjustToContents);
+  pick_row->addWidget(place_combo_, 1);
+  auto * here{new QPushButton("Here")};
+  here->setToolTip("The system the commander is in, and the port last docked at when it is there");
+  pick_row->addWidget(here);
+  market_layout->addLayout(pick_row);
+  market_header_ = new QLabel("Pick a system, or click a station in System info, Search or To update.");
   market_layout->addWidget(market_header_);
   auto * market_splitter{new QSplitter(Qt::Vertical, market_page_)};
   market_splitter->setObjectName("trade_market");
@@ -294,7 +319,31 @@ trade_window_t::trade_window_t(current_state_t const & state, std::string db_pat
   market_sells_view_ = make_market_side(true, "Station sells:");
   market_buys_view_ = make_market_side(false, "Station buys:");
   market_layout->addWidget(market_splitter, 1);
-  tabs_->addTab(market_page_, "Current Market");
+  tabs_->addTab(market_page_, "Market Info");
+
+  auto const pick_system = [this](QString const & system)
+  {
+    list_places(system.trimmed(), 0u);
+    show_picked();
+  };
+  connect(system_edit_, &QLineEdit::returnPressed, this, [this, pick_system]() { pick_system(system_edit_->text()); });
+  connect(completer, qOverload<QString const &>(&QCompleter::activated), this, pick_system);
+  connect(place_combo_, &QComboBox::activated, this, [this](int) { show_picked(); });
+  connect(here, &QPushButton::clicked, this, [this]() { show_here(); });
+  // opened by hand for the first time, it starts where the commander is
+  connect(
+    tabs_,
+    &QTabWidget::currentChanged,
+    this,
+    [this](int index)
+    {
+      if(tabs_->widget(index) != market_page_)
+        return;
+      load_places();
+      if(system_edit_->text().isEmpty())
+        show_here();
+    }
+  );
 
   to_update_ = new to_update_tab_t(state, db_, tabs_);
   tabs_->addTab(to_update_, "To update");
@@ -313,13 +362,94 @@ auto trade_window_t::clear_market() -> void
   {
   market_sells_model_->update_data({});
   market_buys_model_->update_data({});
+  // switched to by the program, not by hand - the first opening by hand is what starts it where the commander is
+  QSignalBlocker const quiet{tabs_};
   if(auto const index{tabs_->indexOf(market_page_)}; index >= 0)
     tabs_->setCurrentIndex(index);
   }
 
+auto trade_window_t::load_places() -> void
+  {
+  auto places{db_.load_market_places()};
+  if(not places)
+    {
+    spdlog::error("trade window: failed to load the places with a market");
+    return;
+    }
+  std::erase_if(*places, [](info::market_place_t const & p) { return p.system.empty() or p.station.empty(); });
+  places_ = std::move(*places);
+  std::set<QString> systems;
+  for(info::market_place_t const & place: places_)
+    systems.insert(QString::fromStdString(place.system));
+  systems_model_->setStringList(QStringList{systems.begin(), systems.end()});
+  }
+
+auto trade_window_t::list_places(QString const & system, uint64_t market_id) -> void
+  {
+  QSignalBlocker const quiet_edit{system_edit_};
+  QSignalBlocker const quiet_combo{place_combo_};
+  system_edit_->setText(system);
+  place_combo_->clear();
+  std::vector<info::market_place_t const *> in_system;
+  for(info::market_place_t const & place: places_)
+    if(QString::fromStdString(place.system).compare(system, Qt::CaseInsensitive) == 0)
+      in_system.push_back(&place);
+  std::ranges::sort(in_system, std::less{}, [](info::market_place_t const * p) { return p->station; });
+  auto const now{std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())};
+  for(info::market_place_t const * place: in_system)
+    {
+    auto const age{std::chrono::duration_cast<std::chrono::hours>(now - place->updated)};
+    place_combo_->addItem(
+      qformat(
+        "{} - {}, {}{}",
+        place->station,
+        place->station_type,
+        age < std::chrono::hours{48} ? std::format("{} h", age.count()) : std::format("{} d", age.count() / 24),
+        place->source == "eddn" ? " (EDDN)" : ""
+      ),
+      qulonglong(place->market_id)
+    );
+    if(place->market_id == market_id)
+      place_combo_->setCurrentIndex(place_combo_->count() - 1);
+    }
+  }
+
+auto trade_window_t::show_picked() -> void
+  {
+  if(place_combo_->count() == 0)
+    {
+    clear_market();
+    market_header_->setText(qformat("{} - no market read there", system_edit_->text().toStdString()));
+    return;
+    }
+  show_market_of(place_combo_->currentData().toULongLong(), system_edit_->text().toStdString());
+  }
+
+auto trade_window_t::show_here() -> void
+  {
+  std::string system;
+  uint64_t system_address{};
+  {
+  std::scoped_lock const lock{state_.mutex_};
+  system = state_.system.name;
+  system_address = state_.system.system_address;
+  }
+  if(system.empty())
+    return;
+  load_places();
+  uint64_t port{};
+  if(auto last{db_.load_last_port()}; not last)
+    spdlog::error("trade window: failed to load the last port");
+  else if(*last)
+    if(auto const it{std::ranges::find(places_, (*last)->market_id, &info::market_place_t::market_id)};
+       it != places_.end() and it->system_address == system_address)
+      port = it->market_id;
+  list_places(QString::fromStdString(system), port);
+  show_picked();
+  }
+
 auto trade_window_t::show_market(uint64_t system_address, std::string_view station_name) -> void
   {
-  clear_market();
   auto station{db_.load_station(system_address, station_name)};
   if(not station)
     {
@@ -329,45 +459,54 @@ auto trade_window_t::show_market(uint64_t system_address, std::string_view stati
 
   if(not *station)
     {
+    clear_market();
     // stations are known from a system signal, a market only from a visit with the tool running
     market_header_->setText(qformat("{} - no market recorded, dock there with the tool running", station_name));
     return;
     }
-  show_market_of(**station, {});
+  show_market_of((*station)->market_id, {});
   }
 
 auto trade_window_t::show_market_of(uint64_t market_id, std::string_view system) -> void
   {
   clear_market();
-  auto station{db_.load_station(market_id)};
-  if(not station or not *station)
+  load_places();
+  auto const place{std::ranges::find(places_, market_id, &info::market_place_t::market_id)};
+  std::string name;
+  if(auto station{db_.load_station(market_id)}; station and *station)
+    name = (*station)->name;
+  else if(place != places_.end())
+    // a place heard of on the relay alone
+    name = place->station;
+  else
     {
     spdlog::error("failed to load station {}", market_id);
     return;
     }
-  show_market_of(**station, system);
+  std::string const in{not system.empty() ? std::string{system} : place != places_.end() ? place->system : std::string{}};
+  list_places(QString::fromStdString(in), market_id);
+  show_reading(market_id, name, in);
   }
 
-auto trade_window_t::show_market_of(info::station_t const & station, std::string_view system) -> void
+auto trade_window_t::show_reading(uint64_t market_id, std::string_view station_name, std::string_view system) -> void
   {
-  auto entries{db_.load_market_entries(station.market_id)};
+  auto entries{db_.load_market_entries(market_id)};
   if(not entries)
     {
-    spdlog::error("failed to load market {}", station.market_id);
+    spdlog::error("failed to load market {}", market_id);
     return;
     }
 
   if(entries->empty())
     {
-    market_header_->setText(qformat("{} - no market recorded, dock there with the tool running", station.name));
+    market_header_->setText(qformat("{} - no market recorded, dock there with the tool running", station_name));
     return;
     }
 
-  // a station reached from another system's list says which system it is in
-  std::string const name{system.empty() ? station.name : std::format("{} | {}", system, station.name)};
+  std::string const name{system.empty() ? std::string{station_name} : std::format("{} | {}", system, station_name)};
 
   // the time of the reading lives with the market, because the reading itself cannot be rebuilt
-  auto reading{db_.load_market_info(station.market_id)};
+  auto reading{db_.load_market_info(market_id)};
   if(reading and *reading)
     market_header_->setText(qformat(
       "{} - prices as of {:%Y-%m-%d %H:%M}{}",
@@ -384,7 +523,8 @@ auto trade_window_t::show_market_of(info::station_t const & station, std::string
     {
     if(entry.stock != 0)
       sells.push_back(entry);
-    if(entry.demand != 0)
+    // what it sells it takes back at a loss - the Sell back column of the other side says for how much
+    if(entry.demand != 0 and buy_search::station_buys(entry.producer, entry.consumer))
       buys.push_back(entry);
     }
 

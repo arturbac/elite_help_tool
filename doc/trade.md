@@ -85,9 +85,19 @@ once a second as items are picked up; a hidden window is read when it is shown a
 
 The **Trade** window (its button on the left bar) holds three tabs:
 
-- **Current Market**: the whole market of one station, what it sells and what it buys against the galactic
-  average, with the time of the reading - *(EDDN)* after it when the reading was heard on the relay. A station clicked in the System info window's list, or
-  double-clicked in Search or To update, shows here.
+- **Market Info**: the whole market of one place, what it sells and what it buys against the galactic
+  average, with the time of the reading - *(EDDN)* after it when the reading was heard on the relay. Type a
+  system and pick it from the list (the systems with a market read, own or heard on EDDN), then a place of it
+  from the list beside, each with its type and the age of its reading. *Here* picks the system you are in,
+  and the port last docked at when it is in that system; the first time the tab is opened by hand it starts
+  there. A station clicked in the System info window's list, or double-clicked in Search or To update, shows
+  here too. *Station buys* lists only what the station consumes. What it produces it takes back too, at a
+  loss, which corrects a purchase made too large and is no market for it: the *Sell back* column of
+  *Station sells* gives that price.
+  A trade made with the tool running is taken off the reading kept, as the game writes `Market.json` only
+  when the market is opened: a sale (`MarketSell`) off the demand, a purchase (`MarketBuy`) off the stock,
+  never below nothing, until the next reading replaces it. A trade older than the reading, one made while the
+  tool was not running, or of a commodity not yet in the dictionary changes nothing.
 - **To update**: the places in the systems our commanders claimed and still hold whose market is
   worth reading - *never read*, or *owner changed since* when someone else took the place after the
   reading, as after a war (from the owner kept with the reading, or from the history of owners), with
@@ -98,7 +108,7 @@ The **Trade** window (its button on the left bar) holds three tabs:
   of place can be left out as in Search, and *Only to update* (on at the start) hides the markets
   read since the present owner took over. A place seen in no journal is not known to the tool.
   Double-click a place to see its market.
-- **Search**: where a handful of commodities can be bought,
+- **Search**: where a handful of commodities can be bought, or sold,
   among every market you have opened, and those heard on EDDN's relay around your systems. Type a commodity and pick it from the list - up to nine, each
   with the tonnes wanted (0 for any stock at all) - or take what the open missions still need with
   *From my missions*. A market counts for a commodity when it sells it with at least the tonnes wanted
@@ -109,9 +119,13 @@ The **Trade** window (its button on the left bar) holds three tabs:
   reading. Under each place a line per commodity gives its price, its stock and how far the price is
   from the galactic average, or says it is not sold there or too little is. When no single place has
   them all, up to three pairs of places that together do are shown above, the shortest way first: to
-  the nearer one and on to the other. Double-click a place to see its whole market in Current Market. Jumps are the
+  the nearer one and on to the other. Double-click a place to see its whole market in Market Info. Jumps are the
   distance over the jump range the game gives for the ship flown (`MaxJumpRange` of `Loadout`), rounded up -
   a floor, a real route may need more.
+  With *Stations buying* (off at the start) it finds where to sell them instead: a market counts for a
+  commodity when it consumes it and wants at least the tonnes to sell; a station taking back what it
+  produces does not count. The price is what it pays, the amount how much it wants, and *Earns* the sum for
+  all the tonnes. *Mission reward* is off in this mode; the pairs stay, for a load too large for one buyer.
   The filters keep space stations, outposts, ports on the ground, settlements and fleet carriers
   (off at the start - a carrier moves away, and its market with it), the largest pad at least S, M or
   L, places whose pads are not known, markets heard on EDDN (*EDDN prices*; the *Source* column says

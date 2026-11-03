@@ -155,4 +155,22 @@ struct market_t
   std::string StarSystem;
   };
 
+///\brief commodities sold at a market - the demand there falls by the count, and Market.json is not written again
+/// until the market is opened anew
+struct market_sell_t
+  {
+  uint64_t MarketID;
+  ///\brief the internal name, lower case
+  std::string Type;
+  uint32_t Count;
+  };
+
+///\brief commodities bought at a market - the stock there falls by the count
+struct market_buy_t
+  {
+  uint64_t MarketID;
+  std::string Type;
+  uint32_t Count;
+  };
+
   }  // namespace events

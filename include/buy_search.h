@@ -33,6 +33,14 @@ enum struct place_e : uint8_t
 [[nodiscard]]
 auto place_of(std::string_view station_type) -> place_e;
 
+///\brief whether a market row is the station buying the commodity - what it produces it takes back too, at a loss,
+/// which corrects a purchase made too large and is no market for it
+[[nodiscard]]
+constexpr auto station_buys(bool producer, bool consumer) noexcept -> bool
+  {
+  return consumer and not producer;
+  }
+
 enum struct pad_e : uint8_t
   {
   none,

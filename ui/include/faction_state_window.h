@@ -158,6 +158,9 @@ class market_model_t final : public QAbstractTableModel
     price,
     quantity,
     deviation,
+    ///\brief what the station pays back for what it sells - only on the side of what it sells, to correct a purchase
+    /// made too large
+    sell_back,
     column_max
     };
 

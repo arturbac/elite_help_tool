@@ -385,7 +385,7 @@ auto market_model_t::rowCount(QModelIndex const &) const -> int
 
 [[nodiscard]]
 auto market_model_t::columnCount(QModelIndex const &) const -> int
-  { return int(column_e::column_max); }
+  { return station_sells_ ? int(column_e::column_max) : int(column_e::sell_back); }
 
 [[nodiscard]]
 auto market_model_t::data(QModelIndex const & index, int role) const -> QVariant
@@ -420,6 +420,7 @@ auto market_model_t::data(QModelIndex const & index, int role) const -> QVariant
       case column_e::price:     return price;
       case column_e::quantity:  return quantity;
       case column_e::deviation: return deviation;
+      case column_e::sell_back: return item.sell_price;
       default:                  return {};
       }
 
@@ -433,6 +434,8 @@ auto market_model_t::data(QModelIndex const & index, int role) const -> QVariant
     case column_e::price:     return QString::fromStdString(format_credits_value(price));
     case column_e::quantity:  return QString::fromStdString(format_credits_value(quantity));
     case column_e::deviation: return qformat("{:+.0f}%", deviation);
+    case column_e::sell_back:
+      return item.sell_price != 0u ? QString::fromStdString(format_credits_value(item.sell_price)) : QString{"-"};
     default:                  return {};
     }
   }
@@ -449,6 +452,7 @@ auto market_model_t::headerData(int s, Qt::Orientation o, int r) const -> QVaria
     case column_e::price:     return station_sells_ ? "Buy at" : "Sell at";
     case column_e::quantity:  return station_sells_ ? "Stock" : "Demand";
     case column_e::deviation: return "vs avg";
+    case column_e::sell_back: return "Sell back";
     default:                  return {};
     }
   }

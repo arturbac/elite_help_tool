@@ -216,6 +216,15 @@ auto main() -> int
     expect(not buy_search::worth_reading(place));
   };
 
+  "a station buys what it consumes, not what it produces and takes back at a loss"_test = []
+  {
+    expect(buy_search::station_buys(false, true));
+    expect(not buy_search::station_buys(true, false));
+    // a market heard on the relay has both for what it has in stock
+    expect(not buy_search::station_buys(true, true));
+    expect(not buy_search::station_buys(false, false)) << "a commodity it merely lists";
+  };
+
   "only the journals newer than the last one read are read again"_test = []
   {
     // the tests run from an empty directory of their own

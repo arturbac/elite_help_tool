@@ -27,6 +27,8 @@ using event_holder_t = std::variant<
   fss_signal_discovered_t,
   codex_entry_t,
   market_t,
+  market_sell_t,
+  market_buy_t,
   undocked_t,
   docked_t,
   docking_granted_t,

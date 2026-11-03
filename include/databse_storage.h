@@ -121,6 +121,23 @@ struct database_storage_t
   [[nodiscard]]
   auto load_buy_offers(std::vector<std::string> const & commodities) -> expected_ec<std::vector<info::buy_offer_t>>;
 
+  ///\brief every market buying any of the commodities, by readable name - the price paid and the demand in the
+  /// buying search's fields; a station taking back what it produces, at a loss, does not count
+  [[nodiscard]]
+  auto load_sell_offers(std::vector<std::string> const & commodities) -> expected_ec<std::vector<info::buy_offer_t>>;
+
+  ///\brief every place whose market was read, own or heard on EDDN
+  [[nodiscard]]
+  auto load_market_places() -> expected_ec<std::vector<info::market_place_t>>;
+
+  ///\brief takes a trade made at a market off the reading kept: a sale off the demand, a purchase off the stock,
+  /// never below nothing
+  ///\return false when there is nothing to take it off - no reading, one taken after the trade, or a commodity the
+  /// dictionary does not know by its internal name
+  [[nodiscard]]
+  auto store_trade(uint64_t market_id, std::string_view key, uint32_t count, bool sold, std::chrono::sys_seconds at)
+    -> expected_ec<bool>;
+
   ///\brief every place in the systems our commanders claimed and still hold, with what is known of its market
   [[nodiscard]]
   auto load_markets_to_update() -> expected_ec<std::vector<info::market_to_update_t>>;

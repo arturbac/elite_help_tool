@@ -1,10 +1,12 @@
 #pragma once
+#include <data/market.h>
 #include <data/station.h>
 #include <databse_storage.h>
 
 #include <cstdint>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include <qmdisubwindow.h>
 
@@ -12,7 +14,10 @@ struct current_state_t;
 class buy_search_tab_t;
 class market_model_t;
 class QCheckBox;
+class QComboBox;
 class QLabel;
+class QLineEdit;
+class QStringListModel;
 class QTabWidget;
 class QTableView;
 class QTreeWidget;
@@ -46,8 +51,8 @@ private:
   QTreeWidget * view_{};
   };
 
-///\brief trade: where to buy a handful of commodities, the market of one station, and the markets of our own systems
-/// still to be read
+///\brief trade: where to buy or sell a handful of commodities, the market of a place picked by its system, and the
+/// markets of our own systems still to be read
 class trade_window_t final : public QMdiSubWindow
   {
   Q_OBJECT
@@ -61,16 +66,29 @@ public:
   auto show_market_of(uint64_t market_id, std::string_view system) -> void;
 
 private:
-  auto show_market_of(info::station_t const & station, std::string_view system) -> void;
+  auto show_reading(uint64_t market_id, std::string_view name, std::string_view system) -> void;
   auto clear_market() -> void;
+  ///\brief reads anew the places whose market was read, for the system field to offer
+  auto load_places() -> void;
+  ///\brief lists the places of the system named, the one of the market id picked - nothing is shown by it
+  auto list_places(QString const & system, uint64_t market_id) -> void;
+  ///\brief the market of the place picked in the list
+  auto show_picked() -> void;
+  ///\brief the system the commander is in, and the port last docked at when it is there
+  auto show_here() -> void;
 
+  current_state_t const & state_;
   /// a connection of its own; the state's db_ belongs to the journal following thread
   database_storage_t db_;
+  std::vector<info::market_place_t> places_;
   QTabWidget * tabs_{};
   buy_search_tab_t * search_{};
   ///\brief the market tab cannot be addressed by index - new ones appear and the numbers shift
   QWidget * market_page_{};
   QLabel * market_header_{};
+  QLineEdit * system_edit_{};
+  QStringListModel * systems_model_{};
+  QComboBox * place_combo_{};
   market_model_t * market_sells_model_{};
   market_model_t * market_buys_model_{};
   QTableView * market_sells_view_{};

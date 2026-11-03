@@ -328,50 +328,144 @@ auto database_storage_t::load_market_info(uint64_t market_id) -> expected_ec<std
   return std::optional<info::market_info_t>{std::move((*res)[0])};
   }
 
+namespace
+  {
+///\brief the markets trading any of the commodities, one row per commodity, the price and the amount taken from the
+/// columns named - the buying and the selling search read the same rows
+[[nodiscard]]
+auto offers_query(
+  std::vector<std::string> const & commodities,
+  std::string_view price,
+  std::string_view amount,
+  std::string_view condition
+) -> std::string
+  {
+  std::string names;
+  for(std::string const & name: commodities)
+    names += std::format("{}lower('{}')", names.empty() ? "" : ",", sqlite::escape_sql_quotes(name));
+  return std::format(
+    "(SELECT i.market_id AS market_id,"
+    // a place known from the journals first, one heard of on the relay otherwise
+    " coalesce(st.name, ep.station, '') AS station,"
+    " coalesce(st.station_type, ep.station_type, '') AS station_type,"
+    " coalesce(ss.name, ep.system, '') AS system,"
+    " coalesce(ss.loc_x, ep.loc_x) AS loc_x, coalesce(ss.loc_y, ep.loc_y) AS loc_y,"
+    " coalesce(ss.loc_z, ep.loc_z) AS loc_z,"
+    " coalesce(st.dist_from_star_ls, ep.dist_from_star_ls, 0) AS dist_from_star_ls,"
+    " coalesce(st.pads_small, ep.pads_small) AS pads_small, coalesce(st.pads_medium, ep.pads_medium) AS pads_medium,"
+    " coalesce(st.pads_large, ep.pads_large) AS pads_large,"
+    " m.updated AS updated,"
+    " c.name AS commodity,"
+    " i.{7} AS buy_price,"
+    " i.{8} AS stock,"
+    " c.mean_price AS mean_price,"
+    " m.source AS source"
+    " FROM {0} c"
+    " CROSS JOIN {1} i ON i.commodity_id = c.id AND {9}"
+    " JOIN {2} m ON m.market_id = i.market_id"
+    " LEFT JOIN {3} st ON st.market_id = i.market_id"
+    " LEFT JOIN {4} ss ON ss.system_address = st.system_address"
+    " LEFT JOIN {6} ep ON ep.market_id = i.market_id"
+    " WHERE lower(c.name) IN ({5}))",
+    sql_iface::tables::commodity,
+    sql_iface::tables::market_item,
+    sql_iface::tables::market,
+    sql_iface::tables::station,
+    sql_iface::tables::star_system,
+    names,
+    sql_iface::tables::eddn_place,
+    price,
+    amount,
+    condition
+  );
+  }
+  }  // namespace
+
 auto database_storage_t::load_buy_offers(std::vector<std::string> const & commodities)
   -> expected_ec<std::vector<info::buy_offer_t>>
   {
   if(commodities.empty())
     return std::vector<info::buy_offer_t>{};
-  std::string names;
-  for(std::string const & name: commodities)
-    names += std::format("{}lower('{}')", names.empty() ? "" : ",", sqlite::escape_sql_quotes(name));
+  return sqlite::select_from<info::buy_offer_t>(
+    db_->db, offers_query(commodities, "buy_price", "stock", "i.buy_price > 0 AND i.stock > 0"), ""
+  );
+  }
+
+auto database_storage_t::load_sell_offers(std::vector<std::string> const & commodities)
+  -> expected_ec<std::vector<info::buy_offer_t>>
+  {
+  if(commodities.empty())
+    return std::vector<info::buy_offer_t>{};
+  // what a station produces it takes back too, at a loss - that corrects a purchase, it is no market for it.
+  // The same as buy_search::station_buys; a market heard on the relay has both flags for what it produces
   return sqlite::select_from<info::buy_offer_t>(
     db_->db,
+    offers_query(
+      commodities, "sell_price", "demand", "i.sell_price > 0 AND i.demand > 0 AND i.consumer <> 0 AND i.producer = 0"
+    ),
+    ""
+  );
+  }
+
+auto database_storage_t::load_market_places() -> expected_ec<std::vector<info::market_place_t>>
+  {
+  return sqlite::select_from<info::market_place_t>(
+    db_->db,
     std::format(
-      "(SELECT i.market_id AS market_id,"
+      "(SELECT m.market_id AS market_id,"
       // a place known from the journals first, one heard of on the relay otherwise
+      " coalesce(st.system_address, ep.system_address, 0) AS system_address,"
+      " coalesce(ss.name, ep.system, '') AS system,"
       " coalesce(st.name, ep.station, '') AS station,"
       " coalesce(st.station_type, ep.station_type, '') AS station_type,"
-      " coalesce(ss.name, ep.system, '') AS system,"
-      " coalesce(ss.loc_x, ep.loc_x) AS loc_x, coalesce(ss.loc_y, ep.loc_y) AS loc_y,"
-      " coalesce(ss.loc_z, ep.loc_z) AS loc_z,"
-      " coalesce(st.dist_from_star_ls, ep.dist_from_star_ls, 0) AS dist_from_star_ls,"
-      " coalesce(st.pads_small, ep.pads_small) AS pads_small, coalesce(st.pads_medium, ep.pads_medium) AS pads_medium,"
-      " coalesce(st.pads_large, ep.pads_large) AS pads_large,"
       " m.updated AS updated,"
-      " c.name AS commodity,"
-      " i.buy_price AS buy_price,"
-      " i.stock AS stock,"
-      " c.mean_price AS mean_price,"
-      " m.source AS source"
-      " FROM {0} c"
-      " CROSS JOIN {1} i ON i.commodity_id = c.id AND i.buy_price > 0 AND i.stock > 0"
-      " JOIN {2} m ON m.market_id = i.market_id"
-      " LEFT JOIN {3} st ON st.market_id = i.market_id"
-      " LEFT JOIN {4} ss ON ss.system_address = st.system_address"
-      " LEFT JOIN {6} ep ON ep.market_id = i.market_id"
-      " WHERE lower(c.name) IN ({5}))",
-      sql_iface::tables::commodity,
-      sql_iface::tables::market_item,
+      " coalesce(m.source, '') AS source"
+      " FROM {0} m"
+      " LEFT JOIN {1} st ON st.market_id = m.market_id"
+      " LEFT JOIN {2} ss ON ss.system_address = st.system_address"
+      " LEFT JOIN {3} ep ON ep.market_id = m.market_id)",
       sql_iface::tables::market,
       sql_iface::tables::station,
       sql_iface::tables::star_system,
-      names,
       sql_iface::tables::eddn_place
     ),
     ""
   );
+  }
+
+auto database_storage_t::store_trade(
+  uint64_t market_id, std::string_view key, uint32_t count, bool sold, std::chrono::sys_seconds at
+) -> expected_ec<bool>
+  {
+  auto reading{load_market_info(market_id)};
+  if(not reading) [[unlikely]]
+    return cxx23::unexpected{reading.error()};
+  // a reading taken after the trade has it already
+  if(not *reading or (*reading)->updated >= at)
+    return false;
+  auto ids{load_commodity_ids()};
+  if(not ids) [[unlikely]]
+    return cxx23::unexpected{ids.error()};
+  auto const id{ids->find(info::commodity_key(key))};
+  if(id == ids->end())
+    return false;
+  std::string_view const column{sold ? "demand" : "stock"};
+  if(
+    auto res{sqlite::execute_query_no_result(
+      db_->db,
+      std::format(
+        "UPDATE {0} SET {1} = max({1} - {2}, 0) WHERE market_id={3} AND commodity_id={4}",
+        sql_iface::tables::market_item,
+        column,
+        count,
+        market_id,
+        id->second
+      )
+    )};
+    not res
+  ) [[unlikely]]
+    return cxx23::unexpected{res.error()};
+  return true;
   }
 
 auto database_storage_t::store_pads_scan(std::string_view last_journal) -> expected_ec<void>
