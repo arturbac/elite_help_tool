@@ -10,8 +10,11 @@
 #include <optional>
 #include <string_view>
 #include <span>
+#include <mutex>
+#include <set>
 #include <simple_enum/enum_cast.hpp>
 #include <stralgo/stralgo.h>
+#include <spdlog/spdlog.h>
 
 namespace info
   {
@@ -39,11 +42,66 @@ auto faction_info_t::operator==(faction_info_t const & rh) const noexcept -> boo
          and reputation == rh.reputation;
   }
 
+auto government_of(std::string_view name) -> std::optional<government_e>
+  {
+  using enum government_e;
+  static constexpr std::array<std::pair<std::string_view, government_e>, 16u> names{
+    {{"none", unknown},
+     {"anarchy", anarchy},
+     {"communism", communism},
+     {"confederacy", confederacy},
+     {"cooperative", cooperative},
+     {"corporate", corporate},
+     {"democracy", democracy},
+     {"dictatorship", dictatorship},
+     {"feudal", feudal},
+     {"patronage", patronage},
+     {"prisoncolony", prison_colony},
+     {"theocracy", theocracy},
+     {"engineer", engineer},
+     {"privateownership", private_ownership},
+     {"criminal", criminal},
+     {"crime", criminal}}
+  };
+  // the letters alone: the journal writes "PrisonColony", a localised name "Prison Colony"
+  std::string letters;
+  for(char const c: name)
+    if(std::isalpha(static_cast<unsigned char>(c)) != 0)
+      letters.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
+  auto const it{std::ranges::find(names, letters, &std::pair<std::string_view, government_e>::first)};
+  if(it == names.end())
+    return std::nullopt;
+  return it->second;
+  }
+
+auto shown_government(government_e government) -> std::string_view
+  {
+  if(government == government_e::anarchy)
+    return "criminal";
+  return simple_enum::enum_name(government);
+  }
+
+auto shown_system_government(std::string_view localised, bool populated) -> std::string
+  {
+  if(populated and government_of(localised) == government_e::anarchy)
+    return "Criminal";
+  return std::string{localised};
+  }
+
 auto to_native(events::faction_info_t && faction) -> faction_info_t
   {
   faction_info_t result{.name = std::move(faction.Name), .oid = -1, .reputation = faction.MyReputation};
-  if(auto castres{simple_enum::enum_cast<government_e>(to_lower(faction.Government))}; castres)
-    result.government = *castres;
+  if(auto const government{government_of(faction.Government)}; government)
+    result.government = *government;
+  else
+    {
+    // the names change with game updates; each new one is told once, then counted as unknown
+    static std::mutex told_mutex;
+    static std::set<std::string> told;
+    std::scoped_lock const lock{told_mutex};
+    if(told.insert(faction.Government).second)
+      spdlog::warn("faction {}: government '{}' not known, taken as unknown", result.name, faction.Government);
+    }
 
   if(auto castres{simple_enum::enum_cast<allegiance_e>(to_lower(faction.Allegiance))}; castres)
     result.allegiance = *castres;

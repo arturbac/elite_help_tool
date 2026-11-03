@@ -106,7 +106,11 @@ auto faction_presence_model_t::data(QModelIndex const & index, int role) const -
     switch(column)
       {
       case column_e::name:       return QString::fromStdString(item.name);
-      case column_e::government: return enum_to_qstring(item.government);
+      case column_e::government:
+        {
+        auto const name{info::shown_government(item.government)};
+        return QString::fromUtf8(name.data(), static_cast<qsizetype>(name.size()));
+        }
       case column_e::allegiance: return enum_to_qstring(item.allegiance);
       case column_e::pending:
         return item.pending.empty() ? QString::fromUtf8(no_data.data()) : QString::fromStdString(item.pending);
@@ -1322,7 +1326,8 @@ auto faction_state_window_t::update_system_info(uint64_t system_address) -> void
 
   set_text(
     politics_label_,
-    join(" - ", {meaningful(system.allegiance), join(", ", {meaningful(system.government), meaningful(system.security)})})
+    join(" - ", {meaningful(system.allegiance), join(", ", {meaningful(info::shown_system_government(system.government, system.population != 0)),
+                                                 meaningful(system.security)})})
   );
 
   std::string const population{

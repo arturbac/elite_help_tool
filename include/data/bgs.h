@@ -34,13 +34,15 @@ enum struct government_e : uint8_t
   prison_colony,
   theocracy,
   engineer,
-  private_ownership
+  private_ownership,
+  ///\brief a populated anarchy, as the game is to name it from Law & Disorder (December 2026) on
+  criminal
   };
 
 consteval auto adl_enum_bounds(government_e)
   {
   using enum government_e;
-  return simple_enum::adl_info{unknown, private_ownership};
+  return simple_enum::adl_info{unknown, criminal};
   }
 enum struct allegiance_e : uint8_t
   {
@@ -97,6 +99,22 @@ struct faction_info_t
 
 [[nodiscard]]
 auto to_native(events::faction_info_t && faction) -> faction_info_t;
+
+///\brief a faction's government as the journal names it ("PrisonColony" as well as "Prison Colony"); "Criminal" and
+/// "Crime" are both taken for the populated anarchy of Law & Disorder, as the word the journal will use is not known
+///\return none for a name not known, unknown for "None"
+[[nodiscard]]
+auto government_of(std::string_view name) -> std::optional<government_e>;
+
+///\brief a faction's government as shown: a faction lives in a populated system, so its anarchy shows as criminal
+/// already - the anarchy kept says the game still runs it the old way, its security fixed in the middle
+[[nodiscard]]
+auto shown_government(government_e government) -> std::string_view;
+
+///\brief a system's or a station's government as shown: an anarchy with people in it shows as criminal already, one
+/// without stays an anarchy, as Law & Disorder leaves it
+[[nodiscard]]
+auto shown_system_government(std::string_view localised, bool populated) -> std::string;
 
 /// influence is a per-system value, recorded over time by the event's date
 struct faction_influence_t

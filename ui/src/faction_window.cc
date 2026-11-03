@@ -63,7 +63,11 @@ auto faction_model_t::data(QModelIndex const & index, int role) const -> QVarian
       case column_e::name:       return QString::fromStdString(item.name);
       case column_e::reputation: return qformat("{:.1f}%", item.reputation);
       case column_e::allegiance: return enum_to_qstring(item.allegiance);
-      case column_e::government: return enum_to_qstring(item.government);
+      case column_e::government:
+        {
+        auto const name{info::shown_government(item.government)};
+        return QString::fromUtf8(name.data(), static_cast<qsizetype>(name.size()));
+        }
       default:                   break;
       }
 

@@ -1342,7 +1342,9 @@ auto describe_system(star_system_t const & system, bool with_controlling) -> std
     lines.push_back(
       overlay::line_t{
         .text = std::format(
-          "{} / {}", system.economy.empty() ? "?" : system.economy, system.government.empty() ? "?" : system.government
+          "{} / {}",
+          system.economy.empty() ? "?" : system.economy,
+          system.government.empty() ? "?" : info::shown_system_government(system.government, system.population != 0)
         ),
         .color = colour_plain()
       }

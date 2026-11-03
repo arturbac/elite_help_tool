@@ -168,4 +168,24 @@ auto main() -> int
     );
     expect(info::owner_at_war_start(std::nullopt, std::nullopt, "Cartel", "Crew of Pethes", "Cartel") == std::string{"Cartel"});
   };
+
+  "a populated anarchy shows as criminal, and the journal may name it either way"_test = []
+  {
+    using enum info::government_e;
+    expect(info::government_of("Anarchy") == std::optional{anarchy});
+    expect(info::government_of("Criminal") == std::optional{criminal});
+    expect(info::government_of("Crime") == std::optional{criminal});
+    expect(info::government_of("PrisonColony") == std::optional{prison_colony}) << "the journal writes it in one word";
+    expect(info::government_of("Prison Colony") == std::optional{prison_colony});
+    expect(info::government_of("None") == std::optional{unknown});
+    expect(not info::government_of("Technocracy").has_value());
+
+    expect(info::shown_government(anarchy) == std::string_view{"criminal"});
+    expect(info::shown_government(criminal) == std::string_view{"criminal"});
+    expect(info::shown_government(feudal) == std::string_view{"feudal"});
+
+    expect(info::shown_system_government("Anarchy", true) == std::string{"Criminal"});
+    expect(info::shown_system_government("Anarchy", false) == std::string{"Anarchy"}) << "no people, still an anarchy";
+    expect(info::shown_system_government("Democracy", true) == std::string{"Democracy"});
+  };
   }

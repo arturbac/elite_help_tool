@@ -13,8 +13,14 @@
 - **Economy and security pushes.** The game shows each faction's economy and security as a bar
   with a trend, but writes neither to the journal. It does write which way each handed-in mission
   pushed them, so after a faction's states the overlay shows your own pushes since the last tick,
-  up and down apart: `EP +5/-1  SP +2`. Security is left out for anarchies, whose security bar
-  stays in the middle. Other commanders' work is not in it. The System info window has the same as
+  up and down apart: `EP +5/-1  SP +2`. Security is left out for a faction the journal still names an
+  anarchy, whose security bar stays in the middle; one named criminal shows it. Other commanders' work is not in it.
+- **Criminal, not anarchy.** Law & Disorder (December 2026) renames the anarchy of a populated system
+  criminal, and keeps anarchy for systems without people. The tool shows it so already: a faction's
+  anarchy shows as *criminal* in the Factions and System info windows, and a system's
+  *Anarchy* as *Criminal* when the system has people. The journal's government of a faction is read as
+  *Criminal* or *Crime* as well as *Anarchy*; any name not known is told once in the log and counted as
+  unknown. The System info window has the same as
   columns, together with the influence pluses pushed since the tick.
 - **Tick tracking.** The daily tick is reconstructed from your own journals as galaxy-wide waves,
   even though systems are visited rarely. The start of the wave is the deadline for handing in
