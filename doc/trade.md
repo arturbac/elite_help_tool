@@ -116,7 +116,7 @@ The **Trade** window (its button on the left bar) holds three tabs:
   by it instead: hits, place, type, largest pad, light years and jumps from where you are, Ls from the
   arrival star, the cost of all the wanted tonnes (only where every one is there and every amount is
   given), the balance against a *Mission reward* typed in from the mission board, and the age of the
-  reading. Under each place a line per commodity gives its price, its stock and how far the price is
+  reading. Under each place, shown open, a line per commodity gives its price, its stock and how far the price is
   from the galactic average, or says it is not sold there or too little is. When no single place has
   them all, up to three pairs of places that together do are shown above, the shortest way first: to
   the nearer one and on to the other. Double-click a place to see its whole market in Market Info. Jumps are the

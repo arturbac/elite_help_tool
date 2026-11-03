@@ -524,6 +524,8 @@ auto buy_search_tab_t::show_places(
     for(int i{}; i != places_view_->topLevelItem(places_view_->topLevelItemCount() - 1)->childCount(); ++i)
       places_view_->topLevelItem(places_view_->topLevelItemCount() - 1)->child(i)->setFirstColumnSpanned(true);
     }
+  // the line per commodity is what tells the places apart - open at once
+  places_view_->expandAll();
   places_view_->setSortingEnabled(true);
   if(column > 0)
     places_view_->sortItems(column, order);
@@ -559,6 +561,7 @@ auto buy_search_tab_t::show_pairs(
         item->child(i)->child(j)->setFirstColumnSpanned(true);
     item->setExpanded(true);
     }
+  pairs_view_->expandAll();
   for(int c{}; c != int(column_e::column_max); ++c)
     pairs_view_->resizeColumnToContents(c);
   pairs_caption_->show();
