@@ -180,6 +180,16 @@ buy_search_tab_t::buy_search_tab_t(current_state_t const & state, database_stora
   connect(max_age_, &QSpinBox::valueChanged, this, [this](int) { search(); });
   second_row->addWidget(max_age_);
   second_row->addSpacing(12);
+  second_row->addWidget(new QLabel("At most"));
+  max_ly_ = new QSpinBox();
+  max_ly_->setRange(0, 100'000);
+  max_ly_->setSuffix(" ly");
+  max_ly_->setSpecialValueText("any ly");
+  max_ly_->setValue(int(eht::settings()->windows.buy_max_ly));
+  max_ly_->setToolTip("From the system you are in; a place of unknown distance is left out too. 0: no limit");
+  connect(max_ly_, &QSpinBox::valueChanged, this, [this](int) { search(); });
+  second_row->addWidget(max_ly_);
+  second_row->addSpacing(12);
   second_row->addWidget(new QLabel("Mission reward"));
   reward_ = new QSpinBox();
   reward_->setRange(0, std::numeric_limits<int>::max());
@@ -358,7 +368,8 @@ auto buy_search_tab_t::filter() const -> buy_search::filter_t
     .min_pad = buy_search::pad_e(min_pad_->currentData().toInt()),
     .unknown_pads = unknown_pads_->isChecked(),
     .max_age = std::chrono::days{max_age_->value()},
-    .eddn = eddn_prices_->isChecked()
+    .eddn = eddn_prices_->isChecked(),
+    .max_ly = max_ly_->value() > 0 ? std::optional<double>{max_ly_->value()} : std::nullopt
   };
   for(auto const & [box, place]: {std::pair{space_stations_, space_station},
                                   std::pair{outposts_, outpost},

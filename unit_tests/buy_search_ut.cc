@@ -132,6 +132,23 @@ auto main() -> int
     expect(not kept(own_only, heard));
   };
 
+  "a distance limit leaves out the far places and those of unknown distance"_test = []
+  {
+    std::array<double, 3> const here{0.0, 0.0, 0.0};
+    auto const kept = [&](buy_search::filter_t const & filter, info::buy_offer_t const & r)
+    { return buy_search::rank(buy_search::places_of({r}, here), {{"Steel", 0u}}, filter, now).size() == 1u; };
+
+    buy_search::filter_t near{every_place()};
+    near.max_ly = 100.0;
+    expect(kept(near, row(1u, "Steel", 900, 5000, 99.5)));
+    expect(not kept(near, row(2u, "Steel", 900, 5000, 100.5)));
+    auto lost{row(3u, "Steel", 900, 5000, 1.0)};
+    lost.loc_x = std::nullopt;
+    expect(not kept(near, lost));
+    expect(kept(every_place(), lost)) << "with no limit it stays";
+    expect(kept(every_place(), row(4u, "Steel", 900, 5000, 5000.0)));
+  };
+
   "a pair is offered only when no single place has everything"_test = []
   {
     std::vector<info::buy_offer_t> const rows{

@@ -137,6 +137,8 @@ auto passes(place_t const & place, filter_t const & filter, std::chrono::sys_sec
     return false;
   if(place.source == "eddn" and not filter.eddn)
     return false;
+  if(filter.max_ly and (not place.ly or *place.ly > *filter.max_ly))
+    return false;
   if(not place.pad)
     return filter.unknown_pads;
   return *place.pad >= filter.min_pad;

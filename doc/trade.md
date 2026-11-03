@@ -130,7 +130,9 @@ The **Trade** window (its button on the left bar) holds three tabs:
   (off at the start - a carrier moves away, and its market with it), the largest pad at least S, M or
   L, places whose pads are not known, markets heard on EDDN (*EDDN prices*; the *Source* column says
   *own* or *EDDN*), and readings no older than so many days
-  (`windows.buy_max_age_d`, 30 by default, the starting value of the field). The pads come from
+  (`windows.buy_max_age_d`, 30 by default, the starting value of the field), and places at most so many
+  light years from the system you are in (`windows.buy_max_ly`, 100 by default, the starting value of
+  the field; 0 for no limit) - a place whose distance is not known is left out while the limit is on. The pads come from
   docking: a place docked at has them as soon as the tool reads that Docked. Places docked at before the
   pads were kept were found by reading every journal once; after that a start reads only the journals newer than
   the last one read. A place never docked at keeps them unknown.

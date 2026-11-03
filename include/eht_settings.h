@@ -393,6 +393,9 @@ struct windows_settings_t
   uint32_t faction_tick_refresh_s{60u};
   ///\brief the buying search leaves out prices read longer ago than this - its starting value, changed in the tab
   uint32_t buy_max_age_d{30u};
+  ///\brief the search leaves out places farther than this from where the commander is, and those of unknown
+  /// distance; 0 for no limit - its starting value, changed in the tab
+  uint32_t buy_max_ly{100u};
   };
 
 ///\brief the colours of the tool's own windows

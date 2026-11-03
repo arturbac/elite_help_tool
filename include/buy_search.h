@@ -101,6 +101,9 @@ struct filter_t
   std::chrono::days max_age{30};
   ///\brief whether the markets heard on EDDN's relay count
   bool eddn{true};
+  ///\brief the farthest from where the commander is, in light years; a place of unknown distance is left out with
+  /// it - none for no limit
+  std::optional<double> max_ly{};
   };
 
 ///\brief the rows of the database gathered by market, with the distance from where the commander is

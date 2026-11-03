@@ -68,6 +68,7 @@ private:
   ///\brief the stations buying the commodities instead of the ones selling them
   QCheckBox * selling_{};
   QSpinBox * max_age_{};
+  QSpinBox * max_ly_{};
   QSpinBox * reward_{};
   QLabel * note_{};
   QLabel * pairs_caption_{};
