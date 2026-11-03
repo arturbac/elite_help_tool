@@ -73,6 +73,8 @@ private:
   QComboBox * order_{};
   QSpinBox * reward_{};
   QLabel * note_{};
+  ///\brief the caption and the list of pairs, shown only when there are pairs
+  QWidget * pairs_box_{};
   QLabel * pairs_caption_{};
   QTreeWidget * pairs_view_{};
   QTreeWidget * places_view_{};

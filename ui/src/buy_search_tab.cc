@@ -15,6 +15,7 @@
 #include <qlineedit.h>
 #include <qpushbutton.h>
 #include <qspinbox.h>
+#include <qsplitter.h>
 #include <qtablewidget.h>
 #include <qtreewidget.h>
 
@@ -128,9 +129,17 @@ buy_search_tab_t::buy_search_tab_t(current_state_t const & state, database_stora
   wanted_view_->setHorizontalHeaderLabels({"Commodity", "Tonnes", ""});
   wanted_view_->verticalHeader()->hide();
   wanted_view_->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
-  wanted_view_->setMaximumHeight(170);
+  wanted_view_->setMinimumHeight(60);
   wanted_view_->setToolTip("Tonnes 0: any stock at all");
-  layout->addWidget(wanted_view_);
+  // the lists share the height as dragged - the place of the handles is kept with the window's state
+  auto * splitter{new QSplitter(Qt::Vertical)};
+  splitter->setObjectName("trade_search");
+  splitter->setChildrenCollapsible(false);
+  splitter->addWidget(wanted_view_);
+  auto * controls{new QWidget()};
+  auto * controls_layout{new QVBoxLayout(controls)};
+  controls_layout->setContentsMargins(0, 0, 0, 0);
+  splitter->addWidget(controls);
 
   // where to look
   auto * filter_row{new QHBoxLayout()};
@@ -162,7 +171,7 @@ buy_search_tab_t::buy_search_tab_t(current_state_t const & state, database_stora
   eddn_prices_ = check("EDDN prices", true);
   eddn_prices_->setToolTip("Markets other commanders' tools sent to EDDN, heard around our systems");
   filter_row->addStretch(1);
-  layout->addLayout(filter_row);
+  controls_layout->addLayout(filter_row);
 
   auto * second_row{new QHBoxLayout()};
   selling_ = new QCheckBox("Stations buying");
@@ -211,30 +220,36 @@ buy_search_tab_t::buy_search_tab_t(current_state_t const & state, database_stora
   connect(reward_, &QSpinBox::valueChanged, this, [this](int) { search(); });
   second_row->addWidget(reward_);
   second_row->addStretch(1);
-  layout->addLayout(second_row);
+  controls_layout->addLayout(second_row);
 
   note_ = new QLabel();
   note_->setWordWrap(true);
-  layout->addWidget(note_);
+  controls_layout->addWidget(note_);
 
   QStringList const headers{
     "Hits", "System | Station", "Type", "Pad", "ly", "Jumps", "Ls", "Cost", "Balance", "Age", "Source"
   };
 
   pairs_caption_ = new QLabel("No single place has everything - pairs that together do, the shortest way first:");
-  layout->addWidget(pairs_caption_);
+  pairs_box_ = new QWidget();
+  auto * pairs_layout{new QVBoxLayout(pairs_box_)};
+  pairs_layout->setContentsMargins(0, 0, 0, 0);
+  pairs_layout->addWidget(pairs_caption_);
   pairs_view_ = new QTreeWidget();
   pairs_view_->setColumnCount(int(column_e::column_max));
   pairs_view_->setHeaderLabels(headers);
-  pairs_view_->setMaximumHeight(200);
-  layout->addWidget(pairs_view_);
+  pairs_view_->setMinimumHeight(60);
+  pairs_layout->addWidget(pairs_view_);
+  splitter->addWidget(pairs_box_);
 
   places_view_ = new QTreeWidget();
   places_view_->setColumnCount(int(column_e::column_max));
   places_view_->setHeaderLabels(headers);
   places_view_->setSortingEnabled(true);
   places_view_->header()->setSectionResizeMode(QHeaderView::Interactive);
-  layout->addWidget(places_view_, 1);
+  splitter->addWidget(places_view_);
+  splitter->setStretchFactor(splitter->indexOf(places_view_), 1);
+  layout->addWidget(splitter, 1);
 
   auto const clicked = [this](QTreeWidgetItem * item, int)
   {
@@ -399,8 +414,7 @@ auto buy_search_tab_t::search() -> void
   {
   places_view_->clear();
   pairs_view_->clear();
-  pairs_view_->hide();
-  pairs_caption_->hide();
+  pairs_box_->hide();
 
   bool const selling{selling_->isChecked()};
   std::vector<buy_search::wanted_t> const wanted_now{wanted()};
@@ -590,6 +604,5 @@ auto buy_search_tab_t::show_pairs(
   pairs_view_->expandAll();
   for(int c{}; c != int(column_e::column_max); ++c)
     pairs_view_->resizeColumnToContents(c);
-  pairs_caption_->show();
-  pairs_view_->show();
+  pairs_box_->show();
   }

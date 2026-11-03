@@ -121,7 +121,8 @@ The **Trade** window (its button on the left bar) holds three tabs:
   the same sum, then the nearest. Under each place, shown open, a line per commodity gives its price, its stock and how far the price is
   from the galactic average, or says it is not sold there or too little is. When no single place has
   them all, up to three pairs of places that together do are shown above, the shortest way first: to
-  the nearer one and on to the other. Double-click a place to see its whole market in Market Info. Jumps are the
+  the nearer one and on to the other. The list of what is wanted, the filters, the pairs and the places
+  share the height by handles between them, kept with the window. Double-click a place to see its whole market in Market Info. Jumps are the
   distance over the jump range the game gives for the ship flown (`MaxJumpRange` of `Loadout`), rounded up -
   a floor, a real route may need more.
   With *Stations buying* (off at the start) it finds where to sell them instead: a market counts for a
