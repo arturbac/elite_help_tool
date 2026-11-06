@@ -3596,12 +3596,17 @@ auto overlay_feed_t::build_crew_lines(current_state_t const & state) const -> st
 /// question, which is why they are answered together and above everything else on this side.
 auto overlay_feed_t::build_settlement_lines(current_state_t const & state) const -> std::vector<overlay::line_t>
   {
-  if(station_name_.empty())
+  // the place stood at, or until then the one flown to - in the ship or in a taxi, the destination is there
+  // for both - so the work waiting at it is known before the landing
+  bool const standing{not station_name_.empty()};
+  std::string const & place{standing ? station_name_ : target_place_.name};
+  std::string const & place_faction{standing ? station_faction_ : target_place_.faction};
+  if(place.empty())
     return {};
 
   // the faction match holds only where one can walk up to them; in a starport the same mission
   // would be a suggestion to do something the game does not allow
-  bool const on_foot{station_type_ == "OnFootSettlement"};
+  bool const on_foot{(standing ? station_type_ : target_place_.type) == "OnFootSettlement"};
 
   std::vector<info::mission_t const *> hand_in;
   std::vector<info::mission_t const *> here;
@@ -3618,13 +3623,13 @@ auto overlay_feed_t::build_settlement_lines(current_state_t const & state) const
     // player back to a job already done.
     if(done)
       {
-      if(mission.redirected_settlement == station_name_ or mission.redirected_station == station_name_)
+      if(mission.redirected_settlement == place or mission.redirected_station == place)
         hand_in.push_back(&mission);
       }
-    else if(not station_name_.empty() and mission.destination_place() == station_name_)
+    else if(mission.destination_place() == place)
       here.push_back(&mission);
     else if(
-      on_foot and not station_faction_.empty() and mission.target_faction == station_faction_
+      on_foot and not place_faction.empty() and mission.target_faction == place_faction
       and mission.destination_settlement.empty()
     )
       fits.push_back(&mission);
@@ -3636,9 +3641,9 @@ auto overlay_feed_t::build_settlement_lines(current_state_t const & state) const
   auto const now{std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())};
 
   std::vector<overlay::line_t> lines;
-  lines.push_back(overlay::line_t{.text = station_name_, .color = colour_heading()});
-  if(not station_faction_.empty())
-    lines.push_back(overlay::line_t{.text = std::format("  {}", station_faction_), .color = colour_plain()});
+  lines.push_back(overlay::line_t{.text = place, .color = colour_heading()});
+  if(not place_faction.empty())
+    lines.push_back(overlay::line_t{.text = std::format("  {}", place_faction), .color = colour_plain()});
 
   auto const add = [&](std::vector<info::mission_t const *> const & group, char const * caption, uint32_t colour)
   {
@@ -3676,6 +3681,33 @@ auto overlay_feed_t::build_settlement_lines(current_state_t const & state) const
   add(fits, "any settlement of this faction:", colour_plain());
 
   return lines;
+  }
+
+///\brief what is known of the place chosen as the destination in this system
+auto overlay_feed_t::refresh_target_place(current_state_t const & state) -> void
+  {
+  bool const chosen{
+    status_destination_ and status_destination_->System == state.current_system_address_
+    and not status_destination_->Name.empty()
+  };
+  if(not chosen)
+    {
+    target_place_ = {};
+    return;
+    }
+  // read again now and then: flying close to a settlement for the first time is what records its owner
+  auto const now{std::chrono::steady_clock::now()};
+  if(target_place_.name == status_destination_->Name and now - target_place_read_ < market_refresh())
+    return;
+  target_place_read_ = now;
+  target_place_ = {.name = status_destination_->Name, .faction = {}, .type = {}};
+  if(auto station{db_.load_station(status_destination_->System, status_destination_->Name)}; not station)
+    spdlog::error("missions: {} could not be looked up: {}", status_destination_->Name, station.error().message());
+  else if(*station)
+    {
+    target_place_.faction = (*station)->controlling_faction;
+    target_place_.type = (*station)->station_type;
+    }
   }
 
 auto overlay_feed_t::build_supply_lines(
@@ -5037,6 +5069,7 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
       }
     );
 
+  refresh_target_place(state);
   if(auto settlement{build_settlement_lines(state)}; not settlement.empty())
     frame.blocks.push_back(
       overlay::block_t{.corner = overlay::corner_e::top_right, .ttl_ms = block_ttl_ms(), .lines = std::move(settlement)}

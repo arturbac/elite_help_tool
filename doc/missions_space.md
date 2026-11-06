@@ -14,7 +14,8 @@ passenger and the rest. On-foot job boards and ground conflict zones are their o
   those with less than 3 hours left turn red.
 - **Where to go**: arrows on the system map at the bodies and ports missions send you to. At a
   settlement, what to hand in here, what to do here, and the faction-wide jobs that count at any
-  settlement of that faction.
+  settlement of that faction. The same block shows for the
+  place chosen as the destination in this system, in your own ship or in a taxi, before you get there.
 - **Mission cargo**: the goods delivery missions still need against what is aboard, and the
   known markets and producers that supply them - "no source known" only for something a market could
   plausibly sell; a micro resource (Data downloaded off a terminal, Goods or Assets picked up or

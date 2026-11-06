@@ -152,6 +152,7 @@ private:
   ///\brief who holds the places the open missions point at - the journal does not say
   auto refresh_mission_places(current_state_t const & state) -> void;
   auto refresh_mission_distances(current_state_t const & state) -> void;
+  auto refresh_target_place(current_state_t const & state) -> void;
 
   ///\brief the ship under the crosshairs, read off without looking away from it
   [[nodiscard]]
@@ -296,6 +297,15 @@ private:
   ///\brief how far the place of each open mission is, by system and place, as the list is sorted
   std::map<std::pair<std::string, std::string>, mission_order::distance_t> mission_distance_;
   uint64_t distances_signature_{};
+  ///\brief the place chosen as the destination in this system, as the settlement block needs it
+  struct target_place_t
+    {
+    std::string name;
+    std::string faction;
+    std::string type;
+    };
+  target_place_t target_place_;
+  std::chrono::steady_clock::time_point target_place_read_{};
 
   ///\brief the interface the game has open, 0 when it is showing nothing but the cockpit
   uint32_t gui_focus_{};
