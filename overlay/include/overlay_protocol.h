@@ -129,6 +129,11 @@ struct line_t
   ///\brief an arrow before everything else on the line, turned this many degrees clockwise from straight up -
   /// straight up being straight ahead. A field an older layer skips, drawing the line without it
   std::optional<float> pointer;
+  ///\brief in block_t::full_lines: what a "... and N more" in place of this line would count, 0 a line never
+  /// given up
+  uint32_t more{};
+  ///\brief in block_t::full_lines: a heading, not shown without the line under it
+  bool with_next{};
   };
 
 ///\brief one point of a series, both coordinates already scaled to 0..1 by the tool
@@ -305,6 +310,11 @@ struct block_t
   /// 0 is no box - the grid across the band in picture_columns, which is also what an older layer draws
   float picture_box_width{};
   float picture_box_height{};
+  ///\brief the whole list, of which the layer draws in place of lines what the room between this stack and the
+  /// one above it holds - only it knows how tall the rest is. A field an older layer skips, drawing lines
+  std::vector<line_t> full_lines;
+  ///\brief the colour of the line saying how many more there are
+  uint32_t more_color{0xffffffu};
   };
 
 ///\brief how the layer lays the overlay out - sent by the tool with every frame

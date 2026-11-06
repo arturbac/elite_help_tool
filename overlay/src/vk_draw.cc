@@ -1,4 +1,5 @@
 #include "vk_draw.h"
+#include <line_fit.h>
 #include "vk_capture.h"
 #include "vk_keyboard.h"
 #include "vk_faces.h"
@@ -531,6 +532,9 @@ namespace
   /// once the widest line is reached - a mark measured against it would go to a line of its own even
   /// with the whole band free beside it
   thread_local float wrap_right{};
+  ///\brief how tall the rest of the stack was around a list that fits itself to the room, as of the last frame -
+  /// what stands under the list is drawn after it
+  thread_local float fitted_others{};
 
   [[nodiscard]]
   auto room_left() -> float
@@ -1575,6 +1579,7 @@ namespace
       ImGui::SetNextWindowSizeConstraints(ImVec2{0.f, 0.f}, ImVec2{width, display.y});
 
       ImVec2 size{};
+      float fitted_height{-1.f};
       if(ImGui::Begin(name, nullptr, flags))
         {
         draw_ground(data, layout);
@@ -1615,8 +1620,38 @@ namespace
             if(small)
               ImGui::PushFont(data.small_font);
 
-            for(overlay::line_t const & line: block.lines)
-              draw_line(data, line);
+            if(block.full_lines.empty())
+              for(overlay::line_t const & line: block.lines)
+                draw_line(data, line);
+            else
+              {
+              float const top{ImGui::GetCursorPosY()};
+              float const spacing{ImGui::GetStyle().ItemSpacing.y};
+              std::vector<overlay::fit_line_t> fit;
+              fit.reserve(block.full_lines.size());
+              for(overlay::line_t const & line: block.full_lines)
+                fit.push_back(
+                  overlay::fit_line_t{
+                    .height = ImGui::CalcTextSize(line.text.c_str(), nullptr, false, wrap_right).y + spacing,
+                    .more = line.more,
+                    .with_next = line.with_next
+                  }
+                );
+              float const whole{height_limit > 0.f ? height_limit : display.y - 2.f * layout.corner_margin};
+              size_t const shown{overlay::lines_that_fit(
+                fit, whole - fitted_others - ImGui::GetStyle().WindowPadding.y, ImGui::GetTextLineHeight() + spacing
+              )};
+              for(size_t ix{}; ix != shown; ++ix)
+                draw_line(data, block.full_lines[ix]);
+              if(shown != block.full_lines.size())
+                draw_line(
+                  data,
+                  overlay::line_t{
+                    .text = std::format("... and {} more", block.full_lines[shown].more), .color = block.more_color
+                  }
+                );
+              fitted_height = ImGui::GetCursorPosY() - top;
+              }
 
             // a chart wider than this is no more readable, only more of the view taken away
             float const chart_width{
@@ -1641,6 +1676,8 @@ namespace
               ImGui::PopFont();
             }
 
+        if(fitted_height >= 0.f)
+          fitted_others = ImGui::GetCursorPosY() - fitted_height;
         ImGui::PopTextWrapPos();
         size = ImGui::GetWindowSize();
         }

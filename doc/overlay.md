@@ -26,8 +26,11 @@ process carries no state of ours.
   middle of the screen. Both readouts stand where you look during a fight, clear of the crosshair.
 - **What stands where:** the system and its exploration work on the right, the station's market
   and mission cargo top right, the route, cargo, missions and what a death would cost on the left.
-  A long mission list is cut short, so it starts with the work still to do, then what waits to be
-  handed in, and each of the two goes from the nearest to where you are: light years first, then Ls.
+  The mission list takes as many rows as the room between the bottom left stack and the blocks above
+  it holds, so it grows and shrinks with them and does not run into them - a system at war, whose
+  settlements stand above, leaves it less. What does not fit is told as "... and N more", which is why it
+  starts with the work still to do, then what waits to be handed in, each of the two from the nearest
+  to where you are: light years first, then Ls. `overlay.lists.missions` is what an older layer shows.
 - **Last port:** where an escape pod would take you, with its distance
   in light years when its system's position is known. Only ports count: not on-foot settlements,
   fleet carriers, construction sites or the colonisation ship. It heads the block of the ships

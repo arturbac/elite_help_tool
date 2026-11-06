@@ -1207,7 +1207,8 @@ auto mission_wording(info::mission_t const & mission) -> std::string
 auto describe_missions(
   std::vector<info::mission_t> const & missions,
   std::map<std::pair<std::string, std::string>, std::string> const & owners,
-  std::map<std::pair<std::string, std::string>, mission_order::distance_t> const & distances
+  std::map<std::pair<std::string, std::string>, mission_order::distance_t> const & distances,
+  size_t limit
 ) -> std::vector<overlay::line_t>
   {
   std::vector<info::mission_t const *> open;
@@ -1287,7 +1288,7 @@ auto describe_missions(
   );
 
   size_t shown{};
-  size_t const mission_rows{rows_for(open.size(), listed_missions())};
+  size_t const mission_rows{rows_for(open.size(), limit)};
   for(group_t const & group: groups)
     {
     if(shown >= mission_rows)
@@ -1304,7 +1305,9 @@ auto describe_missions(
       overlay::line_t{
         .text = single_place ? std::format("{}  -  {}", group.system, with_owner(*group.rows.front(), *places.begin()))
                              : group.system,
-        .color = colour_heading()
+        .color = colour_heading(),
+        .more = uint32_t(open.size() - shown),
+        .with_next = true
       }
     );
 
@@ -1312,6 +1315,7 @@ auto describe_missions(
       {
       if(shown >= mission_rows)
         break;
+      uint32_t const still_to_come{uint32_t(open.size() - shown)};
       ++shown;
 
       auto const left{std::chrono::duration_cast<std::chrono::seconds>(mission->expiry - now)};
@@ -1329,7 +1333,8 @@ auto describe_missions(
             mission_wording(*mission)
           ),
           // green is ready to hand in, red is about to be lost
-          .color = left < expiry_warning() ? colour_expiring() : (done ? colour_first() : colour_plain())
+          .color = left < expiry_warning() ? colour_expiring() : (done ? colour_first() : colour_plain()),
+          .more = still_to_come
         }
       );
       }
@@ -5293,7 +5298,9 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
     );
 
   refresh_mission_distances(state);
-  if(auto missions{describe_missions(state.active_missions, place_owner_, mission_distance_)}; not missions.empty())
+  // the limit is for a layer that cannot fit the list itself; a newer one takes as much of the whole as has room
+  if(auto missions{describe_missions(state.active_missions, place_owner_, mission_distance_, listed_missions())};
+     not missions.empty())
     frame.blocks.push_back(
       overlay::block_t{
         .corner = overlay::corner_e::bottom_left,
@@ -5301,7 +5308,20 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
         .lines = std::move(missions),
         .charts = {},
         // a list read line by line, not glanced at
-        .text = overlay::text_e::small
+        .text = overlay::text_e::small,
+        .diagrams = {},
+        .pictures = {},
+        .picture_columns = 3u,
+        .beside = false,
+        .middle = false,
+        .middle_y = 0.f,
+        .middle_width = 0.f,
+        .picture_box_width = 0.f,
+        .picture_box_height = 0.f,
+        .full_lines = describe_missions(
+          state.active_missions, place_owner_, mission_distance_, state.active_missions.size()
+        ),
+        .more_color = colour_plain()
       }
     );
 
