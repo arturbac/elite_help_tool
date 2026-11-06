@@ -503,23 +503,6 @@ struct vision_settings_t
   uint32_t shot_jpeg_quality{90u};
   };
 
-///\brief the hot drop: approaches to ports in space read off the HUD and written down - an experiment, off by
-/// default. While in supercruise towards a port the tool asks the layer for the middle of the screen, reads the
-/// target's label - its distance and the time to it - and writes every approach with how it ended into
-/// hot_drop.jsonl; the overlay shows what the approaches so far say. See doc/hot_drop.md
-struct hot_drop_settings_t
-  {
-  bool record{false};
-  ///\brief a picture this often while the port is near, and this often further away
-  uint32_t near_every_ms{500u};
-  uint32_t far_every_ms{2000u};
-  double near_ls{100.0};
-  ///\brief the part of the middle screen read, its height as a share of the screen's, in the 16:9 shape - the
-  /// label stands beside the target's marker, near the middle when the ship points at the port. 0.45 of a 4K
-  /// screen is 1728 x 972, some 5 MB a picture
-  float size{0.45f};
-  };
-
 ///\brief a line on the overlay naming the game's graphics set the place wants - near a planet the cheap one,
 /// in space the sharp one - while the game's own file holds the other. See graphics_profile.h
 struct graphics_settings_t
@@ -564,7 +547,6 @@ struct settings_t
   backup_settings_t backup;
   bgs_settings_t bgs;
   vision_settings_t vision;
-  hot_drop_settings_t hot_drop;
   graphics_settings_t graphics;
   edworld_settings_t edworld;
   };

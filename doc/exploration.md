@@ -2,6 +2,10 @@
 
 ![The arrival/to-map/life panel, with a genus map of the bodies sampled](images/exploration_life.png)
 
+The *to map* and *life* blocks below, and the green ring round a planet's face on the system map, show
+only while the Exploration window is the current one in the tool and not minimized - the game may have the
+focus meanwhile. Choosing System info, Construction or any other window takes them off the overlay.
+
 The bottom right corner of the overlay follows the order of work in a new system:
 
 1. **arrival** — whether the arrival star was discovered before ("discovered before - jump on") or is
@@ -192,4 +196,5 @@ comes first; the cockpit's face comes before a scanner view painted by a filter.
 The face is made in a thread of its own the first time the map shows the body, and made again when a
 newer view comes in; it is written to `codex/faces/<body>.png` to be looked at - it is made again at
 every start, never read back - and handed to the overlay beside the
-socket. A body with life, whose flat ball is green, keeps its face and gets a green ring instead.
+socket. A body with life, whose flat ball is green, keeps its face and gets a green ring instead, shown
+while the Exploration window is the current one.

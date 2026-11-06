@@ -71,7 +71,6 @@ add_ut_test(file_io_ut.cc)
 add_ut_test(descent_ut.cc)
 
 # the recorder of eht_vision lives in its own library beside eht
-add_ut_test(hot_drop_ut.cc)
 add_ut_test(vision_ut.cc)
 target_link_libraries(vision_ut PRIVATE eht_vision_core)
 

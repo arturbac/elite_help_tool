@@ -248,6 +248,10 @@ auto main_window_t::publish_overlay() -> void
       construction_focus = construction_view_->selected_market();
     }
   overlay_feed_->set_construction_focus(construction_focus);
+  // the current window again, not the active one - the same reason
+  overlay_feed_->set_exploring(
+    system_view_ and mdi_area_->currentSubWindow() == system_view_ and not system_view_->isMinimized()
+  );
   if(ships_view_)
     ships_view_->refresh_ui();
   if(community_goal_view_)

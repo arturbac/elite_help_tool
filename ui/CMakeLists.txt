@@ -2,9 +2,6 @@ find_package(Qt6 REQUIRED COMPONENTS Widgets Charts #[[Sql]])
 # EDDN: HTTPS through Boost.Beast, the messages gzipped
 find_package(OpenSSL REQUIRED)
 find_package(ZLIB REQUIRED)
-# the hot drop reads the HUD's text with tesseract; without it the tool builds and the hot drop records nothing
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(TESSERACT IMPORTED_TARGET tesseract)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
@@ -31,13 +28,6 @@ target_link_libraries(elite_help_tool PRIVATE
   ZLIB::ZLIB
   # Qt6::Sql
   )
-if(TESSERACT_FOUND)
-  target_link_libraries(elite_help_tool PRIVATE PkgConfig::TESSERACT)
-  target_compile_definitions(elite_help_tool PRIVATE EHT_HAVE_TESSERACT=1)
-else()
-  message(STATUS "tesseract not found - the hot drop cannot read the HUD")
-  target_compile_definitions(elite_help_tool PRIVATE EHT_HAVE_TESSERACT=0)
-endif()
 target_sources(elite_help_tool
     PUBLIC FILE_SET headers
         TYPE HEADERS
@@ -67,7 +57,6 @@ target_sources(elite_help_tool
             include/overlay_feed.h
             include/sky_album.h
             include/glare_watch.h
-            include/hud_reader.h
             include/sensor_watch.h
             include/netstate_watch.h
             include/eht_extension.h

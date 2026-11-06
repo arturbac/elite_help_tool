@@ -21,8 +21,6 @@
 #include "sensor_watch.h"
 #include "netstate_watch.h"
 #include <vision_shots.h>
-#include "hud_reader.h"
-#include <hot_drop.h>
 #include <server_link.h>
 #include <instance_players.h>
 #include <graphics_profile.h>
@@ -66,6 +64,9 @@ public:
 
   ///\brief the construction site chosen in the Construction window while that window is the active one, 0 for none
   auto set_construction_focus(uint64_t market_id) -> void { construction_focus_ = market_id; }
+
+  ///\brief the Exploration window is the current one - the overlay says what to map and what lives where only then
+  auto set_exploring(bool exploring) -> void { exploring_ = exploring; }
 
   ///\brief the next step of the neutron highway as a built-in extension sees it, empty for the tool's own
   auto set_extension_hint(std::string hint) -> void { extension_hint_ = std::move(hint); }
@@ -338,28 +339,6 @@ private:
   planet_faces_t faces_;
   approach_views_t approach_;
   uint64_t approach_capture_id_{};
-  ///\brief the hot drop: the approach to a port in space followed, the reader of the HUD's label - made once the
-  /// hot drop is switched on - and the approaches written down so far, read once from hot_drop.jsonl
-  hot_drop::tracker_t hot_drop_;
-  std::unique_ptr<hud_reader_t> hud_reader_;
-  uint64_t hot_drop_asked_ms_{};
-  uint64_t hot_drop_drops_seen_{};
-  bool hot_drop_loaded_{};
-  bool hot_drop_unreadable_told_{};
-  std::vector<hot_drop::record_t> hot_drop_records_;
-  ///\brief the approach ended last, shown for a while after
-  std::optional<hot_drop::record_t> hot_drop_last_;
-  std::chrono::steady_clock::time_point hot_drop_last_at_{};
-  ///\brief the port flown to as the hot drop needs it - none when not in supercruise towards a port in space,
-  /// or in a taxi or another's ship
-  [[nodiscard]]
-  auto hot_drop_port(current_state_t const & state) const -> std::optional<hot_drop::context_t>;
-  ///\brief follows the approach and asks for the next picture of the label - into capture_ when it is time
-  auto track_hot_drop(current_state_t const & state) -> void;
-  ///\brief what the approaches so far say of a hot drop here, in this ship
-  [[nodiscard]]
-  auto build_hot_drop_lines(current_state_t const & state) const -> std::vector<overlay::line_t>;
-  auto hot_drop_done(hot_drop::attempt_t const & attempt) -> void;
 
   ///\brief the whole-screen pictures for eht_vision's recorder, asked for last so any other picture goes first
   vision::shot_clock_t shot_clock_;
@@ -443,6 +422,7 @@ private:
   uint64_t construction_changes_{~uint64_t{}};
   std::chrono::steady_clock::time_point construction_read_{};
   uint64_t construction_focus_{};
+  bool exploring_{};
   uint64_t construction_port_{};
   std::vector<info::market_entry_t> construction_port_market_;
   std::map<std::string, int64_t> carrier_cargo_;

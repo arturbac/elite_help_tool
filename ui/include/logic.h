@@ -143,8 +143,6 @@ struct current_state_t : public generic_state_t
   ///\brief counts the drops out of supercruise, so whoever is interested can tell a new one came - and of them
   /// the drops at the destination flown to, with the last one's port
   uint64_t supercruise_exits_seen_{};
-  uint64_t destination_drops_seen_{};
-  events::supercruise_destination_drop_t last_destination_drop_;
 
   ///\brief counts the scans seen live, so whoever is interested can tell a new one came
   uint64_t organic_scans_seen_{};

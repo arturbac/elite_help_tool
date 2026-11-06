@@ -23,7 +23,6 @@ target_sources(eht
   fleet.cc
   territory.cc
   glare.cc
-  hot_drop.cc
   planet_face.cc
   face_store.cc
   port_model.cc

@@ -1789,11 +1789,6 @@ void current_state_t::handle(std::chrono::sys_seconds timestamp, events::event_h
         }
       else if constexpr(std::same_as<T, events::supercruise_exit_t>)
         ++supercruise_exits_seen_;
-      else if constexpr(std::same_as<T, events::supercruise_destination_drop_t>)
-        {
-        ++destination_drops_seen_;
-        last_destination_drop_ = std::move(event);
-        }
       else if constexpr(std::same_as<T, events::bounty_t>)
         {
         last_bounty = event;
