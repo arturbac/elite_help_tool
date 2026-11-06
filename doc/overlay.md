@@ -30,8 +30,8 @@ process carries no state of ours.
   handed in, and each of the two goes from the nearest to where you are: light years first, then Ls.
 - **Last port:** where an escape pod would take you, with its distance
   in light years when its system's position is known. Only ports count: not on-foot settlements,
-  fleet carriers, construction sites or the colonisation ship. It stands with the carriers and the
-  ships in transit under the ships nearby, in the same block.
+  fleet carriers, construction sites or the colonisation ship. It heads the block of the ships
+  nearby, with the carriers and the ships in transit under them.
 - **System map:** the bodies and ports of the current system, drawn in the game's colours, with
   arrows at the places open missions send you to. Stars and planets are small lit balls: each planet
   and moon is lit from its star's side, water and ice shine a little, bare rock does not, and a star

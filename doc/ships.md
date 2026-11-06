@@ -5,8 +5,8 @@
 - **The Ships window** lists every ship you own: its name, type and ID, the system and port it stands
   at, how far that is from where you are, its value, and whether it is the one you fly, in transit
   (with the arrival time) or standing on a carrier. The nearest come first.
-- **On the overlay**, bottom left, in a column of its own beside the stack there, with the last port,
-  the carriers and the ships in transit under them, the ships within
+- **On the overlay**, bottom left, in a column of its own beside the stack there, under the last port
+  and above the carriers and the ships in transit, the ships within
   100 ly of you (`overlay.ships_radius_ly`, 0 turns it off) that you have flown in the last 30 days
   (`overlay.ships_flown_days`, 0 lists every one nearby), the nearest first, up to 8 rows
   (`overlay.lists.ships`). A ship counts as flown once you have undocked in it yourself, not in a taxi

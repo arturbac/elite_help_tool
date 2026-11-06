@@ -3998,10 +3998,9 @@ auto describe_carrier(info::carrier_state_t const & c, std::chrono::sys_seconds 
   }
   }  // namespace
 
-auto overlay_feed_t::build_logistics_lines(std::array<double, 3> const & here) const -> std::vector<overlay::line_t>
+auto overlay_feed_t::build_last_port_lines(std::array<double, 3> const & here) const -> std::vector<overlay::line_t>
   {
   auto & db{const_cast<database_storage_t &>(db_)};
-  auto const now{std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())};
 
   std::vector<overlay::line_t> lines;
 
@@ -4021,14 +4020,24 @@ auto overlay_feed_t::build_logistics_lines(std::array<double, 3> const & here) c
         double const ly{std::sqrt(dx * dx + dy * dy + dz * dz)};
         away = ly < 0.05 ? std::string{", here"} : std::format(", {:.1f} ly", ly);
         }
+    lines.push_back(overlay::line_t{.text = "last port:", .color = colour_heading()});
     lines.push_back(
       overlay::line_t{
-        .text
-        = std::format("last port: {}, {} ({}){}", (*port)->name, (*port)->system, (*port)->station_type, away),
+        .text = std::format("  {}, {} ({}){}", (*port)->name, (*port)->system, (*port)->station_type, away),
         .color = colour_plain()
       }
     );
     }
+
+  return lines;
+  }
+
+auto overlay_feed_t::build_logistics_lines(std::array<double, 3> const & here) const -> std::vector<overlay::line_t>
+  {
+  auto & db{const_cast<database_storage_t &>(db_)};
+  auto const now{std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())};
+
+  std::vector<overlay::line_t> lines;
 
   // one's own carrier and the squadron's: where each is, or where it goes and when it can jump again
   if(auto carriers{db.load_carrier_states(now, carrier_cooldown)}; carriers and not carriers->empty())
@@ -5109,8 +5118,9 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
 
   // our ships nearby - which one to go and take, or have brought over
   refresh_fleet(state);
-  auto ships{build_fleet_lines()};
-  // where one ends up and what could carry a ship over belong with the ships to choose from
+  // where one ends up on top, what could carry a ship over under the ships to choose from
+  auto ships{build_last_port_lines(state.system.system_location)};
+  std::ranges::move(build_fleet_lines(), std::back_inserter(ships));
   std::ranges::move(build_logistics_lines(state.system.system_location), std::back_inserter(ships));
   if(not ships.empty())
     frame.blocks.push_back(
