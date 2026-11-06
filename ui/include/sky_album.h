@@ -19,7 +19,8 @@ class QImage;
 /// Out of the jump the ship faces the arrival star, and after the surface scanner it still faces the
 /// planet it mapped. At those two moments the middle of the screen is a portrait, so it is taken quietly -
 /// no frame, no countdown - once per star and once per planet, and kept under the codex directory with a
-/// page of its own. Nothing is asked of the player, and the pictures are of this commander's own flight.
+/// page of its own. Nothing is asked of the player, and the pictures are of this commander's own flight;
+/// the page may show other accounts' albums beside them, signed, but only this account's are written here.
 class sky_album_t final
   {
 public:
@@ -88,6 +89,14 @@ public:
 
   ///\brief the file a picture of the body is kept in, named after the journal's moment it was taken for
   auto set_moment(std::chrono::sys_seconds at) -> void { moment_ = at; }
+
+  ///\brief writes the page again - another account's album changed
+  auto refresh_page() -> void
+    {
+    if(not loaded_)
+      load();
+    write_page();
+    }
 
   ///\brief where the page is, for opening it from the tool
   [[nodiscard]]

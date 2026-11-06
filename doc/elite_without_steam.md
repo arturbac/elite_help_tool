@@ -109,9 +109,23 @@ EHT_OVERLAY_SOCKET=$HOME/.local/share/elite_help_tool/overlay-alt.sock \
 EHT resolves `journal-dir`, the databases, `eht_settings.json`, `codex/` and `screenshots/` from
 the current directory, so start it from the account's directory, not from the build directory.
 
-## Sharing species knowledge between accounts
+## Sharing between accounts
 
 The species EHT guesses on a new world come from your own sampling history. To let one account
 use the other's finds, point `exploration.shared_galaxies` in each account's `eht_settings.json` at
-the other account's `galaxy.sqlite`. It is read-only, and the codex stays private to each
-commander.
+the other account's `galaxy.sqlite`. It is read-only.
+
+The codex and the sky album pages can show both accounts too. Name the account in `exploration.codex_name`
+and list the other one in `exploration.shared_codex`:
+
+```json
+"codex_name": "Sjona",
+"shared_codex": [ { "name": "Dunkan", "dir": "/path/to/the/other/account/codex" } ]
+```
+
+Each account goes on writing only its own directory, so no picture moves and two running tools never
+overwrite each other's lists; the pages read the other directory and sign every picture and find with
+its account. With `shared_codex` set an account also leaves its finds in `codex/finds.json` for the
+other one, so the other account's finds appear once that account's tool has run. A page notices the
+other account's changes within five minutes. A body taken by both keeps both pictures, and each
+account still takes its own. Set the same way on both accounts, the two pages show the same album.

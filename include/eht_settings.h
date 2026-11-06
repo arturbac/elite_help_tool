@@ -194,6 +194,13 @@ struct overlay_settings_t
   overlay_sample_t sample;
   };
 
+///\brief another account's codex directory, and the name its pictures and finds are signed with
+struct shared_codex_t
+  {
+  std::string name;
+  std::string dir;
+  };
+
 ///\brief exploration - what is worth a landing and where the pictures of what was sampled go
 struct exploration_settings_t
   {
@@ -241,8 +248,13 @@ struct exploration_settings_t
   uint32_t capture_delay_ms{5000u};
   ///\brief where the pictures and the codex page are kept, relative to where the tool runs
   std::string codex_dir{"codex"};
-  ///\brief other accounts' galaxy.sqlite, read for their finds - the knowledge of species is shared, the codex not
+  ///\brief other accounts' galaxy.sqlite, read for their finds - what a species is guessed from
   std::vector<std::string> shared_galaxies{};
+  ///\brief other accounts' codex directories, shown on this one's codex and sky album pages - read only, each
+  /// account writes its own directory alone
+  std::vector<shared_codex_t> shared_codex{};
+  ///\brief the name this account's pictures and finds are signed with on pages shared with others
+  std::string codex_name{};
   uint32_t jpeg_quality{90u};
   ///\brief pictures of the surface scanner's view are kept per body and shown in the left band on the
   /// ground - its filters say where each genus grows, and the orbit is far from the Nomad

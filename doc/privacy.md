@@ -8,7 +8,8 @@ Status files. The galaxy in its databases is the galaxy *you* have flown, scanne
 That is what makes the knowledge yours: the species guessed on a new world come only from what you
 have sampled yourself, so the prediction learns from your own work and gets better the more you
 explore, instead of handing you someone else's answers. The only other source it will read is the
-`galaxy.sqlite` of another of your own accounts, if you point `exploration.shared_galaxies` at it -
+`galaxy.sqlite` of another of your own accounts, if you point `exploration.shared_galaxies` at it
+(`exploration.shared_codex` does the same for its pictures, on your own pages only) -
 and, only if you turn it on, the bar of your own fleet carrier as other commanders' tools send it to
 EDDN (below).
 

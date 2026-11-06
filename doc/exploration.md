@@ -107,7 +107,10 @@ since it comes from `Status.json` and no journal has it. Backing up means copyin
 directory and the journals.
 
 Settings are in the `exploration` section of `eht_settings.json`: `bio_worth`, `bio_bodies`,
-`candidates`, `capture`, `capture_size`, `codex_dir`, `jpeg_quality`.
+`candidates`, `capture`, `capture_size`, `codex_dir`, `jpeg_quality`, `codex_name`, `shared_codex`.
+
+Two accounts of your own can show one codex and one sky album: see
+[sharing between accounts](elite_without_steam.md#sharing-between-accounts).
 
 ## Sky album
 

@@ -1,6 +1,7 @@
 #include <picture_records.h>
 
 #include <json_glaze.h>
+#include <spdlog/spdlog.h>
 
 #include <algorithm>
 #include <cstdint>
@@ -10,6 +11,8 @@
 #include <optional>
 #include <ranges>
 #include <set>
+#include <sstream>
+#include <tuple>
 
 // named, not anonymous - glaze's reflection needs the types to have linkage
 namespace pictures::detail
@@ -122,6 +125,28 @@ auto readable(std::string_view safe) -> std::string
   std::string text{safe};
   std::ranges::replace(text, '_', ' ');
   return text;
+  }
+
+constexpr std::string_view codex_list{"pictures.json"};
+constexpr std::string_view sky_list{"sky/sky.json"};
+constexpr std::string_view finds_list{"finds.json"};
+
+///\brief a list another account wrote: not there yet is ordinary, unreadable is said, and either way the page goes on
+template<typename record_t>
+[[nodiscard]]
+auto read_list(std::filesystem::path const & path) -> std::vector<record_t>
+  {
+  std::error_code ec;
+  if(not std::filesystem::exists(path, ec))
+    return {};
+  std::vector<record_t> records;
+  std::string buffer;
+  if(auto const err{glz::read_file_json<glz::opts{.error_on_unknown_keys = false}>(records, path.string(), buffer)}; err)
+    {
+    spdlog::warn("codex: {} could not be read, the page goes without it", path.string());
+    return {};
+    }
+  return records;
   }
 
 ///\brief what the journals say of the moments the pictures were taken for, read in one pass
@@ -267,6 +292,96 @@ auto pictures_under(std::filesystem::path const & codex_dir, std::string_view su
       files.push_back(entry.path().lexically_relative(codex_dir).generic_string());
   std::ranges::sort(files);
   return files;
+  }
+
+auto read_codex_list(std::filesystem::path const & codex_dir) -> std::vector<codex_record_t>
+  { return read_list<codex_record_t>(codex_dir / codex_list); }
+
+auto read_sky_list(std::filesystem::path const & codex_dir) -> std::vector<sky_record_t>
+  { return read_list<sky_record_t>(codex_dir / sky_list); }
+
+auto read_finds(std::filesystem::path const & codex_dir) -> std::vector<bio::find_t>
+  { return read_list<bio::find_t>(codex_dir / finds_list); }
+
+auto write_finds(std::filesystem::path const & codex_dir, std::span<bio::find_t const> finds) -> bool
+  {
+  std::string text;
+  if(glz::write<glz::opts{.prettify = true}>(finds, text))
+    {
+    spdlog::error("codex: the finds could not be put into words");
+    return false;
+    }
+  text += '\n';
+
+  std::filesystem::path const list{codex_dir / finds_list};
+    {
+    std::ifstream in{list, std::ios::binary};
+    std::ostringstream present;
+    present << in.rdbuf();
+    if(in and present.str() == text)
+      return true;
+    }
+
+  std::filesystem::path const partial{list.string() + ".part"};
+    {
+    std::ofstream out{partial, std::ios::binary | std::ios::trunc};
+    out << text;
+    if(not out)
+      {
+      spdlog::error("codex: could not write {}", partial.string());
+      return false;
+      }
+    }
+  std::error_code ec;
+  std::filesystem::rename(partial, list, ec);
+  if(ec)
+    spdlog::error("codex: could not put {} in place: {}", list.string(), ec.message());
+  return not ec;
+  }
+
+auto seen_from(std::filesystem::path const & own_dir, std::filesystem::path const & other_dir, std::string_view file)
+  -> std::string
+  { return (other_dir / file).lexically_relative(own_dir).generic_string(); }
+
+auto merge_finds(std::vector<signed_find_t> & into, std::span<bio::find_t const> from, std::string_view who) -> void
+  {
+  for(bio::find_t const & find: from)
+    {
+    auto const same{std::ranges::find_if(
+      into,
+      [&](signed_find_t const & known)
+      {
+        return known.find.system_address == find.system_address and known.find.body_id == find.body_id
+               and known.find.species == find.species;
+      }
+    )};
+    if(same == into.end())
+      into.push_back(signed_find_t{.find = find, .who = std::string{who}});
+    else
+      {
+      same->find.sampled = same->find.sampled or find.sampled;
+      if(not who.empty() and same->who != who)
+        same->who += std::format(", {}", who);
+      }
+    }
+  std::ranges::sort(
+    into,
+    {},
+    [](signed_find_t const & entry)
+    { return std::tie(entry.find.genus, entry.find.species, entry.find.system_name, entry.find.body_name); }
+  );
+  }
+
+auto lists_stamp(std::filesystem::path const & codex_dir) -> std::filesystem::file_time_type
+  {
+  std::filesystem::file_time_type newest{};
+  for(std::string_view const list: {codex_list, sky_list, finds_list})
+    {
+    std::error_code ec;
+    if(auto const at{std::filesystem::last_write_time(codex_dir / list, ec)}; not ec)
+      newest = std::max(newest, at);
+    }
+  return newest;
   }
 
 auto rebuild_codex(std::vector<std::string> const & files, std::filesystem::path const & journal_dir)

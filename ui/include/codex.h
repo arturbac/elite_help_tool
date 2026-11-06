@@ -25,12 +25,13 @@ auto spool_dir() -> std::filesystem::path;
 auto file_safe(std::string_view text) -> std::string;
   }  // namespace codex_files
 
-///\brief the commander's own codex - every species sampled, where it grew, and what it looked like
+///\brief the commander's codex - every species sampled, where it grew, and what it looked like
 ///
 /// A directory beside the tool holds a page, index.html, written from the database: genus by genus,
 /// species by species, every world each was found on with its system, its sky and its star, and the
 /// pictures the overlay took at the moment of sampling. The pictures and their descriptions live in the
 /// directory itself, not in the database - a database can be rebuilt from journals, a picture cannot.
+/// Each account writes its own directory alone; the page may show other accounts' pictures and finds, signed.
 class codex_t final
   {
 public:
@@ -50,6 +51,8 @@ public:
     std::string scan;
     double latitude{};
     double longitude{};
+    ///\brief the account signed under it on a shared page - not part of the list
+    std::string who{};
     };
 
   codex_t();

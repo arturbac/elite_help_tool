@@ -383,28 +383,69 @@ auto codex_t::write_page(database_storage_t & db) -> void
     spdlog::error("codex: the finds could not be read");
     return;
     }
-  std::vector<bio::find_t> const & finds{*finds_read};
-  uint32_t const worth{eht::settings()->exploration.bio_worth};
+  auto const cfg{eht::settings()};
+  uint32_t const worth{cfg->exploration.bio_worth};
+
+  // the other accounts' databases are out of reach, so each leaves its finds beside its pictures, and each
+  // writes only its own directory
+  bool const shared{not cfg->exploration.shared_codex.empty()};
+  std::string const own_name{shared ? cfg->exploration.codex_name : std::string{}};
+  if(shared)
+    pictures::write_finds(codex_dir(), *finds_read);
+  std::vector<pictures::signed_find_t> finds;
+  pictures::merge_finds(finds, *finds_read, own_name);
+  std::vector<picture_t> shown{pictures_};
+  for(picture_t & picture: shown)
+    picture.who = own_name;
+  std::string accounts;
+  if(shared)
+    accounts = std::format(" &middot; {} {}", html(own_name), finds_read->size());
+  for(eht::shared_codex_t const & other: cfg->exploration.shared_codex)
+    {
+    std::vector<bio::find_t> const theirs{pictures::read_finds(other.dir)};
+    pictures::merge_finds(finds, theirs, other.name);
+    accounts += std::format(" &middot; {} {}", html(other.name), theirs.size());
+    for(pictures::codex_record_t & record: pictures::read_codex_list(other.dir))
+      shown.push_back(picture_t{
+        .file = pictures::seen_from(codex_dir(), other.dir, record.file),
+        .taken = std::move(record.taken),
+        .system = std::move(record.system),
+        .body = std::move(record.body),
+        .system_address = record.system_address,
+        .body_id = record.body_id,
+        .genus = std::move(record.genus),
+        .species = std::move(record.species),
+        .variant = std::move(record.variant),
+        .scan = std::move(record.scan),
+        .latitude = 0.0,
+        .longitude = 0.0,
+        .who = other.name
+      });
+    }
+  // the names begin with the moment, whichever directory they are in
+  std::ranges::stable_sort(
+    shown, {}, [](picture_t const & picture) { return std::filesystem::path{picture.file}.filename().string(); }
+  );
 
   // species -> its finds and its pictures, families in alphabetical order
   struct species_entry_t
     {
-    std::vector<bio::find_t const *> finds;
+    std::vector<pictures::signed_find_t const *> finds;
     std::vector<picture_t const *> pictures;
     };
 
   std::map<std::string, std::map<std::string, species_entry_t>> families;
-  for(bio::find_t const & find: finds)
-    families[family_of(find.species)][find.species].finds.push_back(&find);
-  for(picture_t const & picture: pictures_)
+  for(pictures::signed_find_t const & entry: finds)
+    families[family_of(entry.find.species)][entry.find.species].finds.push_back(&entry);
+  for(picture_t const & picture: shown)
     families[family_of(picture.species)][picture.species].pictures.push_back(&picture);
 
   std::set<std::string> known;
   size_t analysed{};
-  for(bio::find_t const & find: finds)
+  for(pictures::signed_find_t const & entry: finds)
     {
-    known.insert(find.species);
-    analysed += find.sampled ? 1u : 0u;
+    known.insert(entry.find.species);
+    analysed += entry.find.sampled ? 1u : 0u;
     }
 
   std::ostringstream out;
@@ -414,12 +455,13 @@ auto codex_t::write_page(database_storage_t & db) -> void
       << page_style << "</style></head><body>\n";
   out << std::format(
     "<header><h1>Codex of finds</h1><div class=\"summary\">{} species of {} priced, {} finds, {} analysed "
-    "here, {} pictures - written {:%Y-%m-%d %H:%M} UTC</div></header>\n",
+    "here, {} pictures{} - written {:%Y-%m-%d %H:%M} UTC</div></header>\n",
     known.size(),
     organic_values.size(),
     finds.size(),
     analysed,
-    pictures_.size(),
+    shown.size(),
+    accounts,
     std::chrono::floor<std::chrono::minutes>(std::chrono::system_clock::now())
   );
 
@@ -475,14 +517,15 @@ auto codex_t::write_page(database_storage_t & db) -> void
         range_t temperature;
         range_t gravity;
         size_t done{};
-        for(bio::find_t const * find: entry->finds)
+        for(pictures::signed_find_t const * shown_find: entry->finds)
           {
-          ++atmospheres[find->atmosphere_type];
-          ++classes[find->planet_class];
-          ++stars[find->star_type.empty() ? std::string{"?"} : find->star_type];
-          temperature.add(find->surface_temperature);
-          gravity.add(find->surface_gravity / 9.80665);
-          done += find->sampled ? 1u : 0u;
+          bio::find_t const & find{shown_find->find};
+          ++atmospheres[find.atmosphere_type];
+          ++classes[find.planet_class];
+          ++stars[find.star_type.empty() ? std::string{"?"} : find.star_type];
+          temperature.add(find.surface_temperature);
+          gravity.add(find.surface_gravity / 9.80665);
+          done += find.sampled ? 1u : 0u;
           }
         out << std::format(
           "<div class=\"facts\"><b>{} finds</b>{} &middot; {:.0f}-{:.0f} K &middot; {:.2f}-{:.2f} g<br>"
@@ -505,7 +548,7 @@ auto codex_t::write_page(database_storage_t & db) -> void
         for(picture_t const * picture: entry->pictures)
           out << std::format(
             "<figure><a href=\"{0}\"><img loading=\"lazy\" src=\"{0}\" alt=\"{1}\"></a>"
-            "<figcaption>{1}<br>{2} {3}<br>{4} &middot; {5}</figcaption></figure>",
+            "<figcaption>{1}<br>{2} {3}<br>{4} &middot; {5}{6}</figcaption></figure>",
             html(picture->file),
             html(picture->variant.empty() ? picture->species : picture->variant),
             html(picture->system),
@@ -515,7 +558,8 @@ auto codex_t::write_page(database_storage_t & db) -> void
                 : picture->body
             ),
             html(picture->taken),
-            html(picture->scan)
+            html(picture->scan),
+            picture->who.empty() ? std::string{} : " &middot; " + html(picture->who)
           );
         out << "</div>\n";
         }
@@ -523,22 +567,26 @@ auto codex_t::write_page(database_storage_t & db) -> void
       if(not entry->finds.empty())
         {
         out << "<details><summary>where</summary><table><tr><th>system</th><th>body</th><th>world</th>"
-               "<th>sky</th><th>K</th><th>g</th><th>atm</th><th>star</th><th>ls</th><th></th></tr>\n";
-        for(bio::find_t const * find: entry->finds)
+               "<th>sky</th><th>K</th><th>g</th><th>atm</th><th>star</th><th>ls</th><th></th><th></th></tr>\n";
+        for(pictures::signed_find_t const * shown_find: entry->finds)
+          {
+          bio::find_t const & find{shown_find->find};
           out << std::format(
             "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{:.0f}</td><td>{:.2f}</td><td>{:.3f}</td>"
-            "<td>{}</td><td>{:.0f}</td><td>{}</td></tr>\n",
-            html(find->system_name),
-            html(find->body_name),
-            html(find->planet_class),
-            html(find->atmosphere_type),
-            find->surface_temperature,
-            find->surface_gravity / 9.80665,
-            find->surface_pressure / 101325.0,
-            html(find->star_type),
-            find->distance_from_arrival_ls,
-            find->sampled ? "analysed" : ""
+            "<td>{}</td><td>{:.0f}</td><td>{}</td><td>{}</td></tr>\n",
+            html(find.system_name),
+            html(find.body_name),
+            html(find.planet_class),
+            html(find.atmosphere_type),
+            find.surface_temperature,
+            find.surface_gravity / 9.80665,
+            find.surface_pressure / 101325.0,
+            html(find.star_type),
+            find.distance_from_arrival_ls,
+            find.sampled ? "analysed" : "",
+            html(shown_find->who)
           );
+          }
         out << "</table></details>\n";
         }
       out << "</section>\n";
@@ -581,5 +629,5 @@ auto codex_t::write_page(database_storage_t & db) -> void
   if(ec)
     spdlog::error("codex: could not put {} in place: {}", target.string(), ec.message());
   else
-    spdlog::info("codex: {} written, {} species, {} pictures", target.string(), known.size(), pictures_.size());
+    spdlog::info("codex: {} written, {} species, {} pictures", target.string(), known.size(), shown.size());
   }

@@ -18,7 +18,7 @@ EHT (Elite Help Tool) is a companion for Elite Dangerous that follows the game's
 - **[Community goals](doc/community_goals.md)**: your contribution to each goal, your percentile band and whether it reaches the top 50% or top 75% bracket, with the time left.
 - **[Colonisation](doc/colonisation.md)**: what a construction site still needs and who can supply it, tracked from every docking and delivery.
 - **[Fleet carriers](doc/fleet_carriers.md)** and **[your ships](doc/ships.md)**: where each one is, where it is going, what is on board.
-- **[Exploration and exobiology](doc/exploration.md)**: what is worth mapping, species prediction from your own sampling history, notable stellar phenomena flagged on arrival, an automatic photo codex and sky album. And a curiosity from the game's own sales: [the bodies you never scanned are paid for too](doc/unscanned_bodies.md).
+- **[Exploration and exobiology](doc/exploration.md)**: what is worth mapping, species prediction from your own sampling history, notable stellar phenomena flagged on arrival, an automatic photo codex and sky album, shared between your own accounts if you want. And a curiosity from the game's own sales: [the bodies you never scanned are paid for too](doc/unscanned_bodies.md).
 - **[Surface navigation](doc/surface_navigation.md)** to a place given as coordinates, or to a codex entry.
 - **[Neutron routes](doc/neutron_routes.md)**: following a route plotted by Spansh.
 - **[Hot drop](doc/hot_drop.md)**: an experiment that reads the distance and the time to a port off the HUD in supercruise and learns, port by port and ship by ship, how far out overspeed still lets Supercruise Assist drop at the port.

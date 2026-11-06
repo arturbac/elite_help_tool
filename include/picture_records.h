@@ -1,8 +1,11 @@
 #pragma once
 
+#include <biology.h>
+
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -79,4 +82,41 @@ auto rebuild_sky(std::vector<std::string> const & files, std::filesystem::path c
 ///\brief the pictures under a directory of the codex, relative to the codex directory, in the order of their names
 [[nodiscard]]
 auto pictures_under(std::filesystem::path const & codex_dir, std::string_view sub) -> std::vector<std::string>;
+
+///\brief the list of samples' pictures in a codex directory - none when it is missing or cannot be read
+[[nodiscard]]
+auto read_codex_list(std::filesystem::path const & codex_dir) -> std::vector<codex_record_t>;
+
+///\brief the sky album's list in a codex directory - none when it is missing or cannot be read
+[[nodiscard]]
+auto read_sky_list(std::filesystem::path const & codex_dir) -> std::vector<sky_record_t>;
+
+///\brief the finds an account left in its codex directory for the others - none when it has not yet
+[[nodiscard]]
+auto read_finds(std::filesystem::path const & codex_dir) -> std::vector<bio::find_t>;
+
+///\brief leaves the finds in the codex directory for the other accounts, whose own databases are out of reach
+///\detail a list that did not change is not touched, so accounts watching each other's lists do not keep each
+/// other writing
+auto write_finds(std::filesystem::path const & codex_dir, std::span<bio::find_t const> finds) -> bool;
+
+///\brief a file of another codex directory as a page in this one reaches it
+[[nodiscard]]
+auto seen_from(std::filesystem::path const & own_dir, std::filesystem::path const & other_dir, std::string_view file)
+  -> std::string;
+
+///\brief a find with the accounts that made it
+struct signed_find_t
+  {
+  bio::find_t find;
+  std::string who;
+  };
+
+///\brief adds an account's finds, in the order the codex lists them
+///\detail two accounts on the same body and species are one find, signed by both, and analysed if either did
+auto merge_finds(std::vector<signed_find_t> & into, std::span<bio::find_t const> from, std::string_view who) -> void;
+
+///\brief when a codex directory's lists last changed - what tells a page there is something new to show
+[[nodiscard]]
+auto lists_stamp(std::filesystem::path const & codex_dir) -> std::filesystem::file_time_type;
   }  // namespace pictures

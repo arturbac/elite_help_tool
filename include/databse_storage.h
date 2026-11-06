@@ -485,8 +485,8 @@ struct database_storage_t
   auto load_species_history() -> expected_ec<std::vector<bio::species_record_t>>;
 
   ///\brief the same out of another account's galaxy.sqlite, opened read-only for the reading alone
-  ///\detail the knowledge of species is shared between accounts while the codex is not - so the other
-  /// galaxy is read, never written, and never attached to this connection
+  ///\detail the knowledge of species is shared between accounts - so the other galaxy is read, never written,
+  /// and never attached to this connection
   [[nodiscard]]
   static auto load_species_history_from(std::string const & galaxy_path)
     -> expected_ec<std::vector<bio::species_record_t>>;

@@ -23,6 +23,80 @@ auto main() -> int
     );
   };
 
+  "another account's lists"_test = []
+  {
+    std::filesystem::path const dir{std::filesystem::temp_directory_path() / "eht_picture_records_shared_ut"};
+    std::filesystem::create_directories(dir / "sky");
+    expect(pictures::read_finds(dir).empty()) << "an account that has left none yet is ordinary";
+
+    expect(
+      pictures::seen_from("/games/eht-sjona/codex", "/games/eht/codex", "sky/Leamue/1.jpg")
+      == std::string{"../../eht/codex/sky/Leamue/1.jpg"}
+    );
+
+    bio::find_t find{};
+    find.genus = "Aleoida";
+    find.species = "Aleoida Coronamus";
+    find.system_address = 77u;
+    find.body_id = 1u;
+    std::vector<bio::find_t> const finds{find};
+    expect(pictures::write_finds(dir, finds));
+    auto const read{pictures::read_finds(dir)};
+    expect(fatal(read.size() == 1_ul));
+    expect(read[0].species == std::string{"Aleoida Coronamus"});
+    expect(read[0].system_address == 77_ul);
+
+    // the same finds again leave the file alone, or two accounts would wake each other for ever
+    auto const stamp{pictures::lists_stamp(dir)};
+    std::filesystem::last_write_time(dir / "finds.json", stamp - 1h);
+    auto const older{pictures::lists_stamp(dir)};
+    expect(pictures::write_finds(dir, finds));
+    expect(pictures::lists_stamp(dir) == older);
+
+    {
+    std::ofstream out{dir / "sky" / "sky.json", std::ios::trunc};
+    out << R"([{"file":"sky/A/1.jpg","taken":"t","kind":"star","system":"A","body":"A","detail":"d","first":true}])";
+    }
+    auto const sky{pictures::read_sky_list(dir)};
+    expect(fatal(sky.size() == 1_ul));
+    expect(sky[0].first);
+    {
+    std::ofstream out{dir / "pictures.json", std::ios::trunc};
+    out << "not a list";
+    }
+    expect(pictures::read_codex_list(dir).empty()) << "a broken list costs only itself";
+
+    std::error_code ec;
+    std::filesystem::remove(dir / "finds.json", ec);
+    std::filesystem::remove(dir / "pictures.json", ec);
+    std::filesystem::remove(dir / "sky" / "sky.json", ec);
+  };
+
+  "finds of two accounts"_test = []
+  {
+    bio::find_t common{};
+    common.genus = "Bacterium";
+    common.species = "Bacterium Acies";
+    common.system_address = 5u;
+    common.body_id = 2u;
+    bio::find_t theirs{common};
+    theirs.sampled = true;
+    bio::find_t earlier{common};
+    earlier.genus = "Aleoida";
+    earlier.species = "Aleoida Coronamus";
+
+    std::vector<pictures::signed_find_t> finds;
+    std::vector<bio::find_t> const own{common};
+    std::vector<bio::find_t> const other{theirs, earlier};
+    pictures::merge_finds(finds, own, "Sjona");
+    pictures::merge_finds(finds, other, "Dunkan");
+    expect(fatal(finds.size() == 2_ul));
+    expect(finds[0].find.genus == std::string{"Aleoida"}) << "in the order the codex lists them";
+    expect(finds[0].who == std::string{"Dunkan"});
+    expect(finds[1].who == std::string{"Sjona, Dunkan"});
+    expect(finds[1].find.sampled) << "analysed if either did";
+  };
+
   "rebuilt from the journals"_test = []
   {
     std::filesystem::path const dir{std::filesystem::temp_directory_path() / "eht_picture_records_ut"};

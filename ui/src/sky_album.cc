@@ -367,23 +367,56 @@ auto sky_album_t::write_page() const -> void
     "@media (max-width:480px){.grid{grid-template-columns:1fr}}\n"
     "</style></head><body>\n<h1>Sky album</h1>\n"
   };
-  size_t const stars{static_cast<size_t>(std::ranges::count(entries_, std::string{"star"}, &entry_t::kind))};
+  // the other accounts' albums are read as they stand - each account writes only its own
+  struct shown_t
+    {
+    entry_t entry;
+    std::string who;
+    };
+  auto const cfg{eht::settings()};
+  std::string const own_name{cfg->exploration.shared_codex.empty() ? std::string{} : cfg->exploration.codex_name};
+  std::vector<shown_t> shown;
+  for(entry_t const & entry: entries_)
+    shown.push_back(shown_t{.entry = entry, .who = own_name});
+  for(eht::shared_codex_t const & other: cfg->exploration.shared_codex)
+    for(pictures::sky_record_t & record: pictures::read_sky_list(other.dir))
+      shown.push_back(shown_t{
+        .entry = entry_t{
+          .file = pictures::seen_from(codex_dir(), other.dir, record.file),
+          .taken = std::move(record.taken),
+          .kind = std::move(record.kind),
+          .system = std::move(record.system),
+          .body = std::move(record.body),
+          .detail = std::move(record.detail),
+          .first = record.first
+        },
+        .who = other.name
+      });
+  // the names begin with the moment, whichever directory they are in
+  std::ranges::stable_sort(
+    shown, {}, [](shown_t const & picture) { return std::filesystem::path{picture.entry.file}.filename().string(); }
+  );
+
+  size_t const stars{
+    static_cast<size_t>(std::ranges::count_if(shown, [](shown_t const & picture) { return picture.entry.kind == "star"; }))
+  };
   html += std::format(
     "<p class=\"lead\">{} stars and {} planets, taken as the ship looked at them - the newest first.</p>\n"
     "<div class=\"grid\">\n",
     stars,
-    entries_.size() - stars
+    shown.size() - stars
   );
-  for(entry_t const & entry: entries_ | std::views::reverse)
+  for(shown_t const & picture: shown | std::views::reverse)
     html += std::format(
       "<figure class=\"card\" style=\"margin:0\"><a href=\"{0}\"><img src=\"{0}\" loading=\"lazy\" alt=\"{1}\"></a>"
-      "<div><div class=\"name\">{1}{2}</div><div>{3}</div><div class=\"meta\">{4} - {5}</div></div></figure>\n",
-      escaped(entry.file),
-      escaped(entry.body),
-      entry.first ? " <span class=\"first\">first discovery</span>" : "",
-      escaped(entry.detail),
-      escaped(entry.system),
-      escaped(entry.taken)
+      "<div><div class=\"name\">{1}{2}</div><div>{3}</div><div class=\"meta\">{4} - {5}{6}</div></div></figure>\n",
+      escaped(picture.entry.file),
+      escaped(picture.entry.body),
+      picture.entry.first ? " <span class=\"first\">first discovery</span>" : "",
+      escaped(picture.entry.detail),
+      escaped(picture.entry.system),
+      escaped(picture.entry.taken),
+      picture.who.empty() ? std::string{} : " - " + escaped(picture.who)
     );
   html += "</div>\n</body></html>\n";
 
