@@ -77,13 +77,13 @@ suite<"system_index"> system_index_suite = []
     regions["Spoihee"]["Odin's Hold"] = 1u;
     std::array const rows{
       system_index::row_t{.address = 1u, .name = "Leamue BX-B d13-1906", .counts = "[S:1]", .href = "systems/a.html"},
-      system_index::row_t{.address = 2u, .name = "Spoihee QO-H c26-0", .counts = "[S:1, G:3]", .href = "systems/b.html", .picture = true, .life = true}
+      system_index::row_t{.address = 2u, .name = "Spoihee QO-H c26-0", .counts = "[S:1, G:3]", .href = "systems/b.html", .picture = true, .life = true, .first = true}
     };
     std::string const page{system_index::index_page(rows, regions)};
-    expect(page.contains("2 systems known, 1 with pictures, 1 with life"));
+    expect(page.contains("2 systems known, 1 with pictures, 1 with life, 1 with a first discovery"));
     expect(page.find("Odin&#39;s Hold") == std::string::npos);
     expect(page.find("Odin's Hold") < page.find(system_index::unknown_region));
-    expect(page.contains("<a href=\"systems/b.html\">Spoihee QO-H c26-0</a> &#128247; &#127807;"));
+    expect(page.contains("<a href=\"systems/b.html\">Spoihee QO-H c26-0</a> &#128247; &#127807; &#11088;"));
     expect(page.contains("[S:1, G:3]"));
   };
 

@@ -9,12 +9,14 @@
 #include <system_diagram.h>
 #include <system_index.h>
 
+#include <simple_enum/simple_enum.hpp>
 #include <spdlog/spdlog.h>
 
 #include <sys/resource.h>
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <exception>
 #include <format>
 #include <fstream>
@@ -27,9 +29,11 @@
 namespace
   {
 ///\brief goes up when the pages change their shape, so all of them are made again
-constexpr uint32_t page_version{1u};
+constexpr uint32_t page_version{2u};
 constexpr std::string_view mark{"<!-- eht-album "};
 constexpr double standard_gravity{9.80665};
+constexpr double seconds_in_a_day{86400.0};
+constexpr double degrees_in_a_radian{57.29577951308232};
 
 struct shot_t
   {
@@ -147,12 +151,25 @@ auto body_card(star_system_t const & system, body_t const & body, gathered_t con
   std::string table;
   add_row(table, "from arrival", std::format("{:.0f} ls", body.distance_from_arrival_ls));
   std::string bio;
+  std::string air;
+  std::string badges;
+  if(not body.was_discovered)
+    badges = "first discovery";
+  auto const badge = [&badges](std::string_view text) { badges += std::format("{}{}", badges.empty() ? "" : ", ", text); };
+  auto const add_motion = [&](std::optional<double> rotation, bool locked)
+  {
+    if(body.orbital_period > 0.0)
+      add_row(table, "orbit", std::format("{:.1f} days", body.orbital_period / seconds_in_a_day));
+    if(rotation and *rotation != 0.0)
+      add_row(table, "rotation", std::format("{:.1f} days{}", std::abs(*rotation) / seconds_in_a_day, locked ? ", locked" : ""));
+  };
   if(auto const * star{std::get_if<star_details_t>(&body.details)}; star != nullptr)
     {
     title = std::format("{}{} {}", star->star_type, star->sub_class, star->luminosity);
     add_row(table, "mass", std::format("{:.2f} sol", star->stellar_mass));
     add_row(table, "temperature", std::format("{:.0f} K", star->surface_temperature));
     add_row(table, "age", std::format("{} My", star->age_my));
+    add_motion(star->rotation_period, false);
     }
   else
     {
@@ -168,6 +185,18 @@ auto body_card(star_system_t const & system, body_t const & body, gathered_t con
       add_row(table, "landable", "yes");
     if(planet.mapped)
       add_row(table, "mapped", "yes");
+    add_motion(planet.rotation_period, planet.tidal_lock);
+    if(planet.axial_tilt)
+      add_row(table, "axial tilt", std::format("{:.0f}\u00b0", std::abs(*planet.axial_tilt) * degrees_in_a_radian));
+    for(events::signal_t const & signal: planet.signals_)
+      if(signal.Type_Localised == "Geological" or signal.Type_Localised == "Human")
+        add_row(table, signal.Type_Localised == "Human" ? "human signals" : "geological signals", std::format("{}", signal.Count));
+    if(not planet.was_mapped)
+      badge("unmapped before");
+    if(planet.landable and not planet.was_footfalled)
+      badge("no footfall before");
+    for(events::atmosphere_element_t const & element: planet.atmosphere_composition)
+      air += std::format("{}{} {:.0f}%", air.empty() ? "" : ", ", simple_enum::enum_name(element.Name), element.Percent);
     std::string rings;
     for(ring_t const & ring: system.rings)
       if(ring.parent_body_id == body.body_id and ring.name.ends_with("Ring"))
@@ -207,11 +236,13 @@ auto body_card(star_system_t const & system, body_t const & body, gathered_t con
     bio += "</div>";
     }
   return std::format(
-    "<div class=\"card\" id=\"b{}\"><b>{}</b><div class=\"sub\">{}</div><table>{}</table>{}</div>\n",
+    "<div class=\"card\" id=\"b{}\"><b>{}</b><div class=\"sub\">{}</div>{}<table>{}</table>{}{}</div>\n",
     body.body_id,
     escaped(body.name.empty() ? system.name : body.name),
     escaped(title),
+    badges.empty() ? std::string{} : std::format("<div class=\"badges\">{}</div>", escaped(badges)),
     table,
+    air.empty() ? std::string{} : std::format("<div class=\"air\">{}</div>", escaped(air)),
     bio
   );
   }
@@ -429,15 +460,17 @@ auto system_album_t::pass(std::stop_token const & stop) -> void
     std::string const href{system_index::page_name(system.name)};
     bool picture{gathered.sky.contains(system.name)};
     bool life{};
+    bool first{};
     for(database_storage_t::album_body_t const & body: system.bodies)
       {
       std::pair const key{system.address, body.body_id};
+      first = first or (body.was_discovered == 0 and (body.star != 0 or not body.planet_class.empty()));
       picture = picture or gathered.samples.contains(key);
       life = life or gathered.finds.contains(key) or gathered.samples.contains(key);
       }
     rows.push_back(
       system_index::row_t{
-        .address = system.address, .name = system.name, .counts = counts_of(system), .href = href, .picture = picture, .life = life
+        .address = system.address, .name = system.name, .counts = counts_of(system), .href = href, .picture = picture, .life = life, .first = first
       }
     );
 

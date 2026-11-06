@@ -135,15 +135,18 @@ a menu or the galaxy map open at the moment an attempt falls due drops that atte
 
 The album itself is a book of the systems known, made out of the database, so a system visited long ago has
 its page like any other. `codex/sky.html`, which the *Sky* button opens, is the index: the galactic regions, in
-them the sectors folded, in them the systems, each with a mark for a picture and for life and the count of its
+them the sectors folded, in them the systems, each with a mark for a picture, for life and for a first discovery
+and the count of its
 bodies by kind - `[S:1, G:3, H:1, I:1, R:14]` is one star, three giants of any class, a high metal content world,
 an icy one and fourteen rocky ones; E is earthlike, W a water world, A an ammonia world, M metal rich, Ri rocky ice.
 The journal names a region only in a codex entry, so a sector stands under the region its entries name most
 often, and a sector without any under *Unknown region*.
 
 `codex/systems/<system>.html` has the picture of the system as on the overlay, its bodies linking to their cards,
-the pictures from the ship, and a card for each body, six in a row: its class, gravity, temperature, atmosphere,
-volcanism, rings and value, the species found on it and the pictures of the samples. In the codex the name of a
+the pictures from the ship, and a card for each body, six in a row: its class, gravity, temperature, atmosphere and
+what it is made of, volcanism, orbit, rotation, axial tilt, rings, geological and human signals and value, whether it
+was a first discovery, unmapped or without a footfall before the scan, the species found on it and the pictures of
+the samples. In the codex the name of a
 system leads to its page. The pages are made in the background at a low priority, at start and every five minutes;
 each remembers in its first line what it was made from, so only what changed is written again. Two accounts each
 make pages for the systems of their own database, showing the pictures and finds of both; a system only the other

@@ -76,6 +76,8 @@ struct row_t
   std::string href;
   bool picture{};
   bool life{};
+  ///\brief a body of it had been discovered by nobody before
+  bool first{};
   };
 
 ///\brief what a codex directory left of its systems for the other accounts - none when it has not yet

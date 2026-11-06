@@ -90,6 +90,7 @@ struct album_row_t
   std::string name;
   std::string planet_class;
   int64_t star;
+  int64_t was_discovered;
   };
 
 struct album_name_t
@@ -110,7 +111,7 @@ auto database_storage_t::load_album_systems() -> expected_ec<std::vector<album_s
     db_->db,
     std::format(
       "(SELECT b.ref_system_address AS ref_system_address, b.body_id AS body_id, b.name AS name,"
-      " COALESCE(p.planet_class, '') AS planet_class, s.oid IS NOT NULL AS star"
+      " COALESCE(p.planet_class, '') AS planet_class, s.oid IS NOT NULL AS star, b.was_discovered AS was_discovered"
       " FROM {} b LEFT JOIN {} p ON p.ref_body_oid = b.oid LEFT JOIN {} s ON s.ref_body_oid = b.oid) AS album",
       sql_iface::tables::body,
       sql_iface::tables::planet_details,
@@ -127,7 +128,13 @@ auto database_storage_t::load_album_systems() -> expected_ec<std::vector<album_s
   for(album_row_t & row: *bodies)
     if(auto const it{systems.find(row.ref_system_address)}; it != systems.end())
       it->second.bodies.push_back(
-        album_body_t{.body_id = row.body_id, .name = std::move(row.name), .planet_class = std::move(row.planet_class), .star = row.star}
+        album_body_t{
+          .body_id = row.body_id,
+          .name = std::move(row.name),
+          .planet_class = std::move(row.planet_class),
+          .star = row.star,
+          .was_discovered = row.was_discovered
+        }
       );
 
   std::vector<album_system_t> known;
@@ -735,6 +742,17 @@ auto database_storage_t::load_system(uint64_t system_address)
                 std::back_inserter(details.signals_),
                 [](sql_iface::signal_t & sig) -> events::signal_t
                 { return sql_iface::to_native_fromat(std::move(sig)); }
+              );
+            }
+            {
+            auto air{sqlite::select_from<sql_iface::atmosphere_element_t>(
+              db_->db, sql_iface::tables::atmosphere_element, std::format(" WHERE ref_body_oid='{}'", body.oid)
+            )};
+            if(not air) [[unlikely]]
+              return cxx23::unexpected{air.error()};
+            for(sql_iface::atmosphere_element_t & element: *air)
+              details.atmosphere_composition.push_back(
+                events::atmosphere_element_t{.Name = std::move(element.name), .Percent = element.percent}
               );
             }
             {

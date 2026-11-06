@@ -202,12 +202,13 @@ auto read_rows(std::filesystem::path const & codex_dir) -> std::vector<row_t>
   std::vector<row_t> rows;
   std::ifstream in{codex_dir / rows_file};
   for(std::string line; std::getline(in, line);)
-    if(auto const parts{split_tabs(line)}; parts.size() == 5u)
+    if(auto const parts{split_tabs(line)}; parts.size() >= 5u)
       {
       row_t row{.name = std::string{parts[1]}, .counts = std::string{parts[2]}};
       std::from_chars(parts[0].data(), parts[0].data() + parts[0].size(), row.address);
       row.picture = parts[3] == "1";
       row.life = parts[4] == "1";
+      row.first = parts.size() > 5u and parts[5] == "1";
       row.href = page_name(row.name);
       rows.push_back(std::move(row));
       }
@@ -218,7 +219,9 @@ auto write_rows(std::filesystem::path const & codex_dir, std::span<row_t const> 
   {
   std::string text;
   for(row_t const & row: rows)
-    text += std::format("{}\t{}\t{}\t{}\t{}\n", row.address, row.name, row.counts, row.picture ? 1 : 0, row.life ? 1 : 0);
+    text += std::format(
+      "{}\t{}\t{}\t{}\t{}\t{}\n", row.address, row.name, row.counts, row.picture ? 1 : 0, row.life ? 1 : 0, row.first ? 1 : 0
+    );
   write_if_changed(codex_dir / rows_file, text);
   }
 
@@ -228,6 +231,7 @@ auto index_page(std::span<row_t const> rows, region_counts_t const & regions) ->
   std::map<std::string, sectors_t> grouped;
   size_t pictured{};
   size_t alive{};
+  size_t firsts{};
   for(row_t const & row: rows)
     {
     std::string sector{sector_of(row.name)};
@@ -235,6 +239,7 @@ auto index_page(std::span<row_t const> rows, region_counts_t const & regions) ->
     grouped[std::move(region)][std::move(sector)].push_back(&row);
     pictured += row.picture ? 1u : 0u;
     alive += row.life ? 1u : 0u;
+    firsts += row.first ? 1u : 0u;
     }
 
   auto const size_of = [](sectors_t const & sectors)
@@ -261,12 +266,13 @@ auto index_page(std::span<row_t const> rows, region_counts_t const & regions) ->
 
   std::string page{std::format(
     "<!doctype html>\n<html lang=\"en\"><head><meta charset=\"utf-8\"><title>Sky album</title><style>{}</style></head>"
-    "<body>\n<h1>Sky album</h1>\n<p class=\"sub\">{} systems known, {} with pictures, {} with life. "
+    "<body>\n<h1>Sky album</h1>\n<p class=\"sub\">{} systems known, {} with pictures, {} with life, {} with a first discovery. "
     "<a href=\"index.html\">Codex of finds</a></p>\n",
     page_style(),
     rows.size(),
     pictured,
-    alive
+    alive,
+    firsts
   )};
   for(auto const & [region, sectors]: ordered)
     {
@@ -276,20 +282,23 @@ auto index_page(std::span<row_t const> rows, region_counts_t const & regions) ->
       auto const with = [&](bool row_t::*flag) { return std::ranges::count_if(systems, [&](row_t const * row) { return row->*flag; }); };
       long const shots{with(&row_t::picture)};
       long const life{with(&row_t::life)};
+      long const first{with(&row_t::first)};
       page += std::format(
-        "<details><summary>{} <span class=\"n\">{} systems{}{}</span></summary><div class=\"list\">\n",
+        "<details><summary>{} <span class=\"n\">{} systems{}{}{}</span></summary><div class=\"list\">\n",
         escaped(sector),
         systems.size(),
         shots != 0 ? std::format(", &#128247; {}", shots) : std::string{},
-        life != 0 ? std::format(", &#127807; {}", life) : std::string{}
+        life != 0 ? std::format(", &#127807; {}", life) : std::string{},
+        first != 0 ? std::format(", &#11088; {}", first) : std::string{}
       );
       for(row_t const * row: systems)
         page += std::format(
-          "<div><a href=\"{}\">{}</a>{}{} <span class=\"n\">{}</span></div>\n",
+          "<div><a href=\"{}\">{}</a>{}{}{} <span class=\"n\">{}</span></div>\n",
           escaped(row->href),
           escaped(row->name),
           row->picture ? " &#128247;" : "",
           row->life ? " &#127807;" : "",
+          row->first ? " &#11088;" : "",
           escaped(row->counts)
         );
       page += "</div></details>\n";
@@ -353,6 +362,7 @@ details{margin:2px 0}summary{cursor:pointer}.list{columns:3;column-gap:24px;marg
 .thumbs{display:flex;flex-wrap:wrap;gap:3px;margin-top:4px}.thumbs img{height:52px;border-radius:3px;display:block}
 .sky{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}.sky img{width:100%;border-radius:4px;display:block}
 figure{margin:0}figcaption{font-size:12px;color:#8a94a0}.first{color:#3cb371}
+.badges{color:#e0c060;font-size:11.5px}.air{color:#8a94a0;font-size:11.5px;margin-top:3px}
 .map{overflow-x:auto;background:#10141a;border-radius:6px;padding:6px}
 )";
   }
