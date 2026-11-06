@@ -2760,7 +2760,7 @@ auto overlay_feed_t::refresh_species_history(current_state_t const & state) -> v
     spdlog::debug("species history: {} own finds, {} from the shared galaxies", own, species_history_.size() - own);
 
   // the pages change with this commander's samples and with whatever the other accounts' lists say
-  std::filesystem::file_time_type shared_stamp{};
+  auto shared_stamp{std::filesystem::file_time_type::min()};
   for(eht::shared_codex_t const & other: eht::settings()->exploration.shared_codex)
     shared_stamp = std::max(shared_stamp, pictures::lists_stamp(other.dir));
   bool const shared_changed{shared_stamp != shared_codex_stamp_};

@@ -50,6 +50,7 @@ auto main() -> int
     auto const stamp{pictures::lists_stamp(dir)};
     std::filesystem::last_write_time(dir / "finds.json", stamp - 1h);
     auto const older{pictures::lists_stamp(dir)};
+    expect(older < stamp) << "the stamp follows the file";
     expect(pictures::write_finds(dir, finds));
     expect(pictures::lists_stamp(dir) == older);
 

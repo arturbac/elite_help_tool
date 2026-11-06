@@ -327,7 +327,7 @@ private:
   ///\brief the other accounts sample on their own time, so their galaxies are read again now and then
   std::chrono::steady_clock::time_point history_read_{};
   ///\brief when the other accounts' codices last changed, as far as the pages know
-  std::filesystem::file_time_type shared_codex_stamp_{};
+  std::filesystem::file_time_type shared_codex_stamp_{std::filesystem::file_time_type::min()};
   ///\brief the pictures of the samples and the page they go on
   codex_t codex_;
   ///\brief the scans already asked a picture of

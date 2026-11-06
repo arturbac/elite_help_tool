@@ -374,7 +374,8 @@ auto merge_finds(std::vector<signed_find_t> & into, std::span<bio::find_t const>
 
 auto lists_stamp(std::filesystem::path const & codex_dir) -> std::filesystem::file_time_type
   {
-  std::filesystem::file_time_type newest{};
+  // not {} - the file clock's epoch may lie after every file there is
+  auto newest{std::filesystem::file_time_type::min()};
   for(std::string_view const list: {codex_list, sky_list, finds_list})
     {
     std::error_code ec;
