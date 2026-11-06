@@ -517,10 +517,10 @@ auto air_depth(planet_details_t const & details) -> float
     return 0.f;
   std::string_view const air{details.atmosphere};
   if(air.contains("thick"))
-    return 0.24f;
+    return 0.42f;
   if(air.contains("thin"))
-    return 0.1f;
-  return 0.16f;
+    return 0.18f;
+  return 0.28f;
   }
 
 ///\brief the colour of a ring by what it is made of, the journal's eRingClass_*
