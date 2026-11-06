@@ -8,6 +8,7 @@
 #include <territory.h>
 #include "logic.h"
 #include "overlay_exploration.h"
+#include <mission_order.h>
 #include <legal.h>
 #include "codex.h"
 #include <surface_nav.h>
@@ -150,6 +151,7 @@ private:
 
   ///\brief who holds the places the open missions point at - the journal does not say
   auto refresh_mission_places(current_state_t const & state) -> void;
+  auto refresh_mission_distances(current_state_t const & state) -> void;
 
   ///\brief the ship under the crosshairs, read off without looking away from it
   [[nodiscard]]
@@ -291,6 +293,9 @@ private:
   std::map<std::pair<std::string, std::string>, std::string> place_owner_;
   ///\brief what the open missions looked like when those owners were resolved
   uint64_t missions_signature_{};
+  ///\brief how far the place of each open mission is, by system and place, as the list is sorted
+  std::map<std::pair<std::string, std::string>, mission_order::distance_t> mission_distance_;
+  uint64_t distances_signature_{};
 
   ///\brief the interface the game has open, 0 when it is showing nothing but the cockpit
   uint32_t gui_focus_{};

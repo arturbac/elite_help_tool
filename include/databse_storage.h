@@ -715,6 +715,10 @@ struct database_storage_t
   auto load_place_owner(std::string_view system_name, std::string_view place)
     -> expected_ec<std::optional<std::string>>;
 
+  ///\brief how far from the arrival star a place named as a mission names it stands - none when not known
+  [[nodiscard]]
+  auto load_place_ls(std::string_view system_name, std::string_view place) -> expected_ec<std::optional<double>>;
+
   ///\brief hands a station to the system's controlling faction when its stored owner has retreated
   ///\detail every station read goes through it, so a place left behind by a retreat shows its new
   /// owner everywhere until a docking writes the true one

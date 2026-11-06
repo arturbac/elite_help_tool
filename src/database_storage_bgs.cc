@@ -1097,6 +1097,26 @@ auto database_storage_t::load_place_owner(std::string_view system_name, std::str
   return std::optional<std::string>{std::move(station.controlling_faction)};
   }
 
+auto database_storage_t::load_place_ls(std::string_view system_name, std::string_view place)
+  -> expected_ec<std::optional<double>>
+  {
+  auto res{sqlite::select_from<info::station_t>(
+    db_->db,
+    sql_iface::tables::station,
+    std::format(
+      " WHERE name='{}' AND system_address=(SELECT system_address FROM {} WHERE name='{}') LIMIT 1",
+      sqlite::escape_sql_quotes(place),
+      sql_iface::tables::star_system,
+      sqlite::escape_sql_quotes(system_name)
+    )
+  )};
+  if(not res) [[unlikely]]
+    return cxx23::unexpected{res.error()};
+  if(res->empty() or res->front().dist_from_star_ls <= 0.0)
+    return std::optional<double>{};
+  return std::optional<double>{res->front().dist_from_star_ls};
+  }
+
 auto database_storage_t::overrule_retreated_owner(info::station_t & station) -> expected_ec<void>
   {
   // A retreat hands everything over. When a faction's retreat completes at a tick it leaves the

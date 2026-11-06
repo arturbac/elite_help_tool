@@ -1206,7 +1206,8 @@ auto mission_wording(info::mission_t const & mission) -> std::string
 [[nodiscard]]
 auto describe_missions(
   std::vector<info::mission_t> const & missions,
-  std::map<std::pair<std::string, std::string>, std::string> const & owners
+  std::map<std::pair<std::string, std::string>, std::string> const & owners,
+  std::map<std::pair<std::string, std::string>, mission_order::distance_t> const & distances
 ) -> std::vector<overlay::line_t>
   {
   std::vector<info::mission_t const *> open;
@@ -1217,7 +1218,16 @@ auto describe_missions(
   if(open.empty())
     return {};
 
-  std::ranges::sort(open, {}, [](info::mission_t const * mission) { return mission->expiry; });
+  auto const order_of = [&distances](info::mission_t const * mission)
+  {
+    auto const it{distances.find(owed_place(*mission))};
+    return mission_order::key_t{
+      .done = mission->status == info::mission_status_e::redirected,
+      .away = it == distances.end() ? mission_order::distance_t{} : it->second,
+      .expiry = mission->expiry
+    };
+  };
+  std::ranges::sort(open, mission_order::before, order_of);
 
   auto const ready{std::ranges::count_if(
     open, [](info::mission_t const * mission) { return mission->status == info::mission_status_e::redirected; }
@@ -1241,21 +1251,25 @@ auto describe_missions(
   struct group_t
     {
     std::string system;
+    bool done{};
     std::vector<info::mission_t const *> rows;
     };
 
-  // the groups keep the order the missions came in, which is by expiry - so the system that runs out
-  // first stands first
+  // the groups keep the order the missions came in, so the nearest system with work stands first; what waits
+  // to be handed in has groups of its own after them, or a system's hand-ins would come in with its work
   std::vector<group_t> groups;
   for(info::mission_t const * mission: open)
     {
     auto const [system, place]{destination(*mission)};
     auto const key{system.empty() ? std::string{"no fixed destination"} : system};
 
-    auto it{std::ranges::find(groups, key, &group_t::system)};
+    bool const done{mission->status == info::mission_status_e::redirected};
+    auto it{std::ranges::find_if(
+      groups, [&](group_t const & group) { return group.system == key and group.done == done; }
+    )};
     if(it == groups.end())
       {
-      groups.push_back(group_t{.system = key, .rows = {}});
+      groups.push_back(group_t{.system = key, .done = done, .rows = {}});
       it = std::prev(groups.end());
       }
     it->rows.push_back(mission);
@@ -2320,6 +2334,79 @@ auto overlay_feed_t::refresh_mission_places(current_state_t const & state) -> vo
       mission.redirected_system,
       mission.redirected_settlement.empty() ? mission.redirected_station : mission.redirected_settlement
     );
+    }
+  }
+
+///\brief how far the places of the open missions are from the commander
+///
+/// Read again only when the missions, the system or the body the commander is at change - the ship moving in
+/// between does not reorder anything worth a query.
+auto overlay_feed_t::refresh_mission_distances(current_state_t const & state) -> void
+  {
+  std::array<double, 3> const & here{state.system.system_location};
+  uint64_t signature{missions_signature_};
+  for(uint64_t const part:
+      {state.current_system_address_,
+       std::hash<std::string>{}(status_body_),
+       std::hash<double>{}(here[0]),
+       std::hash<double>{}(here[1]),
+       std::hash<double>{}(here[2])})
+    {
+    signature ^= part;
+    signature *= 1099511628211ull;
+    }
+  if(signature == distances_signature_)
+    return;
+  distances_signature_ = signature;
+  mission_distance_.clear();
+
+  std::vector<std::pair<std::string, std::string>> places;
+  std::vector<std::string> systems;
+  for(info::mission_t const & mission: state.active_missions)
+    if(mission.status == info::mission_status_e::accepted or mission.status == info::mission_status_e::redirected)
+      if(auto place{owed_place(mission)}; not place.first.empty())
+        {
+        systems.push_back(place.first);
+        places.push_back(std::move(place));
+        }
+  if(places.empty())
+    return;
+
+  auto const positions{db_.load_system_positions(systems)};
+  if(not positions)
+    spdlog::error("missions: the positions of their systems could not be read");
+  bool const here_known{here[0] != 0.0 or here[1] != 0.0 or here[2] != 0.0};
+
+  // on a port or a body the Status says which; in open space the distance from the star has to do
+  std::optional<double> here_ls;
+  if(auto const station{std::ranges::find(stations_, status_body_, &info::station_t::name)};
+     station != stations_.end() and station->dist_from_star_ls > 0.0)
+    here_ls = station->dist_from_star_ls;
+  else if(auto const body{std::ranges::find_if(
+            state.system.bodies,
+            [&](body_t const & known)
+            { return not status_body_.empty() and std::format("{} {}", state.system.name, known.name) == status_body_; }
+          )};
+          body != state.system.bodies.end())
+    here_ls = body->distance_from_arrival_ls;
+
+  for(auto const & [system, place]: places)
+    {
+    mission_order::distance_t away;
+    if(positions and here_known)
+      if(auto const it{positions->find(system)}; it != positions->end())
+        {
+        double const dx{it->second[0] - here[0]};
+        double const dy{it->second[1] - here[1]};
+        double const dz{it->second[2] - here[2]};
+        away.ly = std::sqrt(dx * dx + dy * dy + dz * dz);
+        }
+    if(not place.empty())
+      if(auto const ls{db_.load_place_ls(system, place)}; ls)
+        away.ls = mission_order::ls_away(*ls, system == state.system.name, here_ls);
+      else
+        spdlog::error("missions: how far {} stands could not be read", place);
+    mission_distance_.insert_or_assign(std::pair{system, place}, away);
     }
   }
 
@@ -5164,7 +5251,8 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
       overlay::block_t{.corner = overlay::corner_e::bottom_left, .ttl_ms = block_ttl_ms(), .lines = std::move(cargo)}
     );
 
-  if(auto missions{describe_missions(state.active_missions, place_owner_)}; not missions.empty())
+  refresh_mission_distances(state);
+  if(auto missions{describe_missions(state.active_missions, place_owner_, mission_distance_)}; not missions.empty())
     frame.blocks.push_back(
       overlay::block_t{
         .corner = overlay::corner_e::bottom_left,
