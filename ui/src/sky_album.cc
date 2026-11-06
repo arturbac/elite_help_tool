@@ -30,23 +30,6 @@ auto album_dir() -> std::filesystem::path
 [[nodiscard]]
 auto list_path() -> std::filesystem::path
   { return album_dir() / "sky.json"; }
-
-[[nodiscard]]
-auto escaped(std::string_view text) -> std::string
-  {
-  std::string out;
-  out.reserve(text.size());
-  for(char const c: text)
-    switch(c)
-      {
-      case '&': out += "&amp;"; break;
-      case '<': out += "&lt;"; break;
-      case '>': out += "&gt;"; break;
-      case '"': out += "&quot;"; break;
-      default:  out += c; break;
-      }
-  return out;
-  }
   }  // namespace
 
 auto sky_album_t::page_path() -> std::filesystem::path { return codex_dir() / "sky.html"; }
@@ -93,7 +76,6 @@ auto sky_album_t::describe_unlisted() -> void
   std::ranges::sort(entries_, {}, [](entry_t const & entry) { return std::filesystem::path{entry.file}.filename().string(); });
   spdlog::info("sky: {} pictures described again out of the journals", unlisted.size());
   save();
-  write_page();
   }
 
 auto sky_album_t::save() const -> void
@@ -183,7 +165,6 @@ auto sky_album_t::describe(std::string const & system, entry_t const & known) ->
   if(changed)
     {
     save();
-    write_page();
     }
   }
 
@@ -347,86 +328,5 @@ auto sky_album_t::keep(QImage const & image, entry_t subject, std::string const 
     subject.taken += std::format("  ({} after)", suffix.substr(1));
   entries_.push_back(std::move(subject));
   save();
-  write_page();
   return true;
-  }
-
-auto sky_album_t::write_page() const -> void
-  {
-  std::string html{
-    "<!doctype html>\n<html lang=\"en\"><head><meta charset=\"utf-8\">"
-    "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>Sky album</title>\n<style>\n"
-    ":root{color-scheme:dark;--ground:#0b0f17;--card:#141a26;--text:#d8dde6;--dim:#8a93a3;--first:#3cb371}\n"
-    "body{margin:0;padding:16px;background:var(--ground);color:var(--text);font:15px/1.4 system-ui,sans-serif}\n"
-    "h1{font-weight:500;margin:0 0 4px} p.lead{color:var(--dim);margin:0 0 16px}\n"
-    ".grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:14px}\n"
-    ".card{background:var(--card);border-radius:8px;overflow:hidden}\n"
-    ".card img{display:block;width:100%;aspect-ratio:16/9;object-fit:cover}\n"
-    ".card div{padding:8px 10px} .name{font-weight:600} .meta{color:var(--dim);font-size:13px}\n"
-    ".first{color:var(--first);font-weight:600}\n"
-    "@media (max-width:480px){.grid{grid-template-columns:1fr}}\n"
-    "</style></head><body>\n<h1>Sky album</h1>\n"
-  };
-  // the other accounts' albums are read as they stand - each account writes only its own
-  struct shown_t
-    {
-    entry_t entry;
-    std::string who;
-    };
-  auto const cfg{eht::settings()};
-  std::string const own_name{cfg->exploration.shared_codex.empty() ? std::string{} : cfg->exploration.codex_name};
-  std::vector<shown_t> shown;
-  for(entry_t const & entry: entries_)
-    shown.push_back(shown_t{.entry = entry, .who = own_name});
-  for(eht::shared_codex_t const & other: cfg->exploration.shared_codex)
-    for(pictures::sky_record_t & record: pictures::read_sky_list(other.dir))
-      shown.push_back(shown_t{
-        .entry = entry_t{
-          .file = pictures::seen_from(codex_dir(), other.dir, record.file),
-          .taken = std::move(record.taken),
-          .kind = std::move(record.kind),
-          .system = std::move(record.system),
-          .body = std::move(record.body),
-          .detail = std::move(record.detail),
-          .first = record.first
-        },
-        .who = other.name
-      });
-  // the names begin with the moment, whichever directory they are in
-  std::ranges::stable_sort(
-    shown, {}, [](shown_t const & picture) { return std::filesystem::path{picture.entry.file}.filename().string(); }
-  );
-
-  size_t const stars{
-    static_cast<size_t>(std::ranges::count_if(shown, [](shown_t const & picture) { return picture.entry.kind == "star"; }))
-  };
-  html += std::format(
-    "<p class=\"lead\">{} stars and {} planets, taken as the ship looked at them - the newest first.</p>\n"
-    "<div class=\"grid\">\n",
-    stars,
-    shown.size() - stars
-  );
-  for(shown_t const & picture: shown | std::views::reverse)
-    html += std::format(
-      "<figure class=\"card\" style=\"margin:0\"><a href=\"{0}\"><img src=\"{0}\" loading=\"lazy\" alt=\"{1}\"></a>"
-      "<div><div class=\"name\">{1}{2}</div><div>{3}</div><div class=\"meta\">{4} - {5}{6}</div></div></figure>\n",
-      escaped(picture.entry.file),
-      escaped(picture.entry.body),
-      picture.entry.first ? " <span class=\"first\">first discovery</span>" : "",
-      escaped(picture.entry.detail),
-      escaped(picture.entry.system),
-      escaped(picture.entry.taken),
-      picture.who.empty() ? std::string{} : " - " + escaped(picture.who)
-    );
-  html += "</div>\n</body></html>\n";
-
-  std::filesystem::path const partial{page_path().string() + ".part"};
-    {
-    std::ofstream out{partial, std::ios::binary | std::ios::trunc};
-    out << html;
-    if(not out)
-      return;
-    }
-  std::error_code ec;
-  std::filesystem::rename(partial, page_path(), ec);
   }

@@ -80,6 +80,64 @@ auto database_storage_t::load_species_history() -> expected_ec<std::vector<bio::
   );
   }
 
+namespace album_rows
+  {
+///\brief a row of the join below - the generator reads the names of its fields as columns
+struct album_row_t
+  {
+  uint64_t ref_system_address;
+  uint32_t body_id;
+  std::string name;
+  std::string planet_class;
+  int64_t star;
+  };
+
+struct album_name_t
+  {
+  uint64_t system_address;
+  std::string name;
+  };
+  }  // namespace album_rows
+
+auto database_storage_t::load_album_systems() -> expected_ec<std::vector<album_system_t>>
+  {
+  using album_rows::album_name_t;
+  using album_rows::album_row_t;
+  auto names{sqlite::select_from<album_name_t>(db_->db, sql_iface::tables::star_system, "")};
+  if(not names) [[unlikely]]
+    return cxx23::unexpected{names.error()};
+  auto bodies{sqlite::select_from<album_row_t>(
+    db_->db,
+    std::format(
+      "(SELECT b.ref_system_address AS ref_system_address, b.body_id AS body_id, b.name AS name,"
+      " COALESCE(p.planet_class, '') AS planet_class, s.oid IS NOT NULL AS star"
+      " FROM {} b LEFT JOIN {} p ON p.ref_body_oid = b.oid LEFT JOIN {} s ON s.ref_body_oid = b.oid) AS album",
+      sql_iface::tables::body,
+      sql_iface::tables::planet_details,
+      sql_iface::tables::star_details
+    ),
+    ""
+  )};
+  if(not bodies) [[unlikely]]
+    return cxx23::unexpected{bodies.error()};
+
+  std::map<uint64_t, album_system_t> systems;
+  for(album_name_t & row: *names)
+    systems[row.system_address] = album_system_t{.address = row.system_address, .name = std::move(row.name)};
+  for(album_row_t & row: *bodies)
+    if(auto const it{systems.find(row.ref_system_address)}; it != systems.end())
+      it->second.bodies.push_back(
+        album_body_t{.body_id = row.body_id, .name = std::move(row.name), .planet_class = std::move(row.planet_class), .star = row.star}
+      );
+
+  std::vector<album_system_t> known;
+  known.reserve(systems.size());
+  for(auto & [address, system]: systems)
+    if(not system.bodies.empty())
+      known.push_back(std::move(system));
+  return known;
+  }
+
 auto database_storage_t::load_species_history_from(std::string const & galaxy_path)
   -> expected_ec<std::vector<bio::species_record_t>>
   {

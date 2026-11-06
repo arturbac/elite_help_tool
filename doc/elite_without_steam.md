@@ -126,6 +126,7 @@ and list the other one in `exploration.shared_codex`:
 Each account goes on writing only its own directory, so no picture moves and two running tools never
 overwrite each other's lists; the pages read the other directory and sign every picture and find with
 its account. With `shared_codex` set an account also leaves its finds in `codex/finds.json` for the
-other one, so the other account's finds appear once that account's tool has run. A page notices the
+other one, so the other account's finds appear once that account's tool has run. It leaves its systems in
+`codex/systems.tsv` and the regions its journals named in `codex/regions.tsv` the same way. A page notices the
 other account's changes within five minutes. A body taken by both keeps both pictures, and each
 account still takes its own. Set the same way on both accounts, the two pages show the same album.

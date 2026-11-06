@@ -1,6 +1,7 @@
 #include <codex.h>
 #include <biology.h>
 #include <picture_records.h>
+#include <system_index.h>
 #include <eht_settings.h>
 
 #include <json_glaze.h>
@@ -51,6 +52,17 @@ auto html(std::string_view text) -> std::string
       default:  result.push_back(c);
       }
   return result;
+  }
+
+///\brief a system's name, leading to its page of the sky album once there is one
+[[nodiscard]]
+auto system_link(std::string_view system) -> std::string
+  {
+  std::string const page{system_index::page_name(system)};
+  std::error_code ec;
+  if(not std::filesystem::exists(codex_dir() / page, ec))
+    return html(system);
+  return std::format("<a href=\"{}\">{}</a>", html(page), html(system));
   }
 
 [[nodiscard]]
@@ -551,7 +563,7 @@ auto codex_t::write_page(database_storage_t & db) -> void
             "<figcaption>{1}<br>{2} {3}<br>{4} &middot; {5}{6}</figcaption></figure>",
             html(picture->file),
             html(picture->variant.empty() ? picture->species : picture->variant),
-            html(picture->system),
+            system_link(picture->system),
             html(
               picture->body.starts_with(picture->system) and picture->body.size() > picture->system.size()
                 ? picture->body.substr(picture->system.size() + 1u)
@@ -574,7 +586,7 @@ auto codex_t::write_page(database_storage_t & db) -> void
           out << std::format(
             "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{:.0f}</td><td>{:.2f}</td><td>{:.3f}</td>"
             "<td>{}</td><td>{:.0f}</td><td>{}</td><td>{}</td></tr>\n",
-            html(find.system_name),
+            system_link(find.system_name),
             html(find.body_name),
             html(find.planet_class),
             html(find.atmosphere_type),

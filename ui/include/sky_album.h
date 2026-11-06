@@ -90,14 +90,6 @@ public:
   ///\brief the file a picture of the body is kept in, named after the journal's moment it was taken for
   auto set_moment(std::chrono::sys_seconds at) -> void { moment_ = at; }
 
-  ///\brief writes the page again - another account's album changed
-  auto refresh_page() -> void
-    {
-    if(not loaded_)
-      load();
-    write_page();
-    }
-
   ///\brief where the page is, for opening it from the tool
   [[nodiscard]]
   static auto page_path() -> std::filesystem::path;
@@ -146,7 +138,6 @@ private:
   auto request(std::chrono::steady_clock::time_point now) -> overlay::capture_t;
   auto describe_unlisted() -> void;
   auto save() const -> void;
-  auto write_page() const -> void;
   [[nodiscard]]
   auto kept(std::string const & body) -> bool;
   };

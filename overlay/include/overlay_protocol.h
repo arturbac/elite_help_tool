@@ -209,6 +209,8 @@ struct disc_t
   /// skips, drawing the ball without them
   std::vector<ball_ring_t> rings;
   float ring_lean{};
+  ///\brief the body it stands for - a field an older layer skips, and no layer needs: a page links by it
+  uint32_t body{};
   };
 
 ///\brief a straight stroke between two points

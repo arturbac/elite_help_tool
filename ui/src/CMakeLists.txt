@@ -29,6 +29,8 @@ target_sources(elite_help_tool
   approach_views.cc
   screenshots.cc
   sky_album.cc
+  system_album.cc
+  system_diagram.cc
   glare_watch.cc
   sensor_watch.cc
   netstate_watch.cc

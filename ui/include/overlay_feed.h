@@ -16,6 +16,7 @@
 #include "scanner_sheet.h"
 #include "screenshots.h"
 #include "sky_album.h"
+#include "system_album.h"
 #include "planet_faces.h"
 #include "approach_views.h"
 #include "glare_watch.h"
@@ -346,6 +347,7 @@ private:
   std::chrono::steady_clock::time_point history_read_{};
   ///\brief when the other accounts' codices last changed, as far as the pages know
   std::filesystem::file_time_type shared_codex_stamp_{std::filesystem::file_time_type::min()};
+  bool album_started_{};
   ///\brief the pictures of the samples and the page they go on
   codex_t codex_;
   ///\brief the scans already asked a picture of
@@ -354,6 +356,7 @@ private:
   scanner_sheet_t scanner_;
   sky_album_t sky_;
   planet_faces_t faces_;
+  system_album_t album_;
   approach_views_t approach_;
   uint64_t approach_capture_id_{};
 

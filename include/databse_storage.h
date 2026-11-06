@@ -779,5 +779,26 @@ struct database_storage_t
 
   [[nodiscard]]
   auto load_system(uint64_t system_address) -> expected_ec<std::optional<star_system_t>>;
+
+  ///\brief a body as the sky album's index counts it
+  struct album_body_t
+    {
+    uint32_t body_id{};
+    std::string name;
+    std::string planet_class;
+    int64_t star{};
+    };
+
+  ///\brief a system with its bodies, for the sky album
+  struct album_system_t
+    {
+    uint64_t address{};
+    std::string name;
+    std::vector<album_body_t> bodies;
+    };
+
+  ///\brief every system with a body in it, in two reads rather than one for each system
+  [[nodiscard]]
+  auto load_album_systems() -> expected_ec<std::vector<album_system_t>>;
   auto close() -> void;
   };

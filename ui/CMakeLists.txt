@@ -56,6 +56,8 @@ target_sources(elite_help_tool
             include/surface_window.h
             include/overlay_feed.h
             include/sky_album.h
+            include/system_album.h
+            include/system_diagram.h
             include/glare_watch.h
             include/sensor_watch.h
             include/netstate_watch.h

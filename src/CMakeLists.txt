@@ -10,6 +10,7 @@ target_sources(eht
   biology.cc
   surface_nav.cc
   picture_records.cc
+  system_index.cc
   backup.cc
   ground_cz.cc
   on_foot.cc

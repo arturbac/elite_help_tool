@@ -118,8 +118,6 @@ Two accounts of your own can show one codex and one sky album: see
 
 ## Sky album
 
-![The sky album page, stars and planets as the ship looked at them](images/sky-album.png)
-
 Out of a jump the ship faces the arrival star, and after the surface scanner closes it still faces the
 planet it mapped. At those two moments the layer quietly takes a picture of 80% of the middle screen in
 its own 16:9 shape (`exploration.sky_size`), with no frame and no countdown: the star after the jump, in
@@ -133,9 +131,23 @@ closes (`sky_planet_delay_ms`). The star's scan comes some seconds after the
 jump, so the first pictures are described once it is in. Each body is taken once, and only from the ship's own view in supercruise -
 a menu or the galaxy map open at the moment an attempt falls due drops that attempt alone. They go to
 `codex/sky/<system>/`, named after the journal's moment of the jump or the scanner, are described in
-`codex/sky/sky.json`, and `codex/sky.html` shows them with the
-star's class, mass, temperature and radius or the planet's class, atmosphere, gravity and temperature,
-and whether it was a first discovery. The *Sky* button opens it; `sky_pictures` turns it off.
+`codex/sky/sky.json`, and shown on the page of their system; `sky_pictures` turns them off.
+
+The album itself is a book of the systems known, made out of the database, so a system visited long ago has
+its page like any other. `codex/sky.html`, which the *Sky* button opens, is the index: the galactic regions, in
+them the sectors folded, in them the systems, each with a mark for a picture and for life and the count of its
+bodies by kind - `[S:1, G:3, H:1, I:1, R:14]` is one star, three giants of any class, a high metal content world,
+an icy one and fourteen rocky ones; E is earthlike, W a water world, A an ammonia world, M metal rich, Ri rocky ice.
+The journal names a region only in a codex entry, so a sector stands under the region its entries name most
+often, and a sector without any under *Unknown region*.
+
+`codex/systems/<system>.html` has the picture of the system as on the overlay, its bodies linking to their cards,
+the pictures from the ship, and a card for each body, six in a row: its class, gravity, temperature, atmosphere,
+volcanism, rings and value, the species found on it and the pictures of the samples. In the codex the name of a
+system leads to its page. The pages are made in the background at a low priority, at start and every five minutes;
+each remembers in its first line what it was made from, so only what changed is written again. Two accounts each
+make pages for the systems of their own database, showing the pictures and finds of both; a system only the other
+account knows is listed with a link to its page there, once that account has run.
 
 ## Faces of the planets
 
