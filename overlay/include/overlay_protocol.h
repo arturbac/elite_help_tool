@@ -173,6 +173,14 @@ struct chart_t
   std::vector<series_t> series;
   };
 
+///\brief a ring round a ball: a thin ellipse of this half length, its far half behind the ball and its near
+/// half over it
+struct ball_ring_t
+  {
+  float radius{};
+  uint32_t color{0xffffffu};
+  };
+
 ///\brief a filled circle, or a ring when outline is set - in pixels at scale 1, like the whole diagram
 struct disc_t
   {
@@ -197,6 +205,10 @@ struct disc_t
   /// radius - 0 for a body without one
   uint32_t atmosphere{};
   float atmosphere_depth{};
+  ///\brief the rings round the ball and their lean in radians, clockwise from level - fields an older layer
+  /// skips, drawing the ball without them
+  std::vector<ball_ring_t> rings;
+  float ring_lean{};
   };
 
 ///\brief a straight stroke between two points

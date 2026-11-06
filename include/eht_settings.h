@@ -122,6 +122,13 @@ struct system_map_t
   colour_t mapped{0x5fd38au};
   ///\brief the name of a body worth mapping (overlay.minimum_body_value) and not mapped yet
   colour_t to_map{0xffb84au};
+  ///\brief how far from a planet's middle its rings may reach - a column is 19 wide
+  float ring_reach{9.f};
+  ///\brief a planet's rings by what they are made of
+  colour_t ring_icy{0x9fd4ffu};
+  colour_t ring_rocky{0xb08a64u};
+  colour_t ring_metallic{0x9aa4b0u};
+  colour_t ring_metal_rich{0xe0a060u};
   };
 
 ///\brief a reminder, impossible to miss, that the market just docked at has never been opened

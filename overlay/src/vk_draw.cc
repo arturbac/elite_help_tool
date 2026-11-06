@@ -1,5 +1,6 @@
 #include "vk_draw.h"
 #include <line_fit.h>
+#include <ring_ellipse.h>
 #include "vk_capture.h"
 #include "vk_keyboard.h"
 #include "vk_faces.h"
@@ -936,6 +937,21 @@ namespace
     add_ball_quad(draw, centre, radius, reach, light, tile, colour);
     }
 
+  ///\brief one half of each ring round a ball: the far halves go before the ball, the near ones after it
+  auto add_ring_halves(ImDrawList * draw, ImVec2 centre, float k, overlay::disc_t const & disc, bool near) -> void
+    {
+    std::array<ImVec2, overlay::ring_half_points> line;
+    for(overlay::ball_ring_t const & ring: disc.rings)
+      {
+      auto const points{overlay::half_ring(ring.radius * k, disc.ring_lean, near)};
+      for(size_t i{}; i != points.size(); ++i)
+        line[i] = ImVec2{centre.x + points[i].x, centre.y + points[i].y};
+      draw->AddPolyline(
+        line.data(), static_cast<int>(line.size()), ImGui::GetColorU32(to_color(ring.color)), ImDrawFlags_None, 0.6f * k
+      );
+      }
+    }
+
   ///\brief the air over a ball, drawn after it: a veil over the face, thickest at the limb, and a glow
   /// past the rim as far as the depth reaches - its colour the gas's, the vertex alpha its depth
   auto add_air(ImDrawList * draw, ImVec2 centre, float radius, ImVec2 light, overlay::disc_t const & disc) -> void
@@ -1006,11 +1022,22 @@ namespace
     // the balls go through a pipeline of their own, bound for each run of them and let go after, so the
     // discs keep the order the tool gave them - a marker ring still lies over its body
     bool balls{};
+    auto const end_balls = [&]
+    {
+      if(balls)
+        draw->AddCallback(ImDrawCallback_ResetRenderState, nullptr);
+      balls = false;
+    };
     for(overlay::disc_t const & disc: diagram.discs)
       {
+      if(not disc.rings.empty())
+        {
+        end_balls();
+        add_ring_halves(draw, at(disc.x, disc.y), k, disc, false);
+        }
       bool const ball{disc.sphere and not disc.outline and begin_spheres(data, draw, balls)};
-      if(balls and not ball)
-        draw->AddCallback(ImDrawCallback_ResetRenderState, nullptr);
+      if(not ball)
+        end_balls();
       balls = ball;
       if(ball)
         {
@@ -1025,16 +1052,22 @@ namespace
         else
           add_sphere(draw, at(disc.x, disc.y), disc.radius * k, light, disc, 0u);
         add_air(draw, at(disc.x, disc.y), disc.radius * k, light, disc);
-        continue;
         }
-      ImU32 const colour{ImGui::GetColorU32(to_color(disc.color))};
-      if(disc.outline)
-        draw->AddCircle(at(disc.x, disc.y), disc.radius * k, colour, 24, 1.6f * k);
       else
-        draw->AddCircleFilled(at(disc.x, disc.y), disc.radius * k, colour, 24);
+        {
+        ImU32 const colour{ImGui::GetColorU32(to_color(disc.color))};
+        if(disc.outline)
+          draw->AddCircle(at(disc.x, disc.y), disc.radius * k, colour, 24, 1.6f * k);
+        else
+          draw->AddCircleFilled(at(disc.x, disc.y), disc.radius * k, colour, 24);
+        }
+      if(not disc.rings.empty())
+        {
+        end_balls();
+        add_ring_halves(draw, at(disc.x, disc.y), k, disc, true);
+        }
       }
-    if(balls)
-      draw->AddCallback(ImDrawCallback_ResetRenderState, nullptr);
+    end_balls();
 
     // the labels follow the picture's own scale, so a shrunk picture keeps its numbers beside their discs
     ImFont * const font{data.small_font != nullptr ? data.small_font : ImGui::GetFont()};

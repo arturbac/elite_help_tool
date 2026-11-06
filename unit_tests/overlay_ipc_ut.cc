@@ -69,7 +69,9 @@ auto sample_frame(uint64_t sequence) -> overlay::frame_t
             .sphere = true,
             .light_x = -20.f,
             .light_y = 5.f,
-            .gloss = 0.8f
+            .gloss = 0.8f,
+            .rings = {overlay::ball_ring_t{.radius = 9.f, .color = 0x9fd4ffu}},
+            .ring_lean = 0.4f
           }
         }
       }},
@@ -181,6 +183,8 @@ auto main() -> int
         expect(ball.sphere);
         expect(ball.light_x == -20.f and ball.light_y == 5.f);
         expect(ball.gloss == 0.8f);
+        expect(ball.ring_lean == 0.4f);
+        expect(ball.rings.size() == 1_ul and ball.rings.front().color == 0x9fd4ffu);
         }
       else
         expect(false) << "the diagram's discs did not arrive";

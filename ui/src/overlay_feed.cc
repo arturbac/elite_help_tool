@@ -49,6 +49,7 @@
 #include <ranges>
 #include <format_credits.h>
 #include <orbit.h>
+#include <ring_ellipse.h>
 
 namespace
   {
@@ -522,6 +523,44 @@ auto air_depth(planet_details_t const & details) -> float
   return 0.16f;
   }
 
+///\brief the colour of a ring by what it is made of, the journal's eRingClass_*
+[[nodiscard]]
+auto ring_colour(std::string_view ring_class, eht::system_map_t const & sm) noexcept -> uint32_t
+  {
+  if(ring_class.ends_with("Icy"))
+    return sm.ring_icy.rgb;
+  if(ring_class.ends_with("Rocky"))
+    return sm.ring_rocky.rgb;
+  if(ring_class.ends_with("MetalRich"))
+    return sm.ring_metal_rich.rgb;
+  if(ring_class.ends_with("Metalic"))
+    return sm.ring_metallic.rgb;
+  return sm.label.rgb;
+  }
+
+///\brief the rings of a body, inside out, on a ball of this radius - the belts of a star are not rings
+[[nodiscard]]
+auto ball_rings(star_system_t const & system, events::body_id_t body_id, float radius, eht::system_map_t const & sm)
+  -> std::vector<overlay::ball_ring_t>
+  {
+  std::vector<ring_t const *> own;
+  for(ring_t const & ring: system.rings)
+    if(ring.parent_body_id == body_id and ring.name.ends_with("Ring"))
+      own.push_back(&ring);
+  std::ranges::sort(own, {}, &ring_t::inner_rad);
+
+  std::vector<overlay::ball_ring_t> rings;
+  rings.reserve(own.size());
+  for(size_t i{}; i != own.size(); ++i)
+    rings.push_back(
+      overlay::ball_ring_t{
+        .radius = overlay::ring_radius(radius, i, own.size(), sm.ring_reach),
+        .color = ring_colour(own[i]->ring_class, sm)
+      }
+    );
+  return rings;
+  }
+
 ///\brief a planet or moon drawn as a ball lit from the star at (sx, sy), or from the left without one
 [[nodiscard]]
 auto planet_disc(
@@ -746,7 +785,10 @@ auto build_system_diagram(
     std::string const full{body->name.empty() ? system.name : system.name + " " + body->name};
     std::string face{faces.face(system.name, full, class_colour(details))};
     bool const ringed{exploring and not face.empty() and has_bio(details)};
-    diagram.discs.push_back(planet_disc(details, x, y, r, star_x, star_y, std::move(face)));
+    overlay::disc_t & disc{diagram.discs.emplace_back(planet_disc(details, x, y, r, star_x, star_y, std::move(face)))};
+    disc.rings = ball_rings(system, body->body_id, r, sm);
+    // the journal says how the planet leans and nothing of its rings, which lie round its equator
+    disc.ring_lean = overlay::ring_lean(details.axial_tilt.value_or(0.0));
     if(ringed)
       diagram.discs.push_back(
         overlay::disc_t{.x = x, .y = y, .radius = r + 1.5f, .color = sm.bio.rgb, .outline = true}

@@ -40,7 +40,12 @@ process carries no state of ours.
   and moon is lit from its star's side, water and ice shine a little, bare rock does not, and a star
   lights itself with only a darker limb. A body the surface scanner has been on wears its own face,
   cut out of the scanner's views (see [Faces of the planets](exploration.md#faces-of-the-planets)), and
-  a face with life on it gets a green ring. A body with an atmosphere wears it as a veil in the
+  a face with life on it gets a green ring. A planet or moon with rings wears one thin ellipse for
+  each, passing behind the ball and over it, coloured by what the ring is made of - icy pale blue,
+  rocky brown, metallic steel grey, metal rich orange (`overlay.system_map.ring_icy`, `ring_rocky`,
+  `ring_metallic`, `ring_metal_rich`). The ellipses lean by the planet's axial tilt, the journal saying
+  nothing of the rings' own plane, and their size keeps only the order of the rings: they share the room
+  up to `ring_reach`. A body with an atmosphere wears it as a veil in the
   colour of its main gas - nitrogen pale blue, oxygen blue, sulphur dioxide yellow, methane
   turquoise, argon violet, neon pink, vapours orange - faint over the face, thickest at the limb
   and glowing a little past it, reaching further for thick air than for thin. The names of the
