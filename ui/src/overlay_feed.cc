@@ -4030,6 +4030,16 @@ auto overlay_feed_t::build_logistics_lines(std::array<double, 3> const & here) c
     );
     }
 
+  return lines;
+  }
+
+auto overlay_feed_t::build_transit_lines(std::array<double, 3> const & here) const -> std::vector<overlay::line_t>
+  {
+  auto & db{const_cast<database_storage_t &>(db_)};
+  auto const now{std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())};
+
+  std::vector<overlay::line_t> lines;
+
   // one's own carrier and the squadron's: where each is, or where it goes and when it can jump again
   if(auto carriers{db.load_carrier_states(now, carrier_cooldown)}; carriers and not carriers->empty())
     {
@@ -5114,7 +5124,10 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
 
   // our ships nearby - which one to go and take, or have brought over
   refresh_fleet(state);
-  if(auto ships{build_fleet_lines()}; not ships.empty())
+  auto ships{build_fleet_lines()};
+  // what is on its way or could carry one over belongs with the ships to choose from
+  std::ranges::move(build_transit_lines(state.system.system_location), std::back_inserter(ships));
+  if(not ships.empty())
     frame.blocks.push_back(
       overlay::block_t{
         .corner = overlay::corner_e::bottom_left,

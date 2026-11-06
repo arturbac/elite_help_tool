@@ -28,9 +28,10 @@ process carries no state of ours.
   and mission cargo top right, the route, cargo, missions and what a death would cost on the left.
   A long mission list is cut short, so it starts with the work still to do, then what waits to be
   handed in, and each of the two goes from the nearest to where you are: light years first, then Ls.
-- **Last port:** where an escape pod would take you, beside the ships in transit, with its distance
+- **Last port:** where an escape pod would take you, with its distance
   in light years when its system's position is known. Only ports count: not on-foot settlements,
-  fleet carriers, construction sites or the colonisation ship.
+  fleet carriers, construction sites or the colonisation ship. The carriers and the ships in transit
+  stand under the ships nearby, in the same block.
 - **System map:** the bodies and ports of the current system, drawn in the game's colours, with
   arrows at the places open missions send you to. Stars and planets are small lit balls: each planet
   and moon is lit from its star's side, water and ice shine a little, bare rock does not, and a star

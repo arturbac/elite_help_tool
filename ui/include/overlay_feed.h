@@ -201,10 +201,12 @@ private:
   auto build_route_lines(current_state_t const & state, plotted_route_t const & plotted) const
     -> std::vector<overlay::line_t>;
 
-  ///\brief ships in transit and the last port - both are easy to lose track of, and both can
-  /// decide where one ends up and what one flies on in
+  ///\brief the last port - easy to lose track of, and it decides where an escape pod ends up
   [[nodiscard]]
   auto build_logistics_lines(std::array<double, 3> const & here) const -> std::vector<overlay::line_t>;
+  ///\brief the carriers and the ships in transit - shown under the ships nearby
+  [[nodiscard]]
+  auto build_transit_lines(std::array<double, 3> const & here) const -> std::vector<overlay::line_t>;
 
   ///\brief the systems of one's own factions, read while the galaxy map is open - where a trip is planned
   auto refresh_territory() -> void;
