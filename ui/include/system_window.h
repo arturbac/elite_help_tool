@@ -8,6 +8,8 @@
 #include <qtreeview.h>
 #include <qsortfilterproxymodel.h>
 #include <qtabwidget.h>
+#include <orbit.h>
+#include <set>
 
 struct body_info_t
   {
@@ -35,6 +37,12 @@ public:
   std::vector<body_t> bodies_{};
   std::unordered_map<events::body_id_t, std::unique_ptr<body_info_t>> nodes_;
   std::vector<body_info_t *> root_nodes_;
+  ///\brief the column of the tick for a body to visit; the flags of the body follow it
+  static constexpr int visit_column{5};
+  ///\brief the bodies ticked to visit, kept through the rebuilds that every scan brings
+  std::set<events::body_id_t> visits_;
+  ///\brief the place of each ticked body on the calculated route, counted from 1
+  std::unordered_map<events::body_id_t, size_t> route_places_;
 
   explicit system_bodies_model_t(std::vector<body_t> const & bodies, QObject * parent);
 
@@ -61,6 +69,8 @@ public:
   [[nodiscard]]
   auto headerData(int section, Qt::Orientation orientation, int role) const -> QVariant override;
 
+  auto setData(QModelIndex const & index, QVariant const & value, int role = Qt::EditRole) -> bool override;
+
   // the function called before the vector in state_ is modified
   // auto notify_update() -> void;
   auto clear() 
@@ -70,6 +80,14 @@ public:
     root_nodes_.clear();
   }
   auto rebuild_index() -> void;
+  ///\brief writes the places of a calculated route into column V; no stops clears them
+  auto show_route(std::span<visit_stop_t const> route) -> void;
+  ///\brief the ticks and the route belong to one system
+  auto forget_visits() -> void;
+
+signals:
+  ///\brief a body ticked or unticked - a route calculated before no longer holds
+  void visits_changed();
   };
 
 struct body_signal_t
@@ -149,6 +167,11 @@ public:
   QLabel * phenomena_label_{};
   QTreeView * tree_view{};
   QTreeView *signals_view{};
+  ///\brief the calculated route under the bodies
+  QLabel * route_label_{};
+  ///\brief what the route is calculated from, copied with the bodies when the state is refreshed
+  std::vector<bary_centre_t> bary_centres_;
+  std::string system_name_;
   ///\brief the system as the first tab; the exploration's rewards beside it
   QTabWidget * tabs_{};
 
@@ -162,5 +185,8 @@ public:
   auto setup_ui() -> void;
 
   auto update_labels() -> void;
+
+  ///\brief orders the ticked bodies from where the commander is and shows the route
+  auto calculate_route() -> void;
   };
 

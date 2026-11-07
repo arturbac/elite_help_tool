@@ -8,11 +8,14 @@
 #include <qheaderview.h>
 #include <qlabel.h>
 #include <qformlayout.h>
+#include <qpushbutton.h>
 #include <qtreeview.h>
 #include "qformat.h"
 #include <qsplitter.h>
 #include <exploration_value.h>
 #include <format_credits.h>
+#include <event_guard.h>
+#include <events/companion_files.h>
 
 auto system_bodies_filter_proxy_t::filterAcceptsRow(int source_row, QModelIndex const & source_parent) const -> bool
   {
@@ -84,7 +87,26 @@ auto system_bodies_model_t::rowCount(QModelIndex const & parent) const -> int
   return node ? static_cast<int>(node->children.size()) : 0;
   }
 
-auto system_bodies_model_t::columnCount(QModelIndex const &) const -> int { return 11; }
+auto system_bodies_model_t::columnCount(QModelIndex const &) const -> int { return 12; }
+
+namespace
+  {
+///\brief what the short headers of the flag columns stand for
+auto column_tip(int column) -> QVariant
+  {
+  static constexpr std::array const tips = {
+    "Visit: tick the bodies to visit; Calculate route numbers them in the order to fly",
+    "Terraformable",
+    "Mapped by you",
+    "Footfall: you stepped onto the body",
+    "Was Discovered: another commander discovered it before you",
+    "Was Mapped: another commander mapped it before you",
+    "Was Footfalled: another commander stepped onto it before you"
+  };
+  auto const tip{static_cast<size_t>(column - system_bodies_model_t::visit_column)};
+  return tip < tips.size() ? QVariant{tips.at(tip)} : QVariant{};
+  }
+  }  // namespace
 
 auto system_bodies_model_t::data(QModelIndex const & index, int role) const -> QVariant
   {
@@ -97,28 +119,33 @@ auto system_bodies_model_t::data(QModelIndex const & index, int role) const -> Q
 
   auto const & b = *node->data;
 
+  if(role == Qt::ToolTipRole and index.column() >= visit_column)
+    return column_tip(index.column());
+
   if(role == Qt::CheckStateRole)
     {
-    if(index.column() == 10)  // Was Footfalled
+    if(index.column() == visit_column)
+      return visits_.contains(b.body_id) ? Qt::Checked : Qt::Unchecked;
+    if(index.column() == 11)  // Was Footfalled
       if(b.body_type() == body_type_e::star)
         return {};
       else
         return std::get<planet_details_t>(b.details).was_footfalled ? Qt::Checked : Qt::Unchecked;
-    else if(index.column() == 9)  // Was Mapped
+    else if(index.column() == 10)  // Was Mapped
       if(b.body_type() == body_type_e::star)
         return {};
       else
         return std::get<planet_details_t>(b.details).was_mapped ? Qt::Checked : Qt::Unchecked;
-    else if(index.column() == 8)  // Discovered
+    else if(index.column() == 9)  // Discovered
       return b.was_discovered ? Qt::Checked : Qt::Unchecked;
-    else if(index.column() == 7)  // Footfall
+    else if(index.column() == 8)  // Footfall
       {
       if(b.body_type() == body_type_e::star)
         return {};
       else
         return std::get<planet_details_t>(b.details).footfalled ? Qt::Checked : Qt::Unchecked;
       }
-    else if(index.column() == 5)
+    else if(index.column() == 6)
       {
       if(b.body_type() == body_type_e::star)
         return {};
@@ -126,7 +153,7 @@ auto system_bodies_model_t::data(QModelIndex const & index, int role) const -> Q
         return std::get<planet_details_t>(b.details).terraform_state != events::terraform_state_e::none ? Qt::Checked
                                                                                                         : Qt::Unchecked;
       }
-    else if(index.column() == 6)
+    else if(index.column() == 7)
       {
       if(b.body_type() == body_type_e::star)
         return {};
@@ -139,7 +166,7 @@ auto system_bodies_model_t::data(QModelIndex const & index, int role) const -> Q
   if(role == Qt::ForegroundRole)
     {
     auto const cfg{eht::settings()};
-    if(index.column() >= 9)
+    if(index.column() >= 10)
       return QColor::fromRgb(cfg->gui.mapped_before_column.rgb);
     if(index.column() >= 5)
       return QColor::fromRgb(cfg->gui.flag_column.rgb);
@@ -155,6 +182,11 @@ auto system_bodies_model_t::data(QModelIndex const & index, int role) const -> Q
     }
   if(role == Qt::DisplayRole)
     {
+    if(index.column() == visit_column)
+      {
+      auto const place{route_places_.find(b.body_id)};
+      return place != route_places_.end() ? QVariant{QString::number(place->second)} : QVariant{};
+      }
     if(index.column() > 4)
       return {};
 
@@ -203,16 +235,54 @@ auto system_bodies_model_t::headerData(int section, Qt::Orientation orientation,
       "Gravity",
       "MassEM",
       "Value",
-      "Terraformable",
-      "Mapped",
-      "Footfall",
-      "Was Discovered",
-      "Was Mapped",
-      "Was Footfalled"
+      "V",
+      "T",
+      "M",
+      "FF",
+      "wD",
+      "wM",
+      "wF"
     };
     return headers.at(static_cast<size_t>(section));
     }
+  if(orientation == Qt::Horizontal and role == Qt::ToolTipRole and section >= visit_column)
+    return column_tip(section);
   return {};
+  }
+
+auto system_bodies_model_t::setData(QModelIndex const & index, QVariant const & value, int role) -> bool
+  {
+  if(not index.isValid() or index.column() != visit_column or role != Qt::CheckStateRole)
+    return false;
+  auto const * node = static_cast<body_info_t *>(index.internalPointer());
+  if(not node)
+    return false;
+
+  if(value.value<Qt::CheckState>() == Qt::Checked)
+    visits_.insert(node->data->body_id);
+  else
+    visits_.erase(node->data->body_id);
+  show_route({});
+  emit visits_changed();
+  return true;
+  }
+
+auto system_bodies_model_t::show_route(std::span<visit_stop_t const> route) -> void
+  {
+  route_places_.clear();
+  for(auto const & [place, stop]: route | std::views::enumerate)
+    route_places_[stop.body_id] = static_cast<size_t>(place) + 1u;
+  for(auto const & [id, node]: nodes_)
+    {
+    QModelIndex const cell{createIndex(node->row_in_parent, visit_column, node.get())};
+    emit dataChanged(cell, cell, {Qt::DisplayRole, Qt::CheckStateRole});
+    }
+  }
+
+auto system_bodies_model_t::forget_visits() -> void
+  {
+  visits_.clear();
+  route_places_.clear();
   }
 
 auto system_bodies_model_t::flags(QModelIndex const & index) const -> Qt::ItemFlags
@@ -527,7 +597,10 @@ auto system_window_t::update_labels() -> void
 
 system_window_t::system_window_t(current_state_t const & state, QWidget * parent) : QMdiSubWindow(parent), state_(state)
   {
+  bary_centres_ = state_.system.bary_centre;
+  system_name_ = state_.system.name;
   setup_ui();
+  connect(model_, &system_bodies_model_t::visits_changed, route_label_, &QLabel::clear);
   connect(model_, &QAbstractItemModel::modelReset, tree_view, [tv = tree_view] { tv->expandAll(); });
   connect(proxy_model_, &QAbstractItemModel::modelReset, tree_view, [tv = tree_view] { tv->expandAll(); });
 
@@ -537,6 +610,13 @@ system_window_t::system_window_t(current_state_t const & state, QWidget * parent
 // the function to call from main_window_t once state_ has been updated
 auto system_window_t::refresh_ui() -> void
   {
+  if(system_name_ != state_.system.name)
+    {
+    model_->forget_visits();
+    route_label_->clear();
+    }
+  system_name_ = state_.system.name;
+  bary_centres_ = state_.system.bary_centre;
   model_->bodies_ = state_.system.bodies;
   model_->rebuild_index();
   tree_view->expandAll();
@@ -564,6 +644,45 @@ auto system_window_t::refresh_ui() -> void
   }
 
 auto system_window_t::add_tab(QWidget * page, QString const & title) -> void { tabs_->addTab(page, title); }
+
+auto system_window_t::calculate_route() -> void
+  {
+  std::vector<body_t const *> bodies;
+  bodies.reserve(model_->bodies_.size());
+  for(body_t const & body: model_->bodies_)
+    bodies.push_back(&body);
+  std::vector<events::body_id_t> const chosen(model_->visits_.begin(), model_->visits_.end());
+
+  // near a body Status.json names it; anywhere else the route starts from the system's centre
+  std::optional<events::body_id_t> start;
+  if(auto const status{load_status(state_.journal_dir_path_)}; status)
+    if(auto const it{std::ranges::find(model_->bodies_, status->BodyName, &body_t::name)}; it != model_->bodies_.end())
+      start = it->body_id;
+
+  auto const now{std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())};
+  std::vector<visit_stop_t> const route{visit_order(bary_centres_, bodies, chosen, start, now)};
+  model_->show_route(route);
+  if(route.empty())
+    {
+    route_label_->setText("Tick the bodies to visit in column V");
+    return;
+    }
+
+  std::string text;
+  double total{};
+  for(visit_stop_t const & stop: route)
+    {
+    auto const body{std::ranges::find(model_->bodies_, stop.body_id, &body_t::body_id)};
+    text += std::format(
+      "{}{} ({:.0f} Ls)",
+      text.empty() ? "" : " > ",
+      body != model_->bodies_.end() ? body_short_name(system_name_, body->name) : std::string_view{"?"},
+      stop.distance_ls
+    );
+    total += stop.distance_ls;
+    }
+  route_label_->setText(QString::fromStdString(std::format("{}  - {:.0f} Ls in all", text, total)));
+  }
 
 auto system_window_t::setup_ui() -> void
   {
@@ -616,6 +735,22 @@ auto system_window_t::setup_ui() -> void
   auto * tree_layout = new QVBoxLayout(tree_container);
   tree_layout->addWidget(tree_label);
   tree_layout->addWidget(tree_view);
+
+  auto * route_button = new QPushButton("Calculate route");
+  route_button->setToolTip("Orders the bodies ticked in column V from where you are, by where they stand now");
+  connect(
+    route_button,
+    &QPushButton::clicked,
+    this,
+    [this] { eht::event_guard("exploration route", [this] { calculate_route(); }); }
+  );
+  route_label_ = new QLabel();
+  route_label_->setWordWrap(true);
+  route_label_->setTextInteractionFlags(Qt::TextSelectableByMouse);
+  auto * route_layout = new QHBoxLayout();
+  route_layout->addWidget(route_button);
+  route_layout->addWidget(route_label_, 1);
+  tree_layout->addLayout(route_layout);
 
   // main_layout->addWidget(new QLabel("System Bodies:"));
   // main_layout->addWidget(tree_view);

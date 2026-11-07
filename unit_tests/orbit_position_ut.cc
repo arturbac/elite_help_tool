@@ -1,6 +1,7 @@
 #include <boost/ut.hpp>
 #include <orbit.h>
 
+#include <array>
 #include <chrono>
 #include <cmath>
 #include <numbers>
@@ -152,6 +153,41 @@ auto main() -> int
           eanom -= (eanom - e * std::sin(eanom) - m) / (1.0 - e * std::cos(eanom));
         expect(near(eanom - e * std::sin(eanom), m, 1e-9)) << "e=" << e << " m=" << m_deg;
         }
+  };
+
+  "the bodies to visit, in the order to fly them"_test = []
+  {
+    auto const planet_at = [](::events::body_id_t id, double semi_major_axis)
+    {
+      auto body{to_body(make_planet(
+        id, "Bleia Eohn BD-I a64-0", 5342402204192, semi_major_axis, 0.0, 0.0, 0.0, 86400.0, 0.0, 0.0, {::events::parent_t{.Star = 0}}
+      ))};
+      body.scanned_at = epoch;
+      return body;
+    };
+    // all on one line out from the star, and given out of order
+    auto const near_one{planet_at(1, 1e11)};
+    auto const far_one{planet_at(2, 3e11)};
+    auto const middle{planet_at(3, 2e11)};
+    std::vector<body_t const *> const bodies{&near_one, &far_one, &middle};
+    std::array<::events::body_id_t, 3> const all{2, 3, 1};
+
+    auto const outwards{visit_order({}, bodies, all, std::nullopt, epoch)};
+    expect(fatal(outwards.size() == 3_ul));
+    expect(outwards[0].body_id == 1_u and outwards[1].body_id == 3_u and outwards[2].body_id == 2_u);
+    expect(near(outwards[0].distance_ls, 1e11 / 299'792'458.0, 1e-3)) << "the first leg is from the system's centre";
+
+    std::array<::events::body_id_t, 2> const two{1, 3};
+    auto const inwards{visit_order({}, bodies, two, ::events::body_id_t{2}, epoch)};
+    expect(fatal(inwards.size() == 2_ul));
+    expect(inwards[0].body_id == 3_u and inwards[1].body_id == 1_u) << "from the body the commander is at";
+
+    std::array<::events::body_id_t, 1> const one{3};
+    auto const single{visit_order({}, bodies, one, std::nullopt, epoch)};
+    expect(fatal(single.size() == 1_ul));
+    expect(single[0].body_id == 3_u) << "the commander's own place is no stop";
+
+    expect(visit_order({}, bodies, {}, std::nullopt, epoch).empty());
   };
 
   "single star at rest is the system's own origin"_test = []

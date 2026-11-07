@@ -364,7 +364,10 @@ auto order_calculation_2_opt(body_location_t const player_pos, std::span<body_lo
 
   // 2. the 2-opt optimisation (open TSP)
   if(path.size() < 3)
+    {
+    path.erase(path.begin());
     return path;
+    }
 
   bool improved = true;
   auto const n = path.size();
@@ -420,6 +423,34 @@ auto distance_ls(body_location_t const a, body_location_t const b) noexcept -> d
 
   // Convert to Light Seconds
   return distance_m / info::light_speed_mps;
+  }
+
+auto visit_order(
+  std::span<bary_centre_t const> barycentres,
+  std::vector<body_t const *> const & bodies,
+  std::span<body_id_t const> chosen,
+  std::optional<body_id_t> start,
+  std::chrono::sys_seconds now
+) -> std::vector<visit_stop_t>
+  {
+  body_location_t from{};
+  std::vector<body_location_t> targets;
+  for(body_location_t const & location: body_positions_now(barycentres, bodies, now))
+    {
+    if(location.body_id == start)
+      from = location;
+    if(std::ranges::contains(chosen, location.body_id))
+      targets.push_back(location);
+    }
+
+  std::vector<visit_stop_t> route;
+  route.reserve(targets.size());
+  for(body_location_t const & location: order_calculation_2_opt(from, targets))
+    {
+    route.push_back(visit_stop_t{.body_id = location.body_id, .distance_ls = distance_ls(from, location)});
+    from = location;
+    }
+  return route;
   }
 
 auto body_short_name(std::string_view system, std::string_view name) -> std::string_view

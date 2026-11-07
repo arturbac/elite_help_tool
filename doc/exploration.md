@@ -49,11 +49,17 @@ counted live from `Status.json` — a green "sample" when you may take the next 
 grows on this body. It shows in analysis mode or with the sampler in hand, in an SRV always - not in combat mode nor on foot
 with a weapon.
 
-**The System window** lists the bodies of the current system. Your own deeds sit in *Mapped* and
-*Footfall* (you stepped onto the body - from the ship, an SRV or a taxi), the game's word on other
-commanders in *Was Discovered*, *Was Mapped* and *Was Footfalled*, the last three in their own colour
+**The System window** lists the bodies of the current system. The flag columns have short headers,
+each explained when the pointer rests on it. Your own deeds sit in *M* (mapped) and *FF* (footfall: you
+stepped onto the body - from the ship, an SRV or a taxi), *T* marks a terraformable body, the game's word on other
+commanders is in *wD*, *wM* and *wF* (was discovered, was mapped, was footfalled), the last three in their own colour
 (`gui.mapped_before_column`). A body worth more than 300k if mapped is in `gui.value_medium`, more
 than 600k in `gui.value_high`.
+
+Tick the bodies you mean to visit in column *V* and press **Calculate route** below the table: each is numbered
+in the order to fly, and the legs are listed beside the button in light seconds. The route starts at the body
+`Status.json` names, otherwise at the system's centre, and takes the bodies where their orbits have them now. A
+changed tick clears the route; the ticks last until you leave the system.
 
 Navigating on foot to a codex entry or a place tipped off by a guide is its own window, in
 [surface_navigation.md](surface_navigation.md).

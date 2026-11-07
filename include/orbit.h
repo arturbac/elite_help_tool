@@ -2,6 +2,7 @@
 #include <events/common.h>
 #include <star_system.h>
 #include <chrono>
+#include <optional>
 #include <span>
 #include <vector>
 
@@ -22,3 +23,22 @@ auto body_positions_now(
 auto order_calculation(
   std::span<bary_centre_t const> barycentres, std::vector<body_t const *> const & scans, std::chrono::sys_seconds now
 ) -> std::vector<events::body_location_t>;
+
+///\brief one stop of a route inside a system, and how far it lies from the stop before it
+struct visit_stop_t
+  {
+  events::body_id_t body_id{};
+  double distance_ls{};
+  };
+
+///\brief the chosen bodies in the order to fly them: nearest neighbour, then 2-opt, as an open route
+///\param bodies all the system's bodies, not only the chosen - a moon stands where its planet stands
+///\param start the body the commander is at; the system's centre when none or when it is not among the bodies
+[[nodiscard]]
+auto visit_order(
+  std::span<bary_centre_t const> barycentres,
+  std::vector<body_t const *> const & bodies,
+  std::span<events::body_id_t const> chosen,
+  std::optional<events::body_id_t> start,
+  std::chrono::sys_seconds now
+) -> std::vector<visit_stop_t>;
