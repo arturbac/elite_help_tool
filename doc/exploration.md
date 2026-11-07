@@ -49,7 +49,7 @@ counted live from `Status.json` — a green "sample" when you may take the next 
 grows on this body. It shows in analysis mode or with the sampler in hand, in an SRV always - not in combat mode nor on foot
 with a weapon.
 
-**The System window** lists the bodies of the current system. The flag columns have short headers,
+**The System window** lists the bodies of the current system by name, each moon under its planet. The flag columns have short headers,
 each explained when the pointer rests on it. Your own deeds sit in *M* (mapped) and *FF* (footfall: you
 stepped onto the body - from the ship, an SRV or a taxi), *T* marks a terraformable body, the game's word on other
 commanders is in *wD*, *wM* and *wF* (was discovered, was mapped, was footfalled), the last three in their own colour

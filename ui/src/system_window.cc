@@ -15,6 +15,7 @@
 #include <exploration_value.h>
 #include <format_credits.h>
 #include <event_guard.h>
+#include <system_diagram.h>
 #include <events/companion_files.h>
 
 auto system_bodies_filter_proxy_t::filterAcceptsRow(int source_row, QModelIndex const & source_parent) const -> bool
@@ -339,6 +340,19 @@ auto system_bodies_model_t::rebuild_index() -> void
         }
       }
     }
+
+  // by name under each parent, as the journal gives the bodies in the order they were scanned
+  auto const arrange = [](std::vector<body_info_t *> & nodes)
+  {
+    std::ranges::sort(
+      nodes, [](body_info_t const * a, body_info_t const * b) { return natural_less(a->data->name, b->data->name); }
+    );
+    for(auto const & [row, node]: nodes | std::views::enumerate)
+      node->row_in_parent = static_cast<int>(row);
+  };
+  arrange(root_nodes_);
+  for(auto const & [id, node]: nodes_)
+    arrange(node->children);
 
   endResetModel();
   }
