@@ -73,6 +73,12 @@ struct at_risk_t
 [[nodiscard]]
 auto at_risk(std::filesystem::path const & journal_dir, std::string_view commander_fid) -> at_risk_t;
 
+///\brief whether a journal line changes what at_risk would say or the legal standing read along with it
+///\detail The sample itself is not it: the game writes the analysis a few seconds after the last sample, and
+/// only the analysis adds to the sum
+[[nodiscard]]
+auto changes_at_risk(std::string_view line) noexcept -> bool;
+
 ///\brief one sale of cartographic data, what it paid against what EHT reckoned it was worth
 ///\detail The game writes a sale's sums for all its systems together and nothing for a body, so a sale of one
 /// system is the only exact price there is - which is why data sold system by system is worth more to this

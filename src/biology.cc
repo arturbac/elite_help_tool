@@ -521,6 +521,14 @@ auto at_risk(std::filesystem::path const & journal_dir, std::string_view command
   return result;
   }
 
+auto changes_at_risk(std::string_view line) noexcept -> bool
+  {
+  return line.contains("\"ScanType\":\"Analyse\"") or line.contains("\"SellOrganicData\"")
+         or line.contains("SellExplorationData\"") or line.contains("\"RedeemVoucher\"")
+         or line.contains("\"event\":\"Died\"") or line.contains("\"event\":\"CommitCrime\"")
+         or line.contains("\"event\":\"PayBounties\"");
+  }
+
 auto cartography_sales(std::filesystem::path const & journal_dir, std::string_view commander_fid)
   -> std::vector<cartography_sale_t>
   {

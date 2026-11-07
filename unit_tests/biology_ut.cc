@@ -9,6 +9,14 @@ auto main() -> int
   {
   using namespace boost::ut;
 
+  "the analysis of a sample counts the sum again, the sample before it does not"_test = []
+  {
+    expect(bio::changes_at_risk(R"({ "event":"ScanOrganic", "ScanType":"Analyse", "Species_Localised":"Frutexa Acus" })"));
+    expect(not bio::changes_at_risk(R"({ "event":"ScanOrganic", "ScanType":"Sample", "Species_Localised":"Frutexa Acus" })"));
+    expect(bio::changes_at_risk(R"({ "event":"SellOrganicData", "MarketID":1 })"));
+    expect(bio::changes_at_risk(R"({ "timestamp":"2026-11-07T13:18:04Z", "event":"Died" })"));
+  };
+
   "surface"_test = []
   {
     "a degree of longitude on the equator"_test = []

@@ -282,8 +282,8 @@ struct current_state_t : public generic_state_t
 
   ///\brief every journal line as written, with whether it is happening now or being replayed
   std::function<void(std::string_view, bool)> raw_line_listener_;
-  ///\brief counts what lowers the sum a death would cost - a sale, a hand-in, the death itself - so the
-  /// overlay counts it again at once rather than at its next minute
+  ///\brief counts what changes the sum a death would cost - a sample analysed, a sale, a hand-in, the death
+  /// itself - so the overlay counts it again at once rather than at its next minute
   uint64_t at_risk_changes_{};
   ///\brief counts kills in conflict zones and bond hand-ins, so the war block counts its bonds again at once
   uint64_t bond_changes_{};
@@ -302,12 +302,7 @@ struct current_state_t : public generic_state_t
     {
     if(raw_line_listener_)
       raw_line_listener_(line, not catching_up_);
-    if(
-      not catching_up_
-      and (line.contains("\"SellOrganicData\"") or line.contains("SellExplorationData\"")
-           or line.contains("\"RedeemVoucher\"") or line.contains("\"event\":\"Died\"")
-           or line.contains("\"event\":\"CommitCrime\"") or line.contains("\"event\":\"PayBounties\""))
-    )
+    if(not catching_up_ and bio::changes_at_risk(line))
       ++at_risk_changes_;
     if(not catching_up_ and (line.contains("\"FactionKillBond\"") or line.contains("\"CombatBond\"")))
       ++bond_changes_;
