@@ -461,6 +461,19 @@ auto main_window_t::add_tool_window(QMdiSubWindow * sub, window_type_e type) -> 
   mdi_area_->addSubWindow(sub);
   sub->setProperty("window_type", QVariant::fromValue(type));
 
+  // the content scrolls when the window is narrower or lower than it needs: with the scroll bars off the MDI
+  // area takes the widest minimum of all its windows, so one wide row anywhere would keep the whole tool wide;
+  // now a scroll bar shows which window does not fit
+  if(QWidget * const content{sub->widget()}; content != nullptr)
+    {
+    sub->setWidget(nullptr);
+    auto * const scroll{new QScrollArea};
+    scroll->setWidgetResizable(true);
+    scroll->setFrameShape(QFrame::NoFrame);
+    scroll->setWidget(content);
+    sub->setWidget(scroll);
+    }
+
   // no close button - there is one window of each and it is to live to the end of the session
   // WindowSystemMenuHint would add the window menu with a close entry, so it is not here
   sub->setWindowFlags(Qt::SubWindow | Qt::WindowTitleHint | Qt::WindowMinMaxButtonsHint);

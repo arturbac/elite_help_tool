@@ -249,6 +249,10 @@ A restart opens on the window that was in front when EHT stopped, remembered for
 directory (so for each commander when each has one); the very first start opens on System info in
 an inhabited system and on Exploration elsewhere.
 
+The main window can be made as narrow as its button bar plus a sliver: each inner window scrolls its
+content when it gets less room than its widest row needs, so a scroll bar shows which window does not
+fit.
+
 For a launcher or a desktop entry, the tool's icon is `ui/icons/eht.svg` (a 256 px `eht.png` beside
 it). The desktop entry has to start EHT in its working directory: `Path=` set to it, or a user
 service with `WorkingDirectory=`.
