@@ -225,8 +225,38 @@ auto body_positions_now(
     );
     }
 
-  // a barycentre nested under a further-out one (a close pair, itself orbiting a distant third body)
-  // stays at the root's origin - the game's ScanBaryCentre never says what an outer barycentre orbits
+  // the game's ScanBaryCentre never says what a barycentre orbits; a body whose nearest parent is that
+  // barycentre names the planet or star past it, which the barycentre itself then orbits (a close pair of
+  // planets round their star, a pair of moons round their planet). An unscanned one stands still on that
+  // parent. A barycentre with no such body (a pair of stars round a further-out one) stays at the origin
+  for(body_t const * s: scans)
+    {
+    std::optional<body_id_t> barycentre, beyond_planet, beyond_star;
+    std::visit(
+      [&]<typename T>(T const & det)
+      {
+        if constexpr(std::same_as<T, planet_details_t> or std::same_as<T, star_details_t>)
+          if(det.nearest_parent == parent_kind_barycentre)
+            {
+            barycentre = det.parent_barycenter;
+            beyond_star = det.parent_star;
+            if constexpr(std::same_as<T, planet_details_t>)
+              beyond_planet = det.parent_planet;
+            }
+      },
+      s->details
+    );
+    if(not barycentre or not(beyond_planet or beyond_star))
+      continue;
+    auto & node{registry[*barycentre]};
+    node.body_id = *barycentre;
+    if(not node.parents.empty())
+      continue;
+    if(beyond_planet)
+      node.parents.emplace_back(events::parent_t{.Planet = beyond_planet});
+    else
+      node.parents.emplace_back(events::parent_t{.Star = beyond_star});
+    }
 
   std::unordered_map<body_id_t, body_location_t> rel_coords;
   for(auto const & [id, node]: registry)
@@ -250,8 +280,9 @@ auto body_positions_now(
     double abs_x = 0.0, abs_y = 0.0, abs_z = 0.0;
     body_id_t current_id = s->body_id;
 
-    // walk up the tree as far as the main star (no parents left)
-    while(true)
+    // walk up the tree as far as the main star (no parents left); the bound only stops a loop in odd data,
+    // a real system is a few links deep
+    for(int depth{}; depth != 64; ++depth)
       {
       if(rel_coords.contains(current_id))
         {

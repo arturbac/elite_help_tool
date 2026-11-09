@@ -667,10 +667,18 @@ auto system_window_t::calculate_route() -> void
     bodies.push_back(&body);
   std::vector<events::body_id_t> const chosen(model_->visits_.begin(), model_->visits_.end());
 
-  // near a body Status.json names it; anywhere else the route starts from the system's centre
+  // near a body Status.json names it; anywhere else the route starts from the star the jump arrived at
   std::optional<events::body_id_t> start;
   if(auto const status{load_status(state_.journal_dir_path_)}; status)
     if(auto const it{std::ranges::find(model_->bodies_, status->BodyName, &body_t::name)}; it != model_->bodies_.end())
+      start = it->body_id;
+  if(not start)
+    if(auto const it{std::ranges::find_if(
+         model_->bodies_,
+         [](body_t const & body)
+         { return std::holds_alternative<star_details_t>(body.details) and body.distance_from_arrival_ls == 0.0; }
+       )};
+       it != model_->bodies_.end())
       start = it->body_id;
 
   auto const now{std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())};

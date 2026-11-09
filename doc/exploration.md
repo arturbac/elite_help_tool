@@ -58,7 +58,8 @@ than 600k in `gui.value_high`.
 
 Tick the bodies you mean to visit in column *V* and press **Calculate route** below the table: each is numbered
 in the order to fly, and the legs are listed beside the button in light seconds. The route starts at the body
-`Status.json` names, otherwise at the system's centre, and takes the bodies where their orbits have them now. A
+`Status.json` names, otherwise at the star the jump arrived at, and takes the bodies where their orbits have them
+now; a pair of planets or moons sharing a barycentre stands by the star or planet they circle together. A
 changed tick clears the route; the ticks last until you leave the system.
 
 Navigating on foot to a codex entry or a place tipped off by a guide is its own window, in

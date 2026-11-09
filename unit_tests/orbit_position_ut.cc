@@ -190,6 +190,59 @@ auto main() -> int
     expect(visit_order({}, bodies, {}, std::nullopt, epoch).empty());
   };
 
+  "a pair of planets round the far star of a binary stands by that star"_test = []
+  {
+    // "Spoihee YG-B d14-358" from a real journal: A and B round the system's barycentre 0, about 26k Ls
+    // apart; A 2 and A 3 round A, B 2 with B 3 round barycentre 27, which circles B. From A the route is
+    // A 2, A 3, then B 2 - not B 2 first, as when barycentre 27 was left at the system's origin
+    auto const system{"Spoihee YG-B d14-358"};
+    std::uint64_t const address{12309786939771};
+    auto star_a{to_body(make_star(
+      1, system, address, "K", 2473141551017.761, 0.200979, 3.932337, 120.775366, 10570206642.150879, -166.418946,
+      63.595394, {::events::parent_t{.Null = 0}}
+    ))};
+    auto star_b{to_body(make_star(
+      2, system, address, "M", 5787709712982.178, 0.200979, 3.932337, 300.775361, 10570206642.150879, -166.418946,
+      63.595394, {::events::parent_t{.Null = 0}}
+    ))};
+    auto a2{to_body(make_planet(
+      11, system, address, 172980898618.69812, 0.001749, -0.949956, 117.941374, 38265066.742897, -148.017661,
+      86.145459, {::events::parent_t{.Star = 1}, ::events::parent_t{.Null = 0}}
+    ))};
+    auto a3{to_body(make_planet(
+      12, system, address, 321699798107.1472, 0.000514, -0.004964, 338.584065, 97046853.303909, -94.249213,
+      93.974539, {::events::parent_t{.Star = 1}, ::events::parent_t{.Null = 0}}
+    ))};
+    auto b2{to_body(make_planet(
+      28, system, address, 106204211.711884, 0.015632, -7.009799, 186.95128, 2960228.741169, -27.729052, 236.052226,
+      {::events::parent_t{.Null = 27}, ::events::parent_t{.Star = 2}, ::events::parent_t{.Null = 0}}
+    ))};
+    for(body_t * body: {&star_a, &star_b, &a2, &a3, &b2})
+      body->scanned_at = epoch;
+    bary_centre_t const barycentre27{
+      .body_id = 27,
+      .semi_major_axis = 132058167457.58057,
+      .eccentricity = 0.002959,
+      .orbital_inclination = -0.024915,
+      .periapsis = 277.727981,
+      .orbital_period = 39046494.364738,
+      .ascending_node = 69.140052,
+      .mean_anomaly = 168.73794,
+      .scanned_at = epoch
+    };
+    std::vector<body_t const *> const bodies{&star_a, &star_b, &a2, &a3, &b2};
+    std::array<::events::body_id_t, 3> const chosen{28, 11, 12};
+
+    for(std::vector<bary_centre_t> const barycentres: {std::vector{barycentre27}, std::vector<bary_centre_t>{}})
+      {
+      auto const route{visit_order(barycentres, bodies, chosen, ::events::body_id_t{1}, epoch)};
+      expect(fatal(route.size() == 3_ul));
+      expect(route[0].body_id == 11_u and route[1].body_id == 12_u and route[2].body_id == 28_u)
+        << "barycentre scanned:" << not barycentres.empty();
+      expect(route[2].distance_ls > 20'000.0) << "B 2 lies by B, far from A 3:" << route[2].distance_ls;
+      }
+  };
+
   "single star at rest is the system's own origin"_test = []
   {
     auto star{make_star(0, "Bleia Eohn XB-K a63-2", 40528921907736, "L")};
