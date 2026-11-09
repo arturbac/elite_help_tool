@@ -128,7 +128,7 @@ auto system_bodies_model_t::data(QModelIndex const & index, int role) const -> Q
     if(index.column() == visit_column)
       return visits_.contains(b.body_id) ? Qt::Checked : Qt::Unchecked;
     if(index.column() == 11)  // Was Footfalled
-      if(b.body_type() == body_type_e::star)
+      if(b.body_type() == body_type_e::star or not std::get<planet_details_t>(b.details).landable)
         return {};
       else
         return std::get<planet_details_t>(b.details).was_footfalled ? Qt::Checked : Qt::Unchecked;
@@ -141,7 +141,7 @@ auto system_bodies_model_t::data(QModelIndex const & index, int role) const -> Q
       return b.was_discovered ? Qt::Checked : Qt::Unchecked;
     else if(index.column() == 8)  // Footfall
       {
-      if(b.body_type() == body_type_e::star)
+      if(b.body_type() == body_type_e::star or not std::get<planet_details_t>(b.details).landable)
         return {};
       else
         return std::get<planet_details_t>(b.details).footfalled ? Qt::Checked : Qt::Unchecked;

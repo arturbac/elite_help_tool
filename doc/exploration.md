@@ -53,7 +53,7 @@ with a weapon.
 each explained when the pointer rests on it. Your own deeds sit in *M* (mapped) and *FF* (footfall: you
 stepped onto the body - from the ship, an SRV or a taxi), *T* marks a terraformable body, the game's word on other
 commanders is in *wD*, *wM* and *wF* (was discovered, was mapped, was footfalled), the last three in their own colour
-(`gui.mapped_before_column`). A body worth more than 300k if mapped is in `gui.value_medium`, more
+(`gui.mapped_before_column`). A body you cannot land on has no *FF* or *wF* box. A body worth more than 300k if mapped is in `gui.value_medium`, more
 than 600k in `gui.value_high`.
 
 Tick the bodies you mean to visit in column *V* and press **Calculate route** below the table: each is numbered
