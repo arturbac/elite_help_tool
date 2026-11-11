@@ -344,6 +344,11 @@ private:
   std::vector<bio::species_record_t> species_history_;
   ///\brief every genus mapped with its world, sampled or not - what the genera of a world not mapped are guessed from
   std::vector<bio::species_record_t> genus_history_;
+  ///\brief the body the commander is at or was at last, in the system it is in - Status.json names a body only
+  /// near it, and the life left is ordered from the last one all the way to the next
+  uint64_t life_from_system_{};
+  std::optional<events::body_id_t> life_from_;
+  overlay_exploration::life_route_t life_route_;
   uint64_t history_scans_{~uint64_t{}};
   ///\brief the other accounts sample on their own time, so their galaxies are read again now and then
   std::chrono::steady_clock::time_point history_read_{};

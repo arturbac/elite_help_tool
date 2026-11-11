@@ -29,6 +29,8 @@ struct visit_stop_t
   {
   events::body_id_t body_id{};
   double distance_ls{};
+  ///\brief how far it lies from where the route starts, straight
+  double from_start_ls{};
   };
 
 ///\brief the chosen bodies in the order to fly them: nearest neighbour, then 2-opt, as an open route

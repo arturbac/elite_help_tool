@@ -3,9 +3,11 @@
 #include <eht_settings.h>
 
 #include <algorithm>
+#include <chrono>
 #include <format>
 #include <limits>
 #include <ranges>
+#include <utility>
 #include <exploration_value.h>
 
 namespace overlay_exploration
@@ -382,7 +384,9 @@ auto describe_mapping(star_system_t const & system) -> std::vector<overlay::line
 auto describe_life(
   star_system_t const & system,
   std::span<bio::species_record_t const> history,
-  std::span<bio::species_record_t const> mapped
+  std::span<bio::species_record_t const> mapped,
+  std::optional<events::body_id_t> from,
+  life_route_t & route
 ) -> std::vector<overlay::line_t>
   {
   struct entry_t
@@ -393,6 +397,9 @@ auto describe_life(
     ///\brief the genera are guessed - the world was not mapped yet - out of this many alike worlds
     uint32_t alike{};
     uint32_t potential{};
+    ///\brief its place on the route, and how far it lies from where the route starts
+    size_t stop{};
+    double from_here_ls{};
     };
 
   eht::exploration_settings_t const & exploration{eht::settings()->exploration};
@@ -436,8 +443,47 @@ auto describe_life(
   if(bodies.empty())
     return {};
 
-  // nearest first: the list is the way through the system, the colour says which are worth it
-  std::ranges::sort(bodies, std::ranges::less{}, [](entry_t const & e) { return e.body->distance_from_arrival_ls; });
+  // the list is the way through the system from where the commander is, the colour says which are worth it
+  if(not from)
+    if(body_t const * const star{arrival_star(system)}; star != nullptr)
+      from = star->body_id;
+  std::vector<events::body_id_t> left;
+  left.reserve(bodies.size());
+  for(entry_t const & entry: bodies)
+    left.push_back(entry.body->body_id);
+  std::ranges::sort(left);
+  if(route.system_address != system.system_address or route.from != from or route.bodies != left)
+    {
+    std::vector<body_t const *> all;
+    all.reserve(system.bodies.size());
+    for(body_t const & body: system.bodies)
+      all.push_back(&body);
+    auto const now{std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now())};
+    route = life_route_t{
+      .system_address = system.system_address,
+      .from = from,
+      .bodies = left,
+      .stops = visit_order(system.bary_centre, all, left, from, now)
+    };
+    }
+  for(entry_t & entry: bodies)
+    if(auto const it{std::ranges::find(route.stops, entry.body->body_id, &visit_stop_t::body_id)};
+       it != route.stops.end())
+      {
+      entry.stop = static_cast<size_t>(it - route.stops.begin());
+      entry.from_here_ls = it->from_start_ls;
+      }
+    else
+      {
+      // no orbit to place it by: after the route, by its distance from the star
+      entry.stop = route.stops.size();
+      entry.from_here_ls = entry.body->distance_from_arrival_ls;
+      }
+  std::ranges::sort(
+    bodies,
+    std::ranges::less{},
+    [](entry_t const & e) { return std::pair{e.stop, e.body->distance_from_arrival_ls}; }
+  );
   uint32_t const worth{bio_worth()};
 
   std::vector<overlay::line_t> lines;
@@ -461,7 +507,7 @@ auto describe_life(
           "{}  {} signals  {:.0f} ls  {:.2f} g  {:.0f} K{}{}",
           short_name(system, body.name),
           std::max<size_t>(bio_signals(planet), planet.genuses_.size()),
-          body.distance_from_arrival_ls,
+          entry.from_here_ls,
           planet.surface_gravity / 9.80665,
           planet.surface_temperature,
           planet.atmosphere_type.empty() or planet.atmosphere_type == "None"

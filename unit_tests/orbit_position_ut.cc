@@ -181,6 +181,7 @@ auto main() -> int
     auto const inwards{visit_order({}, bodies, two, ::events::body_id_t{2}, epoch)};
     expect(fatal(inwards.size() == 2_ul));
     expect(inwards[0].body_id == 3_u and inwards[1].body_id == 1_u) << "from the body the commander is at";
+    expect(near(inwards[1].from_start_ls, 2e11 / 299'792'458.0, 1e-3)) << "the last stop straight from the start";
 
     std::array<::events::body_id_t, 1> const one{3};
     auto const single{visit_order({}, bodies, one, std::nullopt, epoch)};

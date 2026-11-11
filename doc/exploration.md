@@ -25,8 +25,12 @@ The bottom right corner of the overlay follows the order of work in a new system
    without a latitude - geology on the ground has one), the line turns to "visited" with what was
    logged. The Exploration window lists the systems where phenomena were reported and never visited,
 2. **to map** — bodies worth the probes, most valuable first, green when it is a first discovery,
-3. **life** — bodies with biological signals left to sample, nearest to the arrival star first (a body
-   whose every genus is sampled leaves the list), and for each genus, one to a line, the species it
+3. **life** — bodies with biological signals left to sample, in the order of a route through them from
+   the body the commander is at or was at last in the system (the arrival star before any), the bodies
+   placed where their orbits have them now: nearest neighbour, then 2-opt, as for the route of the System
+   window. The `ls` of a body is how far it lies from that body, and the order is worked out again when
+   the commander comes to another body or a body leaves the list (a body whose every genus is sampled
+   leaves it). For each genus, one to a line, the species it
    most likely is on this world with their shares and prices (`candidates`, 3); green when it is worth
    landing for (`bio_worth`, 5M).
 

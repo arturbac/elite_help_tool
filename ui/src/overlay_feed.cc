@@ -2081,6 +2081,20 @@ auto overlay_feed_t::refresh_status(current_state_t const & state) -> void
     // a fix of noise leaves the track as it was; away from the body it starts over
     else if(not(surface_.here and status->Altitude and surface_.planet_radius > 0.0))
       descent_track_.clear();
+    // on foot at a port Status.json names the port, no body of the system - the last body stands then
+    if(auto const body{std::ranges::find_if(
+         state.system.bodies,
+         [&status, &state](body_t const & b)
+         {
+           return not status->BodyName.empty()
+                  and (b.name == status->BodyName or std::format("{} {}", state.system.name, b.name) == status->BodyName);
+         }
+       )};
+       body != state.system.bodies.end())
+      {
+      life_from_system_ = state.system.system_address;
+      life_from_ = body->body_id;
+      }
     status_body_ = std::move(status->BodyName);
     status_destination_ = std::move(status->Destination);
     }
@@ -4145,7 +4159,14 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
       overlay::block_t{.corner = overlay::corner_e::bottom_right, .ttl_ms = block_ttl_ms(), .lines = std::move(mapping)}
     );
   if(auto life{
-       exploring_ ? overlay_exploration::describe_life(state.system, species_history_, genus_history_) : std::vector<overlay::line_t>{}
+       exploring_ ? overlay_exploration::describe_life(
+                      state.system,
+                      species_history_,
+                      genus_history_,
+                      life_from_system_ == state.system.system_address ? life_from_ : std::nullopt,
+                      life_route_
+                    )
+                  : std::vector<overlay::line_t>{}
      };
      not life.empty())
     frame.blocks.push_back(

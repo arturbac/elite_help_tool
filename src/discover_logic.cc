@@ -474,11 +474,18 @@ auto visit_order(
       targets.push_back(location);
     }
 
+  body_location_t const start_at{from};
   std::vector<visit_stop_t> route;
   route.reserve(targets.size());
   for(body_location_t const & location: order_calculation_2_opt(from, targets))
     {
-    route.push_back(visit_stop_t{.body_id = location.body_id, .distance_ls = distance_ls(from, location)});
+    route.push_back(
+      visit_stop_t{
+        .body_id = location.body_id,
+        .distance_ls = distance_ls(from, location),
+        .from_start_ls = distance_ls(start_at, location)
+      }
+    );
     from = location;
     }
   return route;

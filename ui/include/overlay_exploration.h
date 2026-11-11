@@ -3,6 +3,7 @@
 #include "logic.h"
 
 #include <biology.h>
+#include <orbit.h>
 #include <overlay_protocol.h>
 
 #include <optional>
@@ -47,14 +48,30 @@ auto describe_phenomena(star_system_t const & system) -> std::vector<overlay::li
 [[nodiscard]]
 auto describe_mapping(star_system_t const & system) -> std::vector<overlay::line_t>;
 
-///\brief the bodies with life left to sample, nearest first, and what each genus is or is likely to be there
+///\brief the way through the bodies with life left, kept from frame to frame: worked out again only when the
+/// system, the body it starts from or the bodies left change - the bodies moving on along their orbits in
+/// between reorder nothing worth a new walk
+struct life_route_t
+  {
+  uint64_t system_address{};
+  std::optional<events::body_id_t> from;
+  std::vector<events::body_id_t> bodies;
+  std::vector<visit_stop_t> stops;
+  };
+
+///\brief the bodies with life left to sample, as a route from where the commander is, and what each genus is
+/// or is likely to be there
 ///\param history the species sampled before, what a genus' species is guessed from
 ///\param mapped every genus mapped before with its world, what the genera of a world not mapped yet are guessed from
+///\param from the body the commander is at or was at last in this system; the arrival star when none
+///\param route the route of the frame before, kept or worked out again
 [[nodiscard]]
 auto describe_life(
   star_system_t const & system,
   std::span<bio::species_record_t const> history,
-  std::span<bio::species_record_t const> mapped
+  std::span<bio::species_record_t const> mapped,
+  std::optional<events::body_id_t> from,
+  life_route_t & route
 ) -> std::vector<overlay::line_t>;
 
 ///\brief on the ground: the sample in progress, how far the last ones are, and what is left on this body
