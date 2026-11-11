@@ -342,6 +342,8 @@ private:
   ///\brief every species sampled with its world, what the genera are guessed from - read again when a
   /// sample was analysed, since that is when the history grows
   std::vector<bio::species_record_t> species_history_;
+  ///\brief every genus mapped with its world, sampled or not - what the genera of a world not mapped are guessed from
+  std::vector<bio::species_record_t> genus_history_;
   uint64_t history_scans_{~uint64_t{}};
   ///\brief the other accounts sample on their own time, so their galaxies are read again now and then
   std::chrono::steady_clock::time_point history_read_{};

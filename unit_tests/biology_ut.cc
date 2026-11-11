@@ -1,5 +1,6 @@
 #include <boost/ut.hpp>
 #include <biology.h>
+#include <algorithm>
 #include <array>
 #include <filesystem>
 #include <fstream>
@@ -309,5 +310,65 @@ auto main() -> int
     };
     bio::merge_history(own, std::move(other));
     expect(own.size() == 4_u) << "a find both accounts know counts once";
+
+    // a world only mapped holds its genera with no species - two of them on one world are two, not one
+    std::vector<species_record_t> mapped{
+      species_record_t{.genus = "Stratum", .species = "", .system_address = 5u, .body_id = 1u},
+    };
+    bio::merge_history(
+      mapped,
+      {species_record_t{.genus = "Bacterium", .species = "", .system_address = 5u, .body_id = 1u},
+       species_record_t{.genus = "Stratum", .species = "", .system_address = 5u, .body_id = 1u}}
+    );
+    expect(mapped.size() == 2_u) << "two genera mapped on one world, the second account's copy once";
+  };
+
+  "guess the genera of a world not mapped"_test = []
+  {
+    using bio::species_record_t;
+    auto const world_of = [](uint64_t system, char const * atmosphere, double kelvin, double gravity)
+    {
+      return species_record_t{
+        .genus = {},
+        .species = {},
+        .planet_class = "Rocky body",
+        .atmosphere_type = atmosphere,
+        .volcanism = {},
+        .surface_temperature = kelvin,
+        .surface_gravity = gravity,
+        .surface_pressure = 0.0,
+        .star_type = "K",
+        .system_address = system,
+        .body_id = 1u
+      };
+    };
+    std::vector<species_record_t> mapped;
+    auto const add = [&](uint64_t system, char const * atmosphere, double kelvin, double gravity, std::vector<char const *> genera)
+    {
+      for(char const * genus: genera)
+        {
+        species_record_t r{world_of(system, atmosphere, kelvin, gravity)};
+        r.genus = genus;
+        mapped.push_back(r);
+        }
+    };
+    // four alike worlds under ammonia near 165 K and 1.6 m/s2, one too warm, one under another gas
+    add(1u, "Ammonia", 163.0, 1.60, {"Bacterium", "Fungoida", "Stratum"});
+    add(2u, "Ammonia", 168.0, 1.70, {"Bacterium", "Fungoida"});
+    add(3u, "Ammonia", 160.0, 1.50, {"Bacterium"});
+    add(4u, "Ammonia", 170.0, 1.65, {"Bacterium", "Fungoida", "Tussock"});
+    add(5u, "Ammonia", 190.0, 1.60, {"Osseus"});
+    add(6u, "CarbonDioxide", 165.0, 1.60, {"Concha"});
+
+    bio::conditions_t world{.planet_class = "Rocky body", .atmosphere_type = "Ammonia", .surface_temperature = 165.0, .surface_gravity = 1.6};
+    auto const guesses{bio::guess_genera(world, mapped, 10.0, 0.2)};
+    expect(guesses.size() == 4_u) << "only the alike worlds' genera";
+    expect(guesses[0].genus == "Bacterium" and guesses[0].share == 1.0 and guesses[0].alike == 4_u);
+    expect(guesses[1].genus == "Fungoida" and guesses[1].share == 0.75);
+    expect(guesses[2].share == 0.25 and guesses[3].share == 0.25) << "Stratum and Tussock once each";
+    expect(std::ranges::none_of(guesses, [](auto const & g) { return g.genus == "Osseus" or g.genus == "Concha"; }));
+
+    bio::conditions_t alone{.planet_class = "Rocky body", .atmosphere_type = "Neon", .surface_temperature = 30.0, .surface_gravity = 4.0};
+    expect(bio::guess_genera(alone, mapped, 10.0, 0.2).empty()) << "nothing alike, nothing guessed";
   };
   }

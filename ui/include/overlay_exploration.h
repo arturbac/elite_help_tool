@@ -47,10 +47,15 @@ auto describe_phenomena(star_system_t const & system) -> std::vector<overlay::li
 [[nodiscard]]
 auto describe_mapping(star_system_t const & system) -> std::vector<overlay::line_t>;
 
-///\brief the bodies with life, and what each genus is likely to be worth there
+///\brief the bodies with life left to sample, nearest first, and what each genus is or is likely to be there
+///\param history the species sampled before, what a genus' species is guessed from
+///\param mapped every genus mapped before with its world, what the genera of a world not mapped yet are guessed from
 [[nodiscard]]
-auto describe_life(star_system_t const & system, std::span<bio::species_record_t const> history)
-  -> std::vector<overlay::line_t>;
+auto describe_life(
+  star_system_t const & system,
+  std::span<bio::species_record_t const> history,
+  std::span<bio::species_record_t const> mapped
+) -> std::vector<overlay::line_t>;
 
 ///\brief on the ground: the sample in progress, how far the last ones are, and what is left on this body
 ///\detail empty when we stand on no body with life and hold no sampler - it is a head-up readout, and a

@@ -43,7 +43,11 @@ namespace
 ///\brief the query behind the history, over whichever names the tables have on the connection
 [[nodiscard]]
 auto species_history_source(
-  std::string_view genus, std::string_view body, std::string_view planet_details, std::string_view star_details
+  std::string_view genus,
+  std::string_view body,
+  std::string_view planet_details,
+  std::string_view star_details,
+  bool sampled_only = true
 ) -> std::string
   {
   // the planet and the star both have a surface temperature, so the join is wrapped in a query of its own
@@ -57,11 +61,12 @@ auto species_history_source(
     " FROM {0} g JOIN {1} b ON b.oid = g.ref_body_oid JOIN {2} pd ON pd.ref_body_oid = b.oid"
     " LEFT JOIN {1} bs ON bs.ref_system_address = b.ref_system_address AND bs.body_id = pd.parent_star"
     " LEFT JOIN {3} sd ON sd.ref_body_oid = bs.oid"
-    " WHERE g.species <> '') AS history",
+    "{4}) AS history",
     genus,
     body,
     planet_details,
-    star_details
+    star_details,
+    sampled_only ? " WHERE g.species <> ''" : ""
   );
   }
   }  // namespace
@@ -158,6 +163,36 @@ auto database_storage_t::load_species_history_from(std::string const & galaxy_pa
   sqlite3_busy_timeout(other.db, 200);
   return sqlite::select_from<bio::species_record_t>(
     other.db, species_history_source("genus", "body", "planet_details", "star_details"), ""
+  );
+  }
+
+auto database_storage_t::load_genus_history() -> expected_ec<std::vector<bio::species_record_t>>
+  {
+  return sqlite::select_from<bio::species_record_t>(
+    db_->db,
+    species_history_source(
+      sql_iface::tables::genus,
+      sql_iface::tables::body,
+      sql_iface::tables::planet_details,
+      sql_iface::tables::star_details,
+      false
+    ),
+    ""
+  );
+  }
+
+auto database_storage_t::load_genus_history_from(std::string const & galaxy_path)
+  -> expected_ec<std::vector<bio::species_record_t>>
+  {
+  sqlite3_handle_t other;
+  if(sqlite3_open_v2(galaxy_path.c_str(), &other.db, SQLITE_OPEN_READONLY, nullptr) != SQLITE_OK)
+    {
+    spdlog::warn("the shared galaxy {} could not be opened", galaxy_path);
+    return cxx23::unexpected(std::make_error_code(std::errc::no_such_file_or_directory));
+    }
+  sqlite3_busy_timeout(other.db, 200);
+  return sqlite::select_from<bio::species_record_t>(
+    other.db, species_history_source("genus", "body", "planet_details", "star_details", false), ""
   );
   }
 

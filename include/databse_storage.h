@@ -491,6 +491,16 @@ struct database_storage_t
   static auto load_species_history_from(std::string const & galaxy_path)
     -> expected_ec<std::vector<bio::species_record_t>>;
 
+  ///\brief every genus the probes found on a world with the world's conditions, sampled or not (an empty species
+  /// for a genus only mapped) - what bio::guess_genera reads to guess a world not mapped yet
+  [[nodiscard]]
+  auto load_genus_history() -> expected_ec<std::vector<bio::species_record_t>>;
+
+  ///\brief the same out of another account's galaxy, opened read-only
+  [[nodiscard]]
+  static auto load_genus_history_from(std::string const & galaxy_path)
+    -> expected_ec<std::vector<bio::species_record_t>>;
+
   ///\brief every find of a species with its system, body and world - what the codex page is written from
   [[nodiscard]]
   auto load_codex_finds() -> expected_ec<std::vector<bio::find_t>>;

@@ -25,8 +25,19 @@ The bottom right corner of the overlay follows the order of work in a new system
    without a latitude - geology on the ground has one), the line turns to "visited" with what was
    logged. The Exploration window lists the systems where phenomena were reported and never visited,
 2. **to map** — bodies worth the probes, most valuable first, green when it is a first discovery,
-3. **life** — bodies with biological signals and, for each genus, the species it most likely is on
-   this world, with its price; green when it is worth landing for (`bio_worth`, 5M).
+3. **life** — bodies with biological signals left to sample, nearest to the arrival star first (a body
+   whose every genus is sampled leaves the list), and for each genus, one to a line, the species it
+   most likely is on this world with their shares and prices (`candidates`, 3); green when it is worth
+   landing for (`bio_worth`, 5M).
+
+Before the probes map a body, its genera are guessed too: the line of the body says `guessed from N
+alike`, and under it come as many genera as the scanner counted signals, each with the share of the
+alike worlds mapped before that had it (`Bacterium 96% ? Vesicula 1.0M 58% | ...`). A world counts as
+alike when it has the same atmosphere, a temperature within 10 K (`alike_kelvin`) and a gravity within
+a fifth (`alike_gravity`); the worlds are those both accounts mapped, sampled or not. On 325 mapped
+worlds, guessing each from the rest, 87 of 100 genera were right, and a genus said at 90% was there 93
+times in 100, at 50% 65 times. A genus under 50% does not make the body green. With no alike world
+the line stays `map it to learn the genera`.
 
 The species is guessed from your own history. Every species sampled is stored together with its
 world (planet class, atmosphere, temperature, gravity, the star above it), and a genus on a new world
@@ -118,7 +129,7 @@ since it comes from `Status.json` and no journal has it. Backing up means copyin
 directory and the journals.
 
 Settings are in the `exploration` section of `eht_settings.json`: `bio_worth`, `bio_bodies`,
-`candidates`, `capture`, `capture_size`, `codex_dir`, `jpeg_quality`, `codex_name`, `shared_codex`.
+`candidates`, `alike_kelvin`, `alike_gravity`, `capture`, `capture_size`, `codex_dir`, `jpeg_quality`, `codex_name`, `shared_codex`.
 
 Two accounts of your own can show one codex and one sky album: see
 [sharing between accounts](elite_without_steam.md#sharing-between-accounts).

@@ -216,7 +216,11 @@ struct exploration_settings_t
   ///\brief how many bodies with life the overlay lists
   uint32_t bio_bodies{4u};
   ///\brief how many guesses at a genus' species are shown beside it
-  uint32_t candidates{2u};
+  uint32_t candidates{3u};
+  ///\brief a world mapped before counts as alike to one not mapped yet - whose genera are guessed from the alike - when
+  /// it has the same atmosphere, its temperature is within this many kelvin and its gravity within this share
+  double alike_kelvin{10.0};
+  double alike_gravity{0.2};
   ///\brief what a species below the worth is written in - still there, but not asking for attention
   colour_t below_worth{0x8a8a8au};
   ///\brief a genus whose one scan here would widen what is known of where it grows - worth it whatever it pays

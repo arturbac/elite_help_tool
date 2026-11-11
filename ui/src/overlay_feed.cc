@@ -2008,6 +2008,14 @@ auto overlay_feed_t::refresh_species_history(current_state_t const & state) -> v
       bio::merge_history(species_history_, std::move(*shared));
   if(species_history_.size() != own)
     spdlog::debug("species history: {} own finds, {} from the shared galaxies", own, species_history_.size() - own);
+  // the genera mapped grow with every probe, not only with a sample - read with the rest, which is often enough
+  if(auto mapped{db_.load_genus_history()}; mapped)
+    genus_history_ = std::move(*mapped);
+  else
+    spdlog::error("failed to read the genera mapped before");
+  for(std::string const & galaxy: eht::settings()->exploration.shared_galaxies)
+    if(auto shared{database_storage_t::load_genus_history_from(galaxy)}; shared)
+      bio::merge_history(genus_history_, std::move(*shared));
 
   // the pages change with this commander's samples and with whatever the other accounts' lists say
   auto shared_stamp{std::filesystem::file_time_type::min()};
@@ -4137,7 +4145,7 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
       overlay::block_t{.corner = overlay::corner_e::bottom_right, .ttl_ms = block_ttl_ms(), .lines = std::move(mapping)}
     );
   if(auto life{
-       exploring_ ? overlay_exploration::describe_life(state.system, species_history_) : std::vector<overlay::line_t>{}
+       exploring_ ? overlay_exploration::describe_life(state.system, species_history_, genus_history_) : std::vector<overlay::line_t>{}
      };
      not life.empty())
     frame.blocks.push_back(

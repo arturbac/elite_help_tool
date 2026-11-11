@@ -647,12 +647,57 @@ auto estimate_accuracy(std::span<cartography_sale_t const> sales) -> std::option
 
 auto merge_history(std::vector<species_record_t> & into, std::vector<species_record_t> && from) -> void
   {
-  // the keys of everything already in, and of everything added - the other galaxy can hold a find twice too
-  std::set<std::tuple<uint64_t, uint32_t, std::string>> known;
+  // the keys of everything already in, and of everything added - the other galaxy can hold a find twice too; the
+  // genus in the key as well, since a world only mapped holds its genera with no species
+  std::set<std::tuple<uint64_t, uint32_t, std::string, std::string>> known;
   for(species_record_t const & record: into)
-    known.emplace(record.system_address, record.body_id, record.species);
+    known.emplace(record.system_address, record.body_id, record.genus, record.species);
   for(species_record_t & record: from)
-    if(known.emplace(record.system_address, record.body_id, record.species).second)
+    if(known.emplace(record.system_address, record.body_id, record.genus, record.species).second)
       into.push_back(std::move(record));
+  }
+
+auto guess_genera(conditions_t const & world, std::span<species_record_t const> mapped, double kelvin, double gravity_share)
+  -> std::vector<genus_guess_t>
+  {
+  // the worlds mapped before, each once with the genera found on it
+  struct world_t
+    {
+    species_record_t const * first{};
+    std::set<std::string, std::less<>> genera;
+    };
+
+  std::map<std::pair<uint64_t, uint32_t>, world_t> worlds;
+  for(species_record_t const & record: mapped)
+    {
+    world_t & w{worlds[{record.system_address, record.body_id}]};
+    if(w.first == nullptr)
+      w.first = &record;
+    w.genera.insert(record.genus);
+    }
+
+  uint32_t alike{};
+  std::map<std::string, uint32_t, std::less<>> found;
+  for(auto const & [key, w]: worlds)
+    {
+    species_record_t const & r{*w.first};
+    if(
+      not same_atmosphere(r.atmosphere_type, world.atmosphere_type)
+      or std::abs(r.surface_temperature - world.surface_temperature) > kelvin
+      or std::abs(r.surface_gravity - world.surface_gravity) > gravity_share * world.surface_gravity
+    )
+      continue;
+    ++alike;
+    for(std::string const & genus: w.genera)
+      ++found[genus];
+    }
+
+  std::vector<genus_guess_t> result;
+  for(auto const & [genus, count]: found)
+    result.push_back(
+      genus_guess_t{.genus = genus, .share = double(count) / double(alike), .alike = alike}
+    );
+  std::ranges::stable_sort(result, std::ranges::greater{}, &genus_guess_t::share);
+  return result;
   }
   }  // namespace bio

@@ -194,17 +194,6 @@ namespace
     return with_note(genus_view_t{.text = std::move(text), .colour = colour, .potential = potential, .done = false});
     }
 
-  ///\brief the most a body's life is likely to pay, to put the best landing first
-  [[nodiscard]]
-  auto body_potential(star_system_t const & system, body_t const & body, std::span<bio::species_record_t const> history)
-    -> uint32_t
-    {
-    uint32_t best{};
-    if(auto const * const planet{planet_of(body)}; planet != nullptr)
-      for(events::genus_t const & genus: planet->genuses_)
-        best = std::max(best, view_genus(system, body, genus, history, 1u).potential);
-    return best;
-    }
   }  // namespace
 
 auto short_credits(uint64_t value) -> std::string
@@ -390,76 +379,109 @@ auto describe_mapping(star_system_t const & system) -> std::vector<overlay::line
   return lines;
   }
 
-auto describe_life(star_system_t const & system, std::span<bio::species_record_t const> history)
-  -> std::vector<overlay::line_t>
+auto describe_life(
+  star_system_t const & system,
+  std::span<bio::species_record_t const> history,
+  std::span<bio::species_record_t const> mapped
+) -> std::vector<overlay::line_t>
   {
   struct entry_t
     {
     body_t const * body;
-    uint32_t potential;
+    planet_details_t const * planet;
+    std::vector<genus_view_t> genera;
+    ///\brief the genera are guessed - the world was not mapped yet - out of this many alike worlds
+    uint32_t alike{};
+    uint32_t potential{};
     };
 
+  eht::exploration_settings_t const & exploration{eht::settings()->exploration};
   std::vector<entry_t> bodies;
   for(body_t const & body: system.bodies)
-    if(auto const * const planet{planet_of(body)}; planet != nullptr and has_life(*planet))
-      bodies.push_back(entry_t{.body = &body, .potential = body_potential(system, body, history)});
+    {
+    auto const * const planet{planet_of(body)};
+    if(planet == nullptr or not has_life(*planet))
+      continue;
+    entry_t entry{.body = &body, .planet = planet, .genera = {}};
+    for(events::genus_t const & genus: planet->genuses_)
+      entry.genera.push_back(view_genus(system, body, genus, history, exploration.candidates));
+    // a world all sampled has nothing left to land for - it would only push the others out of the list
+    if(not entry.genera.empty() and std::ranges::all_of(entry.genera, &genus_view_t::done))
+      continue;
+    if(entry.genera.empty())
+      if(auto const world{bio::conditions_of(system, body)}; world)
+        {
+        // not mapped yet: the genera the alike worlds had, as many as the scanner counted signals
+        auto const guesses{bio::guess_genera(*world, mapped, exploration.alike_kelvin, exploration.alike_gravity)};
+        size_t const signals{std::max<size_t>(1u, bio_signals(*planet))};
+        for(bio::genus_guess_t const & guess: guesses | std::views::take(signals))
+          {
+          genus_view_t view{view_genus(
+            system, body, events::genus_t{.Genus_Localised = guess.genus, .Species_Localised = {}, .Sampled = false},
+            history, exploration.candidates
+          )};
+          view.text.insert(guess.genus.size(), std::format(" {:.0f}%", guess.share * 100.0));
+          // a genus the alike worlds seldom had is no reason to land for what it might pay
+          if(guess.share < 0.5)
+            view.potential = 0u;
+          entry.alike = guess.alike;
+          entry.genera.push_back(std::move(view));
+          }
+        }
+    for(genus_view_t const & view: entry.genera)
+      entry.potential = std::max(entry.potential, view.potential);
+    bodies.push_back(std::move(entry));
+    }
 
   if(bodies.empty())
     return {};
 
-  std::ranges::sort(bodies, std::ranges::greater{}, &entry_t::potential);
+  // nearest first: the list is the way through the system, the colour says which are worth it
+  std::ranges::sort(bodies, std::ranges::less{}, [](entry_t const & e) { return e.body->distance_from_arrival_ls; });
   uint32_t const worth{bio_worth()};
 
   std::vector<overlay::line_t> lines;
   lines.push_back(
     overlay::line_t{
-      .text = std::format("life: {} bodies, worth landing from {}", bodies.size(), short_credits(worth)),
+      .text = std::format("life: {} bodies left, worth landing from {}", bodies.size(), short_credits(worth)),
       .color = colour_heading()
     }
   );
 
-  size_t const listed{eht::settings()->exploration.bio_bodies};
+  size_t const listed{exploration.bio_bodies};
   for(entry_t const & entry: bodies | std::views::take(listed))
     {
     body_t const & body{*entry.body};
-    auto const * const planet{planet_of(body)};
-    uint32_t const signals{bio_signals(*planet)};
-
-    std::vector<genus_view_t> genera;
-    for(events::genus_t const & genus: planet->genuses_)
-      genera.push_back(view_genus(system, body, genus, history, eht::settings()->exploration.candidates));
-    bool const all_done{not genera.empty() and std::ranges::all_of(genera, &genus_view_t::done)};
+    planet_details_t const & planet{*entry.planet};
+    bool const guessed{entry.alike != 0u};
 
     lines.push_back(
       overlay::line_t{
         .text = std::format(
           "{}  {} signals  {:.0f} ls  {:.2f} g  {:.0f} K{}{}",
           short_name(system, body.name),
-          std::max<size_t>(signals, genera.size()),
+          std::max<size_t>(bio_signals(planet), planet.genuses_.size()),
           body.distance_from_arrival_ls,
-          planet->surface_gravity / 9.80665,
-          planet->surface_temperature,
-          planet->atmosphere_type.empty() or planet->atmosphere_type == "None"
+          planet.surface_gravity / 9.80665,
+          planet.surface_temperature,
+          planet.atmosphere_type.empty() or planet.atmosphere_type == "None"
             ? std::string{}
-            : std::format("  {}", planet->atmosphere_type),
-          all_done ? "  all sampled" : ""
+            : std::format("  {}", planet.atmosphere_type),
+          guessed ? std::format("  guessed from {} alike", entry.alike) : std::string{}
         ),
-        .color = all_done                    ? colour_below()
-                 : entry.potential >= worth    ? colour_first()
-                 : std::ranges::any_of(genera, &genus_view_t::novel) ? colour_knowledge()
-                                               : colour_plain()
+        .color = entry.potential >= worth                               ? colour_first()
+                 : std::ranges::any_of(entry.genera, &genus_view_t::novel) ? colour_knowledge()
+                                                                         : colour_plain()
       }
     );
 
-    if(genera.empty())
+    if(entry.genera.empty())
       {
-      // the scanner found life but not which - the probes tell the genera
+      // the scanner found life but not which, and no world like it was mapped before - the probes tell the genera
       lines.push_back(overlay::line_t{.text = "    map it to learn the genera", .color = colour_plain()});
       continue;
       }
-    if(all_done)
-      continue;
-    for(genus_view_t & view: genera)
+    for(genus_view_t const & view: entry.genera)
       if(not view.done)
         lines.push_back(overlay::line_t{.text = "    " + view.text, .color = view.colour});
     }
