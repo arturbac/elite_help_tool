@@ -104,7 +104,7 @@ class system_bodies_signals_model_t final : public QAbstractItemModel
   {
   Q_OBJECT
   
-  enum class node_type_t : int8_t { body, category_signals, category_genuses, signal_item, genus_item };
+  enum class node_type_t : int8_t { body, signal_item, genus_item };
 
   struct internal_id_t {
     int32_t body_idx;

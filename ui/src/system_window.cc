@@ -409,14 +409,10 @@ auto system_bodies_signals_model_t::rowCount(QModelIndex const & parent) const -
   auto const id = unpack_id(parent.internalId());
   auto const & body = body_signals_[id.body_idx];
 
-  switch(id.type)
-    {
-    // the nodes exclude each other - the genera replace the signal count
-    case node_type_t::body:             return (shows_signals(body) or not body.genuses_.empty()) ? 1 : 0;
-    case node_type_t::category_signals: return static_cast<int>(body_signals_[id.body_idx].signals_.size());
-    case node_type_t::category_genuses: return static_cast<int>(body_signals_[id.body_idx].genuses_.size());
-    default:                            return 0;
-    }
+  // the signals and the genera straight under the body, never both - the genera replace the signal count
+  if(id.type != node_type_t::body)
+    return 0;
+  return static_cast<int>(shows_signals(body) ? body.signals_.size() : body.genuses_.size());
   }
 
 [[nodiscard]]
@@ -429,15 +425,7 @@ auto system_bodies_signals_model_t::index(int row, int column, QModelIndex const
 
   auto const id = unpack_id(parent.internalId());
   auto const & body = body_signals_[id.body_idx];
-
-  if(id.type == node_type_t::body)
-    {
-    auto const category{shows_signals(body) ? node_type_t::category_signals : node_type_t::category_genuses};
-    return createIndex(row, column, pack_id({id.body_idx, category, -1}));
-    }
-
-  // the rest unchanged (leaf nodes)
-  auto const type = (id.type == node_type_t::category_signals) ? node_type_t::signal_item : node_type_t::genus_item;
+  auto const type{shows_signals(body) ? node_type_t::signal_item : node_type_t::genus_item};
   return createIndex(row, column, pack_id({id.body_idx, type, row}));
   }
 
@@ -449,19 +437,7 @@ auto system_bodies_signals_model_t::parent(QModelIndex const & index) const -> Q
   auto const id = unpack_id(index.internalId());
   if(id.type == node_type_t::body)
     return {};
-
-  if(id.type == node_type_t::category_signals || id.type == node_type_t::category_genuses)
-    return createIndex(id.body_idx, 0, pack_id({id.body_idx, node_type_t::body, -1}));
-
-  // for the leaf elements (signal_item / genus_item)
-  if(id.type == node_type_t::signal_item)
-    return createIndex(0, 0, pack_id({id.body_idx, node_type_t::category_signals, -1}));
-
-  if(id.type == node_type_t::genus_item)
-    // the genera are then the body's only node
-    return createIndex(0, 0, pack_id({id.body_idx, node_type_t::category_genuses, -1}));
-
-  return {};
+  return createIndex(id.body_idx, 0, pack_id({id.body_idx, node_type_t::body, -1}));
   }
 
 [[nodiscard]]
@@ -486,9 +462,7 @@ auto system_bodies_signals_model_t::data(QModelIndex const & index, int role) co
 
   switch(id.type)
     {
-    case node_type_t::body:             return QString::fromStdString(body.name);
-    case node_type_t::category_signals: return QString("Signals (%1)").arg(body.signals_.size());
-    case node_type_t::category_genuses: return QString("Genuses (%1)").arg(body.genuses_.size());
+    case node_type_t::body: return QString::fromStdString(body.name);
     case node_type_t::signal_item:
         {
         // Planetary
@@ -534,6 +508,8 @@ void system_bodies_signals_model_t::refresh(body_signals_t && new_data)
     )};
     bsig.signals_.erase(new_end.begin(), new_end.end());
     }
+  // a body whose every signal is filtered out above has nothing to show under its name
+  std::erase_if(new_data, [](body_signal_t const & bsig) { return bsig.signals_.empty() and bsig.genuses_.empty(); });
   body_signals_ = std::move(new_data);
   endResetModel();
   // a permanently expanded TreeView is handled in the view (QTreeView::expandAll()),
