@@ -21,3 +21,10 @@ Claude joined the project recently. Since then it has developed the next stages
 together with Artur, **within the existing architecture**: Artur sets the direction, decides what
 gets built and checks it in the game, and Claude writes and tests the code with him. Commits from
 this collaboration carry a `Co-Authored-By: Claude` line.
+
+## Third-party data
+
+- The galactic region map of the sky album comes from Ben Peddell's
+  [EliteDangerousRegionMap](https://github.com/klightspeed/EliteDangerousRegionMap), MIT licence; its notice
+  stands at the top of `include/galaxy_regions_data.h`, which `tools/gen_galaxy_regions.py` makes from its
+  `RegionMapData.json`.

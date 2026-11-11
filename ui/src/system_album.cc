@@ -368,12 +368,6 @@ system_album_t::~system_album_t()
   wake_.notify_all();
   }
 
-auto system_album_t::set_journal_dir(std::filesystem::path dir) -> void
-  {
-  std::lock_guard const lock{mutex_};
-  journal_dir_ = std::move(dir);
-  }
-
 auto system_album_t::request() -> void
   {
     {
@@ -431,21 +425,6 @@ auto system_album_t::pass(std::stop_token const & stop) -> void
     return;
     }
 
-  std::filesystem::path journals;
-    {
-    std::lock_guard const lock{mutex_};
-    if(not regions_read_ and not journal_dir_.empty())
-      {
-      journals = journal_dir_;
-      regions_read_ = true;
-      }
-    }
-  if(not journals.empty())
-    system_index::write_regions(own, system_index::regions_in_journals(journals));
-  system_index::region_counts_t regions{system_index::read_regions(own)};
-  for(eht::shared_codex_t const & other: cfg->exploration.shared_codex)
-    system_index::merge_regions(regions, system_index::read_regions(other.dir));
-
   gathered_t const gathered{gather(own)};
 
   std::vector<system_index::row_t> rows;
@@ -455,7 +434,7 @@ auto system_album_t::pass(std::stop_token const & stop) -> void
     {
     if(stop.stop_requested())
       return;
-    std::string const region{system_index::region_of(regions, system_index::sector_of(system.name))};
+    std::string const region{system_index::region_of(system.address)};
     std::string const signature{signature_of(system, gathered, region)};
     std::string const href{system_index::page_name(system.name)};
     bool picture{gathered.sky.contains(system.name)};
@@ -505,7 +484,7 @@ auto system_album_t::pass(std::stop_token const & stop) -> void
         rows.push_back(std::move(row));
         }
   std::ranges::sort(rows, [](system_index::row_t const & a, system_index::row_t const & b) { return natural_less(a.name, b.name); });
-  system_index::write_if_changed(own / "sky.html", system_index::index_page(rows, regions));
+  system_index::write_if_changed(own / "sky.html", system_index::index_page(rows));
 
   if(written != 0u)
     spdlog::info(

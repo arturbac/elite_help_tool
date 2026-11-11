@@ -3868,7 +3868,6 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
   if(not album_started_)
     {
     album_started_ = true;
-    album_.set_journal_dir(state.journal_dir_path_);
     album_.request();
     }
   // the codex does not need the game - its page is written whether anyone is drawing or not

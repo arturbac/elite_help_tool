@@ -22,9 +22,6 @@ public:
   system_album_t(system_album_t const &) = delete;
   auto operator=(system_album_t const &) -> system_album_t & = delete;
 
-  ///\brief the journals the regions are read from, once
-  auto set_journal_dir(std::filesystem::path dir) -> void;
-
   ///\brief a pass over the systems, as soon as the thread is free
   auto request() -> void;
 
@@ -35,8 +32,6 @@ private:
   std::string db_path_;
   std::mutex mutex_;
   std::condition_variable_any wake_;
-  std::filesystem::path journal_dir_;
   bool requested_{};
-  bool regions_read_{};
   std::jthread worker_;
   };

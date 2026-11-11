@@ -1,5 +1,6 @@
 #include <system_index.h>
 
+#include <galaxy_region.h>
 #include <picture_records.h>
 
 #include <spdlog/spdlog.h>
@@ -19,7 +20,6 @@ namespace system_index
   {
 namespace
   {
-constexpr std::string_view regions_file{"regions.tsv"};
 constexpr std::string_view rows_file{"systems.tsv"};
 
 constexpr std::array<std::string_view, 10> letter_order{"S", "G", "E", "W", "A", "M", "H", "R", "I", "Ri"};
@@ -41,21 +41,6 @@ auto is_mass_code(std::string_view word) noexcept -> bool
   return std::ranges::all_of(
     word.substr(1), [](char c) noexcept { return (c >= '0' and c <= '9') or c == '-'; }
   );
-  }
-
-///\brief the value of a key in a journal's line of JSON, whose strings here hold no quotes
-[[nodiscard]]
-auto value_of(std::string_view line, std::string_view key) -> std::string_view
-  {
-  std::string const needle{std::format("\"{}\":", key)};
-  size_t at{line.find(needle)};
-  if(at == std::string_view::npos)
-    return {};
-  at = line.find('"', at + needle.size());
-  if(at == std::string_view::npos)
-    return {};
-  size_t const end{line.find('"', at + 1u)};
-  return end == std::string_view::npos ? std::string_view{} : line.substr(at + 1u, end - at - 1u);
   }
 
 [[nodiscard]]
@@ -127,74 +112,10 @@ auto sector_of(std::string_view system) -> std::string
   return std::string{system.substr(0u, before)};
   }
 
-auto region_in_line(std::string_view line) -> std::optional<region_seen_t>
+auto region_of(uint64_t system_address) -> std::string
   {
-  if(not line.contains("\"CodexEntry\""))
-    return std::nullopt;
-  std::string_view const system{value_of(line, "System")};
-  std::string_view const region{value_of(line, "Region_Localised")};
-  if(system.empty() or region.empty())
-    return std::nullopt;
-  return region_seen_t{.system = std::string{system}, .region = std::string{region}};
-  }
-
-auto regions_in_journals(std::filesystem::path const & journal_dir) -> region_counts_t
-  {
-  region_counts_t regions;
-  std::error_code ec;
-  for(std::filesystem::directory_entry const & entry: std::filesystem::directory_iterator{journal_dir, ec})
-    {
-    std::string const name{entry.path().filename().string()};
-    if(not name.starts_with("Journal.") or not name.ends_with(".log"))
-      continue;
-    std::ifstream in{entry.path()};
-    for(std::string line; std::getline(in, line);)
-      if(auto seen{region_in_line(line)}; seen)
-        ++regions[sector_of(seen->system)][seen->region];
-    }
-  if(ec)
-    spdlog::warn("album: the journals in {} could not be read: {}", journal_dir.string(), ec.message());
-  // a name of its own says nothing of where the next one is
-  regions.erase(std::string{named_systems});
-  return regions;
-  }
-
-auto read_regions(std::filesystem::path const & codex_dir) -> region_counts_t
-  {
-  region_counts_t regions;
-  std::ifstream in{codex_dir / regions_file};
-  for(std::string line; std::getline(in, line);)
-    if(auto const parts{split_tabs(line)}; parts.size() == 3u)
-      {
-      uint32_t count{};
-      std::from_chars(parts[2].data(), parts[2].data() + parts[2].size(), count);
-      regions[std::string{parts[0]}][std::string{parts[1]}] = count;
-      }
-  return regions;
-  }
-
-auto write_regions(std::filesystem::path const & codex_dir, region_counts_t const & regions) -> void
-  {
-  std::string text;
-  for(auto const & [sector, named]: regions)
-    for(auto const & [region, count]: named)
-      text += std::format("{}\t{}\t{}\n", sector, region, count);
-  write_if_changed(codex_dir / regions_file, text);
-  }
-
-auto merge_regions(region_counts_t & into, region_counts_t const & from) -> void
-  {
-  for(auto const & [sector, named]: from)
-    for(auto const & [region, count]: named)
-      into[sector][region] += count;
-  }
-
-auto region_of(region_counts_t const & regions, std::string const & sector) -> std::string
-  {
-  auto const it{regions.find(sector)};
-  if(it == regions.end() or it->second.empty())
-    return std::string{unknown_region};
-  return std::ranges::max_element(it->second, {}, [](auto const & named) { return named.second; })->first;
+  std::string_view const region{galaxy_region::of_address(system_address)};
+  return std::string{region.empty() ? unknown_region : region};
   }
 
 auto read_rows(std::filesystem::path const & codex_dir) -> std::vector<row_t>
@@ -225,7 +146,7 @@ auto write_rows(std::filesystem::path const & codex_dir, std::span<row_t const> 
   write_if_changed(codex_dir / rows_file, text);
   }
 
-auto index_page(std::span<row_t const> rows, region_counts_t const & regions) -> std::string
+auto index_page(std::span<row_t const> rows) -> std::string
   {
   using sectors_t = std::map<std::string, std::vector<row_t const *>>;
   std::map<std::string, sectors_t> grouped;
@@ -235,7 +156,7 @@ auto index_page(std::span<row_t const> rows, region_counts_t const & regions) ->
   for(row_t const & row: rows)
     {
     std::string sector{sector_of(row.name)};
-    std::string region{region_of(regions, sector)};
+    std::string region{region_of(row.address)};
     grouped[std::move(region)][std::move(sector)].push_back(&row);
     pictured += row.picture ? 1u : 0u;
     alive += row.life ? 1u : 0u;

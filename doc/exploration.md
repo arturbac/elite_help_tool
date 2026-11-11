@@ -164,8 +164,10 @@ them the sectors folded, in them the systems, each with a mark for a picture, fo
 and the count of its
 bodies by kind - `[S:1, G:3, H:1, I:1, R:14]` is one star, three giants of any class, a high metal content world,
 an icy one and fourteen rocky ones; E is earthlike, W a water world, A an ammonia world, M metal rich, Ri rocky ice.
-The journal names a region only in a codex entry, so a sector stands under the region its entries name most
-often, and a sector without any under *Unknown region*.
+The journal names a region only in a codex entry; the album takes every system's region from the region map of
+[EliteDangerousRegionMap](https://github.com/klightspeed/EliteDangerousRegionMap) (MIT), by the boxel the system's
+address names - on 195 systems with codex entries it gave the game's own region every time. A system outside the
+map stands under *Unknown region*.
 
 `codex/systems/<system>.html` has the picture of the system as on the overlay, its bodies linking to their cards,
 the pictures from the ship, and a card for each body, six in a row: its class, gravity, temperature, atmosphere and
