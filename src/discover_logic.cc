@@ -133,7 +133,10 @@ auto calculate_relative_pos(orbital_node_t const & node, double dt) -> body_loca
   double const e_anon = solve_kepler(m, node.eccentricity);
 
   double const x_orb = node.semi_major_axis * (std::cos(e_anon) - node.eccentricity);
-  double const y_orb = node.semi_major_axis * (std::sqrt(1.0 - std::pow(node.eccentricity, 2)) * std::sin(e_anon));
+  // the game's anomaly runs the other way round from its node and periapsis: so carried, the planets of two
+  // systems stood where the game's system map shows them (the mirror of these coordinates) within a degree,
+  // a backward orbit too; the textbook direction put them up to 150 degrees off (screenshots of 12.11)
+  double const y_orb = -node.semi_major_axis * (std::sqrt(1.0 - std::pow(node.eccentricity, 2)) * std::sin(e_anon));
 
   double const i = node.orbital_inclination * std::numbers::pi / 180.0;
   double const w = node.periapsis * std::numbers::pi / 180.0;

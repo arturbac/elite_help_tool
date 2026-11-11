@@ -5,6 +5,10 @@
 #include <chrono>
 #include <cmath>
 #include <numbers>
+#include <string>
+#include <vector>
+#include <span>
+#include <optional>
 
 namespace
   {
@@ -242,6 +246,124 @@ auto main() -> int
         << "barycentre scanned:" << not barycentres.empty();
       expect(route[2].distance_ls > 20'000.0) << "B 2 lies by B, far from A 3:" << route[2].distance_ls;
       }
+  };
+
+  "the planets stand where the game's system map shows them"_test = []
+  {
+    // two systems Sjona scanned, at the moments of two screenshots of the game's system map (12.11): the
+    // angle of each planet round the star read off the picture. The map is the mirror of these coordinates
+    // (distances are the same either way) and turned by whatever the view was, so it is the spread of the
+    // differences that counts, not the differences themselves. Planet 11 of MI-Q d6-67 goes round backwards
+    struct planet_t
+      {
+      ::events::body_id_t id;
+      double sma, ecc, incl, periapsis, period, node, anomaly;
+      std::chrono::sys_seconds scanned;
+      std::optional<::events::body_id_t> barycentre;
+      double screen_x, screen_y;
+      };
+    auto const at = [](int month, int day, int h, int m, int sec)
+    {
+      return std::chrono::sys_seconds{
+        std::chrono::sys_days{std::chrono::year{2026} / month / day} + std::chrono::hours{h}
+        + std::chrono::minutes{m} + std::chrono::seconds{sec}
+      };
+    };
+    auto const spread = [](std::span<planet_t const> planets, std::vector<body_t> const & bodies,
+                           std::span<bary_centre_t const> barycentres, std::chrono::sys_seconds now,
+                           double star_x, double star_y)
+    {
+      std::vector<body_t const *> scans;
+      for(body_t const & body: bodies)
+        scans.push_back(&body);
+      auto const positions{body_positions_now(barycentres, scans, now)};
+      std::vector<double> differences;
+      for(size_t ix{}; ix != planets.size(); ++ix)
+        {
+        if(planets[ix].screen_x == 0.0)
+          continue;
+        double const screen{std::atan2(-(planets[ix].screen_y - star_y), planets[ix].screen_x - star_x)};
+        double const mirrored{-std::atan2(positions[ix].y, positions[ix].x)};
+        differences.push_back(screen - mirrored);
+        }
+      double s{}, c{};
+      for(double const d: differences)
+        {
+        s += std::sin(d);
+        c += std::cos(d);
+        }
+      double const turn{std::atan2(s, c)};
+      double worst{};
+      for(double const d: differences)
+        worst = std::max(worst, std::abs(std::remainder(d - turn, 2.0 * std::numbers::pi)));
+      return worst * 180.0 / std::numbers::pi;
+    };
+    auto const bodies_of = [](std::span<planet_t const> planets, std::string const & system, uint64_t address)
+    {
+      std::vector<body_t> bodies;
+      for(planet_t const & p: planets)
+        {
+        std::vector<::events::parent_t> parents;
+        if(p.barycentre)
+          parents.push_back(::events::parent_t{.Null = *p.barycentre});
+        parents.push_back(::events::parent_t{.Star = 0});
+        bodies.push_back(to_body(make_planet(
+          p.id, system, address, p.sma, p.ecc, p.incl, p.periapsis, p.period, p.node, p.anomaly, std::move(parents)
+        )));
+        bodies.back().scanned_at = p.scanned;
+        }
+      return bodies;
+    };
+
+    // "Bleia Eohn PP-N a61-6", 1 to 9; 2 and 3 round barycentre 3, which the picture shows as one
+    std::array<planet_t, 9> const pp_n{
+      planet_t{1, 173187613487.24365, 0.001278, 0.20431, 110.798403, 209592664.241791, -21.010639, 20.99779, at(8, 8, 5, 30, 7), {}, 1086, 1022},
+      planet_t{4, 641176784.038544, 0.084548, -3.363018, 150.165766, 17913373.708725, -107.826134, 115.057329, at(8, 8, 5, 29, 44), 3, 993, 800},
+      planet_t{5, 699011027.812958, 0.084548, -3.363018, 330.165761, 17913373.708725, -107.826134, 115.057386, at(8, 8, 5, 29, 47), 3, 0, 0},
+      planet_t{6, 326244741678.2379, 0.001141, -1.879582, 253.169124, 541896259.784698, 165.936543, 309.504262, at(8, 8, 5, 30, 0), {}, 970, 1115},
+      planet_t{8, 427183449268.34106, 0.002079, 0.572462, 84.430806, 811937314.271927, 154.538426, 216.337658, at(8, 8, 5, 29, 23), {}, 1266, 1038},
+      planet_t{10, 613118195533.7524, 0.005568, 2.573938, 61.229169, 1396102070.808411, 32.470945, 117.926744, at(8, 8, 5, 29, 32), {}, 1373, 803},
+      planet_t{12, 733016848564.148, 0.013778, 0.117762, 75.866838, 1825037658.214569, -58.183298, 314.890345, at(8, 8, 5, 30, 14), {}, 1200, 1332},
+      planet_t{14, 1017308413982.3914, 0.002991, -7.444695, 287.804514, 2983869254.589081, -146.306859, 285.402605, at(8, 8, 5, 29, 50), {}, 579, 548},
+      planet_t{15, 1432673394680.0232, 0.003736, 0.029737, 266.067717, 4986796855.926514, 10.49562, 312.578509, at(8, 8, 5, 29, 38), {}, 1756, 503}
+    };
+    std::array<bary_centre_t, 1> const pp_n_barycentre{bary_centre_t{
+      .body_id = 3,
+      .semi_major_axis = 238004529476.16577,
+      .eccentricity = 0.001177,
+      .orbital_inclination = 0.019838,
+      .periapsis = 294.854728,
+      .orbital_period = 337659269.571304,
+      .ascending_node = 89.880515,
+      .mean_anomaly = 127.745528,
+      .scanned_at = at(8, 8, 5, 29, 44)
+    }};
+    auto const pp_n_now{at(11, 11, 23, 6, 37)};
+    auto const pp_n_bodies{bodies_of(pp_n, "Bleia Eohn PP-N a61-6", 110897666085384)};
+    double const pp_n_spread{spread(pp_n, pp_n_bodies, pp_n_barycentre, pp_n_now, 1034, 935)};
+    expect(pp_n_spread < 3.0) << "PP-N a61-6, degrees:" << pp_n_spread;
+
+    // from 7 the shortest way through 4, 5, 2 with 3, and 8 - the order the map shows, not the one a planet
+    // carried round the wrong way gave (4, 2, 3, 5, 8: 10379 Ls against 7959)
+    std::vector<body_t const *> scans;
+    for(body_t const & body: pp_n_bodies)
+      scans.push_back(&body);
+    std::array<::events::body_id_t, 5> const left{6, 8, 4, 5, 14};
+    auto const route{visit_order(pp_n_barycentre, scans, left, ::events::body_id_t{12}, pp_n_now)};
+    expect(fatal(route.size() == 5_ul));
+    expect(route[0].body_id == 8_u and route[1].body_id == 6_u and route[4].body_id == 14_u);
+
+    // "Bleia Eohn MI-Q d6-67", 7 to 11
+    std::array<planet_t, 5> const mi_q{
+      planet_t{13, 146601569652.55737, 0.000883, 0.00205, 331.932697, 32576473.95134, -125.968574, 335.63052, at(10, 29, 23, 16, 13), {}, 440, 542},
+      planet_t{15, 253905421495.43762, 0.000716, 0.409494, 80.101006, 74251307.845116, -36.95675, 285.341856, at(10, 29, 23, 15, 55), {}, 610, 590},
+      planet_t{16, 598765343427.6581, 0.003488, -0.58742, 85.170263, 268893975.019455, 111.575669, 212.264774, at(10, 29, 23, 16, 51), {}, 517, 170},
+      planet_t{21, 818605434894.5618, 0.000751, 5.489558, 54.192866, 429841214.418411, -80.687968, 200.8619, at(10, 29, 23, 15, 58), {}, 727, 885},
+      planet_t{29, 2732566297054.291, 0.128299, 156.992902, 87.0105, 2621513485.908508, -112.889093, 294.862089, at(10, 29, 23, 15, 49), {}, 1940, 714}
+    };
+    auto const mi_q_bodies{bodies_of(mi_q, "Bleia Eohn MI-Q d6-67", 2312512703035)};
+    double const mi_q_spread{spread(mi_q, mi_q_bodies, {}, at(11, 11, 23, 19, 35), 506, 497)};
+    expect(mi_q_spread < 3.0) << "MI-Q d6-67, degrees:" << mi_q_spread;
   };
 
   "single star at rest is the system's own origin"_test = []
