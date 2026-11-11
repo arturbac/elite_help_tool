@@ -4173,7 +4173,8 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
       overlay::block_t{
         .corner = overlay::corner_e::bottom_right,
         .ttl_ms = block_ttl_ms(),
-        .lines = {},
+        // what an older layer shows, and what tells the layer the block is there at all
+        .lines = life,
         .charts = {},
         // a genus a line, read one by one when deciding where to go down
         .text = overlay::text_e::small,
