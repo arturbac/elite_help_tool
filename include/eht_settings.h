@@ -213,8 +213,11 @@ struct exploration_settings_t
   {
   ///\brief a species paying less than this is not worth sampling - the base value, before any bonus
   uint32_t bio_worth{5'000'000u};
-  ///\brief how many bodies with life the overlay lists
-  uint32_t bio_bodies{4u};
+  ///\brief the most bodies with life the overlay lists; 0 lists as many as the room in the band holds
+  uint32_t bio_bodies{0u};
+  ///\brief the least the system's diagram shrinks to under the list of life, as a share of the screen's height -
+  /// the list takes the rest of the band
+  float diagram_min_share{0.25f};
   ///\brief how many guesses at a genus' species are shown beside it
   uint32_t candidates{3u};
   ///\brief a world mapped before counts as alike to one not mapped yet - whose genera are guessed from the alike - when

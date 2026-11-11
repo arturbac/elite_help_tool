@@ -4173,10 +4173,22 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
       overlay::block_t{
         .corner = overlay::corner_e::bottom_right,
         .ttl_ms = block_ttl_ms(),
-        .lines = std::move(life),
+        .lines = {},
         .charts = {},
         // a genus a line, read one by one when deciding where to go down
-        .text = overlay::text_e::small
+        .text = overlay::text_e::small,
+        .diagrams = {},
+        .pictures = {},
+        .picture_columns = 3u,
+        .beside = false,
+        .middle = false,
+        .middle_y = 0.f,
+        .middle_width = 0.f,
+        .picture_box_width = 0.f,
+        .picture_box_height = 0.f,
+        // as long as the band has room for, the system's diagram under it giving way down to its least
+        .full_lines = std::move(life),
+        .more_color = colour_plain()
       }
     );
 
@@ -4203,9 +4215,14 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
        exploring_
      )};
      map)
+    {
+    // exploring, the diagram makes room for the life above it; in a system of trade and missions it keeps its size
+    if(exploring_)
+      map->least_height = eht::settings()->exploration.diagram_min_share;
     frame.blocks.push_back(
       overlay::block_t{.corner = overlay::corner_e::bottom_right, .ttl_ms = block_ttl_ms(), .diagrams = {std::move(*map)}}
     );
+    }
 
   // what can be done here comes first: it is the only thing on this side that asks nothing of the
   // player but to turn around, and the trading below it will still be there afterwards

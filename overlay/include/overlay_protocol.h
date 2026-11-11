@@ -264,6 +264,10 @@ struct diagram_t
   ///\brief what part of the band's width the picture takes, 0..1 - the tool decides, so the
   /// proportions can be changed without installing the layer again
   float share{1.f};
+  ///\brief the least height it keeps, as a share of the screen's, when a list in the same stack fits itself to
+  /// the room - the picture gives way down to it; 0 keeps its own size and leaves the list what is left. A field
+  /// an older layer skips
+  float least_height{};
   std::vector<segment_t> segments;
   std::vector<disc_t> discs;
   std::vector<label_t> labels;

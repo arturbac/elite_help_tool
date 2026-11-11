@@ -30,6 +30,8 @@
 #include <optional>
 #include <span>
 #include <string>
+#include <string_view>
+#include <unordered_map>
 #include <vector>
 
 namespace eht_overlay
@@ -533,9 +535,10 @@ namespace
   /// once the widest line is reached - a mark measured against it would go to a line of its own even
   /// with the whole band free beside it
   thread_local float wrap_right{};
-  ///\brief how tall the rest of the stack was around a list that fits itself to the room, as of the last frame -
-  /// what stands under the list is drawn after it
-  thread_local float fitted_others{};
+  ///\brief how tall the rest of the stack was around a list that fits itself to the room, as of the last frame,
+  /// window by window - what stands under the list is drawn after it, and two stacks each with a list of their
+  /// own would otherwise measure their room by each other
+  thread_local std::unordered_map<std::string_view, float> fitted_others;
 
   [[nodiscard]]
   auto room_left() -> float
@@ -1613,6 +1616,9 @@ namespace
 
       ImVec2 size{};
       float fitted_height{-1.f};
+      float & others{fitted_others[name]};
+      // all a stack may take: up to the stack above it, or the screen's height when there is none
+      float const whole{height_limit > 0.f ? height_limit : display.y - 2.f * layout.corner_margin};
       if(ImGui::Begin(name, nullptr, flags))
         {
         draw_ground(data, layout);
@@ -1670,9 +1676,8 @@ namespace
                     .with_next = line.with_next
                   }
                 );
-              float const whole{height_limit > 0.f ? height_limit : display.y - 2.f * layout.corner_margin};
               size_t const shown{overlay::lines_that_fit(
-                fit, whole - fitted_others - ImGui::GetStyle().WindowPadding.y, ImGui::GetTextLineHeight() + spacing
+                fit, whole - others - ImGui::GetStyle().WindowPadding.y, ImGui::GetTextLineHeight() + spacing
               )};
               for(size_t ix{}; ix != shown; ++ix)
                 draw_line(data, block.full_lines[ix]);
@@ -1694,13 +1699,15 @@ namespace
               draw_chart(chart, chart_width);
 
             for(overlay::diagram_t const & diagram: block.diagrams)
-              draw_diagram(
-                data,
-                diagram,
-                width - 2.f * ImGui::GetStyle().WindowPadding.x,
-                height_limit > 0.f ? std::max(height_limit - ImGui::GetCursorPosY() - ImGui::GetStyle().WindowPadding.y, 1.f)
-                                   : 0.f
-              );
+              {
+              float const left{whole - ImGui::GetCursorPosY() - ImGui::GetStyle().WindowPadding.y};
+              float room{height_limit > 0.f ? std::max(left, 1.f) : 0.f};
+              // under a list that fits itself to the room the picture gives way too, down to the least it keeps -
+              // the list then stops where that begins
+              if(fitted_height >= 0.f and diagram.least_height > 0.f)
+                room = std::max(left, diagram.least_height * display.y);
+              draw_diagram(data, diagram, width - 2.f * ImGui::GetStyle().WindowPadding.x, room);
+              }
 
             if(not block.pictures.empty())
               draw_pictures(data, block, width - 2.f * ImGui::GetStyle().WindowPadding.x);
@@ -1710,7 +1717,7 @@ namespace
             }
 
         if(fitted_height >= 0.f)
-          fitted_others = ImGui::GetCursorPosY() - fitted_height;
+          others = ImGui::GetCursorPosY() - fitted_height;
         ImGui::PopTextWrapPos();
         size = ImGui::GetWindowSize();
         }

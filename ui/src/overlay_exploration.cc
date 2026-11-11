@@ -494,13 +494,18 @@ auto describe_life(
     }
   );
 
-  size_t const listed{exploration.bio_bodies};
+  // the layer gives up whole bodies from the end when the band runs out of room: each body's line counts the
+  // bodies from it on, and holds on to its genera
+  size_t const listed{exploration.bio_bodies != 0u ? size_t{exploration.bio_bodies} : bodies.size()};
+  size_t index{};
   for(entry_t const & entry: bodies | std::views::take(listed))
     {
+    uint32_t const from_here{static_cast<uint32_t>(bodies.size() - index++)};
     body_t const & body{*entry.body};
     planet_details_t const & planet{*entry.planet};
     bool const guessed{entry.alike != 0u};
 
+    size_t const body_line{lines.size()};
     lines.push_back(
       overlay::line_t{
         .text = std::format(
@@ -517,7 +522,8 @@ auto describe_life(
         ),
         .color = entry.potential >= worth                               ? colour_first()
                  : std::ranges::any_of(entry.genera, &genus_view_t::novel) ? colour_knowledge()
-                                                                         : colour_plain()
+                                                                         : colour_plain(),
+        .more = from_here
       }
     );
 
@@ -525,11 +531,14 @@ auto describe_life(
       {
       // the scanner found life but not which, and no world like it was mapped before - the probes tell the genera
       lines.push_back(overlay::line_t{.text = "    map it to learn the genera", .color = colour_plain()});
-      continue;
       }
-    for(genus_view_t const & view: entry.genera)
-      if(not view.done)
-        lines.push_back(overlay::line_t{.text = "    " + view.text, .color = view.colour});
+    else
+      for(genus_view_t const & view: entry.genera)
+        if(not view.done)
+          lines.push_back(overlay::line_t{.text = "    " + view.text, .color = view.colour});
+    // the body's line holds on to every line under it, the last of them lets go
+    for(size_t ix{body_line}; ix + 1u < lines.size(); ++ix)
+      lines[ix].with_next = true;
     }
 
   if(bodies.size() > listed)

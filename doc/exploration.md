@@ -30,7 +30,10 @@ The bottom right corner of the overlay follows the order of work in a new system
    placed where their orbits have them now: nearest neighbour, then 2-opt, as for the route of the System
    window. The `ls` of a body is how far it lies from that body, and the order is worked out again when
    the commander comes to another body or a body leaves the list (a body whose every genus is sampled
-   leaves it). For each genus, one to a line, the species it
+   leaves it). The list is as long as the band has room for, down to the system's diagram, which
+   gives way to it down to a quarter of the screen's height (`diagram_min_share`, 0.25); a body
+   goes with all its genera or not at all, and what does not fit is told as `... and N more`.
+   `bio_bodies` (0) caps the number of bodies when it is not 0. For each genus, one to a line, the species it
    most likely is on this world with their shares and prices (`candidates`, 3); green when it is worth
    landing for (`bio_worth`, 5M).
 
@@ -132,7 +135,7 @@ cannot be read is kept aside as `.broken`. Only the place of a sample on the gro
 since it comes from `Status.json` and no journal has it. Backing up means copying the `codex/`
 directory and the journals.
 
-Settings are in the `exploration` section of `eht_settings.json`: `bio_worth`, `bio_bodies`,
+Settings are in the `exploration` section of `eht_settings.json`: `bio_worth`, `bio_bodies`, `diagram_min_share`,
 `candidates`, `alike_kelvin`, `alike_gravity`, `capture`, `capture_size`, `codex_dir`, `jpeg_quality`, `codex_name`, `shared_codex`.
 
 Two accounts of your own can show one codex and one sky album: see

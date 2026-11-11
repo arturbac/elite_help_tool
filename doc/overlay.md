@@ -31,6 +31,9 @@ process carries no state of ours.
   settlements stand above, leaves it less. What does not fit is told as "... and N more", which is why it
   starts with the work still to do, then what waits to be handed in, each of the two from the nearest
   to where you are: light years first, then Ls. `overlay.lists.missions` is what an older layer shows.
+  While exploring, the list of life on the right fits itself the same way: it takes the band down to the
+  system's diagram, which gives way to it down to `exploration.diagram_min_share` of the screen's height
+  (0.25); a body goes with all its genera or not at all. Outside exploration the diagram keeps its size.
 - **Last port:** where an escape pod would take you, with its distance
   in light years when its system's position is known. Only ports count: not on-foot settlements,
   fleet carriers, construction sites or the colonisation ship. It heads the block of the ships
