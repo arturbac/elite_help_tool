@@ -43,8 +43,12 @@ alike worlds mapped before that had it (`Bacterium 96% ? Vesicula 1.0M 58% | ...
 alike when it has the same atmosphere, a temperature within 10 K (`alike_kelvin`) and a gravity within
 a fifth (`alike_gravity`); the worlds are those both accounts mapped, sampled or not. On 325 mapped
 worlds, guessing each from the rest, 87 of 100 genera were right, and a genus said at 90% was there 93
-times in 100, at 50% 65 times. A genus under 50% does not make the body green. With no alike world
-the line stays `map it to learn the genera`.
+times in 100, at 50% 65 times. A genus under 50% does not make the body green. With no alike world,
+the genera come from the nearest worlds under the same atmosphere (`alike_far_worlds`, 5), counting each
+window of temperature and gravity as one, while the nearest is within four windows (`alike_far`): the body
+line then says `~ from N further` and the shares have a `~` in front (`Bacterium ~80%`); such a guess never
+makes the body green. Guessed so, 89 of 100 genera were right where the nearest was within four windows,
+43 of 100 beyond them. With nothing near enough the line stays `map it to learn the genera`.
 
 The species is guessed from your own history. Every species sampled is stored together with its
 world (planet class, atmosphere, temperature, gravity, the star above it), and a genus on a new world
@@ -149,7 +153,7 @@ since it comes from `Status.json` and no journal has it. Backing up means copyin
 directory and the journals.
 
 Settings are in the `exploration` section of `eht_settings.json`: `bio_worth`, `bio_bodies`, `diagram_min_share`,
-`candidates`, `alike_kelvin`, `alike_gravity`, `capture`, `capture_size`, `codex_dir`, `jpeg_quality`, `codex_name`, `shared_codex`.
+`candidates`, `alike_kelvin`, `alike_gravity`, `alike_far`, `alike_far_worlds`, `capture`, `capture_size`, `codex_dir`, `jpeg_quality`, `codex_name`, `shared_codex`.
 
 Two accounts of your own can show one codex and one sky album: see
 [sharing between accounts](elite_without_steam.md#sharing-between-accounts).

@@ -370,5 +370,16 @@ auto main() -> int
 
     bio::conditions_t alone{.planet_class = "Rocky body", .atmosphere_type = "Neon", .surface_temperature = 30.0, .surface_gravity = 4.0};
     expect(bio::guess_genera(alone, mapped, 10.0, 0.2).empty()) << "nothing alike, nothing guessed";
+    expect(bio::guess_genera(alone, mapped, 10.0, 0.2, 4.0, 5u).empty()) << "nothing under the same atmosphere";
+
+    // 25 K warmer than the warmest ammonia world: two and a half windows off the nearest, so the nearest two say
+    bio::conditions_t warm{.planet_class = "Rocky body", .atmosphere_type = "Ammonia", .surface_temperature = 215.0, .surface_gravity = 1.6};
+    auto const far{bio::guess_genera(warm, mapped, 10.0, 0.2, 4.0, 2u)};
+    expect(fatal(not far.empty()));
+    expect(far[0].further and far[0].alike == 2_u) << "the two nearest under ammonia";
+    expect(std::ranges::any_of(far, [](auto const & g) { return g.genus == "Osseus" and g.share == 0.5; }));
+    expect(bio::guess_genera(warm, mapped, 10.0, 0.2).empty()) << "no further worlds unless asked";
+    bio::conditions_t hot{.planet_class = "Rocky body", .atmosphere_type = "Ammonia", .surface_temperature = 260.0, .surface_gravity = 1.6};
+    expect(bio::guess_genera(hot, mapped, 10.0, 0.2, 4.0, 5u).empty()) << "the nearest seven windows off is too far";
   };
   }

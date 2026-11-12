@@ -224,6 +224,10 @@ struct exploration_settings_t
   /// it has the same atmosphere, its temperature is within this many kelvin and its gravity within this share
   double alike_kelvin{10.0};
   double alike_gravity{0.2};
+  ///\brief with no world alike, the genera are guessed from this many nearest worlds under the same atmosphere, when
+  /// the nearest is within alike_far windows of alike_kelvin and alike_gravity; 0 worlds guesses nothing then
+  double alike_far{4.0};
+  uint32_t alike_far_worlds{5u};
   ///\brief what a species below the worth is written in - still there, but not asking for attention
   colour_t below_worth{0x8a8a8au};
   ///\brief a genus whose one scan here would widen what is known of where it grows - worth it whatever it pays

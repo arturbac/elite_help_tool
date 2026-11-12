@@ -396,6 +396,8 @@ auto describe_life(
     std::vector<genus_view_t> genera;
     ///\brief the genera are guessed - the world was not mapped yet - out of this many alike worlds
     uint32_t alike{};
+    ///\brief none was alike, the worlds guessed from are the nearest further ones
+    bool further{};
     uint32_t potential{};
     ///\brief its place on the route, and how far it lies from where the route starts
     size_t stop{};
@@ -419,7 +421,14 @@ auto describe_life(
       if(auto const world{bio::conditions_of(system, body)}; world)
         {
         // not mapped yet: the genera the alike worlds had, as many as the scanner counted signals
-        auto const guesses{bio::guess_genera(*world, mapped, exploration.alike_kelvin, exploration.alike_gravity)};
+        auto const guesses{bio::guess_genera(
+          *world,
+          mapped,
+          exploration.alike_kelvin,
+          exploration.alike_gravity,
+          exploration.alike_far,
+          exploration.alike_far_worlds
+        )};
         size_t const signals{std::max<size_t>(1u, bio_signals(*planet))};
         for(bio::genus_guess_t const & guess: guesses | std::views::take(signals))
           {
@@ -427,11 +436,14 @@ auto describe_life(
             system, body, events::genus_t{.Genus_Localised = guess.genus, .Species_Localised = {}, .Sampled = false},
             history, exploration.candidates
           )};
-          view.text.insert(guess.genus.size(), std::format(" {:.0f}%", guess.share * 100.0));
-          // a genus the alike worlds seldom had is no reason to land for what it might pay
-          if(guess.share < 0.5)
+          view.text.insert(
+            guess.genus.size(), std::format(" {}{:.0f}%", guess.further ? "~" : "", guess.share * 100.0)
+          );
+          // a genus the alike worlds seldom had is no reason to land for what it might pay, nor one of further worlds
+          if(guess.share < 0.5 or guess.further)
             view.potential = 0u;
           entry.alike = guess.alike;
+          entry.further = guess.further;
           entry.genera.push_back(std::move(view));
           }
         }
@@ -518,7 +530,8 @@ auto describe_life(
           planet.atmosphere_type.empty() or planet.atmosphere_type == "None"
             ? std::string{}
             : std::format("  {}", planet.atmosphere_type),
-          guessed ? std::format("  guessed from {} alike", entry.alike) : std::string{}
+          guessed ? (entry.further ? std::format("  ~ from {} further", entry.alike) : std::format("  guessed from {} alike", entry.alike))
+                  : std::string{}
         ),
         .color = entry.potential >= worth                               ? colour_first()
                  : std::ranges::any_of(entry.genera, &genus_view_t::novel) ? colour_knowledge()

@@ -236,17 +236,28 @@ struct genus_guess_t
   double share{};
   ///\brief how many alike worlds the share is out of
   uint32_t alike{};
+  ///\brief no world was alike: the share is out of the nearest further worlds under the same atmosphere
+  bool further{};
   };
 
 ///\brief the genera a world is likely to hold, most likely first, out of the worlds mapped before
 ///\param mapped every genus the probes found on a world, sampled or not (an empty species is a genus only mapped)
 ///\param kelvin, gravity_share a world is alike when it has the same atmosphere, its temperature is within kelvin
 /// of this one's and its gravity within that share of it
+///\param far_units, far_worlds with no world alike, the far_worlds nearest under the same atmosphere, when the
+/// nearest of them is within far_units - the distance counting each window of kelvin and of gravity share as one;
+/// 0 guesses nothing then
 ///\detail checked on 325 mapped worlds of two accounts, each left out in turn: with 10 K and a fifth, as many genera
 /// as the scanner counts signals were right in 87 of 100, and a genus said at 90% was there in 93 of 100
 [[nodiscard]]
-auto guess_genera(conditions_t const & world, std::span<species_record_t const> mapped, double kelvin, double gravity_share)
-  -> std::vector<genus_guess_t>;
+auto guess_genera(
+  conditions_t const & world,
+  std::span<species_record_t const> mapped,
+  double kelvin,
+  double gravity_share,
+  double far_units = 0.0,
+  uint32_t far_worlds = 0u
+) -> std::vector<genus_guess_t>;
 
 ///\brief what one scan of a genus on a world would add to what the finds so far say of where it grows
 ///\detail the first scan names the species and puts the world into the history, so a cheap species is still
