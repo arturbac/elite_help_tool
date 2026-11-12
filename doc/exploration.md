@@ -160,7 +160,8 @@ a menu or the galaxy map open at the moment an attempt falls due drops that atte
 
 The album itself is a book of the systems known, made out of the database, so a system visited long ago has
 its page like any other. `codex/sky.html`, which the *Sky* button opens, is the index: the galactic regions, in
-them the sectors folded, in them the systems, each with a mark for a picture, for life and for a first discovery
+them the sectors folded, in them the systems, each after a dot in the colour of the star the jump arrives at (the
+colours of the game's system map; its type in the tooltip), with a mark for a picture, for life and for a first discovery
 and the count of its
 bodies by kind - `[S:1, G:3, H:1, I:1, R:14]` is one star, three giants of any class, a high metal content world,
 an icy one and fourteen rocky ones; E is earthlike, W a water world, A an ammonia world, M metal rich, Ri rocky ice.

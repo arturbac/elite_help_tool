@@ -438,6 +438,11 @@ auto system_album_t::pass(std::stop_token const & stop) -> void
     std::string const signature{signature_of(system, gathered, region)};
     std::string const href{system_index::page_name(system.name)};
     bool picture{gathered.sky.contains(system.name)};
+    // the star the jump arrives at: the nearest to where it drops the ship
+    database_storage_t::album_body_t const * arrival{};
+    for(database_storage_t::album_body_t const & body: system.bodies)
+      if(body.star != 0 and (arrival == nullptr or body.distance_ls < arrival->distance_ls))
+        arrival = &body;
     bool life{};
     bool first{};
     for(database_storage_t::album_body_t const & body: system.bodies)
@@ -449,7 +454,14 @@ auto system_album_t::pass(std::stop_token const & stop) -> void
       }
     rows.push_back(
       system_index::row_t{
-        .address = system.address, .name = system.name, .counts = counts_of(system), .href = href, .picture = picture, .life = life, .first = first
+        .address = system.address,
+        .name = system.name,
+        .counts = counts_of(system),
+        .href = href,
+        .picture = picture,
+        .life = life,
+        .first = first,
+        .star_type = arrival != nullptr ? arrival->star_type : std::string{}
       }
     );
 

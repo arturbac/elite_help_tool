@@ -96,6 +96,8 @@ struct album_row_t
   std::string planet_class;
   int64_t star;
   int64_t was_discovered;
+  std::string star_type;
+  double distance;
   };
 
 struct album_name_t
@@ -116,7 +118,8 @@ auto database_storage_t::load_album_systems() -> expected_ec<std::vector<album_s
     db_->db,
     std::format(
       "(SELECT b.ref_system_address AS ref_system_address, b.body_id AS body_id, b.name AS name,"
-      " COALESCE(p.planet_class, '') AS planet_class, s.oid IS NOT NULL AS star, b.was_discovered AS was_discovered"
+      " COALESCE(p.planet_class, '') AS planet_class, s.oid IS NOT NULL AS star, b.was_discovered AS was_discovered,"
+      " COALESCE(s.star_type, '') AS star_type, COALESCE(b.distance_from_arrival_ls, 0.0) AS distance"
       " FROM {} b LEFT JOIN {} p ON p.ref_body_oid = b.oid LEFT JOIN {} s ON s.ref_body_oid = b.oid) AS album",
       sql_iface::tables::body,
       sql_iface::tables::planet_details,
@@ -138,7 +141,9 @@ auto database_storage_t::load_album_systems() -> expected_ec<std::vector<album_s
           .name = std::move(row.name),
           .planet_class = std::move(row.planet_class),
           .star = row.star,
-          .was_discovered = row.was_discovered
+          .was_discovered = row.was_discovered,
+          .star_type = std::move(row.star_type),
+          .distance_ls = row.distance
         }
       );
 

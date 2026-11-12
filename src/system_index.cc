@@ -2,6 +2,7 @@
 
 #include <galaxy_region.h>
 #include <picture_records.h>
+#include <star_colour.h>
 
 #include <spdlog/spdlog.h>
 
@@ -130,6 +131,9 @@ auto read_rows(std::filesystem::path const & codex_dir) -> std::vector<row_t>
       row.picture = parts[3] == "1";
       row.life = parts[4] == "1";
       row.first = parts.size() > 5u and parts[5] == "1";
+      // written before the star was kept: no type, a grey dot until that account writes its rows again
+      if(parts.size() > 6u)
+        row.star_type = std::string{parts[6]};
       row.href = page_name(row.name);
       rows.push_back(std::move(row));
       }
@@ -141,7 +145,14 @@ auto write_rows(std::filesystem::path const & codex_dir, std::span<row_t const> 
   std::string text;
   for(row_t const & row: rows)
     text += std::format(
-      "{}\t{}\t{}\t{}\t{}\t{}\n", row.address, row.name, row.counts, row.picture ? 1 : 0, row.life ? 1 : 0, row.first ? 1 : 0
+      "{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
+      row.address,
+      row.name,
+      row.counts,
+      row.picture ? 1 : 0,
+      row.life ? 1 : 0,
+      row.first ? 1 : 0,
+      row.star_type
     );
   write_if_changed(codex_dir / rows_file, text);
   }
@@ -214,7 +225,10 @@ auto index_page(std::span<row_t const> rows) -> std::string
       );
       for(row_t const * row: systems)
         page += std::format(
-          "<div><a href=\"{}\">{}</a>{}{}{} <span class=\"n\">{}</span></div>\n",
+          "<div><span class=\"star\" style=\"color:#{:06x}\"{}>&#9679;</span> <a href=\"{}\">{}</a>{}{}{} <span "
+          "class=\"n\">{}</span></div>\n",
+          star_colour(row->star_type),
+          row->star_type.empty() ? std::string{} : std::format(" title=\"{}\"", escaped(row->star_type)),
           escaped(row->href),
           escaped(row->name),
           row->picture ? " &#128247;" : "",

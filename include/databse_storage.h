@@ -798,6 +798,9 @@ struct database_storage_t
     std::string planet_class;
     int64_t star{};
     int64_t was_discovered{};
+    ///\brief the journal's StarType of a star, empty for anything else
+    std::string star_type;
+    double distance_ls{};
     };
 
   ///\brief a system with its bodies, for the sky album

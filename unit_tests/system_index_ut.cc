@@ -70,13 +70,17 @@ suite<"system_index"> system_index_suite = []
   {
     std::array const rows{
       system_index::row_t{.address = 0u, .name = "Leamue BX-B d13-1906", .counts = "[S:1]", .href = "systems/a.html"},
-      system_index::row_t{.address = 102050133615322u, .name = "Eoch Pruae DX-G c25-371", .counts = "[S:1, G:3]", .href = "systems/b.html", .picture = true, .life = true, .first = true}
+      system_index::row_t{.address = 102050133615322u, .name = "Eoch Pruae DX-G c25-371", .counts = "[S:1, G:3]", .href = "systems/b.html", .picture = true, .life = true, .first = true, .star_type = "K"}
     };
     std::string const page{system_index::index_page(rows)};
     expect(page.contains("2 systems known, 1 with pictures, 1 with life, 1 with a first discovery"));
     expect(page.find("Odin&#39;s Hold") == std::string::npos);
     expect(page.find("Odin's Hold") < page.find(system_index::unknown_region));
-    expect(page.contains("<a href=\"systems/b.html\">Eoch Pruae DX-G c25-371</a> &#128247; &#127807; &#11088;"));
+    expect(page.contains(
+      "<span class=\"star\" style=\"color:#ffcf7a\" title=\"K\">&#9679;</span> <a href=\"systems/b.html\">Eoch Pruae DX-G c25-371</a> &#128247; &#127807; &#11088;"
+    )) << "the arrival star's dot in its class' colour";
+    expect(page.contains("<span class=\"star\" style=\"color:#cccccc\">&#9679;</span> <a href=\"systems/a.html\">"))
+      << "a grey dot with no star known";
     expect(page.contains("[S:1, G:3]"));
   };
 
