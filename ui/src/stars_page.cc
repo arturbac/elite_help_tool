@@ -27,8 +27,8 @@ constexpr char const * explanation{
 auto make_table(QWidget * parent) -> QTableWidget *
   {
   auto * view{new QTableWidget(parent)};
-  view->setColumnCount(4);
-  view->setHorizontalHeaderLabels({"Star", "What it is", "Arrival star of", "All stars"});
+  view->setColumnCount(5);
+  view->setHorizontalHeaderLabels({"Star", "What it is", "Arrival star of", "Share", "All stars"});
   view->verticalHeader()->setVisible(false);
   view->setEditTriggers(QAbstractItemView::NoEditTriggers);
   view->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
@@ -54,19 +54,26 @@ auto fill(QTableWidget * view, star_census::census_t const & census) -> void
     view->setItem(r, 0, cell(row.key, false));
     view->setItem(r, 1, cell(std::string{star_census::description(row.type)}, false));
     view->setItem(r, 2, cell(std::format("{}", row.arrival), true));
-    view->setItem(r, 3, cell(std::format("{}", row.all), true));
+    // the share of the systems: where it is low, the map's filter is worth switching to that class
+    view->setItem(
+      r,
+      3,
+      cell(census.systems != 0u ? std::format("{:.1f}%", 100.0 * row.arrival / census.systems) : std::string{}, true)
+    );
+    view->setItem(r, 4, cell(std::format("{}", row.all), true));
     }
   int const total{int(census.rows.size())};
   view->setItem(total, 0, cell("All", false));
   view->setItem(total, 1, cell({}, false));
   view->setItem(total, 2, cell(std::format("{}", census.systems), true));
-  view->setItem(total, 3, cell(std::format("{}", all), true));
+  view->setItem(total, 3, cell(census.systems != 0u ? "100%" : "", true));
+  view->setItem(total, 4, cell(std::format("{}", all), true));
   }
   }  // namespace
 
 stars_page_t::stars_page_t(std::string db_path, current_state_t const & state, QWidget * parent) :
     QWidget{parent},
-    db_{std::move(db_path)},
+    db_path_{std::move(db_path)},
     state_{state}
   {
   auto * layout = new QVBoxLayout(this);
@@ -77,6 +84,7 @@ stars_page_t::stars_page_t(std::string db_path, current_state_t const & state, Q
   auto * row = new QHBoxLayout();
   row->addWidget(new QLabel("Group by", this));
   grouping_ = new QComboBox(this);
+  grouping_->addItem("as the galaxy map's star filter");
   grouping_->addItem("type (G)");
   grouping_->addItem("type and subclass (G9)");
   grouping_->addItem("type and luminosity (G Vab)");
@@ -125,7 +133,11 @@ auto stars_page_t::refresh(bool now) -> void
     return;
   read_ = clock;
   read_at_system_ = here;
-  if(auto loaded{db_.load_star_census()}; loaded)
+  // a connection of its own for each reading, as the album's; the state's belongs to the journal following thread
+  database_storage_t db{db_path_};
+  if(auto const opened{db.open()}; not opened)
+    spdlog::error("stars: the database could not be opened: {}", opened.error().message());
+  else if(auto loaded{db.load_star_census()}; loaded)
     systems_ = std::move(*loaded);
   else
     spdlog::error("stars: the systems visited could not be read: {}", loaded.error().message());

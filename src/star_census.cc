@@ -17,6 +17,15 @@ namespace
 
   // the order of the rows: the main sequence from the hottest, the brown dwarfs, then the young, the giants and
   // what is left of a star
+  // the galaxy map's star filter, in its own order; the classes not a letter take the types below
+  constexpr std::array map_classes{
+    kind_t{"Proto", "T Tauri and Herbig Ae/Be, young stars"},
+    kind_t{"Carbon", "carbon and S-type stars"},
+    kind_t{"Wolf-Rayet", "Wolf-Rayet stars"},
+    kind_t{"White dwarf", "white dwarfs"},
+    kind_t{"Non sequence", "neutron stars and black holes"},
+  };
+
   constexpr std::array kinds{
     kind_t{"O", "blue-white, the hottest"},
     kind_t{"B", "blue-white"},
@@ -73,14 +82,39 @@ namespace
 
 auto description(std::string_view type) noexcept -> std::string_view
   {
-  auto const it{std::ranges::find(kinds, type, &kind_t::type)};
-  return it == kinds.end() ? std::string_view{} : it->what;
+  if(auto const it{std::ranges::find(kinds, type, &kind_t::type)}; it != kinds.end())
+    return it->what;
+  auto const it{std::ranges::find(map_classes, type, &kind_t::type)};
+  return it == map_classes.end() ? std::string_view{} : it->what;
   }
 
 auto rank(std::string_view type) noexcept -> int
   {
+  // the letters O to Y are the first ten kinds, as on the map; the map's other classes after them
+  constexpr int letters{10};
+  if(auto const it{std::ranges::find(map_classes, type, &kind_t::type)}; it != map_classes.end())
+    return letters + int(it - map_classes.begin());
   auto const it{std::ranges::find(kinds, type, &kind_t::type)};
-  return it == kinds.end() ? int(kinds.size()) : int(it - kinds.begin());
+  int const at{it == kinds.end() ? int(kinds.size()) : int(it - kinds.begin())};
+  return at < letters ? at : at + int(map_classes.size());
+  }
+
+auto map_class(std::string_view type) noexcept -> std::string_view
+  {
+  if(type == "TTS" or type == "AeBe")
+    return "Proto";
+  if(type == "N" or type == "H" or type == "SupermassiveBlackHole")
+    return "Non sequence";
+  if(type.starts_with('W'))
+    return "Wolf-Rayet";
+  if(type.starts_with('D'))
+    return "White dwarf";
+  if(type.starts_with('C') or type == "S" or type == "MS")
+    return "Carbon";
+  // a giant or a supergiant, K_OrangeGiant, under the letter of its type
+  if(type.size() > 2u and type[1] == '_')
+    return type.substr(0u, 1u);
+  return type;
   }
 
 auto key_of(star_t const & star, grouping_e grouping) -> std::string
@@ -89,6 +123,7 @@ auto key_of(star_t const & star, grouping_e grouping) -> std::string
     {
     case grouping_e::sub_class:  return std::format("{}{}", star.type, star.sub_class);
     case grouping_e::luminosity: return star.luminosity.empty() ? star.type : std::format("{} {}", star.type, star.luminosity);
+    case grouping_e::map_filter: return std::string{map_class(star.type)};
     case grouping_e::type:       break;
     }
   return star.type;

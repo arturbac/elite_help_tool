@@ -28,6 +28,8 @@ struct system_t
 
 enum struct grouping_e : uint8_t
   {
+  ///\brief the 15 classes of the galaxy map's star filter (map mode Star class), each row one of its switches
+  map_filter,
   type,
   sub_class,
   luminosity
@@ -58,9 +60,13 @@ auto count(std::span<system_t const> systems, grouping_e grouping, auto const & 
 [[nodiscard]]
 auto description(std::string_view type) noexcept -> std::string_view;
 
-///\brief where a StarType stands in the rows
+///\brief where a StarType, or a class of the galaxy map's filter, stands in the rows
 [[nodiscard]]
 auto rank(std::string_view type) noexcept -> int;
+
+///\brief the class of the galaxy map's star filter a StarType is shown under
+[[nodiscard]]
+auto map_class(std::string_view type) noexcept -> std::string_view;
 
 [[nodiscard]]
 auto key_of(star_t const & star, grouping_e grouping) -> std::string;
@@ -90,7 +96,10 @@ auto count(std::span<system_t const> systems, grouping_e grouping, auto const & 
         arrival = &star;
     for(star_t const & star: system.stars)
       {
-      row_t & row{row_of(key_of(star, grouping), star.type)};
+      std::string key{key_of(star, grouping)};
+      // a class of the map's filter holds several types: the row is the class's own
+      std::string const type{grouping == grouping_e::map_filter ? key : star.type};
+      row_t & row{row_of(std::move(key), type)};
       ++row.all;
       if(&star == arrival)
         ++row.arrival;

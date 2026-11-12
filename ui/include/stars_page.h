@@ -32,8 +32,7 @@ private:
   auto refresh(bool now) -> void;
   auto show_census() -> void;
 
-  /// a connection of its own; the state's db_ belongs to the journal following thread
-  database_storage_t db_;
+  std::string db_path_;
   current_state_t const & state_;
   QComboBox * grouping_{};
   QLabel * region_label_{};

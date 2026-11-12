@@ -52,6 +52,26 @@ auto main() -> int
     expect(census.rows[0].key == "G"sv and census.rows[0].arrival == 1_u);
   };
 
+  "the classes of the galaxy map's filter, in its order"_test = []
+  {
+    std::array const mixed{
+      system_t{.address = 1u, .stars = {star_t{"DA", 0u, "VII", 0.0}, star_t{"TTS", 2u, "Vz", 50.0}}},
+      system_t{.address = 2u, .stars = {star_t{"K_OrangeGiant", 3u, "III", 0.0}}},
+      system_t{.address = 3u, .stars = {star_t{"N", 0u, "VII", 0.0}, star_t{"AeBe", 1u, "Vz", 9.0}}},
+      system_t{.address = 4u, .stars = {star_t{"CN", 2u, "III", 0.0}}}
+    };
+    auto const census{
+      star_census::count(mixed, star_census::grouping_e::map_filter, [](system_t const &) { return true; })
+    };
+    expect(fatal(census.rows.size() == 5_ul));
+    expect(census.rows[0].key == "K"sv) << "a giant under its letter";
+    expect(census.rows[1].key == "Proto"sv and census.rows[1].all == 2_u and census.rows[1].arrival == 0_u);
+    expect(census.rows[2].key == "Carbon"sv);
+    expect(census.rows[3].key == "White dwarf"sv and census.rows[3].arrival == 1_u);
+    expect(census.rows[4].key == "Non sequence"sv);
+    expect(star_census::description("Proto") == "T Tauri and Herbig Ae/Be, young stars"sv);
+  };
+
   "what a star is"_test = []
   {
     expect(star_census::description("N") == "neutron star"sv);

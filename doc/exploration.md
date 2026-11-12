@@ -100,9 +100,12 @@ archive, and the first-logged bonus is always four times the price.
 **The stars visited.** The *Stars* tab of the Exploration window counts the stars of the systems visited (a
 system with a star in the database: only a visit scans one) in two tables, the galactic region the commander is in
 and all of them: each kind of star, what it is, how many systems it is the arrival star of - the one the jump drops
-the ship at - and how many stars of it there are in all, a system of several stars counting each. Grouped by type
-(`G`), by type and subclass (`G9`) or by type and luminosity class (`G Vab`), it shows which kinds are still rare,
-to visit the kinds evenly and set the galaxy map's star filter for the next jumps. The letter is the temperature
+the ship at, and what share of the systems that is - and how many stars of it there are in all, a system of several
+stars counting each. Grouped as the galaxy map's star filter (map mode *Star class*: O to Y, proto stars - T Tauri
+and Herbig Ae/Be -, carbon, Wolf-Rayet, white dwarf and non sequence stars - neutron stars and black holes -, a giant
+under its letter), each row one of the filter's switches, or by type (`G`), by type and subclass (`G9`) or by type
+and luminosity class (`G Vab`), it shows which kinds are still rare, to visit the kinds evenly and switch the map's
+filter to them for the next jumps; the filter only hides stars on the map, the route planner does not follow it. The letter is the temperature
 class, O the hottest to M the coolest and L, T, Y the brown dwarfs; the digit splits it from 0, the hottest, to 9;
 the luminosity class is the star's size - V the main sequence, its Va, Vab and Vb the brighter, middle and fainter
 part of it, Vz a star just come onto it, IV subgiants, III giants, VI subdwarfs and VII white dwarfs.
