@@ -12,6 +12,7 @@ target_sources(eht
   picture_records.cc
   galaxy_region.cc
   star_colour.cc
+  star_census.cc
   system_index.cc
   backup.cc
   ground_cz.cc

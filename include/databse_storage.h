@@ -1,4 +1,5 @@
 #pragma once
+#include <star_census.h>
 #include <data/fwd.h>
 #include <events/common.h>
 #include <simple_enum/expected.h>
@@ -814,5 +815,9 @@ struct database_storage_t
   ///\brief every system with a body in it, in two reads rather than one for each system
   [[nodiscard]]
   auto load_album_systems() -> expected_ec<std::vector<album_system_t>>;
+
+  ///\brief every system with a star, and its stars - the systems visited, since only a visit scans a star
+  [[nodiscard]]
+  auto load_star_census() -> expected_ec<std::vector<star_census::system_t>>;
   auto close() -> void;
   };

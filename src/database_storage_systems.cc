@@ -100,6 +100,16 @@ struct album_row_t
   double distance;
   };
 
+///\brief a star with its system and its distance from where the jump drops the ship
+struct census_row_t
+  {
+  uint64_t ref_system_address;
+  std::string star_type;
+  int64_t sub_class;
+  std::string luminosity;
+  double distance;
+  };
+
 struct album_name_t
   {
   uint64_t system_address;
@@ -153,6 +163,44 @@ auto database_storage_t::load_album_systems() -> expected_ec<std::vector<album_s
     if(not system.bodies.empty())
       known.push_back(std::move(system));
   return known;
+  }
+
+auto database_storage_t::load_star_census() -> expected_ec<std::vector<star_census::system_t>>
+  {
+  using album_rows::census_row_t;
+  auto stars{sqlite::select_from<census_row_t>(
+    db_->db,
+    std::format(
+      "(SELECT b.ref_system_address AS ref_system_address, s.star_type AS star_type,"
+      " COALESCE(s.sub_class, 0) AS sub_class, COALESCE(s.luminosity, '') AS luminosity,"
+      " COALESCE(b.distance_from_arrival_ls, 0.0) AS distance"
+      " FROM {} s JOIN {} b ON b.oid = s.ref_body_oid) AS census",
+      sql_iface::tables::star_details,
+      sql_iface::tables::body
+    ),
+    ""
+  )};
+  if(not stars) [[unlikely]]
+    return cxx23::unexpected{stars.error()};
+  std::map<uint64_t, star_census::system_t> systems;
+  for(census_row_t & row: *stars)
+    {
+    star_census::system_t & system{systems[row.ref_system_address]};
+    system.address = row.ref_system_address;
+    system.stars.push_back(
+      star_census::star_t{
+        .type = std::move(row.star_type),
+        .sub_class = static_cast<uint32_t>(row.sub_class),
+        .luminosity = std::move(row.luminosity),
+        .distance_ls = row.distance
+      }
+    );
+    }
+  std::vector<star_census::system_t> visited;
+  visited.reserve(systems.size());
+  for(auto & [address, system]: systems)
+    visited.push_back(std::move(system));
+  return visited;
   }
 
 auto database_storage_t::load_species_history_from(std::string const & galaxy_path)
