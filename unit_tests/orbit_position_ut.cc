@@ -591,8 +591,9 @@ auto main() -> int
   "a moon's orbit is turned by its parent's, so it stands where the game says"_test = []
   {
     // "Spoihee IT-F d12-1113" from Dunkan's journal of 14.11: 4 with 5 round barycentre 24, 7 with 8 round
-    // barycentre 49, moons of 5, 7 and 9. Each scan's DistanceFromArrivalLS is the game's own distance of
-    // that body from the star; unturned, 9 f stood 189 Ls off it, 5 a 49, 7 e 28 the wrong way round from 7 f
+    // barycentre 49, moons of 5, 6, 7 and 9. Each scan's DistanceFromArrivalLS is the game's own distance of
+    // that body from the star; unturned, 9 f stood 189 Ls off it, 5 a 49, 7 e 28 the wrong way round from 7 f;
+    // untipped by 6's axial tilt, 6 d 16 and 6 e 23
     struct scanned_t
       {
       ::events::body_id_t id;
@@ -603,7 +604,7 @@ auto main() -> int
     auto const system{"Spoihee IT-F d12-1113"};
     std::uint64_t const address{1};
     using p = ::events::parent_t;
-    std::array<scanned_t, 9> const scanned{
+    std::array<scanned_t, 12> const scanned{
       scanned_t{25, 9141125202.178955, 0.152064, 4.590093, 3.440926, 19244332.909584, -106.888113, 95.041041, {p{.Null = 24}, p{.Star = 0}}, 2140.016675},
       scanned_t{34, 16145188808.441162, 0.152064, 4.590093, 183.440918, 19244332.909584, -106.888113, 95.041146, {p{.Null = 24}, p{.Star = 0}}, 2073.737833},
       scanned_t{35, 902526170.015335, 6.2e-05, 0.084723, 167.039844, 215827.75712, 38.366323, 6.485029, {p{.Planet = 34}, p{.Null = 24}, p{.Star = 0}}, 2073.824599},
@@ -612,6 +613,9 @@ auto main() -> int
       scanned_t{57, 5133154988.288879, 0.000277, -0.166626, 184.47034, 2432109.236717, -16.181152, 86.872377, {p{.Planet = 50}, p{.Null = 49}, p{.Star = 0}}, 3913.276574},
       scanned_t{58, 8843000173.568726, 0.010263, 0.335059, 184.98005, 5499282.717705, 85.149677, 316.151399, {p{.Planet = 50}, p{.Null = 49}, p{.Star = 0}}, 3872.177516},
       scanned_t{60, 1552852094173.4314, 0.035056, 0.044546, 114.519962, 844563317.298889, 114.085616, 14.076228, {p{.Star = 0}}, 5004.023652},
+      scanned_t{39, 904078024625.7782, 0.008865, -0.254062, 95.272427, 375185394.287109, 61.101233, 141.139179, {p{.Star = 0}}, 3036.588422},
+      scanned_t{44, 4729721009.731293, 0.003238, 0.091783, 77.385118, 1975884.079933, -142.160204, 45.907521, {p{.Planet = 39}, p{.Star = 0}}, 3034.275888},
+      scanned_t{45, 7011571288.108826, 0.005562, -0.550114, 165.561402, 3566409.349442, 95.676846, 326.912852, {p{.Planet = 39}, p{.Star = 0}}, 3019.224456},
       scanned_t{67, 31294034123.420715, 0.007278, 11.251822, 111.599677, 43757728.934288, 118.393266, 214.599713, {p{.Planet = 60}, p{.Star = 0}}, 5095.033267}
     };
     std::array<bary_centre_t, 2> const barycentres{
@@ -642,9 +646,12 @@ auto main() -> int
     std::vector<body_t> bodies;
     for(scanned_t const & s: scanned)
       {
-      bodies.push_back(to_body(
+      auto scan{
         make_planet(s.id, system, address, s.sma, s.ecc, s.incl, s.periapsis, s.period, s.node, s.anomaly, s.parents)
-      ));
+      };
+      if(s.id == 39)
+        scan.AxialTilt = -2.409882;
+      bodies.push_back(to_body(std::move(scan)));
       bodies.back().scanned_at = epoch;
       }
     std::vector<body_t const *> scans;

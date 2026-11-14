@@ -94,6 +94,8 @@ struct orbital_node_t
   ///\brief the moment ascending_node/mean_anomaly were true - what "now" is measured onward from
   std::chrono::sys_seconds epoch;
   std::vector<events::parent_t> parents;
+  ///\brief a planet's AxialTilt in radians - the tilt of the plane its moons' orbits are given in
+  double axial_tilt{};
   };
 
 [[nodiscard]]
@@ -197,6 +199,7 @@ auto body_positions_now(
           {
           reg.ascending_node = det.ascending_node;
           reg.mean_anomaly = det.mean_anomaly;
+          reg.axial_tilt = det.axial_tilt.value_or(0.0);
           if(det.nearest_parent == parent_kind_planet and det.parent_planet)
             reg.parents.emplace_back(events::parent_t{.Planet = det.parent_planet});
           else if(det.nearest_parent == parent_kind_star and det.parent_star)
@@ -279,7 +282,10 @@ auto body_positions_now(
   // periapsis (periapsis + ascending node) - a moon round its planet, a planet round its barycentre. Left
   // unturned, the moons of Spoihee IT-F d12-1113 stood up to 189 Ls off the game's distances from the star
   // and the moons of 7 stood 116 degrees round from its map; turned, 2.9 Ls on average (screenshots of 14.11).
-  // A parent with no orbit of its own (the main star, an unscanned barycentre) turns nothing
+  // A moon's plane is besides tipped by its planet's axial tilt, about the planet's periapsis line: the moons
+  // D and E of 6 there (tilt 138 degrees) stand some 40 degrees off the plane on the game's map, and 16 and
+  // 23 Ls off its distances until so tipped, under 2 after. A parent with no orbit of its own (the main star,
+  // an unscanned barycentre) turns nothing
   for(auto const & [id, node]: registry)
     {
     if(node.parents.empty())
@@ -287,8 +293,16 @@ auto body_positions_now(
     auto const parent{registry.find(node.parents[0].id())};
     if(parent == registry.end() or parent->second.orbital_period <= 0.0)
       continue;
-    double const turn{deg_to_rad(parent->second.periapsis + parent->second.ascending_node)};
     auto & rel{rel_coords[id]};
+    if(node.parents[0].Planet)
+      {
+      double const tilt{parent->second.axial_tilt};
+      double const y{rel.y * std::cos(tilt) - rel.z * std::sin(tilt)};
+      double const z{rel.y * std::sin(tilt) + rel.z * std::cos(tilt)};
+      rel.y = y;
+      rel.z = z;
+      }
+    double const turn{deg_to_rad(parent->second.periapsis + parent->second.ascending_node)};
     double const x{rel.x * std::cos(turn) - rel.y * std::sin(turn)};
     double const y{rel.x * std::sin(turn) + rel.y * std::cos(turn)};
     rel.x = x;
