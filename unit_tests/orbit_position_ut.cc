@@ -587,4 +587,83 @@ auto main() -> int
     double const c_dist{std::sqrt(pc.x * pc.x + pc.y * pc.y + pc.z * pc.z)}, local_only{42616034746.170044};
     expect(c_dist > local_only * 2.0) << c_dist << " should dwarf the local-only (broken) " << local_only;
     };
+
+  "a moon's orbit is turned by its parent's, so it stands where the game says"_test = []
+  {
+    // "Spoihee IT-F d12-1113" from Dunkan's journal of 14.11: 4 with 5 round barycentre 24, 7 with 8 round
+    // barycentre 49, moons of 5, 7 and 9. Each scan's DistanceFromArrivalLS is the game's own distance of
+    // that body from the star; unturned, 9 f stood 189 Ls off it, 5 a 49, 7 e 28 the wrong way round from 7 f
+    struct scanned_t
+      {
+      ::events::body_id_t id;
+      double sma, ecc, incl, periapsis, period, node, anomaly;
+      std::vector<::events::parent_t> parents;
+      double from_star_ls;
+      };
+    auto const system{"Spoihee IT-F d12-1113"};
+    std::uint64_t const address{1};
+    using p = ::events::parent_t;
+    std::array<scanned_t, 9> const scanned{
+      scanned_t{25, 9141125202.178955, 0.152064, 4.590093, 3.440926, 19244332.909584, -106.888113, 95.041041, {p{.Null = 24}, p{.Star = 0}}, 2140.016675},
+      scanned_t{34, 16145188808.441162, 0.152064, 4.590093, 183.440918, 19244332.909584, -106.888113, 95.041146, {p{.Null = 24}, p{.Star = 0}}, 2073.737833},
+      scanned_t{35, 902526170.015335, 6.2e-05, 0.084723, 167.039844, 215827.75712, 38.366323, 6.485029, {p{.Planet = 34}, p{.Null = 24}, p{.Star = 0}}, 2073.824599},
+      scanned_t{59, 53130000829.696655, 0.087764, -1.871319, 296.033215, 81172223.687172, -39.614079, 28.895067, {p{.Null = 49}, p{.Star = 0}}, 4031.904003},
+      scanned_t{50, 121401786.804199, 0.087764, -1.871319, 116.033221, 81172223.687172, -39.614079, 28.89511, {p{.Null = 49}, p{.Star = 0}}, 3898.345682},
+      scanned_t{57, 5133154988.288879, 0.000277, -0.166626, 184.47034, 2432109.236717, -16.181152, 86.872377, {p{.Planet = 50}, p{.Null = 49}, p{.Star = 0}}, 3913.276574},
+      scanned_t{58, 8843000173.568726, 0.010263, 0.335059, 184.98005, 5499282.717705, 85.149677, 316.151399, {p{.Planet = 50}, p{.Null = 49}, p{.Star = 0}}, 3872.177516},
+      scanned_t{60, 1552852094173.4314, 0.035056, 0.044546, 114.519962, 844563317.298889, 114.085616, 14.076228, {p{.Star = 0}}, 5004.023652},
+      scanned_t{67, 31294034123.420715, 0.007278, 11.251822, 111.599677, 43757728.934288, 118.393266, 214.599713, {p{.Planet = 60}, p{.Star = 0}}, 5095.033267}
+    };
+    std::array<bary_centre_t, 2> const barycentres{
+      bary_centre_t{
+        .body_id = 24,
+        .semi_major_axis = 633771836757.6599,
+        .eccentricity = 0.000876,
+        .orbital_inclination = 2.362229,
+        .periapsis = 351.852547,
+        .orbital_period = 220209676.027298,
+        .ascending_node = -131.231126,
+        .mean_anomaly = 175.139171,
+        .scanned_at = epoch
+      },
+      bary_centre_t{
+        .body_id = 49,
+        .semi_major_axis = 1168241739273.0713,
+        .eccentricity = 0.000468,
+        .orbital_inclination = -0.001246,
+        .periapsis = 55.144693,
+        .orbital_period = 551107257.604599,
+        .ascending_node = -20.744241,
+        .mean_anomaly = 174.133503,
+        .scanned_at = epoch
+      }
+    };
+    // the scans came within three minutes of one another - a fraction of a degree of the fastest moon here
+    std::vector<body_t> bodies;
+    for(scanned_t const & s: scanned)
+      {
+      bodies.push_back(to_body(
+        make_planet(s.id, system, address, s.sma, s.ecc, s.incl, s.periapsis, s.period, s.node, s.anomaly, s.parents)
+      ));
+      bodies.back().scanned_at = epoch;
+      }
+    std::vector<body_t const *> scans;
+    for(body_t const & body: bodies)
+      scans.push_back(&body);
+    auto const positions{body_positions_now(barycentres, scans, epoch)};
+    expect(fatal(positions.size() == scanned.size()));
+    for(size_t ix{}; ix != scanned.size(); ++ix)
+      {
+      auto const & at{positions[ix]};
+      double const from_star_ls{std::sqrt(at.x * at.x + at.y * at.y + at.z * at.z) / 299'792'458.0};
+      expect(std::abs(from_star_ls - scanned[ix].from_star_ls) < 8.0)
+        << "body" << scanned[ix].id << ":" << from_star_ls << "Ls, the game" << scanned[ix].from_star_ls;
+      }
+
+    // from the star 7 f comes before 7 e, as the game's navigation panel lists them
+    std::array<::events::body_id_t, 2> const moons{57, 58};
+    auto const route{visit_order(barycentres, scans, moons, std::nullopt, epoch)};
+    expect(fatal(route.size() == 2_ul));
+    expect(route[0].body_id == 58_u and route[1].body_id == 57_u);
+  };
   }

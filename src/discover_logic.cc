@@ -275,6 +275,26 @@ auto body_positions_now(
     rel_coords[id] = calculate_relative_pos(node, dt);
     }
 
+  // the game gives a body's orbit in its parent's own frame, turned by that parent's longitude of
+  // periapsis (periapsis + ascending node) - a moon round its planet, a planet round its barycentre. Left
+  // unturned, the moons of Spoihee IT-F d12-1113 stood up to 189 Ls off the game's distances from the star
+  // and the moons of 7 stood 116 degrees round from its map; turned, 2.9 Ls on average (screenshots of 14.11).
+  // A parent with no orbit of its own (the main star, an unscanned barycentre) turns nothing
+  for(auto const & [id, node]: registry)
+    {
+    if(node.parents.empty())
+      continue;
+    auto const parent{registry.find(node.parents[0].id())};
+    if(parent == registry.end() or parent->second.orbital_period <= 0.0)
+      continue;
+    double const turn{deg_to_rad(parent->second.periapsis + parent->second.ascending_node)};
+    auto & rel{rel_coords[id]};
+    double const x{rel.x * std::cos(turn) - rel.y * std::sin(turn)};
+    double const y{rel.x * std::sin(turn) + rel.y * std::cos(turn)};
+    rel.x = x;
+    rel.y = y;
+    }
+
   std::vector<body_location_t> absolute_positions;
   absolute_positions.reserve(scans.size());
 
