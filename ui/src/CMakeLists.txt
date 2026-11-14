@@ -6,6 +6,7 @@ target_sources(elite_help_tool
   system_window.cc
   cartography_page.cc
   stars_page.cc
+  atmospheres_page.cc
   ship_loadout.cc
   mission_window.cc
   current_state.cc

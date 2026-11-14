@@ -114,6 +114,19 @@ class, O the hottest to M the coolest and L, T, Y the brown dwarfs; the digit sp
 the luminosity class is the star's size - V the main sequence, its Va, Vab and Vb the brighter, middle and fainter
 part of it, Vz a star just come onto it, IV subgiants, III giants, VI subdwarfs and VII white dwarfs.
 
+**Where to jump for a rare atmosphere.** The *Atmospheres* tab of the Exploration window tells, for each atmosphere
+of a landable planet, the chance of a jump to find one, by the class of the arrival star - the one the galaxy map shows
+and its star filter switches, grouped as on the *Stars* tab. The chance is the share of the systems scanned in full
+with one such planet at least; a system is in full when as many stars and planets are known as its discovery scan
+counted, so a system left half scanned does not lower it. The list of atmospheres starts with the rarest, each with the
+planets found and its chance over all those systems; the table gives each class's systems in full, those with the
+atmosphere, its chance and how many times the average that is. A class with fewer than 20 systems in full is grey, its
+chance weak. Two tables more tell where such planets sit, over every system: the class of their parent star, and
+whether they go around a star or are moons of a gas giant, an icy body or a rocky or metal one, each with its share
+beside the share of all landable planets with an atmosphere; these explain, but cannot be seen before a jump. It reads
+this account's galaxy and the ones of `exploration.shared_galaxies`, while shown, again when a body is scanned or five
+minutes on.
+
 **How a body is priced.** The formula in common use among explorers, corrected where the sales
 disagree with it:
 

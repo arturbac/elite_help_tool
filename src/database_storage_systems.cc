@@ -115,7 +115,100 @@ struct album_name_t
   uint64_t system_address;
   std::string name;
   };
+
+struct odds_system_row_t
+  {
+  uint64_t system_address;
+  std::string star_type;
+  int64_t body_count;
+  };
+
+///\brief a star or a planet; the columns of the other kind empty
+struct odds_body_row_t
+  {
+  uint64_t ref_system_address;
+  int64_t body_id;
+  int64_t star;
+  std::string star_type;
+  double distance;
+  std::string atmosphere_type;
+  int64_t landable;
+  int64_t parent_star;
+  int64_t parent_planet;
+  std::string planet_class;
+  };
   }  // namespace album_rows
+
+namespace
+  {
+// the table names are the same in an account's own galaxy and in another's
+auto load_atmosphere_census_of(sqlite3 * db) -> expected_ec<atmosphere_odds::census_t>
+  {
+  using album_rows::odds_body_row_t;
+  using album_rows::odds_system_row_t;
+  auto systems{sqlite::select_from<odds_system_row_t>(
+    db,
+    std::format(
+      "(SELECT system_address, COALESCE(star_type, '') AS star_type, COALESCE(body_count, 0) AS body_count"
+      " FROM {}) AS systems",
+      sql_iface::tables::star_system
+    ),
+    ""
+  )};
+  if(not systems) [[unlikely]]
+    return cxx23::unexpected{systems.error()};
+  // parent_planet is NULL, kept as text by older rows, for a planet going around a star
+  auto bodies{sqlite::select_from<odds_body_row_t>(
+    db,
+    std::format(
+      "(SELECT b.ref_system_address AS ref_system_address, b.body_id AS body_id, 1 AS star, COALESCE(s.star_type, '') AS star_type,"
+      " COALESCE(b.distance_from_arrival_ls, 0.0) AS distance, '' AS atmosphere_type, 0 AS landable,"
+      " -1 AS parent_star, -1 AS parent_planet, '' AS planet_class"
+      " FROM {0} s JOIN {1} b ON b.oid = s.ref_body_oid"
+      " UNION ALL"
+      " SELECT b.ref_system_address, b.body_id, 0, '', COALESCE(b.distance_from_arrival_ls, 0.0),"
+      " COALESCE(p.atmosphere_type, ''), COALESCE(p.landable, 0),"
+      " CASE WHEN typeof(p.parent_star) = 'integer' THEN p.parent_star ELSE -1 END,"
+      " CASE WHEN typeof(p.parent_planet) = 'integer' THEN p.parent_planet ELSE -1 END,"
+      " COALESCE(p.planet_class, '')"
+      " FROM {2} p JOIN {1} b ON b.oid = p.ref_body_oid) AS bodies",
+      sql_iface::tables::star_details,
+      sql_iface::tables::body,
+      sql_iface::tables::planet_details
+    ),
+    ""
+  )};
+  if(not bodies) [[unlikely]]
+    return cxx23::unexpected{bodies.error()};
+  atmosphere_odds::census_t census;
+  census.systems.reserve(systems->size());
+  for(odds_system_row_t & row: *systems)
+    census.systems.push_back(
+      atmosphere_odds::system_t{
+        .address = row.system_address,
+        .arrival_type = std::move(row.star_type),
+        .body_count = static_cast<uint32_t>(std::max<int64_t>(row.body_count, 0))
+      }
+    );
+  census.bodies.reserve(bodies->size());
+  for(odds_body_row_t & row: *bodies)
+    census.bodies.push_back(
+      atmosphere_odds::body_t{
+        .address = row.ref_system_address,
+        .body_id = static_cast<uint32_t>(row.body_id),
+        .star = row.star != 0,
+        .star_type = std::move(row.star_type),
+        .distance_ls = row.distance,
+        .atmosphere_type = std::move(row.atmosphere_type),
+        .landable = row.landable != 0,
+        .parent_star = row.parent_star,
+        .parent_planet = row.parent_planet,
+        .planet_class = std::move(row.planet_class)
+      }
+    );
+  return census;
+  }
+  }  // namespace
 
 auto database_storage_t::load_album_systems() -> expected_ec<std::vector<album_system_t>>
   {
@@ -201,6 +294,32 @@ auto database_storage_t::load_star_census() -> expected_ec<std::vector<star_cens
   for(auto & [address, system]: systems)
     visited.push_back(std::move(system));
   return visited;
+  }
+
+auto database_storage_t::load_atmosphere_census() -> expected_ec<atmosphere_odds::census_t>
+  {
+  return load_atmosphere_census_of(db_->db);
+  }
+
+auto database_storage_t::load_atmosphere_census_from(std::string const & galaxy_path)
+  -> expected_ec<atmosphere_odds::census_t>
+  {
+  sqlite3_handle_t other;
+  if(sqlite3_open_v2(galaxy_path.c_str(), &other.db, SQLITE_OPEN_READONLY, nullptr) != SQLITE_OK)
+    {
+    spdlog::warn("the shared galaxy {} could not be opened", galaxy_path);
+    return cxx23::unexpected(std::make_error_code(std::errc::no_such_file_or_directory));
+    }
+  sqlite3_busy_timeout(other.db, 200);
+  return load_atmosphere_census_of(other.db);
+  }
+
+auto database_storage_t::load_body_total() -> expected_ec<int64_t>
+  {
+  auto res{sqlite::select_signle_from<int64_t>(db_->db, std::format("SELECT count(*) FROM {}", sql_iface::tables::body))};
+  if(not res) [[unlikely]]
+    return cxx23::unexpected{res.error()};
+  return *res ? **res : int64_t{0};
   }
 
 auto database_storage_t::load_species_history_from(std::string const & galaxy_path)

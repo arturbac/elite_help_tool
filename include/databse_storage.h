@@ -1,4 +1,5 @@
 #pragma once
+#include <atmosphere_odds.h>
 #include <star_census.h>
 #include <data/fwd.h>
 #include <events/common.h>
@@ -819,5 +820,17 @@ struct database_storage_t
   ///\brief every system with a star, and its stars - the systems visited, since only a visit scans a star
   [[nodiscard]]
   auto load_star_census() -> expected_ec<std::vector<star_census::system_t>>;
+
+  ///\brief the systems and their stars and planets, for the chance of an atmosphere by the arrival star
+  [[nodiscard]]
+  auto load_atmosphere_census() -> expected_ec<atmosphere_odds::census_t>;
+
+  ///\brief the same from another account's galaxy, opened read only for the reading
+  [[nodiscard]]
+  static auto load_atmosphere_census_from(std::string const & galaxy_path) -> expected_ec<atmosphere_odds::census_t>;
+
+  ///\brief how many bodies are known - a cheap look whether anything was scanned since
+  [[nodiscard]]
+  auto load_body_total() -> expected_ec<int64_t>;
   auto close() -> void;
   };

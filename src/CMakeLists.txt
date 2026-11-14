@@ -13,6 +13,7 @@ target_sources(eht
   galaxy_region.cc
   star_colour.cc
   star_census.cc
+  atmosphere_odds.cc
   system_index.cc
   backup.cc
   ground_cz.cc

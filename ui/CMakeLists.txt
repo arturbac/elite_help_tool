@@ -39,6 +39,7 @@ target_sources(elite_help_tool
             include/system_window.h
             include/cartography_page.h
             include/stars_page.h
+            include/atmospheres_page.h
             include/ship_loadout.h
             include/main_window.h
             include/mission_window.h
