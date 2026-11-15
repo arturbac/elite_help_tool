@@ -71,6 +71,15 @@ change shows in the game at once, and a change of text scale rebuilds the layer'
 restarting the game. The old `EHT_OVERLAY_SCALE`, `_SIDE_WIDTH`, `_CENTRE_WIDTH`, `_HUD_GAP`,
 `_HUD_BOTTOM`, `_SMALL_TEXT` and `_STATS` are no longer read.
 
+## Frame count for other tools
+
+Once a second the overlay writes `$XDG_RUNTIME_DIR/eht-overlay-frames-<pid>` (the game's process id) with one
+line, `frames <n> seconds <s>`: the frames drawn so far and a steady clock in seconds. A tool that measures
+something over a window of its own reads the file at the start and at the end; the change of `frames` over the
+change of `seconds` is the frame rate in that window. The file is written beside and renamed over, so a reader
+never sees half a line. Without `XDG_RUNTIME_DIR`, or after a failed write, there is no file, and the log says so
+once.
+
 ## Two game accounts at once
 
 Nothing stops two tool + game pairs from running side by side, for example a Steam account and

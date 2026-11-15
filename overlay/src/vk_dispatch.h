@@ -249,6 +249,11 @@ struct swapchain_data_t
     };
   report_t report;
   float fps{};
+
+  ///\brief the frame count file for tools outside the game that measure the frame rate over a window of their own
+  /// (write_frame_count); a write that failed once is not tried again
+  double frames_written_seconds{};
+  bool frames_file_failed{};
   };
 
 ///\brief one client per game process, created only once there is really something to draw
