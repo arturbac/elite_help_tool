@@ -252,6 +252,7 @@ struct swapchain_data_t
 
   ///\brief the frame count file for tools outside the game that measure the frame rate over a window of their own
   /// (write_frame_count); a write that failed once is not tried again
+  std::string frames_path;
   double frames_written_seconds{};
   bool frames_file_failed{};
   };

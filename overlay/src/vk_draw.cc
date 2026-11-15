@@ -137,8 +137,9 @@ namespace
   auto now_seconds() noexcept -> double
     { return std::chrono::duration<double>{std::chrono::steady_clock::now().time_since_epoch()}.count(); }
 
-  ///\brief once a second the frames drawn so far and the steady clock go to $XDG_RUNTIME_DIR/eht-overlay-frames-<pid>
-  /// as "frames <n> seconds <s>", for tools outside the game that measure the frame rate over a window of their own
+  ///\brief once a second the frames drawn so far and the steady clock go to frames-<pid>.txt in the spool beside the
+  /// socket (the one place visible on both sides of the pressure-vessel container) as "frames <n> seconds <s>", for
+  /// tools outside the game that measure the frame rate over a window of their own
   ///\detail written beside and renamed over, so a reader never sees half a line; a failure is reported once and the
   /// file is not tried again
   auto write_frame_count(swapchain_data_t & data, double now) noexcept -> void
@@ -146,24 +147,27 @@ namespace
     if(data.frames_file_failed or now - data.frames_written_seconds < 1.0)
       return;
     data.frames_written_seconds = now;
-    char const * const dir{std::getenv("XDG_RUNTIME_DIR")};
-    if(dir == nullptr or *dir == '\0')
-      {
-      data.frames_file_failed = true;
-      report("overlay: no XDG_RUNTIME_DIR, no frame count file for tools");
-      return;
-      }
-    char path[256];
-    char partial[264];
+    if(data.frames_path.empty())
+      try
+        {
+        data.frames_path = overlay::default_spool_path() + "/frames-" + std::to_string(::getpid()) + ".txt";
+        }
+      catch(...)
+        {
+        data.frames_file_failed = true;
+        report("overlay: no frame count file for tools ({})", exception_text());
+        return;
+        }
+    char const * const path{data.frames_path.c_str()};
+    char partial[512];
     char line[96];
-    int const path_size{std::snprintf(path, sizeof path, "%s/eht-overlay-frames-%d", dir, static_cast<int>(::getpid()))};
+    int const path_size{std::snprintf(partial, sizeof partial, "%s.new", path)};
     int const line_size{std::snprintf(
       line, sizeof line, "frames %llu seconds %.6f\n", static_cast<unsigned long long>(data.drawn_frames), now
     )};
-    bool written{path_size > 0 and static_cast<size_t>(path_size) < sizeof path and line_size > 0};
+    bool written{path_size > 0 and static_cast<size_t>(path_size) < sizeof partial and line_size > 0};
     if(written)
       {
-      std::snprintf(partial, sizeof partial, "%s.new", path);
       int const fd{::open(partial, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0644)};
       written = fd >= 0 and ::write(fd, line, static_cast<size_t>(line_size)) == line_size;
       if(fd >= 0)

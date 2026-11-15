@@ -73,12 +73,12 @@ restarting the game. The old `EHT_OVERLAY_SCALE`, `_SIDE_WIDTH`, `_CENTRE_WIDTH`
 
 ## Frame count for other tools
 
-Once a second the overlay writes `$XDG_RUNTIME_DIR/eht-overlay-frames-<pid>` (the game's process id) with one
-line, `frames <n> seconds <s>`: the frames drawn so far and a steady clock in seconds. A tool that measures
-something over a window of its own reads the file at the start and at the end; the change of `frames` over the
-change of `seconds` is the frame rate in that window. The file is written beside and renamed over, so a reader
-never sees half a line. Without `XDG_RUNTIME_DIR`, or after a failed write, there is no file, and the log says so
-once.
+Once a second the overlay writes `frames-<pid>.txt` (the game's process id) beside the socket, in
+`~/.local/share/elite_help_tool/captures/` by default - the one place visible on both sides of the container -
+with one line, `frames <n> seconds <s>`: the frames drawn so far and a steady clock in seconds. A tool that
+measures something over a window of its own reads the file at the start and at the end; the change of `frames`
+over the change of `seconds` is the frame rate in that window. The file is written beside and renamed over, so a
+reader never sees half a line. After a failed write there is no file, and the log says so once.
 
 ## Two game accounts at once
 
