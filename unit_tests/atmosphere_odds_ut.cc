@@ -125,4 +125,35 @@ auto main() -> int
     expect(rows[2].atmosphere == "Argon"sv and rows[2].known == 255_u);
     expect(rows[3].atmosphere == "CarbonDioxide"sv and rows[3].here == 2_u and rows[3].known == 456_u);
   };
+
+  "a planet outside what is known of its type, itself left out of the range"_test = [&]
+  {
+    using atmosphere_odds::beyond_e;
+    using atmosphere_odds::landable_t;
+    std::vector<landable_t> known;
+    for(uint32_t i{}; i != 6u; ++i)
+      known.push_back(landable_t{1u, i, "Ammonia", 152.0 + i * 4.0, 200.0 + i * 100.0, 1.0 + i * 0.2, i == 0u});
+    landable_t const cold{2u, 1u, "Ammonia", 148.0, 300.0, 1.5, false};
+    known.push_back(cold);
+    auto const found{atmosphere_odds::outliers(cold, known)};
+    expect(fatal(found.size() == 1_ul));
+    expect(found[0].what == beyond_e::colder and found[0].low == 152.0_d and found[0].high == 172.0_d)
+      << "the planet itself is no part of the range";
+    landable_t const heavy_hot{2u, 2u, "Ammonia", 180.0, 900.0, 2.5, true};
+    auto const more{atmosphere_odds::outliers(heavy_hot, known)};
+    expect(fatal(more.size() == 4_ul));
+    expect(more[0].what == beyond_e::warmer and more[1].what == beyond_e::denser and more[2].what == beyond_e::heavier);
+    expect(more[3].what == beyond_e::volcanic and more[3].known == 1_u) << "one other volcanic: worth a look";
+    expect(atmosphere_odds::outliers(landable_t{1u, 2u, "Ammonia", 160.0, 400.0, 1.4, false}, known).empty())
+      << "inside the range: nothing";
+  };
+
+  "a type known on few planets says so instead of a range"_test = [&]
+  {
+    using atmosphere_odds::landable_t;
+    std::vector<landable_t> const known{landable_t{1u, 1u, "Water", 430.0, 9000.0, 0.5, false}, landable_t{1u, 2u, "Water", 440.0, 9100.0, 0.5, false}};
+    auto const found{atmosphere_odds::outliers(landable_t{3u, 1u, "Water", 500.0, 9500.0, 0.6, false}, known)};
+    expect(fatal(found.size() == 1_ul));
+    expect(found[0].what == atmosphere_odds::beyond_e::few_known and found[0].known == 2_u);
+  };
   }

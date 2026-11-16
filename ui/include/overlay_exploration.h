@@ -46,10 +46,15 @@ auto describe_arrival(star_system_t const & system) -> std::vector<overlay::line
 auto describe_phenomena(star_system_t const & system) -> std::vector<overlay::line_t>;
 
 ///\brief the atmospheres of the landable planets here, the rarest first, each with how many landable planets with it
-/// are known (in brackets) and, when more than one, how many are here; a rare one in the colour of a first discovery
+/// are known (in brackets) and, when more than one, how many are here; a rare one in the colour of a first discovery.
+/// Under it a line for each planet whose surface lies outside the other known planets of its type (a candidate for a
+/// colour of its air not measured yet), at most 4
 ///\param known the landable planets of each atmosphere the databases know
+///\param scanned those planets each once, with their surfaces
 [[nodiscard]]
-auto describe_atmospheres(star_system_t const & system, atmosphere_odds::counts_t const & known) -> std::vector<overlay::line_t>;
+auto describe_atmospheres(
+  star_system_t const & system, atmosphere_odds::counts_t const & known, std::span<atmosphere_odds::landable_t const> scanned
+) -> std::vector<overlay::line_t>;
 
 ///\brief the bodies worth the probes, best first
 [[nodiscard]]

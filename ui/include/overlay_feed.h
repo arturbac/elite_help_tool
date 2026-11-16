@@ -349,6 +349,7 @@ private:
   ///\brief every genus mapped with its world, sampled or not - what the genera of a world not mapped are guessed from
   std::vector<bio::species_record_t> genus_history_;
   atmosphere_odds::counts_t atmosphere_counts_;
+  std::vector<atmosphere_odds::landable_t> landables_;
   uint64_t atmospheres_system_{};
   size_t atmospheres_planets_{};
   std::chrono::steady_clock::time_point atmospheres_read_{};

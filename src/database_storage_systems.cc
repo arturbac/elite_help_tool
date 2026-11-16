@@ -144,6 +144,10 @@ struct landable_row_t
   uint64_t ref_system_address;
   int64_t body_id;
   std::string atmosphere_type;
+  double surface_temperature;
+  double surface_pressure;
+  double surface_gravity;
+  int64_t volcanic;
   };
   }  // namespace album_rows
 
@@ -235,7 +239,9 @@ auto load_landable_atmospheres_of(sqlite3 * db, galaxy_tables_t const & tables)
   auto rows{sqlite::select_from<landable_row_t>(
     db,
     std::format(
-      "(SELECT b.ref_system_address AS ref_system_address, b.body_id AS body_id, p.atmosphere_type AS atmosphere_type"
+      "(SELECT b.ref_system_address AS ref_system_address, b.body_id AS body_id, p.atmosphere_type AS atmosphere_type,"
+      " COALESCE(p.surface_temperature, 0.0) AS surface_temperature, COALESCE(p.surface_pressure, 0.0) AS surface_pressure,"
+      " COALESCE(p.surface_gravity, 0.0) AS surface_gravity, TRIM(COALESCE(p.volcanism, '')) != '' AS volcanic"
       " FROM {0} p JOIN {1} b ON b.oid = p.ref_body_oid"
       " WHERE p.landable = 1 AND COALESCE(p.atmosphere_type, '') NOT IN ('', 'None')) AS landables",
       tables.planet_details,
@@ -252,7 +258,11 @@ auto load_landable_atmospheres_of(sqlite3 * db, galaxy_tables_t const & tables)
       atmosphere_odds::landable_t{
         .address = row.ref_system_address,
         .body_id = static_cast<uint32_t>(row.body_id),
-        .atmosphere = std::move(row.atmosphere_type)
+        .atmosphere = std::move(row.atmosphere_type),
+        .temperature_k = row.surface_temperature,
+        .pressure_pa = row.surface_pressure,
+        .gravity = row.surface_gravity,
+        .volcanic = row.volcanic != 0
       }
     );
   return planets;

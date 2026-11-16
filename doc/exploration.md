@@ -30,7 +30,12 @@ The bottom right corner of the overlay follows the order of work in a new system
    other accounts' too, a planet in two of them once; the same count as the *Atmospheres* tab), these among
    them; `x2` when more than one of them is here. One known 10 times or fewer is green, a rare one worth the
    landing to see. The counts are read again in another system, when a planet's atmosphere becomes known, and
-   every 5 minutes.
+   every 5 minutes. Under it, a line for each planet (at most 4) whose surface lies outside the other known
+   landable planets of its type, itself left out: `colder`/`warmer` (K), `thinner`/`denser` (Pa),
+   `lighter`/`heavier` (g), each with the range known; `volcanic (N known)` while at most 3 others of its type are
+   volcanic; `few known (N)` instead when fewer than 5 others are known. Such a planet is a candidate for a colour
+   of its air that edworld does not know yet: a second one came with volcanism on Neon worlds, and one Ammonia
+   moon has another for no reason its scan shows - which this cannot catch.
 3. **to map** — bodies worth the probes, most valuable first, green when it is a first discovery,
 4. **life** — bodies with biological signals left to sample, in the order of a route through them from
    the body the commander is at or was at last in the system (the arrival star before any), the bodies

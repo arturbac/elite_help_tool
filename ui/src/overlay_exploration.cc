@@ -317,7 +317,36 @@ auto describe_phenomena(star_system_t const & system) -> std::vector<overlay::li
   return lines;
   }
 
-auto describe_atmospheres(star_system_t const & system, atmosphere_odds::counts_t const & known) -> std::vector<overlay::line_t>
+namespace
+  {
+  [[nodiscard]]
+  auto beyond_text(atmosphere_odds::beyond_t const & b) -> std::string
+    {
+    using enum atmosphere_odds::beyond_e;
+    double constexpr g0{9.80665};
+    switch(b.what)
+      {
+      case colder:
+      case warmer:
+        return std::format("{} {:.0f} K (known {:.0f}..{:.0f})", b.what == colder ? "colder" : "warmer", b.value, b.low, b.high);
+      case thinner:
+      case denser:
+        return std::format("{} {:.0f} Pa (known {:.0f}..{:.0f})", b.what == thinner ? "thinner" : "denser", b.value, b.low, b.high);
+      case lighter:
+      case heavier:
+        return std::format(
+          "{} {:.2f} g (known {:.2f}..{:.2f})", b.what == lighter ? "lighter" : "heavier", b.value / g0, b.low / g0, b.high / g0
+        );
+      case volcanic:  return std::format("volcanic ({} known)", b.known);
+      case few_known: return std::format("few known ({})", b.known);
+      }
+    return {};
+    }
+  }  // namespace
+
+auto describe_atmospheres(
+  star_system_t const & system, atmosphere_odds::counts_t const & known, std::span<atmosphere_odds::landable_t const> scanned
+) -> std::vector<overlay::line_t>
   {
   std::vector<std::string> planets;
   for(body_t const & body: system.bodies)
@@ -343,7 +372,38 @@ auto describe_atmospheres(star_system_t const & system, atmosphere_odds::counts_
     );
     line.text += part;
     }
-  return {std::move(line)};
+  std::vector<overlay::line_t> lines{std::move(line)};
+
+  // the planets outside what is known of their type, the ones worth a look for a colour of their air not seen yet
+  constexpr size_t listed{4u};
+  size_t beyond{};
+  for(body_t const & body: system.bodies)
+    {
+    auto const * const planet{planet_of(body)};
+    if(planet == nullptr or not planet->landable)
+      continue;
+    atmosphere_odds::landable_t const here{
+      .address = system.system_address,
+      .body_id = static_cast<uint32_t>(body.body_id),
+      .atmosphere = planet->atmosphere_type,
+      .temperature_k = planet->surface_temperature,
+      .pressure_pa = planet->surface_pressure,
+      .gravity = planet->surface_gravity,
+      .volcanic = not planet->volcanism.empty()
+    };
+    auto const found{atmosphere_odds::outliers(here, scanned)};
+    if(found.empty())
+      continue;
+    if(++beyond > listed)
+      continue;
+    std::string text{std::format("  {} {}:", short_name(system, body.name), here.atmosphere)};
+    for(size_t i{}; i != found.size(); ++i)
+      text += (i == 0u ? " " : ", ") + beyond_text(found[i]);
+    lines.push_back(overlay::line_t{.text = std::move(text), .color = colour_knowledge()});
+    }
+  if(beyond > listed)
+    lines.push_back(overlay::line_t{.text = std::format("  ... and {} more", beyond - listed), .color = colour_plain()});
+  return lines;
   }
 
 auto describe_mapping(star_system_t const & system) -> std::vector<overlay::line_t>

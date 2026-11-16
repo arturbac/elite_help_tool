@@ -2012,7 +2012,8 @@ auto overlay_feed_t::refresh_atmosphere_counts(current_state_t const & state) ->
   for(std::string const & galaxy: eht::settings()->exploration.shared_galaxies)
     if(auto shared{database_storage_t::load_landable_atmospheres_from(galaxy)}; shared)
       own->insert(own->end(), std::make_move_iterator(shared->begin()), std::make_move_iterator(shared->end()));
-  atmosphere_counts_ = atmosphere_odds::landable_counts(std::move(*own));
+  landables_ = atmosphere_odds::unique_landables(std::move(*own));
+  atmosphere_counts_ = atmosphere_odds::landable_counts(landables_);
   }
 
 auto overlay_feed_t::refresh_species_history(current_state_t const & state) -> void
@@ -4182,7 +4183,7 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
       overlay::block_t{.corner = overlay::corner_e::bottom_right, .ttl_ms = block_ttl_ms(), .lines = std::move(phenomena)}
     );
   if(auto atmospheres{
-       exploring_ ? overlay_exploration::describe_atmospheres(state.system, atmosphere_counts_) : std::vector<overlay::line_t>{}
+       exploring_ ? overlay_exploration::describe_atmospheres(state.system, atmosphere_counts_, landables_) : std::vector<overlay::line_t>{}
      };
      not atmospheres.empty())
     frame.blocks.push_back(

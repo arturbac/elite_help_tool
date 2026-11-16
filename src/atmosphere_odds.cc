@@ -2,6 +2,7 @@
 #include <star_census.h>
 
 #include <algorithm>
+#include <limits>
 #include <ranges>
 #include <set>
 #include <utility>
@@ -169,16 +170,59 @@ auto atmospheres(prepared_t const & prepared) -> std::vector<atmosphere_row_t>
   return rows;
   }
 
-auto landable_counts(std::vector<landable_t> planets) -> counts_t
+auto unique_landables(std::vector<landable_t> planets) -> std::vector<landable_t>
   {
-  std::ranges::sort(planets, std::ranges::less{}, [](landable_t const & p) { return std::pair{p.address, p.body_id}; });
+  std::ranges::stable_sort(planets, std::ranges::less{}, [](landable_t const & p) { return std::pair{p.address, p.body_id}; });
   auto const twice{std::ranges::unique(planets, std::ranges::equal_to{}, [](landable_t const & p) { return std::pair{p.address, p.body_id}; })};
   planets.erase(twice.begin(), twice.end());
+  return planets;
+  }
+
+auto landable_counts(std::vector<landable_t> planets) -> counts_t
+  {
   counts_t counts;
-  for(landable_t const & planet: planets)
+  for(landable_t const & planet: unique_landables(std::move(planets)))
     if(not planet.atmosphere.empty() and planet.atmosphere != "None")
       ++counts[planet.atmosphere];
   return counts;
+  }
+
+auto outliers(landable_t const & planet, std::span<landable_t const> known) -> std::vector<beyond_t>
+  {
+  if(planet.atmosphere.empty() or planet.atmosphere == "None")
+    return {};
+  uint32_t others{}, volcanic{};
+  double t_low{std::numeric_limits<double>::max()}, t_high{std::numeric_limits<double>::lowest()};
+  double p_low{t_low}, p_high{t_high}, g_low{t_low}, g_high{t_high};
+  for(landable_t const & other: known)
+    {
+    if(other.atmosphere != planet.atmosphere or (other.address == planet.address and other.body_id == planet.body_id))
+      continue;
+    ++others;
+    volcanic += other.volcanic ? 1u : 0u;
+    t_low = std::min(t_low, other.temperature_k);
+    t_high = std::max(t_high, other.temperature_k);
+    p_low = std::min(p_low, other.pressure_pa);
+    p_high = std::max(p_high, other.pressure_pa);
+    g_low = std::min(g_low, other.gravity);
+    g_high = std::max(g_high, other.gravity);
+    }
+  if(others < few_known_below)
+    return {beyond_t{.what = beyond_e::few_known, .known = others}};
+  std::vector<beyond_t> found;
+  auto const range = [&found](double value, double low, double high, beyond_e under, beyond_e over)
+  {
+    if(value < low)
+      found.push_back(beyond_t{.what = under, .value = value, .low = low, .high = high});
+    else if(value > high)
+      found.push_back(beyond_t{.what = over, .value = value, .low = low, .high = high});
+  };
+  range(planet.temperature_k, t_low, t_high, beyond_e::colder, beyond_e::warmer);
+  range(planet.pressure_pa, p_low, p_high, beyond_e::thinner, beyond_e::denser);
+  range(planet.gravity, g_low, g_high, beyond_e::lighter, beyond_e::heavier);
+  if(planet.volcanic and volcanic <= volcanic_few_up_to)
+    found.push_back(beyond_t{.what = beyond_e::volcanic, .known = volcanic});
+  return found;
   }
 
 auto atmospheres_here(std::span<std::string const> planets, counts_t const & known) -> std::vector<here_row_t>

@@ -142,20 +142,64 @@ auto by_parent_body(prepared_t const & prepared, std::string_view atmosphere) ->
 ///\brief an atmosphere with this many landable planets known, or fewer, is rare: worth the landing to see
 inline constexpr uint32_t rare_up_to{10u};
 
-///\brief a landable planet with an atmosphere, by its system and body
+///\brief a landable planet with an atmosphere, by its system and body, with what its scan says of its surface
 struct landable_t
   {
   uint64_t address{};
   uint32_t body_id{};
   std::string atmosphere;
+  double temperature_k{};
+  double pressure_pa{};
+  ///\brief m/s2, as the journal gives it
+  double gravity{};
+  bool volcanic{};
   };
 
 using counts_t = std::map<std::string, uint32_t, std::less<>>;
+
+///\brief the planets of several databases, each once (the first one read kept), ordered by system and body
+[[nodiscard]]
+auto unique_landables(std::vector<landable_t> planets) -> std::vector<landable_t>;
 
 ///\brief how many landable planets of each atmosphere the databases know; a planet in more than one counts once, as
 /// atmospheres() counts them in the merged census
 [[nodiscard]]
 auto landable_counts(std::vector<landable_t> planets) -> counts_t;
+
+///\brief an atmosphere's type known on fewer other planets than this: its range tells nothing yet
+inline constexpr uint32_t few_known_below{5u};
+///\brief a volcanic planet is worth a look while at most this many others of its type are volcanic (the second colour
+/// of Neon's air came with volcanism, 2026-11-12)
+inline constexpr uint32_t volcanic_few_up_to{3u};
+
+enum struct beyond_e : uint8_t
+  {
+  colder,
+  warmer,
+  thinner,
+  denser,
+  lighter,
+  heavier,
+  volcanic,
+  few_known
+  };
+
+///\brief how a planet lies outside what is known of the other planets of its atmosphere's type: its value and their
+/// range (the gravity in m/s2), or how many others are volcanic or known at all
+struct beyond_t
+  {
+  beyond_e what{};
+  double value{};
+  double low{};
+  double high{};
+  uint32_t known{};
+  };
+
+///\brief what of a planet lies outside the other known planets of its type (itself left out of them, by system and
+/// body): a candidate for a colour of its air not measured yet. Empty when nothing does
+///\param known the planets known, each once (unique_landables)
+[[nodiscard]]
+auto outliers(landable_t const & planet, std::span<landable_t const> known) -> std::vector<beyond_t>;
 
 ///\brief an atmosphere of a system's landable planets
 struct here_row_t
