@@ -217,7 +217,9 @@ auto load_atmosphere_census_of(sqlite3 * db) -> expected_ec<atmosphere_odds::cen
   return census;
   }
 
-auto load_landable_atmospheres_of(sqlite3 * db) -> expected_ec<std::vector<atmosphere_odds::landable_t>>
+// the own galaxy is attached under its schema's name, another account's opened as it is: the tables' names differ
+auto load_landable_atmospheres_of(sqlite3 * db, std::string_view planet_details, std::string_view body)
+  -> expected_ec<std::vector<atmosphere_odds::landable_t>>
   {
   using album_rows::landable_row_t;
   auto rows{sqlite::select_from<landable_row_t>(
@@ -226,8 +228,8 @@ auto load_landable_atmospheres_of(sqlite3 * db) -> expected_ec<std::vector<atmos
       "(SELECT b.ref_system_address AS ref_system_address, b.body_id AS body_id, p.atmosphere_type AS atmosphere_type"
       " FROM {0} p JOIN {1} b ON b.oid = p.ref_body_oid"
       " WHERE p.landable = 1 AND COALESCE(p.atmosphere_type, '') NOT IN ('', 'None')) AS landables",
-      sql_iface::tables::planet_details,
-      sql_iface::tables::body
+      planet_details,
+      body
     ),
     ""
   )};
@@ -353,7 +355,7 @@ auto database_storage_t::load_atmosphere_census_from(std::string const & galaxy_
 
 auto database_storage_t::load_landable_atmospheres() -> expected_ec<std::vector<atmosphere_odds::landable_t>>
   {
-  return load_landable_atmospheres_of(db_->db);
+  return load_landable_atmospheres_of(db_->db, sql_iface::tables::planet_details, sql_iface::tables::body);
   }
 
 auto database_storage_t::load_landable_atmospheres_from(std::string const & galaxy_path)
@@ -366,7 +368,7 @@ auto database_storage_t::load_landable_atmospheres_from(std::string const & gala
     return cxx23::unexpected(std::make_error_code(std::errc::no_such_file_or_directory));
     }
   sqlite3_busy_timeout(other.db, 200);
-  return load_landable_atmospheres_of(other.db);
+  return load_landable_atmospheres_of(other.db, "planet_details", "body");
   }
 
 auto database_storage_t::load_body_total() -> expected_ec<int64_t>
