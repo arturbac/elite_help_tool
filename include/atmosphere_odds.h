@@ -1,7 +1,9 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
 #include <map>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -136,4 +138,37 @@ auto by_parent_star(prepared_t const & prepared, std::string_view atmosphere) ->
 ///\brief the atmosphere's landable planets by what they orbit
 [[nodiscard]]
 auto by_parent_body(prepared_t const & prepared, std::string_view atmosphere) -> std::vector<share_row_t>;
+
+///\brief an atmosphere with this many landable planets known, or fewer, is rare: worth the landing to see
+inline constexpr uint32_t rare_up_to{10u};
+
+///\brief a landable planet with an atmosphere, by its system and body
+struct landable_t
+  {
+  uint64_t address{};
+  uint32_t body_id{};
+  std::string atmosphere;
+  };
+
+using counts_t = std::map<std::string, uint32_t, std::less<>>;
+
+///\brief how many landable planets of each atmosphere the databases know; a planet in more than one counts once, as
+/// atmospheres() counts them in the merged census
+[[nodiscard]]
+auto landable_counts(std::vector<landable_t> planets) -> counts_t;
+
+///\brief an atmosphere of a system's landable planets
+struct here_row_t
+  {
+  std::string atmosphere;
+  ///\brief its landable planets in this system
+  uint32_t here{};
+  ///\brief its landable planets known everywhere, these among them
+  uint32_t known{};
+  };
+
+///\brief the atmospheres of one system's landable planets (one entry a planet; empty or "None" is none), the rarest
+/// first; a planet here the databases do not hold yet still counts as known
+[[nodiscard]]
+auto atmospheres_here(std::span<std::string const> planets, counts_t const & known) -> std::vector<here_row_t>;
   }  // namespace atmosphere_odds

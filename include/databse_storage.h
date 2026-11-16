@@ -829,6 +829,15 @@ struct database_storage_t
   [[nodiscard]]
   static auto load_atmosphere_census_from(std::string const & galaxy_path) -> expected_ec<atmosphere_odds::census_t>;
 
+  ///\brief the landable planets with an atmosphere, for the overlay's count of each atmosphere
+  [[nodiscard]]
+  auto load_landable_atmospheres() -> expected_ec<std::vector<atmosphere_odds::landable_t>>;
+
+  ///\brief the same from another account's galaxy, opened read only for the reading
+  [[nodiscard]]
+  static auto load_landable_atmospheres_from(std::string const & galaxy_path)
+    -> expected_ec<std::vector<atmosphere_odds::landable_t>>;
+
   ///\brief how many bodies are known - a cheap look whether anything was scanned since
   [[nodiscard]]
   auto load_body_total() -> expected_ec<int64_t>;

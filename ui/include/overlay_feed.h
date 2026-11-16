@@ -180,6 +180,10 @@ private:
   ///\brief the species found before, read when a scan could have added to them
   auto refresh_species_history(current_state_t const & state) -> void;
 
+  ///\brief the landable planets of each atmosphere known, read again in another system, when a planet's atmosphere
+  /// became known here, and every 5 minutes (another account's galaxy grows unseen)
+  auto refresh_atmosphere_counts(current_state_t const & state) -> void;
+
   ///\brief which interface the game has open, which only Status.json says
   auto refresh_status(current_state_t const & state) -> void;
 
@@ -344,6 +348,10 @@ private:
   std::vector<bio::species_record_t> species_history_;
   ///\brief every genus mapped with its world, sampled or not - what the genera of a world not mapped are guessed from
   std::vector<bio::species_record_t> genus_history_;
+  atmosphere_odds::counts_t atmosphere_counts_;
+  uint64_t atmospheres_system_{};
+  size_t atmospheres_planets_{};
+  std::chrono::steady_clock::time_point atmospheres_read_{};
   ///\brief the body the commander is at or was at last, in the system it is in - Status.json names a body only
   /// near it, and the life left is ordered from the last one all the way to the next
   uint64_t life_from_system_{};

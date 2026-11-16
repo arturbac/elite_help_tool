@@ -169,6 +169,39 @@ auto atmospheres(prepared_t const & prepared) -> std::vector<atmosphere_row_t>
   return rows;
   }
 
+auto landable_counts(std::vector<landable_t> planets) -> counts_t
+  {
+  std::ranges::sort(planets, std::ranges::less{}, [](landable_t const & p) { return std::pair{p.address, p.body_id}; });
+  auto const twice{std::ranges::unique(planets, std::ranges::equal_to{}, [](landable_t const & p) { return std::pair{p.address, p.body_id}; })};
+  planets.erase(twice.begin(), twice.end());
+  counts_t counts;
+  for(landable_t const & planet: planets)
+    if(not planet.atmosphere.empty() and planet.atmosphere != "None")
+      ++counts[planet.atmosphere];
+  return counts;
+  }
+
+auto atmospheres_here(std::span<std::string const> planets, counts_t const & known) -> std::vector<here_row_t>
+  {
+  std::vector<here_row_t> rows;
+  for(std::string const & atmosphere: planets)
+    {
+    if(atmosphere.empty() or atmosphere == "None")
+      continue;
+    if(auto const it{std::ranges::find(rows, atmosphere, &here_row_t::atmosphere)}; it != rows.end())
+      ++it->here;
+    else
+      rows.push_back(here_row_t{.atmosphere = atmosphere, .here = 1u, .known = 0u});
+    }
+  for(here_row_t & row: rows)
+    {
+    auto const it{known.find(row.atmosphere)};
+    row.known = std::max(row.here, it == known.end() ? 0u : it->second);
+    }
+  std::ranges::sort(rows, std::ranges::less{}, [](here_row_t const & r) { return std::pair{r.known, std::string_view{r.atmosphere}}; });
+  return rows;
+  }
+
 auto by_arrival_star(prepared_t const & prepared, std::string_view atmosphere) -> std::vector<class_row_t>
   {
   std::vector<class_row_t> rows;

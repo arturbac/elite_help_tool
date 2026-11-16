@@ -101,4 +101,28 @@ auto main() -> int
     expect(merged.systems[2].arrival_type == "M"sv) << "the arrival star taken where the first had none";
     expect(merged.bodies.size() == census.bodies.size() + 1u) << "a body once";
   };
+
+  "the landable planets of each atmosphere, a planet in two galaxies once"_test = [&]
+  {
+    using atmosphere_odds::landable_t;
+    auto const counts{atmosphere_odds::landable_counts(
+      {landable_t{1u, 3u, "Argon"}, landable_t{1u, 3u, "Argon"}, landable_t{2u, 3u, "Argon"}, landable_t{2u, 4u, "Water"},
+       landable_t{2u, 5u, "None"}}
+    )};
+    expect(fatal(counts.size() == 2_ul));
+    expect(counts.at("Argon") == 2_u) << "the same planet from the other galaxy counts once";
+    expect(counts.at("Water") == 1_u);
+  };
+
+  "the atmospheres here, the rarest first, a planet not in the databases yet still known"_test = [&]
+  {
+    atmosphere_odds::counts_t const known{{"CarbonDioxide", 456u}, {"Argon", 255u}, {"Water", 5u}};
+    std::vector<std::string> const here{"CarbonDioxide", "None", "", "Argon", "CarbonDioxide", "Water", "Oxygen"};
+    auto const rows{atmosphere_odds::atmospheres_here(here, known)};
+    expect(fatal(rows.size() == 4_ul));
+    expect(rows[0].atmosphere == "Oxygen"sv and rows[0].here == 1_u and rows[0].known == 1_u);
+    expect(rows[1].atmosphere == "Water"sv and rows[1].known == 5_u);
+    expect(rows[2].atmosphere == "Argon"sv and rows[2].known == 255_u);
+    expect(rows[3].atmosphere == "CarbonDioxide"sv and rows[3].here == 2_u and rows[3].known == 456_u);
+  };
   }

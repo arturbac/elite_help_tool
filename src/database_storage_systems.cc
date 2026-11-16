@@ -137,6 +137,14 @@ struct odds_body_row_t
   int64_t parent_planet;
   std::string planet_class;
   };
+
+///\brief a landable planet with an atmosphere
+struct landable_row_t
+  {
+  uint64_t ref_system_address;
+  int64_t body_id;
+  std::string atmosphere_type;
+  };
   }  // namespace album_rows
 
 namespace
@@ -207,6 +215,35 @@ auto load_atmosphere_census_of(sqlite3 * db) -> expected_ec<atmosphere_odds::cen
       }
     );
   return census;
+  }
+
+auto load_landable_atmospheres_of(sqlite3 * db) -> expected_ec<std::vector<atmosphere_odds::landable_t>>
+  {
+  using album_rows::landable_row_t;
+  auto rows{sqlite::select_from<landable_row_t>(
+    db,
+    std::format(
+      "(SELECT b.ref_system_address AS ref_system_address, b.body_id AS body_id, p.atmosphere_type AS atmosphere_type"
+      " FROM {0} p JOIN {1} b ON b.oid = p.ref_body_oid"
+      " WHERE p.landable = 1 AND COALESCE(p.atmosphere_type, '') NOT IN ('', 'None')) AS landables",
+      sql_iface::tables::planet_details,
+      sql_iface::tables::body
+    ),
+    ""
+  )};
+  if(not rows) [[unlikely]]
+    return cxx23::unexpected{rows.error()};
+  std::vector<atmosphere_odds::landable_t> planets;
+  planets.reserve(rows->size());
+  for(landable_row_t & row: *rows)
+    planets.push_back(
+      atmosphere_odds::landable_t{
+        .address = row.ref_system_address,
+        .body_id = static_cast<uint32_t>(row.body_id),
+        .atmosphere = std::move(row.atmosphere_type)
+      }
+    );
+  return planets;
   }
   }  // namespace
 
@@ -312,6 +349,24 @@ auto database_storage_t::load_atmosphere_census_from(std::string const & galaxy_
     }
   sqlite3_busy_timeout(other.db, 200);
   return load_atmosphere_census_of(other.db);
+  }
+
+auto database_storage_t::load_landable_atmospheres() -> expected_ec<std::vector<atmosphere_odds::landable_t>>
+  {
+  return load_landable_atmospheres_of(db_->db);
+  }
+
+auto database_storage_t::load_landable_atmospheres_from(std::string const & galaxy_path)
+  -> expected_ec<std::vector<atmosphere_odds::landable_t>>
+  {
+  sqlite3_handle_t other;
+  if(sqlite3_open_v2(galaxy_path.c_str(), &other.db, SQLITE_OPEN_READONLY, nullptr) != SQLITE_OK)
+    {
+    spdlog::warn("the shared galaxy {} could not be opened", galaxy_path);
+    return cxx23::unexpected(std::make_error_code(std::errc::no_such_file_or_directory));
+    }
+  sqlite3_busy_timeout(other.db, 200);
+  return load_landable_atmospheres_of(other.db);
   }
 
 auto database_storage_t::load_body_total() -> expected_ec<int64_t>

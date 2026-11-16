@@ -2,7 +2,7 @@
 
 ![The arrival/to-map/life panel, with a genus map of the bodies sampled](images/exploration_life.png)
 
-The *to map* and *life* blocks below, and the green ring round a planet's face on the system map, show
+The *atmospheres*, *to map* and *life* blocks below, and the green ring round a planet's face on the system map, show
 only while the Exploration window is the current one in the tool and not minimized - the game may have the
 focus meanwhile. Choosing System info, Construction or any other window takes them off the overlay.
 
@@ -24,8 +24,15 @@ The bottom right corner of the overlay follows the order of work in a new system
    the nav panel. Once a codex find is made in space in that system (`CodexEntry` under Biology
    without a latitude - geology on the ground has one), the line turns to "visited" with what was
    logged. The Exploration window lists the systems where phenomena were reported and never visited,
-2. **to map** — bodies worth the probes, most valuable first, green when it is a first discovery,
-3. **life** — bodies with biological signals left to sample, in the order of a route through them from
+2. **atmospheres** — the atmospheres of the landable planets of the system whose atmosphere a scan told,
+   the rarest first: `atmospheres:  Water (5)  Argon (255)  CarbonDioxide x2 (456)`. In brackets, how many
+   landable planets with that atmosphere the galaxy database knows (with `exploration.shared_galaxies`, the
+   other accounts' too, a planet in two of them once; the same count as the *Atmospheres* tab), these among
+   them; `x2` when more than one of them is here. One known 10 times or fewer is green, a rare one worth the
+   landing to see. The counts are read again in another system, when a planet's atmosphere becomes known, and
+   every 5 minutes.
+3. **to map** — bodies worth the probes, most valuable first, green when it is a first discovery,
+4. **life** — bodies with biological signals left to sample, in the order of a route through them from
    the body the commander is at or was at last in the system (the arrival star before any), the bodies
    placed where their orbits have them now: nearest neighbour, then 2-opt, as for the route of the System
    window. The `ls` of a body is how far it lies from that body, and the order is worked out again when

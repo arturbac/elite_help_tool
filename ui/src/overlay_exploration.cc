@@ -317,6 +317,35 @@ auto describe_phenomena(star_system_t const & system) -> std::vector<overlay::li
   return lines;
   }
 
+auto describe_atmospheres(star_system_t const & system, atmosphere_odds::counts_t const & known) -> std::vector<overlay::line_t>
+  {
+  std::vector<std::string> planets;
+  for(body_t const & body: system.bodies)
+    if(auto const * const planet{planet_of(body)}; planet != nullptr and planet->landable)
+      planets.push_back(planet->atmosphere_type);
+  auto const rows{atmosphere_odds::atmospheres_here(planets, known)};
+  if(rows.empty())
+    return {};
+
+  overlay::line_t line{.text = "atmospheres:", .color = colour_heading()};
+  for(atmosphere_odds::here_row_t const & row: rows)
+    {
+    std::string const part{
+      row.here > 1u ? std::format("{} x{} ({})", row.atmosphere, row.here, row.known) : std::format("{} ({})", row.atmosphere, row.known)
+    };
+    line.text += "  ";
+    line.spans.push_back(
+      overlay::span_t{
+        .from = static_cast<uint32_t>(line.text.size()),
+        .length = static_cast<uint32_t>(part.size()),
+        .color = row.known <= atmosphere_odds::rare_up_to ? colour_first() : colour_plain()
+      }
+    );
+    line.text += part;
+    }
+  return {std::move(line)};
+  }
+
 auto describe_mapping(star_system_t const & system) -> std::vector<overlay::line_t>
   {
   auto const cfg{eht::settings()};

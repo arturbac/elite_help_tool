@@ -1988,6 +1988,33 @@ auto overlay_feed_t::refresh_unsold(current_state_t const & state) -> void
   );
   }
 
+auto overlay_feed_t::refresh_atmosphere_counts(current_state_t const & state) -> void
+  {
+  size_t planets{};
+  for(body_t const & body: state.system.bodies)
+    if(auto const * const planet{std::get_if<planet_details_t>(&body.details)};
+       planet != nullptr and planet->landable and not planet->atmosphere_type.empty() and planet->atmosphere_type != "None")
+      ++planets;
+  auto const now{std::chrono::steady_clock::now()};
+  if(state.system.system_address == atmospheres_system_ and planets == atmospheres_planets_
+     and now - atmospheres_read_ < std::chrono::minutes{5})
+    return;
+  atmospheres_system_ = state.system.system_address;
+  atmospheres_planets_ = planets;
+  atmospheres_read_ = now;
+
+  auto own{db_.load_landable_atmospheres()};
+  if(not own)
+    {
+    spdlog::error("failed to read the landable planets' atmospheres: {}", own.error().message());
+    return;
+    }
+  for(std::string const & galaxy: eht::settings()->exploration.shared_galaxies)
+    if(auto shared{database_storage_t::load_landable_atmospheres_from(galaxy)}; shared)
+      own->insert(own->end(), std::make_move_iterator(shared->begin()), std::make_move_iterator(shared->end()));
+  atmosphere_counts_ = atmosphere_odds::landable_counts(std::move(*own));
+  }
+
 auto overlay_feed_t::refresh_species_history(current_state_t const & state) -> void
   {
   // our history grows only when we take a sample; another account's whenever they do, which we cannot see
@@ -4042,6 +4069,8 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
   }
   screenshots_.collect();
   refresh_species_history(state);
+  if(exploring_)
+    refresh_atmosphere_counts(state);
 
   if(not server_->listening())
     return;
@@ -4151,6 +4180,13 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
   if(auto phenomena{overlay_exploration::describe_phenomena(state.system)}; not phenomena.empty())
     frame.blocks.push_back(
       overlay::block_t{.corner = overlay::corner_e::bottom_right, .ttl_ms = block_ttl_ms(), .lines = std::move(phenomena)}
+    );
+  if(auto atmospheres{
+       exploring_ ? overlay_exploration::describe_atmospheres(state.system, atmosphere_counts_) : std::vector<overlay::line_t>{}
+     };
+     not atmospheres.empty())
+    frame.blocks.push_back(
+      overlay::block_t{.corner = overlay::corner_e::bottom_right, .ttl_ms = block_ttl_ms(), .lines = std::move(atmospheres)}
     );
   if(auto mapping{exploring_ ? overlay_exploration::describe_mapping(state.system) : std::vector<overlay::line_t>{}};
      not mapping.empty())
