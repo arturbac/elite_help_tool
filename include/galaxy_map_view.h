@@ -54,12 +54,14 @@ auto mass_code_odds(atmosphere_odds::census_t const & census, atmosphere_odds::p
 [[nodiscard]]
 auto known_names(atmosphere_odds::census_t const & census) -> std::set<std::string, std::less<>>;
 
-///\brief the procedural names in view of one mass code: how many, which never visited (as the map writes them)
+///\brief the procedural names in view of one mass code: how many, which never visited and which visited (as the map
+/// writes them, each in order)
 struct group_t
   {
   char code{};
   uint32_t in_view{};
   std::vector<std::string> unvisited;
+  std::vector<std::string> visited;
   code_odds_t odds;
   };
 

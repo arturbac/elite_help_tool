@@ -2116,21 +2116,37 @@ auto overlay_feed_t::refresh_galaxy_map() -> void
       }
     );
     first = false;
-    }
-  // the never visited of the best code, by name without the sector
-  for(galaxy_map_view::group_t const & g: view.groups)
-    if(not g.unvisited.empty())
+    // its systems under it, without the sector: the never visited first in the plain colour, the visited grey; four a
+    // line, three lines at most
+    constexpr size_t per_line{4u}, most_lines{3u};
+    std::vector<std::pair<std::string, bool>> names;
+    for(std::string const & name: g.unvisited)
+      names.emplace_back(name, true);
+    for(std::string const & name: g.visited)
+      names.emplace_back(name, false);
+    for(size_t at{}; at < names.size() and at < per_line * most_lines; at += per_line)
       {
-      std::string names;
-      for(std::string const & name: g.unvisited | std::views::take(4))
-        names += (names.empty() ? "" : ", ") + (name.starts_with(view.sector + " ") ? name.substr(view.sector.size() + 1u) : name);
-      galaxy_map_lines_.push_back(
-        overlay::line_t{
-          .text = std::format("  new {}: {}{}", g.code, names, g.unvisited.size() > 4u ? ", ..." : ""), .color = colour_plain()
+      overlay::line_t line{.text = "    ", .color = colour_plain()};
+      for(size_t i{at}; i != std::min(at + per_line, names.size()); ++i)
+        {
+        auto const & [name, unvisited]{names[i]};
+        std::string const shown{name.starts_with(view.sector + " ") ? name.substr(view.sector.size() + 1u) : name};
+        if(i != at)
+          line.text += ", ";
+        line.spans.push_back(
+          overlay::span_t{
+            .from = static_cast<uint32_t>(line.text.size()),
+            .length = static_cast<uint32_t>(shown.size()),
+            .color = unvisited ? colour_plain() : eht::settings()->exploration.below_worth.rgb
+          }
+        );
+        line.text += shown;
         }
-      );
-      break;
+      if(at + per_line < names.size())
+        line.text += at + per_line < per_line * most_lines ? "," : ", ...";
+      galaxy_map_lines_.push_back(std::move(line));
       }
+    }
   }
 
 auto overlay_feed_t::refresh_species_history(current_state_t const & state) -> void

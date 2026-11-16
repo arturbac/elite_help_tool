@@ -146,8 +146,9 @@ most of them lie in, then a line for each mass code among them (the letter in `S
 heaviest star may be) - how many in view and how many never visited, and of that code's systems scanned in full
 (the same full scan as above) the share with a landable planet with an atmosphere and with a rare one (known on at most
 `exploration.rare_atmosphere_worlds`, 20, landable planets), its most common arrival stars; the code with the highest
-share of rare ones first, green, and `~N` after a share from fewer than 20 systems in full. Under them the never
-visited ones of the first code that has any, without the sector. A label with a glyph edworld does not know yet, a
+share of rare ones first, green, and `~N` after a share from fewer than 20 systems in full. Under each code its
+systems in view without the sector, four a line and three lines at most: the never visited first, in the plain
+colour, the visited grey. A label with a glyph edworld does not know yet, a
 name of its own (Colonia) and the grid's coordinates are left out. The shares come from this account's galaxy and
 `exploration.shared_galaxies`, read again every five minutes. `exploration.galaxy_map_predictions = false` keeps the
 territory there. The codes tell apart little - in 5347 systems (2026-11-16) a rare atmosphere came in 0.8% (b) to 4.7%

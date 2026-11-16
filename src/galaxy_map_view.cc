@@ -117,6 +117,8 @@ auto view(std::span<std::string const> labels, odds_t const & odds, std::set<std
     ++g.in_view;
     if(not known.contains(lower(label)))
       g.unvisited.push_back(label);
+    else
+      g.visited.push_back(label);
     }
   if(not sectors.empty())
     out.sector = std::ranges::max_element(sectors, {}, &std::pair<std::string const, uint32_t>::second)->first;
@@ -126,6 +128,7 @@ auto view(std::span<std::string const> labels, odds_t const & odds, std::set<std
       g.odds = it->second;
     g.odds.code = code;
     std::ranges::sort(g.unvisited);
+    std::ranges::sort(g.visited);
     out.groups.push_back(std::move(g));
     }
   std::ranges::stable_sort(

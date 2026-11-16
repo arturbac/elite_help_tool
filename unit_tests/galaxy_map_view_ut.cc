@@ -74,6 +74,7 @@ auto main() -> int
     expect(view.groups[0].code == 'c' and view.groups[0].in_view == 2_u);
     expect(fatal(view.groups[0].unvisited.size() == 1_ul));
     expect(view.groups[0].unvisited[0] == "ALPHA AB-C C1-7"sv);
-    expect(view.groups[1].code == 'd' and view.groups[1].unvisited.empty());
+    expect(view.groups[0].visited == std::vector<std::string>{"ALPHA AB-C C1-1"});
+    expect(view.groups[1].code == 'd' and view.groups[1].unvisited.empty() and view.groups[1].visited.size() == 1_ul);
   };
   }
