@@ -455,7 +455,7 @@ private:
   ///\brief the systems the galaxy map shows now (edworld_eht's `galmap`) against the mass codes' odds, while exploring
   std::vector<overlay::line_t> galaxy_map_lines_;
   galaxy_map_view::odds_t mass_code_odds_;
-  std::set<std::string, std::less<>> known_names_;
+  galaxy_map_view::known_t known_names_;
   std::chrono::steady_clock::time_point mass_code_read_{};
   int64_t galmap_seen_ms_{};
   std::vector<territory::system_t> territory_;

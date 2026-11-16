@@ -7,6 +7,8 @@ target_sources(elite_help_tool
   cartography_page.cc
   stars_page.cc
   atmospheres_page.cc
+  galaxy_map_page.cc
+  galmap_read.cc
   ship_loadout.cc
   mission_window.cc
   current_state.cc

@@ -1,4 +1,5 @@
 #include <overlay_feed.h>
+#include <galmap_read.h>
 #include <route_progress.h>
 #include <biology.h>
 #include <territory.h>
@@ -2018,39 +2019,6 @@ auto overlay_feed_t::refresh_atmosphere_counts(current_state_t const & state) ->
   atmosphere_counts_ = atmosphere_odds::landable_counts(landables_);
   }
 
-namespace
-  {
-  ///\brief the names edworld_eht published, when two reads of the file agree and the writer was not inside
-  [[nodiscard]]
-  auto read_galmap(std::filesystem::path const & path) -> std::optional<std::vector<std::string>>
-    {
-    for(int attempt{}; attempt != 3; ++attempt)
-      {
-      auto map{std::make_unique<edworld::galmap_t>()};
-      std::ifstream in{path, std::ios::binary};
-      if(not in)
-        return std::nullopt;
-      in.read(reinterpret_cast<char *>(map.get()), sizeof(edworld::galmap_t));
-      if(in.gcount() != std::streamsize{sizeof(edworld::galmap_t)} or map->magic != edworld::galmap_magic
-         or map->version != edworld::galmap_version)
-        return std::nullopt;
-      uint32_t sequence{};
-      in.seekg(offsetof(edworld::galmap_t, sequence));
-      in.read(reinterpret_cast<char *>(&sequence), sizeof sequence);
-      if(sequence != map->sequence or sequence % 2u != 0u)
-        continue;
-      // older than a few seconds: the map was closed, edworld writes nothing then
-      auto const now_ms{std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count()};
-      if(now_ms - map->unix_ms > 5000)
-        return std::nullopt;
-      std::vector<std::string> names;
-      for(uint32_t i{}; i != std::min(map->count, edworld::max_galmap_names); ++i)
-        names.emplace_back(map->names[i].name, strnlen(map->names[i].name, sizeof map->names[i].name));
-      return names;
-      }
-    return std::nullopt;
-    }
-  }  // namespace
 
 auto overlay_feed_t::refresh_galaxy_map() -> void
   {
@@ -2058,8 +2026,10 @@ auto overlay_feed_t::refresh_galaxy_map() -> void
   auto const settings{eht::settings()};
   if(not exploring_ or gui_focus_ != galaxy_map_focus or not settings->exploration.galaxy_map_predictions or settings->edworld.dir.empty())
     return;
-  auto const labels{read_galmap(std::filesystem::path{settings->edworld.dir} / "galmap")};
-  if(not labels)
+  auto const read{read_galmap(std::filesystem::path{settings->edworld.dir} / "galmap")};
+  // older than a few seconds: the map was closed, edworld writes nothing then
+  auto const now_ms{std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count()};
+  if(not read or now_ms - read->unix_ms > 5000)
     return;
 
   // the mass codes' odds change only as systems are scanned: read again every 5 minutes
@@ -2077,10 +2047,10 @@ auto overlay_feed_t::refresh_galaxy_map() -> void
       if(auto shared{database_storage_t::load_atmosphere_census_from(galaxy)}; shared)
         *census = atmosphere_odds::merge(std::move(*census), *shared);
     mass_code_odds_ = galaxy_map_view::mass_code_odds(*census, atmosphere_odds::prepare(*census), settings->exploration.rare_atmosphere_worlds);
-    known_names_ = galaxy_map_view::known_names(*census);
+    known_names_ = galaxy_map_view::known(*census);
     }
 
-  auto const view{galaxy_map_view::view(*labels, mass_code_odds_, known_names_)};
+  auto const view{galaxy_map_view::view(read->labels, mass_code_odds_, known_names_)};
   if(view.names == 0u)
     return;
   galaxy_map_lines_.push_back(

@@ -64,7 +64,7 @@ auto main() -> int
   "the names in view: each once, by mass code, the codes with rare ones first, the ones never visited"_test = [&]
   {
     auto const odds{galaxy_map_view::mass_code_odds(census, prepared, 1u)};
-    auto const known{galaxy_map_view::known_names(census)};
+    auto const known{galaxy_map_view::known(census)};
     std::vector<std::string> const labels{
       "ALPHA AB-D D2-3", "ALPHA AB-D D2-3", "ALPHA AB-C C1-1", "ALPHA AB-C C1-7", "ALPHA AB-? C1-8", "-6,920 : -1,425 : 20,490", "COLONIA"};
     auto const view{galaxy_map_view::view(labels, odds, known)};
@@ -76,5 +76,14 @@ auto main() -> int
     expect(view.groups[0].unvisited[0] == "ALPHA AB-C C1-7"sv);
     expect(view.groups[0].visited == std::vector<std::string>{"ALPHA AB-C C1-1"});
     expect(view.groups[1].code == 'd' and view.groups[1].unvisited.empty() and view.groups[1].visited.size() == 1_ul);
+  };
+
+  "a label's full name: a visited one as the databases write it, a new one with their sector and the journal's case"_test = [&]
+  {
+    auto const known{galaxy_map_view::known(census)};
+    expect(galaxy_map_view::full_name("ALPHA AB-C C1-1", known) == "Alpha AB-C c1-1"sv);
+    expect(galaxy_map_view::full_name("ALPHA AB-C C1-7", known) == "Alpha AB-C c1-7"sv) << "the sector as written for a system never visited";
+    expect(galaxy_map_view::full_name("BLEIA EOHN PW-D B32-6", known) == "BLEIA EOHN PW-D b32-6"sv) << "a sector never seen as the map writes it";
+    expect(galaxy_map_view::full_name("COLONIA", known) == "Colonia"sv and galaxy_map_view::full_name("SOL", known) == "SOL"sv);
   };
   }

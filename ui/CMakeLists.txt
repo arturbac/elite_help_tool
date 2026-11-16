@@ -40,6 +40,8 @@ target_sources(elite_help_tool
             include/cartography_page.h
             include/stars_page.h
             include/atmospheres_page.h
+            include/galaxy_map_page.h
+            include/galmap_read.h
             include/ship_loadout.h
             include/main_window.h
             include/mission_window.h

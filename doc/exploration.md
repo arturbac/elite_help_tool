@@ -151,7 +151,12 @@ systems in view without the sector, four a line and three lines at most: the nev
 colour, the visited grey. A label with a glyph edworld does not know yet, a
 name of its own (Colonia) and the grid's coordinates are left out. The shares come from this account's galaxy and
 `exploration.shared_galaxies`, read again every five minutes. `exploration.galaxy_map_predictions = false` keeps the
-territory there. The codes tell apart little - in 5347 systems (2026-11-16) a rare atmosphere came in 0.8% (b) to 4.7%
+territory there. The *Galaxy map* tab of the Exploration window shows the same in a tree - each code a branch with its
+shares, its systems under it, the never visited first and the visited grey, by name without the sector - and keeps
+the last list when the map is closed (with the time it was read); a double click on a system, or *Copy name*, puts
+its full name on the clipboard for the map's search: a visited one as the database writes it, a new one with its
+sector as the database writes it and the mass code in lower case (`Bleia Eohn PW-D b32-6`). It looks at the file
+every second while shown. The codes tell apart little - in 5347 systems (2026-11-16) a rare atmosphere came in 0.8% (b) to 4.7%
 (c) of them - so its use is mostly what was never visited.
 
 **How a body is priced.** The formula in common use among explorers, corrected where the sales

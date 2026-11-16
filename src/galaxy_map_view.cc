@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <format>
 #include <ranges>
 #include <regex>
 
@@ -88,16 +89,38 @@ auto mass_code_odds(atmosphere_odds::census_t const & census, atmosphere_odds::p
   return odds;
   }
 
-auto known_names(atmosphere_odds::census_t const & census) -> std::set<std::string, std::less<>>
+auto known(atmosphere_odds::census_t const & census) -> known_t
   {
-  std::set<std::string, std::less<>> names;
+  known_t out;
   for(atmosphere_odds::system_t const & system: census.systems)
-    if(not system.name.empty())
-      names.insert(lower(system.name));
-  return names;
+    {
+    if(system.name.empty())
+      continue;
+    out.names.emplace(lower(system.name), system.name);
+    if(auto const name{parse(system.name)}; name)
+      out.sectors.emplace(lower(name->sector), name->sector);
+    }
+  return out;
   }
 
-auto view(std::span<std::string const> labels, odds_t const & odds, std::set<std::string, std::less<>> const & known) -> view_t
+auto full_name(std::string_view label, known_t const & known) -> std::string
+  {
+  std::string const key{lower(label)};
+  if(auto const it{known.names.find(key)}; it != known.names.end())
+    return it->second;
+  auto const name{parse(label)};
+  if(not name)
+    return std::string{label};
+  auto const sector{known.sectors.find(lower(name->sector))};
+  std::string block{name->block};
+  for(char & c: block)
+    c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+  return std::format(
+    "{} {} {}{}", sector != known.sectors.end() ? sector->second : name->sector, block, name->mass_code, name->number
+  );
+  }
+
+auto view(std::span<std::string const> labels, odds_t const & odds, known_t const & known) -> view_t
   {
   view_t out;
   std::set<std::string> seen;
@@ -115,7 +138,7 @@ auto view(std::span<std::string const> labels, odds_t const & odds, std::set<std
     group_t & g{groups[name->mass_code]};
     g.code = name->mass_code;
     ++g.in_view;
-    if(not known.contains(lower(label)))
+    if(not known.names.contains(lower(label)))
       g.unvisited.push_back(label);
     else
       g.visited.push_back(label);

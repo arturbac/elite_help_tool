@@ -50,9 +50,23 @@ using odds_t = std::map<char, code_odds_t>;
 auto mass_code_odds(atmosphere_odds::census_t const & census, atmosphere_odds::prepared_t const & prepared, uint32_t rare_worlds)
   -> odds_t;
 
-///\brief the names of the systems the databases know, in lower case, to tell a system visited
+///\brief what the databases know of names: each system's name by its lower case (to tell a system visited, and to
+/// copy it as written), and each sector's as written by its lower case (to write a name never visited as the journal
+/// would)
+struct known_t
+  {
+  std::map<std::string, std::string, std::less<>> names;
+  std::map<std::string, std::string, std::less<>> sectors;
+  };
+
 [[nodiscard]]
-auto known_names(atmosphere_odds::census_t const & census) -> std::set<std::string, std::less<>>;
+auto known(atmosphere_odds::census_t const & census) -> known_t;
+
+///\brief a label's full name as the journal writes it: a visited system's from the databases; a procedural one never
+/// visited with its sector as the databases write it (as the map does when none of the sector is known), its block
+/// in capitals and its mass code in lower case (BLEIA EOHN PW-D B32-6: Bleia Eohn PW-D b32-6); anything else as it is
+[[nodiscard]]
+auto full_name(std::string_view label, known_t const & known) -> std::string;
 
 ///\brief the procedural names in view of one mass code: how many, which never visited and which visited (as the map
 /// writes them, each in order)
@@ -77,5 +91,5 @@ struct view_t
 
 ///\brief the labels edworld read (each name may come twice) grouped by mass code
 [[nodiscard]]
-auto view(std::span<std::string const> labels, odds_t const & odds, std::set<std::string, std::less<>> const & known) -> view_t;
+auto view(std::span<std::string const> labels, odds_t const & odds, known_t const & known) -> view_t;
   }  // namespace galaxy_map_view

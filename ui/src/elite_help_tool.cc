@@ -6,6 +6,7 @@
 #include <main_window.h>
 #include <cartography_page.h>
 #include <atmospheres_page.h>
+#include <galaxy_map_page.h>
 #include <stars_page.h>
 #include <spdlog/spdlog.h>
 #include <spdlog/cfg/env.h>
@@ -386,6 +387,7 @@ auto main_window_t::setup_ui() -> void
   system_view_->add_tab(new cartography_page_t{db_path_}, "Cartography");
   system_view_->add_tab(new stars_page_t{db_path_, state_}, "Stars");
   system_view_->add_tab(new atmospheres_page_t{db_path_}, "Atmospheres");
+  system_view_->add_tab(new galaxy_map_page_t{db_path_}, "Galaxy map");
   add_tool_window(system_view_, window_type_e::system);
 
   ship_view_ = new ship_loadout_window_t(state_.ship_loadout);
