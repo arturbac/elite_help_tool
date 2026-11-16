@@ -121,6 +121,7 @@ struct odds_system_row_t
   uint64_t system_address;
   std::string star_type;
   int64_t body_count;
+  std::string name;
   };
 
 ///\brief a star or a planet; the columns of the other kind empty
@@ -172,8 +173,8 @@ auto load_atmosphere_census_of(sqlite3 * db, galaxy_tables_t const & tables) -> 
   auto systems{sqlite::select_from<odds_system_row_t>(
     db,
     std::format(
-      "(SELECT system_address, COALESCE(star_type, '') AS star_type, COALESCE(body_count, 0) AS body_count"
-      " FROM {}) AS systems",
+      "(SELECT system_address, COALESCE(star_type, '') AS star_type, COALESCE(body_count, 0) AS body_count,"
+      " COALESCE(name, '') AS name FROM {}) AS systems",
       tables.star_system
     ),
     ""
@@ -210,7 +211,8 @@ auto load_atmosphere_census_of(sqlite3 * db, galaxy_tables_t const & tables) -> 
       atmosphere_odds::system_t{
         .address = row.system_address,
         .arrival_type = std::move(row.star_type),
-        .body_count = static_cast<uint32_t>(std::max<int64_t>(row.body_count, 0))
+        .body_count = static_cast<uint32_t>(std::max<int64_t>(row.body_count, 0)),
+        .name = std::move(row.name)
       }
     );
   census.bodies.reserve(bodies->size());

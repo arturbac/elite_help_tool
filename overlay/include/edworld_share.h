@@ -133,4 +133,27 @@ struct surface_t
 
 ///\brief the first layout's size, without the docking grant: the least a reader accepts
 inline constexpr std::uint32_t surface_size_first{offsetof(surface_t, docking_granted_ms)};
+
+// ---- the names the galaxy map shows now (edworld_eht, `galmap`), read off its text draws ----
+inline constexpr std::uint32_t galmap_magic{0x4D475745u};  // "EWGM"
+inline constexpr std::uint32_t galmap_version{1u};
+inline constexpr std::uint32_t max_galmap_names{256u};
+
+///\brief one label as the map writes it (upper case; a glyph not known yet is '?'); NUL-terminated
+struct galmap_name_t
+  {
+  char name[48];
+  };
+
+struct galmap_t
+  {
+  std::uint32_t magic;
+  std::uint32_t version;
+  std::uint32_t size;      ///< sizeof(galmap_t) of the writer
+  std::uint32_t sequence;  ///< seqlock, as in share_t
+  std::int64_t unix_ms;    ///< when read off the map; old once the map is closed (nothing written then)
+  std::uint32_t count;     ///< names below
+  std::uint32_t unknown;   ///< glyphs among them not known yet ('?')
+  galmap_name_t names[max_galmap_names];
+  };
   }  // namespace edworld

@@ -87,6 +87,8 @@ auto merge(census_t into, census_t const & other) -> census_t
     system_t & known{into.systems[it->second]};
     if(known.arrival_type.empty())
       known.arrival_type = system.arrival_type;
+    if(known.name.empty())
+      known.name = system.name;
     known.body_count = std::max(known.body_count, system.body_count);
     }
   std::set<std::pair<uint64_t, uint32_t>> bodies;

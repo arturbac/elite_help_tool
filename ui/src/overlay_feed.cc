@@ -46,6 +46,8 @@
 #include <iterator>
 #include <map>
 #include <set>
+#include <cstring>
+#include <memory>
 #include <ranges>
 #include <format_credits.h>
 #include <orbit.h>
@@ -2014,6 +2016,121 @@ auto overlay_feed_t::refresh_atmosphere_counts(current_state_t const & state) ->
       own->insert(own->end(), std::make_move_iterator(shared->begin()), std::make_move_iterator(shared->end()));
   landables_ = atmosphere_odds::unique_landables(std::move(*own));
   atmosphere_counts_ = atmosphere_odds::landable_counts(landables_);
+  }
+
+namespace
+  {
+  ///\brief the names edworld_eht published, when two reads of the file agree and the writer was not inside
+  [[nodiscard]]
+  auto read_galmap(std::filesystem::path const & path) -> std::optional<std::vector<std::string>>
+    {
+    for(int attempt{}; attempt != 3; ++attempt)
+      {
+      auto map{std::make_unique<edworld::galmap_t>()};
+      std::ifstream in{path, std::ios::binary};
+      if(not in)
+        return std::nullopt;
+      in.read(reinterpret_cast<char *>(map.get()), sizeof(edworld::galmap_t));
+      if(in.gcount() != std::streamsize{sizeof(edworld::galmap_t)} or map->magic != edworld::galmap_magic
+         or map->version != edworld::galmap_version)
+        return std::nullopt;
+      uint32_t sequence{};
+      in.seekg(offsetof(edworld::galmap_t, sequence));
+      in.read(reinterpret_cast<char *>(&sequence), sizeof sequence);
+      if(sequence != map->sequence or sequence % 2u != 0u)
+        continue;
+      // older than a few seconds: the map was closed, edworld writes nothing then
+      auto const now_ms{std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count()};
+      if(now_ms - map->unix_ms > 5000)
+        return std::nullopt;
+      std::vector<std::string> names;
+      for(uint32_t i{}; i != std::min(map->count, edworld::max_galmap_names); ++i)
+        names.emplace_back(map->names[i].name, strnlen(map->names[i].name, sizeof map->names[i].name));
+      return names;
+      }
+    return std::nullopt;
+    }
+  }  // namespace
+
+auto overlay_feed_t::refresh_galaxy_map() -> void
+  {
+  galaxy_map_lines_.clear();
+  auto const settings{eht::settings()};
+  if(not exploring_ or gui_focus_ != galaxy_map_focus or not settings->exploration.galaxy_map_predictions or settings->edworld.dir.empty())
+    return;
+  auto const labels{read_galmap(std::filesystem::path{settings->edworld.dir} / "galmap")};
+  if(not labels)
+    return;
+
+  // the mass codes' odds change only as systems are scanned: read again every 5 minutes
+  auto const now{std::chrono::steady_clock::now()};
+  if(mass_code_odds_.empty() or now - mass_code_read_ > std::chrono::minutes{5})
+    {
+    mass_code_read_ = now;
+    auto census{db_.load_atmosphere_census()};
+    if(not census)
+      {
+      spdlog::error("galaxy map: the systems could not be read: {}", census.error().message());
+      return;
+      }
+    for(std::string const & galaxy: settings->exploration.shared_galaxies)
+      if(auto shared{database_storage_t::load_atmosphere_census_from(galaxy)}; shared)
+        *census = atmosphere_odds::merge(std::move(*census), *shared);
+    mass_code_odds_ = galaxy_map_view::mass_code_odds(*census, atmosphere_odds::prepare(*census), settings->exploration.rare_atmosphere_worlds);
+    known_names_ = galaxy_map_view::known_names(*census);
+    }
+
+  auto const view{galaxy_map_view::view(*labels, mass_code_odds_, known_names_)};
+  if(view.names == 0u)
+    return;
+  galaxy_map_lines_.push_back(
+    overlay::line_t{
+      .text = view.sector.empty() ? std::format("galaxy map: {} systems in view", view.names)
+                                  : std::format("galaxy map: {} systems in view, {}", view.names, view.sector),
+      .color = colour_heading()
+    }
+  );
+  // a code with too few systems scanned in full tells little: marked, in the plain colour
+  constexpr uint32_t weak_below{atmosphere_odds::weak_below};
+  bool first{true};
+  for(galaxy_map_view::group_t const & g: view.groups | std::views::take(8))
+    {
+    auto const & o{g.odds};
+    std::string stars;
+    for(auto const & [star, n]: o.stars | std::views::take(3))
+      stars += (stars.empty() ? "" : "/") + star;
+    bool const weak{o.full < weak_below};
+    galaxy_map_lines_.push_back(
+      overlay::line_t{
+        .text = std::format(
+          "  {}  {:3} ({} new)  atm {:2.0f}%  rare {:3.1f}%{}  {}",
+          g.code,
+          g.in_view,
+          g.unvisited.size(),
+          o.full ? 100.0 * o.with_atmosphere / o.full : 0.0,
+          o.full ? 100.0 * o.with_rare / o.full : 0.0,
+          weak ? std::format(" ~{}", o.full) : std::string{},
+          stars
+        ),
+        .color = first and not weak and o.with_rare != 0u ? colour_first() : colour_plain()
+      }
+    );
+    first = false;
+    }
+  // the never visited of the best code, by name without the sector
+  for(galaxy_map_view::group_t const & g: view.groups)
+    if(not g.unvisited.empty())
+      {
+      std::string names;
+      for(std::string const & name: g.unvisited | std::views::take(4))
+        names += (names.empty() ? "" : ", ") + (name.starts_with(view.sector + " ") ? name.substr(view.sector.size() + 1u) : name);
+      galaxy_map_lines_.push_back(
+        overlay::line_t{
+          .text = std::format("  new {}: {}{}", g.code, names, g.unvisited.size() > 4u ? ", ..." : ""), .color = colour_plain()
+        }
+      );
+      break;
+      }
   }
 
 auto overlay_feed_t::refresh_species_history(current_state_t const & state) -> void
@@ -4359,9 +4476,21 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
       }
     );
 
-  // the territory while the galaxy map is open - where the next trip is chosen
+  // the territory while the galaxy map is open - where the next trip is chosen; while exploring, what the map shows
+  // in its place, when edworld_eht reads the map
+  refresh_galaxy_map();
   refresh_territory();
-  if(auto territory{build_territory_lines(state)}; not territory.empty())
+  if(not galaxy_map_lines_.empty())
+    frame.blocks.push_back(
+      overlay::block_t{
+        .corner = overlay::corner_e::top_right,
+        .ttl_ms = block_ttl_ms(),
+        .lines = galaxy_map_lines_,
+        .charts = {},
+        .text = overlay::text_e::small
+      }
+    );
+  else if(auto territory{build_territory_lines(state)}; not territory.empty())
     frame.blocks.push_back(
       overlay::block_t{
         .corner = overlay::corner_e::top_right,

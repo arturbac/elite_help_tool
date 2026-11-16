@@ -36,6 +36,7 @@ target_include_directories(line_fit_ut PRIVATE ${PROJECT_SOURCE_DIR}/overlay/inc
 add_ut_test(system_index_ut.cc)
 add_ut_test(star_census_ut.cc)
 add_ut_test(atmosphere_odds_ut.cc)
+add_ut_test(galaxy_map_view_ut.cc)
 add_ut_test(ring_ellipse_ut.cc)
 target_include_directories(ring_ellipse_ut PRIVATE ${PROJECT_SOURCE_DIR}/overlay/include)
 add_ut_test(backup_ut.cc)

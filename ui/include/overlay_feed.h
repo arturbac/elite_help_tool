@@ -6,6 +6,7 @@
 #include <data/station.h>
 #include <data/war.h>
 #include <territory.h>
+#include <galaxy_map_view.h>
 #include "logic.h"
 #include "overlay_exploration.h"
 #include <mission_order.h>
@@ -179,6 +180,10 @@ private:
 
   ///\brief the species found before, read when a scan could have added to them
   auto refresh_species_history(current_state_t const & state) -> void;
+
+  ///\brief on the galaxy map while exploring: the names edworld_eht read off it, grouped by mass code against what the
+  /// databases know (read again every 5 minutes); galaxy_map_lines_ empty otherwise
+  auto refresh_galaxy_map() -> void;
 
   ///\brief the landable planets of each atmosphere known, read again in another system, when a planet's atmosphere
   /// became known here, and every 5 minutes (another account's galaxy grows unseen)
@@ -447,6 +452,12 @@ private:
   bio::at_risk_t at_risk_;
   ///\brief the factions that probably hold a bounty on the commander - read back with what a death would cost
   legal_standing_t legal_;
+  ///\brief the systems the galaxy map shows now (edworld_eht's `galmap`) against the mass codes' odds, while exploring
+  std::vector<overlay::line_t> galaxy_map_lines_;
+  galaxy_map_view::odds_t mass_code_odds_;
+  std::set<std::string, std::less<>> known_names_;
+  std::chrono::steady_clock::time_point mass_code_read_{};
+  int64_t galmap_seen_ms_{};
   std::vector<territory::system_t> territory_;
   std::optional<std::chrono::sys_seconds> territory_wave_;
   std::chrono::steady_clock::time_point territory_read_{};

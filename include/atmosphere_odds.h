@@ -23,6 +23,8 @@ struct system_t
   std::string arrival_type;
   ///\brief the bodies the system has, by the discovery scan; 0 when not known
   uint32_t body_count{};
+  ///\brief its name; empty when not known
+  std::string name;
   };
 
 ///\brief a body scanned - a star or a planet

@@ -297,6 +297,12 @@ struct exploration_settings_t
   /// of the screen's height - the lower left quarter of the band by default; 0 lets them take the band's width
   float scanner_box_width{0.5f};
   float scanner_box_height{0.5f};
+  ///\brief with edworld_eht, on the galaxy map while exploring: the systems in view grouped by mass code, how often a
+  /// system of that code has a landable planet with an atmosphere and a rare one, and which were never visited - in
+  /// place of the territory (BGS) block
+  bool galaxy_map_predictions{true};
+  ///\brief an atmosphere known on at most this many landable planets counts as rare there
+  uint32_t rare_atmosphere_worlds{20u};
   };
 
 ///\brief screenshots of the whole screen, overlay and all, taken by the layer at a key

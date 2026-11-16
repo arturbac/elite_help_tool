@@ -139,6 +139,20 @@ beside the share of all landable planets with an atmosphere; these explain, but 
 this account's galaxy and the ones of `exploration.shared_galaxies`, while shown, again when a body is scanned or five
 minutes on.
 
+**What the galaxy map shows, by mass code.** With `edworld_eht.dll` in the game, while the galaxy map is open and the
+Exploration window is the current one, the top right block shows the systems the map labels now (edworld reads the
+labels off the map's text, `galmap` in its `shm_dir`) in place of the territory: a heading with how many and the sector
+most of them lie in, then a line for each mass code among them (the letter in `Sector AB-C d12-34`: how heavy the
+heaviest star may be) - how many in view and how many never visited, and of that code's systems scanned in full
+(the same full scan as above) the share with a landable planet with an atmosphere and with a rare one (known on at most
+`exploration.rare_atmosphere_worlds`, 20, landable planets), its most common arrival stars; the code with the highest
+share of rare ones first, green, and `~N` after a share from fewer than 20 systems in full. Under them the never
+visited ones of the first code that has any, without the sector. A label with a glyph edworld does not know yet, a
+name of its own (Colonia) and the grid's coordinates are left out. The shares come from this account's galaxy and
+`exploration.shared_galaxies`, read again every five minutes. `exploration.galaxy_map_predictions = false` keeps the
+territory there. The codes tell apart little - in 5347 systems (2026-11-16) a rare atmosphere came in 0.8% (b) to 4.7%
+(c) of them - so its use is mostly what was never visited.
+
 **How a body is priced.** The formula in common use among explorers, corrected where the sales
 disagree with it:
 
