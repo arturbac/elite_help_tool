@@ -39,7 +39,14 @@ process carries no state of ours.
   fleet carriers, construction sites or the colonisation ship. It heads the block of the ships
   nearby, with the carriers and the ships in transit under them.
 - **System map:** the bodies and ports of the current system, drawn in the game's colours, with
-  arrows at the places open missions send you to. Stars and planets are small lit balls: each planet
+  arrows at the places open missions send you to. A row for each star with its planets along it and the
+  moons under them; the planets circling a barycentre of stars (AB 1) stand in a row of their own, right
+  after the stars of that barycentre, and a bracket on the left takes in each barycentre's stars and its
+  row, the brackets nested as the barycentres are: A and B, then AB's planets, then C and the planets of
+  ABC round all three. Which stars a barycentre stands among comes from the stars circling it, else from
+  the letters of its planets' names (ABCD: stars A to D); barycentres among the same stars (CD's own and one
+  of a pair of its planets, CD 2 and CD 3) share one row, CD 1, 2 and 3 in order, the pair bracketed over; one known by neither stands at the end. A test,
+  `overlay.system_map.nest_barycentres` (true); false puts every barycentre's row after all the stars. Stars and planets are small lit balls: each planet
   and moon is lit from its star's side, water and ice shine a little, bare rock does not, and a star
   lights itself with only a darker limb. A body the surface scanner has been on wears its own face,
   cut out of the scanner's views (see [Faces of the planets](exploration.md#faces-of-the-planets)), and
