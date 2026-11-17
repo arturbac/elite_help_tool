@@ -50,6 +50,9 @@ auto order(std::span<star_t const> stars, std::span<barycentre_t const> barycent
     std::size_t index{};
     std::vector<std::size_t> stars;
     std::optional<std::size_t> parent;
+    ///\brief its rows: its own and those of barycentres among the same stars (a pair of planets of CD, its CD 2
+    /// and CD 3 under CD's own CD 1), in the order given
+    std::vector<std::size_t> rows;
     };
 
   // the barycentres whose stars are known, the smallest first, so each finds the one round it after itself
@@ -58,10 +61,22 @@ auto order(std::span<star_t const> stars, std::span<barycentre_t const> barycent
   for(std::size_t ix{}; ix != barycentres.size(); ++ix)
     {
     auto stars_of{members(barycentres[ix], stars)};
-    if(stars_of.size() >= (barycentres[ix].has_row ? 1u : 2u))
-      groups.push_back(group_t{.index = ix, .stars = std::move(stars_of)});
-    else if(barycentres[ix].has_row)
-      unplaced.push_back(ix);
+    if(stars_of.size() < (barycentres[ix].has_row ? 1u : 2u))
+      {
+      if(barycentres[ix].has_row)
+        unplaced.push_back(ix);
+      continue;
+      }
+    std::vector<std::size_t> rows;
+    if(barycentres[ix].has_row)
+      rows.push_back(ix);
+    // among the same stars as one before it: one bracket, its rows together
+    if(auto const same{std::ranges::find(groups, stars_of, &group_t::stars)}; same != groups.end())
+      {
+      same->rows.insert(std::ranges::upper_bound(same->rows, ix), rows.begin(), rows.end());
+      continue;
+      }
+    groups.push_back(group_t{.index = ix, .stars = std::move(stars_of), .rows = std::move(rows)});
     }
   std::ranges::stable_sort(groups, {}, [](group_t const & g) { return g.stars.size(); });
 
@@ -74,9 +89,10 @@ auto order(std::span<star_t const> stars, std::span<barycentre_t const> barycent
     )};
     if(fits)
       taken.push_back(std::move(group));
-    else if(barycentres[group.index].has_row)
-      unplaced.push_back(group.index);
+    else
+      unplaced.insert(unplaced.end(), group.rows.begin(), group.rows.end());
     }
+  std::ranges::sort(unplaced);
   for(std::size_t ix{}; ix != taken.size(); ++ix)
     for(std::size_t up{ix + 1u}; up != taken.size(); ++up)
       if(contains(taken[up].stars, taken[ix].stars))
@@ -128,10 +144,10 @@ auto order(std::span<star_t const> stars, std::span<barycentre_t const> barycent
         layout.rows.push_back(row_t{.star = true, .index = node.second});
         }
     barycentre_t const & own{barycentres[taken[group].index]};
-    if(own.has_row)
+    for(std::size_t const ix: taken[group].rows)
       {
       ticks.push_back(layout.rows.size());
-      layout.rows.push_back(row_t{.star = false, .index = taken[group].index});
+      layout.rows.push_back(row_t{.star = false, .index = ix});
       }
     std::size_t const last{layout.rows.size() - 1u};
     if(last > first)

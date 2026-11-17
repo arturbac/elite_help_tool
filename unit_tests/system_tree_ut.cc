@@ -2,6 +2,7 @@
 
 #include <boost/ut.hpp>
 
+#include <algorithm>
 #include <string>
 
 using namespace boost::ut;
@@ -62,6 +63,25 @@ auto main() -> int
     std::vector<barycentre_t> const barycentres{{1u, "AC"sv, true}};
     auto const layout{system_tree::order(stars, barycentres)};
     expect(names(layout, stars, barycentres) == "A C (AC) B"sv);
+  };
+
+  "Spoihee OR-L c24-107 as Dunkan's database has it: AB, CD with a pair of its planets, ABCD round both, EF"_test = []
+  {
+    // CD 2 and CD 3 circle barycentre 22 of their own, named CD; nothing circles the root one
+    std::vector<star_t> const stars{
+      {3u, "A"sv, 2u}, {4u, "B"sv, 2u}, {6u, "C"sv, 5u}, {7u, "D"sv, 5u}, {9u, "E"sv, 8u}, {10u, "F"sv, 8u}};
+    std::vector<barycentre_t> const barycentres{
+      {1u, "ABCD"sv, true}, {2u, "AB"sv, true}, {5u, "CD"sv, true}, {8u, "EF"sv, true}, {22u, "CD"sv, true}};
+    auto const layout{system_tree::order(stars, barycentres)};
+    expect(names(layout, stars, barycentres) == "A B (AB) C D (CD) (CD) (ABCD) E F (EF)"sv);
+    expect(fatal(layout.brackets.size() == 4u));
+    // CD's bracket ticks its two rows; ABCD's goes round AB's and CD's, ticking their last rows and its own
+    auto const cd{std::ranges::find(layout.brackets, 5u, &system_tree::bracket_t::barycentre)};
+    expect(fatal(cd != layout.brackets.end()));
+    expect(cd->first == 3u and cd->last == 6u and cd->ticks == std::vector<std::size_t>{3u, 4u, 5u, 6u});
+    auto const abcd{std::ranges::find(layout.brackets, 1u, &system_tree::bracket_t::barycentre)};
+    expect(fatal(abcd != layout.brackets.end()));
+    expect(abcd->first == 0u and abcd->last == 7u and abcd->depth == 1 and abcd->ticks == std::vector<std::size_t>{2u, 6u, 7u});
   };
 
   "names of their own and no star circling it: the row goes last, as before"_test = []
