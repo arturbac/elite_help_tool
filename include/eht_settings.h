@@ -129,6 +129,9 @@ struct system_map_t
   colour_t ring_rocky{0xb08a64u};
   colour_t ring_metallic{0x9aa4b0u};
   colour_t ring_metal_rich{0xe0a060u};
+  ///\brief (PoC) the rows in the order of the system's tree: a barycentre's planets right after its stars, a bracket
+  /// round each barycentre, nested; false = the stars first and every barycentre's row after them, as before
+  bool nest_barycentres{true};
   };
 
 ///\brief a reminder, impossible to miss, that the market just docked at has never been opened

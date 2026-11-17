@@ -4,6 +4,7 @@
 #include <port_model.h>
 #include <ring_ellipse.h>
 #include <star_colour.h>
+#include <system_tree.h>
 
 #include <algorithm>
 #include <array>
@@ -476,6 +477,77 @@ auto build_system_diagram(
     }
   );
 
+  // (PoC) in the tree's order: a barycentre's row right after its stars, brackets round each barycentre, nested
+  struct tree_bracket_t
+    {
+    row_t const * first{};
+    row_t const * last{};
+    int depth{};
+    std::vector<row_t const *> ticks;
+    };
+  std::vector<tree_bracket_t> tree_brackets;
+  std::set<body_id_t> bracketed_stars;
+  if(sm.nest_barycentres)
+    {
+    std::vector<row_t const *> star_rows;
+    std::vector<row_t const *> barycentre_rows;
+    std::vector<row_t const *> rest;
+    for(row_t const * row: ordered)
+      if(row->star != nullptr)
+        star_rows.push_back(row);
+      else if(row->barycentre)
+        barycentre_rows.push_back(row);
+      else
+        rest.push_back(row);
+    // a barycentre's prefix: its first planet's name without the system's and the planet's number - "AB" of "AB 1"
+    std::vector<std::string_view> prefixes;
+    for(row_t const * row: barycentre_rows)
+      {
+      std::string_view const short_name{body_short_name(system.name, row_name(row))};
+      prefixes.push_back(short_name.substr(0, std::min(short_name.size(), short_name.rfind(' '))));
+      }
+    std::vector<system_tree::star_t> stars;
+    std::vector<system_tree::barycentre_t> barycentres;
+    std::set<body_id_t> with_row;
+    for(size_t ix{}; ix != barycentre_rows.size(); ++ix)
+      {
+      barycentres.push_back(system_tree::barycentre_t{.body_id = *barycentre_rows[ix]->barycentre, .prefix = prefixes[ix], .has_row = true});
+      with_row.insert(*barycentre_rows[ix]->barycentre);
+      }
+    // the barycentres of stars with no planets of their own, for the brackets pairing the stars
+    for(row_t const * row: star_rows)
+      {
+      auto const & sd{std::get<star_details_t>(row->star->details)};
+      stars.push_back(system_tree::star_t{
+        .body_id = row->star->body_id, .short_name = body_short_name(system.name, row->star->name), .barycentre = sd.parent_barycenter
+      });
+      if(sd.parent_barycenter and with_row.insert(*sd.parent_barycenter).second)
+        barycentres.push_back(system_tree::barycentre_t{.body_id = *sd.parent_barycenter, .has_row = false});
+      }
+    system_tree::layout_t const layout{system_tree::order(stars, barycentres)};
+    auto const row_at = [&](size_t at) -> row_t const *
+    {
+      system_tree::row_t const & r{layout.rows[at]};
+      return r.star ? star_rows[r.index] : barycentre_rows[r.index];
+    };
+    ordered.clear();
+    for(size_t at{}; at != layout.rows.size(); ++at)
+      ordered.push_back(row_at(at));
+    ordered.insert(ordered.end(), rest.begin(), rest.end());
+    for(system_tree::bracket_t const & b: layout.brackets)
+      {
+      tree_bracket_t t{.first = row_at(b.first), .last = row_at(b.last), .depth = b.depth};
+      for(size_t const at: b.ticks)
+        t.ticks.push_back(row_at(at));
+      for(size_t at{b.first}; at <= b.last; ++at)
+        if(row_t const * row{row_at(at)}; row->star != nullptr)
+          bracketed_stars.insert(row->star->body_id);
+      tree_brackets.push_back(std::move(t));
+      }
+    }
+  // where each row's line stands and how wide its lead disc is, for the tree's brackets
+  std::map<row_t const *, std::pair<float, float>> row_lines;
+
   overlay::diagram_t diagram{};
   std::string_view const here_short{here.empty() ? std::string_view{} : body_short_name(system.name, here)};
 
@@ -623,7 +695,10 @@ auto build_system_diagram(
   // two of them with planets that is most of the height. Such stars stand side by side in one row,
   // unless one pairs with a star that has a row of its own: the bracket on the left must reach both
   auto const lone = [&](row_t const * row)
-  { return row->star != nullptr and row->planets.empty() and not ports.contains(row->star->body_id); };
+  {
+    return row->star != nullptr and row->planets.empty() and not ports.contains(row->star->body_id)
+           and not bracketed_stars.contains(row->star->body_id);
+  };
   std::set<body_id_t> split_pairs;
   for(row_t const * row: ordered)
     if(row->star != nullptr and not lone(row))
@@ -701,6 +776,7 @@ auto build_system_diagram(
     float const line_y{top + label_band + lead};
     float const lead_x{star_column / 2.f};
     float bottom{line_y + lead};
+    row_lines[row] = {line_y, row->star != nullptr ? star_radius : barycentre_radius};
 
     float const last_x{
       row->planets.empty() ? lead_x : star_column + (static_cast<float>(row->planets.size()) - 0.5f) * column
@@ -847,9 +923,32 @@ auto build_system_diagram(
     top = bottom + row_gap;
     }
 
+  // the tree's brackets, the inner ones nearest the discs
+  for(tree_bracket_t const & b: tree_brackets)
+    {
+    constexpr float lead_x{star_column / 2.f};
+    float const off{-star_radius - 4.f - 4.f * static_cast<float>(b.depth)};
+    float const y0{row_lines[b.first].first};
+    diagram.segments.push_back(
+      overlay::segment_t{
+        .x0 = off, .y0 = 0.f, .x1 = off, .y1 = row_lines[b.last].first - y0, .color = label_colour, .relative = true,
+        .ax = lead_x, .ay = y0
+      }
+    );
+    for(row_t const * row: b.ticks)
+      diagram.segments.push_back(
+        overlay::segment_t{
+          .x0 = off, .y0 = 0.f, .x1 = -row_lines[row].second, .y1 = 0.f, .color = label_colour, .relative = true,
+          .ax = lead_x, .ay = row_lines[row].first
+        }
+      );
+    }
+
   // the stars pairing around a barycentre of their own, bracketed on the left as the game does it
   for(auto const & [id, ys]: star_pairs)
     {
+    if(sm.nest_barycentres)
+      break;
     if(ys.size() < 2u)
       continue;
     // measured from the discs rather than from the edge, so it stays against them when the band stretches
