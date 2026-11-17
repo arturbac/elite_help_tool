@@ -36,6 +36,12 @@ The bottom right corner of the overlay follows the order of work in a new system
    volcanic; `few known (N)` instead when fewer than 5 others are known. Such a planet is a candidate for a colour
    of its air that edworld does not know yet: a second one came with volcanism on Neon worlds, and one Ammonia
    moon has another for no reason its scan shows - which this cannot catch.
+   With `edworld_eht.dll` in the game, the last line says what edworld read off the planet's atmosphere as the game
+   drew it (`atmosphere` in `edworld.dir`, a read of the last 10 minutes of a planet of this system, matched by its
+   radius): `print of 5 Nitrogen: known`; `known, its kind's second` for a second colour edworld knows (a volcanic
+   Neon, a cold Ammonia); `NEW r/g 0.7012 b/g 1.7300, sampled` when edworld does not know that colour - a case never
+   seen, worth staying near while edworld_eht keeps its samples; `says Argon` when the colour is another kind's than
+   the scan's. The last two are green and logged once for each planet.
 3. **to map** — bodies worth the probes, most valuable first, green when it is a first discovery,
 4. **life** — bodies with biological signals left to sample, in the order of a route through them from
    the body the commander is at or was at last in the system (the arrival star before any), the bodies

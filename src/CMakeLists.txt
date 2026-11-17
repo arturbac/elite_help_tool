@@ -16,6 +16,7 @@ target_sources(eht
   atmosphere_odds.cc
   galaxy_map_view.cc
   system_tree.cc
+  atmosphere_print.cc
   system_index.cc
   backup.cc
   ground_cz.cc

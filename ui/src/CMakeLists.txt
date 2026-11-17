@@ -9,6 +9,7 @@ target_sources(elite_help_tool
   atmospheres_page.cc
   galaxy_map_page.cc
   galmap_read.cc
+  atmosphere_read.cc
   ship_loadout.cc
   mission_window.cc
   current_state.cc

@@ -156,4 +156,28 @@ struct galmap_t
   std::uint32_t unknown;   ///< glyphs among them not known yet ('?')
   galmap_name_t names[max_galmap_names];
   };
+
+// ---- the atmosphere last read off the game's render (edworld_eht, `atmosphere`), its print by the shell's table ----
+inline constexpr std::uint32_t atmosphere_magic{0x54415745u};  // "EWAT"
+inline constexpr std::uint32_t atmosphere_version{1u};
+
+///\brief the planet whose atmosphere's shell was read last: written on every read, so unix_ms says how fresh it is
+struct atmosphere_t
+  {
+  std::uint32_t magic;
+  std::uint32_t version;
+  std::uint32_t size;      ///< sizeof(atmosphere_t) of the writer
+  std::uint32_t sequence;  ///< seqlock, as in share_t
+  std::int64_t unix_ms;    ///< when read
+  float radius;            ///< metres: the planet's, as the journal's Radius
+  float distance;          ///< metres from the camera to the planet's middle
+  float r_g, b_g;          ///< the print: the table's hue
+  std::uint8_t known;      ///< 1: one of edworld's prints, kind below; 0: a print not known
+  std::uint8_t second;     ///< 1: its kind's second print (a volcanic neon, a cold ammonia)
+  std::uint8_t ok;         ///< 1: the table was read; 0: no hue (then the rest says nothing)
+  std::uint8_t pad;
+  char kind[32];           ///< the print's kind as the journal's AtmosphereType ("Nitrogen"); empty when not known
+  std::uint32_t reads;     ///< reads written since the game started
+  };
+static_assert(sizeof(atmosphere_t) == 80u, "the layout edworld_eht writes");
   }  // namespace edworld

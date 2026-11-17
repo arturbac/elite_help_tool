@@ -1,5 +1,6 @@
 #include <overlay_feed.h>
 #include <galmap_read.h>
+#include <atmosphere_read.h>
 #include <route_progress.h>
 #include <biology.h>
 #include <territory.h>
@@ -2019,6 +2020,57 @@ auto overlay_feed_t::refresh_atmosphere_counts(current_state_t const & state) ->
   atmosphere_counts_ = atmosphere_odds::landable_counts(landables_);
   }
 
+
+auto overlay_feed_t::refresh_atmosphere_print(star_system_t const & system) -> void
+  {
+  atmosphere_print_line_.reset();
+  auto const settings{eht::settings()};
+  if(not exploring_ or settings->edworld.dir.empty())
+    return;
+  auto const read{read_atmosphere(std::filesystem::path{settings->edworld.dir} / "atmosphere")};
+  // a read of the last ten minutes: older, the planet was left long ago
+  auto const now_ms{std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count()};
+  if(not read or now_ms - read->unix_ms > 600000)
+    return;
+  std::vector<atmosphere_print::planet_t> planets;
+  for(body_t const & body: system.bodies)
+    if(auto const * const planet{std::get_if<planet_details_t>(&body.details)};
+       planet != nullptr and not planet->atmosphere_type.empty() and planet->atmosphere_type != "None")
+      planets.push_back(atmosphere_print::planet_t{.name = body.name, .radius = body.radius, .atmosphere_type = planet->atmosphere_type});
+  auto const result{atmosphere_print::judge(*read, planets)};
+  if(not result)
+    return;
+  std::string_view const name{body_short_name(system.name, result->name)};
+  using atmosphere_print::verdict_e;
+  switch(result->verdict)
+    {
+    case verdict_e::known:
+      atmosphere_print_line_ = overlay::line_t{.text = std::format("print of {} {}: known", name, result->atmosphere_type), .color = colour_plain()};
+      break;
+    case verdict_e::second:
+      atmosphere_print_line_ = overlay::line_t{
+        .text = std::format("print of {} {}: known, its kind's second", name, result->atmosphere_type), .color = colour_plain()
+      };
+      break;
+    case verdict_e::unknown:
+      atmosphere_print_line_ = overlay::line_t{
+        .text = std::format("print of {} {}: NEW r/g {:.4f} b/g {:.4f}, sampled", name, result->atmosphere_type, read->r_g, read->b_g),
+        .color = colour_first()
+      };
+      break;
+    case verdict_e::differs:
+      atmosphere_print_line_ = overlay::line_t{
+        .text = std::format("print of {} {}: says {}", name, result->atmosphere_type, read->kind), .color = colour_first()
+      };
+      break;
+    }
+  if((result->verdict == verdict_e::unknown or result->verdict == verdict_e::differs)
+     and atmosphere_print_logged_.insert(std::string{result->name}).second)
+    spdlog::info(
+      "atmosphere: {} ({}) has a print edworld {} (r/g {:.4f} b/g {:.4f})", result->name, result->atmosphere_type,
+      result->verdict == verdict_e::unknown ? "does not know" : std::format("knows as {}", read->kind), read->r_g, read->b_g
+    );
+  }
 
 auto overlay_feed_t::refresh_galaxy_map() -> void
   {
@@ -4285,13 +4337,18 @@ auto overlay_feed_t::publish(current_state_t const & state, plotted_route_t cons
     frame.blocks.push_back(
       overlay::block_t{.corner = overlay::corner_e::bottom_right, .ttl_ms = block_ttl_ms(), .lines = std::move(phenomena)}
     );
+  refresh_atmosphere_print(state.system);
   if(auto atmospheres{
        exploring_ ? overlay_exploration::describe_atmospheres(state.system, atmosphere_counts_, landables_) : std::vector<overlay::line_t>{}
      };
-     not atmospheres.empty())
+     atmosphere_print_line_ or not atmospheres.empty())
+    {
+    if(atmosphere_print_line_)
+      atmospheres.push_back(*atmosphere_print_line_);
     frame.blocks.push_back(
       overlay::block_t{.corner = overlay::corner_e::bottom_right, .ttl_ms = block_ttl_ms(), .lines = std::move(atmospheres)}
     );
+    }
   if(auto mapping{exploring_ ? overlay_exploration::describe_mapping(state.system) : std::vector<overlay::line_t>{}};
      not mapping.empty())
     frame.blocks.push_back(

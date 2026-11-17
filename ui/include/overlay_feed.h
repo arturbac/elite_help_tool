@@ -184,6 +184,9 @@ private:
   ///\brief on the galaxy map while exploring: the names edworld_eht read off it, grouped by mass code against what the
   /// databases know (read again every 5 minutes); galaxy_map_lines_ empty otherwise
   auto refresh_galaxy_map() -> void;
+  ///\brief while exploring, the print edworld_eht last read off a planet's atmosphere in this system (`atmosphere` in
+  /// its shm_dir) beside the journal's kind: known, its kind's second, a NEW one or another kind's; none otherwise
+  auto refresh_atmosphere_print(star_system_t const & system) -> void;
 
   ///\brief the landable planets of each atmosphere known, read again in another system, when a planet's atmosphere
   /// became known here, and every 5 minutes (another account's galaxy grows unseen)
@@ -454,6 +457,9 @@ private:
   legal_standing_t legal_;
   ///\brief the systems the galaxy map shows now (edworld_eht's `galmap`) against the mass codes' odds, while exploring
   std::vector<overlay::line_t> galaxy_map_lines_;
+  std::optional<overlay::line_t> atmosphere_print_line_;
+  ///\brief the planets whose print was logged as new or another kind's, once each
+  std::set<std::string> atmosphere_print_logged_;
   galaxy_map_view::odds_t mass_code_odds_;
   galaxy_map_view::known_t known_names_;
   std::chrono::steady_clock::time_point mass_code_read_{};
