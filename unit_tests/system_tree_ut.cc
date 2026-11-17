@@ -73,15 +73,17 @@ auto main() -> int
     std::vector<barycentre_t> const barycentres{
       {1u, "ABCD"sv, true}, {2u, "AB"sv, true}, {5u, "CD"sv, true}, {8u, "EF"sv, true}, {22u, "CD"sv, true}};
     auto const layout{system_tree::order(stars, barycentres)};
-    expect(names(layout, stars, barycentres) == "A B (AB) C D (CD) (CD) (ABCD) E F (EF)"sv);
+    expect(names(layout, stars, barycentres) == "A B (AB) C D (CD) (ABCD) E F (EF)"sv);
     expect(fatal(layout.brackets.size() == 4u));
-    // CD's bracket ticks its two rows; ABCD's goes round AB's and CD's, ticking their last rows and its own
+    // CD 1, 2 and 3 in one row standing for CD's barycentre, the pair's barycentre 22 with it
+    expect(fatal(layout.rows.size() == 10u));
+    expect(layout.rows[5].index == 2u and layout.rows[5].with == std::vector<std::size_t>{4u} and layout.rows[5].centre == 5u);
     auto const cd{std::ranges::find(layout.brackets, 5u, &system_tree::bracket_t::barycentre)};
     expect(fatal(cd != layout.brackets.end()));
-    expect(cd->first == 3u and cd->last == 6u and cd->ticks == std::vector<std::size_t>{3u, 4u, 5u, 6u});
+    expect(cd->first == 3u and cd->last == 5u and cd->ticks == std::vector<std::size_t>{3u, 4u, 5u});
     auto const abcd{std::ranges::find(layout.brackets, 1u, &system_tree::bracket_t::barycentre)};
     expect(fatal(abcd != layout.brackets.end()));
-    expect(abcd->first == 0u and abcd->last == 7u and abcd->depth == 1 and abcd->ticks == std::vector<std::size_t>{2u, 6u, 7u});
+    expect(abcd->first == 0u and abcd->last == 6u and abcd->depth == 1 and abcd->ticks == std::vector<std::size_t>{2u, 5u, 6u});
   };
 
   "names of their own and no star circling it: the row goes last, as before"_test = []

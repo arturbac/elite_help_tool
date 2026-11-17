@@ -144,10 +144,12 @@ auto order(std::span<star_t const> stars, std::span<barycentre_t const> barycent
         layout.rows.push_back(row_t{.star = true, .index = node.second});
         }
     barycentre_t const & own{barycentres[taken[group].index]};
-    for(std::size_t const ix: taken[group].rows)
+    if(std::vector<std::size_t> const & rows{taken[group].rows}; not rows.empty())
       {
       ticks.push_back(layout.rows.size());
-      layout.rows.push_back(row_t{.star = false, .index = ix});
+      layout.rows.push_back(
+        row_t{.star = false, .index = rows.front(), .with = {rows.begin() + 1, rows.end()}, .centre = own.body_id}
+      );
       }
     std::size_t const last{layout.rows.size() - 1u};
     if(last > first)
@@ -162,7 +164,7 @@ auto order(std::span<star_t const> stars, std::span<barycentre_t const> barycent
     else
       layout.rows.push_back(row_t{.star = true, .index = node.second});
   for(std::size_t const ix: unplaced)
-    layout.rows.push_back(row_t{.star = false, .index = ix});
+    layout.rows.push_back(row_t{.star = false, .index = ix, .centre = barycentres[ix].body_id});
   return layout;
   }
   }  // namespace system_tree

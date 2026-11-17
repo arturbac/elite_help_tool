@@ -29,11 +29,15 @@ struct barycentre_t
   bool has_row{};
   };
 
-///\brief a row: a star or a barycentre's planets, by their index in the spans given
+///\brief a row: a star, or the planets of a barycentre and of those among the same stars (CD 1 round C and D, CD 2
+/// and CD 3 round a pair's barycentre of their own: one row), by their index in the spans given, and the barycentre
+/// the row stands for - its planets circling another are a pair, bracketed over them
 struct row_t
   {
   bool star{};
   std::size_t index{};
+  std::vector<std::size_t> with;
+  uint32_t centre{};
   };
 
 ///\brief a bracket over rows first..last of the order, round a barycentre; depth 0 the innermost, each one round

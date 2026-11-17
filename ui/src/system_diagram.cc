@@ -10,6 +10,8 @@
 #include <array>
 #include <cctype>
 #include <cmath>
+#include <deque>
+#include <iterator>
 #include <limits>
 #include <map>
 #include <numbers>
@@ -487,6 +489,7 @@ auto build_system_diagram(
     };
   std::vector<tree_bracket_t> tree_brackets;
   std::set<body_id_t> bracketed_stars;
+  std::deque<row_t> merged_rows;
   if(sm.nest_barycentres)
     {
     std::vector<row_t const *> star_rows;
@@ -525,11 +528,23 @@ auto build_system_diagram(
         barycentres.push_back(system_tree::barycentre_t{.body_id = *sd.parent_barycenter, .has_row = false});
       }
     system_tree::layout_t const layout{system_tree::order(stars, barycentres)};
-    auto const row_at = [&](size_t at) -> row_t const *
-    {
-      system_tree::row_t const & r{layout.rows[at]};
-      return r.star ? star_rows[r.index] : barycentre_rows[r.index];
-    };
+    // the barycentres among the same stars in one row standing for the outer one (CD 1, 2, 3 of CD), its planets in
+    // the game's order; those circling another of them a pair, bracketed over
+    std::vector<row_t const *> layout_rows;
+    for(system_tree::row_t const & r: layout.rows)
+      {
+      if(r.star or r.with.empty())
+        {
+        layout_rows.push_back(r.star ? star_rows[r.index] : barycentre_rows[r.index]);
+        continue;
+        }
+      row_t & merged{merged_rows.emplace_back(row_t{.barycentre = r.centre, .planets = barycentre_rows[r.index]->planets})};
+      for(size_t const ix: r.with)
+        std::ranges::copy(barycentre_rows[ix]->planets, std::back_inserter(merged.planets));
+      std::ranges::sort(merged.planets, by_name);
+      layout_rows.push_back(&merged);
+      }
+    auto const row_at = [&](size_t at) -> row_t const * { return layout_rows[at]; };
     ordered.clear();
     for(size_t at{}; at != layout.rows.size(); ++at)
       ordered.push_back(row_at(at));
@@ -856,6 +871,8 @@ auto build_system_diagram(
       mark_here(planet, x, line_y, r);
 
       if(row->star != nullptr and pd.parent_barycenter and *pd.parent_barycenter > row->star->body_id)
+        planet_pairs[*pd.parent_barycenter].push_back(x);
+      else if(row->star == nullptr and row->barycentre and pd.parent_barycenter and *pd.parent_barycenter != *row->barycentre)
         planet_pairs[*pd.parent_barycenter].push_back(x);
 
       // the moons in a column under the planet, a moon's own moons right after it and smaller

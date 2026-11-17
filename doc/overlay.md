@@ -45,7 +45,7 @@ process carries no state of ours.
   row, the brackets nested as the barycentres are: A and B, then AB's planets, then C and the planets of
   ABC round all three. Which stars a barycentre stands among comes from the stars circling it, else from
   the letters of its planets' names (ABCD: stars A to D); barycentres among the same stars (CD's own and one
-  of a pair of its planets, CD 2 and CD 3) share one bracket; one known by neither stands at the end. A test,
+  of a pair of its planets, CD 2 and CD 3) share one row, CD 1, 2 and 3 in order, the pair bracketed over; one known by neither stands at the end. A test,
   `overlay.system_map.nest_barycentres` (true); false puts every barycentre's row after all the stars. Stars and planets are small lit balls: each planet
   and moon is lit from its star's side, water and ice shine a little, bare rock does not, and a star
   lights itself with only a darker limb. A body the surface scanner has been on wears its own face,
