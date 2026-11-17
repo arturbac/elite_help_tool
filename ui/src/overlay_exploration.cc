@@ -34,6 +34,7 @@ namespace
       {
       case never:      return "new: genus";
       case atmosphere: return "new: atmosphere";
+      case body_class: return "new: body class";
       case warmer:     return std::format("new: {:.0f} K warmer", knowledge.beyond);
       case colder:     return std::format("new: {:.0f} K colder", knowledge.beyond);
       case heavier:    return std::format("new: {:.0f}% heavier", knowledge.beyond * 100.0);

@@ -290,7 +290,8 @@ auto predict(std::string_view genus, conditions_t const & world, std::span<speci
     e.t_max = std::max(e.t_max, record.surface_temperature);
     e.g_min = std::min(e.g_min, record.surface_gravity);
     e.g_max = std::max(e.g_max, record.surface_gravity);
-    if(record.planet_class == world.planet_class)
+    // a find whose body's kind is not known says nothing against it
+    if(record.planet_class.empty() or world.planet_class.empty() or record.planet_class == world.planet_class)
       ++e.same_class;
     if(star_family(record.star_type) == star_family(world.star_type) and not world.star_type.empty())
       ++e.same_star;
@@ -311,7 +312,9 @@ auto predict(std::string_view genus, conditions_t const & world, std::span<speci
       // a little room around what was seen - a history of a few finds is narrower than the truth
       bool const warm_enough{world.surface_temperature >= e.t_min - 5.0 and world.surface_temperature <= e.t_max + 5.0};
       bool const light_enough{world.surface_gravity >= e.g_min * 0.9 and world.surface_gravity <= e.g_max * 1.1};
-      c.fit = warm_enough and light_enough ? fit_e::fits : fit_e::near;
+      // the kind of body decides too: on CarbonDioxide, Tubus Cavas and Compagibus and Frutexa Acus were found on rocky
+      // worlds only (134 finds), Tubus Sororibus on a high metal content one (2026-11-17)
+      c.fit = warm_enough and light_enough and e.same_class != 0u ? fit_e::fits : fit_e::near;
       c.seen = e.same_atmosphere;
       if(c.fit == fit_e::fits)
         fitting_total += c.seen;
@@ -346,6 +349,7 @@ auto knowledge(std::string_view genus, conditions_t const & world, std::span<spe
   {
   bool any{};
   uint32_t under_atmosphere{};
+  uint32_t same_class{};
   uint32_t same_star{};
   uint32_t alike{};
   double t_min{1e9};
@@ -360,6 +364,8 @@ auto knowledge(std::string_view genus, conditions_t const & world, std::span<spe
     if(not same_atmosphere(record.atmosphere_type, world.atmosphere_type))
       continue;
     ++under_atmosphere;
+    if(record.planet_class.empty() or world.planet_class.empty() or record.planet_class == world.planet_class)
+      ++same_class;
     t_min = std::min(t_min, record.surface_temperature);
     t_max = std::max(t_max, record.surface_temperature);
     g_min = std::min(g_min, record.surface_gravity);
@@ -375,6 +381,8 @@ auto knowledge(std::string_view genus, conditions_t const & world, std::span<spe
     return knowledge_t{.novelty = novelty_e::never};
   if(under_atmosphere == 0u)
     return knowledge_t{.novelty = novelty_e::atmosphere};
+  if(same_class == 0u)
+    return knowledge_t{.novelty = novelty_e::body_class, .alike = alike};
 
   // a kelvin or two of the scanner's rounding is no new ground, nor a few hundredths of the gravity
   constexpr double kelvin_margin{1.0};

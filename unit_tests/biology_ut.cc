@@ -291,6 +291,44 @@ auto main() -> int
     auto f_star{world};
     f_star.star_type = "F";
     expect(bio::knowledge("Bacterium", f_star, history, 3u).novelty == star);
+
+    auto metal{world};
+    metal.planet_class = "High metal content body";
+    expect(bio::knowledge("Bacterium", metal, history, 3u).novelty == body_class) << "never on a high metal content body";
+  };
+
+  "the kind of body: Tubus on a high metal content world under CarbonDioxide (Spoihee LV-T b50-1 C 6)"_test = []
+  {
+    using bio::species_record_t;
+    std::vector<species_record_t> history;
+    for(int i{}; i != 5; ++i)
+      {
+      history.push_back(species_record_t{"Tubus", "Tubus Cavas", "Rocky body", "CarbonDioxide", "", 165.0 + i, 1.2, 2000.0, "M"});
+      history.push_back(species_record_t{"Tubus", "Tubus Compagibus", "Rocky body", "CarbonDioxide", "", 165.0 + i, 1.2, 2000.0, "K"});
+      }
+    bio::conditions_t world{
+      .planet_class = "High metal content body",
+      .atmosphere_type = "CarbonDioxide",
+      .surface_temperature = 168.3,
+      .surface_gravity = 1.31,
+      .star_type = "L"
+    };
+    auto const metal{bio::predict("Tubus", world, history)};
+    expect(fatal(not metal.empty()));
+    expect(std::ranges::none_of(metal, [](auto const & c) { return c.fit == bio::fit_e::fits; }))
+      << "the rocky worlds' species do not fit a high metal content one";
+    expect(bio::knowledge("Tubus", world, history, 3u).novelty == bio::novelty_e::body_class);
+
+    history.push_back(species_record_t{"Tubus", "Tubus Sororibus", "High metal content body", "CarbonDioxide", "", 168.3, 1.31, 2457.0, "L"});
+    auto const learned{bio::predict("Tubus", world, history)};
+    expect(fatal(not learned.empty()));
+    expect(learned.front().species == "Tubus Sororibus" and learned.front().fit == bio::fit_e::fits and learned.front().share == 1.0);
+
+    auto rocky{world};
+    rocky.planet_class = "Rocky body";
+    auto const on_rock{bio::predict("Tubus", rocky, history)};
+    expect(std::ranges::none_of(on_rock, [](auto const & c) { return c.species == "Tubus Sororibus" and c.fit == bio::fit_e::fits; }))
+      << "and the other way round";
   };
 
   "merge"_test = []

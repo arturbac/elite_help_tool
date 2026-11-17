@@ -72,11 +72,15 @@ The species is guessed from your own history. Every species sampled is stored to
 world (planet class, atmosphere, temperature, gravity, the star above it), and a genus on a new world
 is compared with what has already been found under the same atmosphere. On 374 species from the
 archive, guessing each one from the rest, the first answer is right in 302 cases and one of the first
-two in 349. The more samples, the narrower the guess.
+two in 349. The more samples, the narrower the guess. A species fits only where it was found on the same kind of
+body too: under carbon dioxide Tubus Cavas, Tubus Compagibus and Frutexa Acus were found on rocky bodies only, Tubus
+Sororibus and Frutexa Metallicum on high metal content ones, so a high metal content world never gets the rocky
+worlds' species as a fit. The figures above were measured before the kind of body counted.
 
 Beside the guess stands what one scan would teach, in its own colour whatever the species pays: the
 history of both accounts is asked what it knows of the genus on a world like this one. `new: genus`,
-`new: atmosphere`, `new: 12 K warmer` (colder, heavier, lighter: past every find under this
+`new: atmosphere`, `new: body class` (under this atmosphere, never on this kind of body - a high metal content
+world where only rocky ones were sampled), `new: 12 K warmer` (colder, heavier, lighter: past every find under this
 atmosphere), `new: F star` (never under this kind of star - the variant may be a new one), or
 `few like it (2)` (fewer than `exploration.little_known`, 3, finds within 5 K and a tenth of the
 gravity). A genus seen often on such worlds gets no note, and a cheap one stays grey: nothing is left

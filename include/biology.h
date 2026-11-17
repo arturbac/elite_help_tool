@@ -195,9 +195,10 @@ auto record_of(star_system_t const & system, body_t const & body, std::string_vi
 ///\brief how well a species found before fits the world in question
 enum struct fit_e : uint8_t
   {
-  ///\brief found on the same kind of atmosphere, and the temperature and the gravity lie within what was seen
+  ///\brief found on the same kind of atmosphere and of body, and the temperature and the gravity lie within what was seen
   fits,
-  ///\brief the atmosphere was seen, but the world is warmer, colder, heavier or lighter than anything before
+  ///\brief the atmosphere was seen, but the world is warmer, colder, heavier or lighter than anything before, or the
+  /// species was never found on its kind of body (Tubus Cavas on rocky worlds, Tubus Sororibus on high metal ones)
   near,
   ///\brief found under this genus, never under this atmosphere
   unlike
@@ -268,6 +269,8 @@ enum struct novelty_e : uint8_t
   never,
   ///\brief never under this atmosphere
   atmosphere,
+  ///\brief under this atmosphere, but never on this kind of body - the species there may be others
+  body_class,
   ///\brief under this atmosphere, but never on a world as warm, as cold, as heavy or as light
   warmer,
   colder,
