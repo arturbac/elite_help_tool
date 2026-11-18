@@ -40,7 +40,9 @@ process carries no state of ours.
   nearby, with the carriers and the ships in transit under them.
 - **System map:** the bodies and ports of the current system, drawn in the game's colours, with
   arrows at the places open missions send you to. A row for each star with its planets along it and the
-  moons under them; the planets circling a barycentre of stars (AB 1) stand in a row of their own, right
+  moons under them. A star the game numbers as a planet (5, 6, 7 round the main star: a T Tauri, a brown dwarf) stands
+  among its parent's planets as a star's disc, the bodies circling it hanging under it as moons, a pair of them
+  round a barycentre on that orbit bracketed over as planets are; a companion named by a letter (B) keeps its row. The planets circling a barycentre of stars (AB 1) stand in a row of their own, right
   after the stars of that barycentre, and a bracket on the left takes in each barycentre's stars and its
   row, the brackets nested as the barycentres are: A and B, then AB's planets, then C and the planets of
   ABC round all three. Which stars a barycentre stands among comes from the stars circling it, else from

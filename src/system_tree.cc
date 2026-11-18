@@ -167,4 +167,12 @@ auto order(std::span<star_t const> stars, std::span<barycentre_t const> barycent
     layout.rows.push_back(row_t{.star = false, .index = ix, .centre = barycentres[ix].body_id});
   return layout;
   }
+
+auto in_planet_place(std::string_view short_name, std::optional<uint32_t> parent_star) -> bool
+  {
+  if(not parent_star)
+    return false;
+  std::string_view const last{short_name.substr(short_name.rfind(' ') == std::string_view::npos ? 0u : short_name.rfind(' ') + 1u)};
+  return not last.empty() and std::ranges::all_of(last, [](char c) { return c >= '0' and c <= '9'; });
+  }
   }  // namespace system_tree

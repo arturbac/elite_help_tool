@@ -67,4 +67,11 @@ auto members(barycentre_t const & barycentre, std::span<star_t const> stars) -> 
 /// barycentre whose stars are not known, or that would cross another's, after everything as before
 [[nodiscard]]
 auto order(std::span<star_t const> stars, std::span<barycentre_t const> barycentres) -> layout_t;
+
+///\brief a star in a planet's place: it circles another star (straight or through a barycentre on that star's orbit)
+/// and the game numbers it as a planet (`5`, `AB 6`) - a T Tauri or a brown dwarf is a body on an orbit as a gas giant
+/// is. Such a star stands in its parent's row among the planets, not in a row of its own; a companion named by a letter
+/// (`B` round `A`) keeps its row
+[[nodiscard]]
+auto in_planet_place(std::string_view short_name, std::optional<uint32_t> parent_star) -> bool;
   }  // namespace system_tree

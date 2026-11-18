@@ -103,4 +103,14 @@ auto main() -> int
     expect(names(layout, stars, barycentres) == "A B (AB) C (BC)"sv);
     expect(layout.brackets.size() == 1u);
   };
+
+  "a star numbered as a planet and circling a star stands in its row; a lettered companion does not"_test = []
+  {
+    // Spoihee PT-Q e5-285 (2026-11-18): 5 round the AeBe star 0, 6 and 7 round a barycentre on its orbit
+    expect(system_tree::in_planet_place("5"sv, 0u));
+    expect(system_tree::in_planet_place("AB 6"sv, 1u));
+    expect(not system_tree::in_planet_place("B"sv, 0u));
+    expect(not system_tree::in_planet_place("5"sv, std::nullopt));
+    expect(not system_tree::in_planet_place(""sv, 0u));
+  };
   }

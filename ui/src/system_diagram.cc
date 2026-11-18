@@ -428,8 +428,22 @@ auto build_system_diagram(
     };
   std::map<std::pair<int, body_id_t>, row_t> rows;  // (0 star / 1 barycentre / 2 unknown, id)
 
+  // a star in a planet's place (system_tree::in_planet_place: numbered as a planet, circling a star) stands among its
+  // parent's planets, and the bodies circling it hang under it as moons do
+  std::set<body_id_t> placed_stars;
   for(auto const & [id, body]: by_id)
     if(body->body_type() == body_type_e::star)
+      {
+      auto const & sd{std::get<star_details_t>(body->details)};
+      if(system_tree::in_planet_place(body_short_name(system.name, body->name), sd.parent_star) and by_id.contains(*sd.parent_star)
+         and *sd.parent_star != id)
+        {
+        placed_stars.insert(id);
+        rows[{0, *sd.parent_star}].planets.push_back(body);
+        }
+      }
+  for(auto const & [id, body]: by_id)
+    if(body->body_type() == body_type_e::star and not placed_stars.contains(id))
       rows[{0, id}].star = body;
 
   for(auto const & [id, body]: by_id)
@@ -439,6 +453,8 @@ auto build_system_diagram(
       continue;
     if(pd->parent_planet and by_id.contains(*pd->parent_planet))
       moons[*pd->parent_planet].push_back(body);
+    else if(pd->parent_star and placed_stars.contains(*pd->parent_star))
+      moons[*pd->parent_star].push_back(body);
     else if(pd->parent_star)
       rows[{0, *pd->parent_star}].planets.push_back(body);
     else if(pd->parent_barycenter)
@@ -785,7 +801,7 @@ auto build_system_diagram(
       }
 
     bool const any_giant{std::ranges::any_of(
-      row->planets, [&](body_t const * b) { return is_giant(planet_of(b)->planet_class); }
+      row->planets, [&](body_t const * b) { return planet_of(b) == nullptr or is_giant(planet_of(b)->planet_class); }
     )};
     float const lead{row->star != nullptr ? star_radius : (any_giant ? giant_radius : planet_radius)};
     float const line_y{top + label_band + lead};
@@ -855,25 +871,46 @@ auto build_system_diagram(
     for(size_t ix{}; ix != row->planets.size(); ++ix)
       {
       body_t const * const planet{row->planets[ix]};
-      planet_details_t const & pd{*planet_of(planet)};
       float const x{star_column + (static_cast<float>(ix) + 0.5f) * column};
-      float const r{is_giant(pd.planet_class) ? giant_radius : planet_radius};
-
-      star_x = lead_x;
-      star_y = line_y;
-      body_disc(planet, pd, x, line_y, r);
-      diagram.labels.push_back(
-        overlay::label_t{
-          .x = x, .y = line_y - giant_radius - 9.f, .text = std::string{last_word(planet->name)}, .color = name_colour(planet, pd),
-          .align = 0.5f
+      std::optional<body_id_t> parent_barycenter;
+      float r{giant_radius};
+      if(planet_details_t const * const placed{planet_of(planet)}; placed == nullptr)
+        {
+        // a star in a planet's place: its own disc, a giant's size, among the planets
+        auto const & sd{std::get<star_details_t>(planet->details)};
+        diagram.discs.push_back(star_disc(sd, x, line_y, r));
+        diagram.discs.back().body = planet->body_id;
+        diagram.labels.push_back(
+          overlay::label_t{
+            .x = x, .y = line_y - giant_radius - 9.f, .text = std::string{last_word(planet->name)}, .color = label_colour, .align = 0.5f
+          }
+        );
+        parent_barycenter = sd.parent_barycenter;
         }
-      );
+      else
+        {
+        planet_details_t const & pd{*placed};
+        r = is_giant(pd.planet_class) ? giant_radius : planet_radius;
+        star_x = lead_x;
+        star_y = line_y;
+        body_disc(planet, pd, x, line_y, r);
+        diagram.labels.push_back(
+          overlay::label_t{
+            .x = x, .y = line_y - giant_radius - 9.f, .text = std::string{last_word(planet->name)}, .color = name_colour(planet, pd),
+            .align = 0.5f
+          }
+        );
+        parent_barycenter = pd.parent_barycenter;
+        }
       mark_here(planet, x, line_y, r);
+      // the moons of a star in a planet's place are lit by it
+      star_x = planet_of(planet) == nullptr ? x : lead_x;
+      star_y = line_y;
 
-      if(row->star != nullptr and pd.parent_barycenter and *pd.parent_barycenter > row->star->body_id)
-        planet_pairs[*pd.parent_barycenter].push_back(x);
-      else if(row->star == nullptr and row->barycentre and pd.parent_barycenter and *pd.parent_barycenter != *row->barycentre)
-        planet_pairs[*pd.parent_barycenter].push_back(x);
+      if(row->star != nullptr and parent_barycenter and *parent_barycenter > row->star->body_id)
+        planet_pairs[*parent_barycenter].push_back(x);
+      else if(row->star == nullptr and row->barycentre and parent_barycenter and *parent_barycenter != *row->barycentre)
+        planet_pairs[*parent_barycenter].push_back(x);
 
       // the moons in a column under the planet, a moon's own moons right after it and smaller
       float y{line_y + r + 5.f};
