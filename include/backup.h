@@ -96,9 +96,11 @@ struct mod_logs_summary_t
   std::vector<std::string> errors;
   };
 
-///\brief each closed log of the game's own directory compressed (zstd) into "mod-logs" under destination and, once
-/// the copy reads back the same, deleted from the game's directory - a verification of the game's files would
-/// delete it anyway, and a week of them would be lost with it
+///\brief each closed log of the game's own directory and of its directories edworld and edworld_eht (where edworld
+/// sets them aside since its log is edplugin_common's) compressed (zstd) into "mod-logs" under destination and, once
+/// the copy reads back the same, deleted from where it was - a verification of the game's files would delete it
+/// anyway, and a week of them would be lost with it. Only edworld installed alone writes there: under edloader its
+/// logs are in edloader's logs directory, which this leaves alone
 [[nodiscard]]
 auto move_mod_logs(std::filesystem::path const & destination, std::filesystem::path const & game_dir, int level)
   -> mod_logs_summary_t;

@@ -338,18 +338,33 @@ auto move_mod_logs(std::filesystem::path const & destination, std::filesystem::p
   if(game_dir.empty() or not std::filesystem::is_directory(game_dir, ec))
     return summary;
   std::vector<std::filesystem::path> closed;
-  if(
-    auto const walked{each_entry<std::filesystem::directory_iterator>(
-      game_dir,
-      [&](std::filesystem::directory_entry const & entry)
+  // the game's directory (sessions edworld set aside beside its log) and the directory of each build's sessions
+  // there (edplugin_common's log, which sets them aside in <plugin>\)
+  for(std::filesystem::path const & dir: {game_dir, game_dir / "edworld", game_dir / "edworld_eht"})
+    {
+    if(dir != game_dir)
       {
-        if(entry.is_regular_file(ec) and closed_mod_log(entry.path()))
-          closed.push_back(entry.path());
+      // a link is left alone: at an account whose game directory links to another's (Dunkan's to Sjona's Steam), it
+      // would take the other account's logs
+      std::filesystem::file_status const status{std::filesystem::symlink_status(dir, ec)};
+      if(ec and ec != std::errc::no_such_file_or_directory)
+        summary.errors.push_back(std::format("{} could not be looked at: {}", dir.string(), ec.message()));
+      if(ec or not std::filesystem::is_directory(status))
+        continue;
       }
-    )};
-    walked
-  )
-    summary.errors.push_back(std::format("the game's directory could not be gone through: {}", walked.message()));
+    if(
+      auto const walked{each_entry<std::filesystem::directory_iterator>(
+        dir,
+        [&](std::filesystem::directory_entry const & entry)
+        {
+          if(entry.is_regular_file(ec) and closed_mod_log(entry.path()))
+            closed.push_back(entry.path());
+        }
+      )};
+      walked
+    )
+      summary.errors.push_back(std::format("{} could not be gone through: {}", dir.string(), walked.message()));
+    }
   std::filesystem::path const logs{destination / "mod-logs"};
   for(std::filesystem::path const & source: closed)
     try

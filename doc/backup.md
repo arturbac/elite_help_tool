@@ -31,12 +31,16 @@ pictures came into the codex and the sky album (`backup.every_pictures`), whiche
   beside it with its time appended (`edworld.ini.20261004-183000`), so a setting broken later never
   overwrites the last good one; a file the game wrote again unchanged sets nothing aside.
 - The closed session logs of edworld go to `mod-logs/`, looked at with the settings every ten minutes.
-  edworld writes `edworld.log` in the game's directory (`edworld_eht.log` from its build that works with
-  EHT) and, when the next game session starts, renames the last one `edworld.<UTC>.log`
-  (`edworld_eht.<UTC>.log`). Each of those is compressed with zstd (level 3) into
-  `mod-logs/<the same name>.zst`, read back, and only then deleted from the game's directory - a
-  verification of the game's files would delete it anyway. The running session's log itself is never
-  touched. `zstd -d` unpacks one.
+  edworld installed alone writes `edworld.log` in the game's directory (`edworld_eht.log` from its build
+  that works with EHT) and, when the next game session starts, moves the last one to
+  `edworld/edworld.<UTC>.log` there (`edworld_eht/edworld_eht.<UTC>.log`; older edworld set it aside
+  beside the log as `edworld.<UTC>.log`, which is taken too). Each of those is compressed with zstd (level
+  3) into `mod-logs/<the same name>.zst`, read back, and only then deleted from where it was - a
+  verification of the game's files would delete it anyway. A link in the place of `edworld/` or
+  `edworld_eht/` is left alone (it could lead to another account's game directory). The running session's
+  log itself is never touched. `zstd -d` unpacks one. Loaded through edloader, edworld writes its logs in
+  edloader's `logs` directory, as edupscale, edwide_screen and edshader-catch do theirs (each with its own
+  directory of past sessions); the backup leaves those alone.
 - `last_backup.json` beside them says when the last one was and how many pictures there were then.
   When it cannot be read, or written after a backup, the log says so, since the backup then counts
   as due at every look. A directory that cannot be gone through to its end is named in the log with

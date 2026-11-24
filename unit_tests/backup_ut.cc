@@ -148,14 +148,23 @@ auto main() -> int
     std::filesystem::create_directories(game);
     std::string const text{"2026-10-05T00:48:43.742Z vs BF4E55098DFD7EB9 draws a panel surface\n"};
     {
+    std::filesystem::create_directories(game / "edworld_eht");
+    std::filesystem::create_directories(game / "edworld");
+    std::ofstream{game / "edworld" / "edworld.20261124T020000Z.log"} << text;
     std::ofstream{game / "edworld.20261005T004556Z.log"} << text;
     std::ofstream{game / "edworld.log"} << "running";
     std::ofstream{game / "Update.log"} << "the game's";
+    std::ofstream{game / "edworld_eht" / "edworld_eht.20261124T013956Z.log"} << text;
+    std::ofstream{game / "edworld_eht" / "notes.txt"} << "not a log";
     }
     auto const summary{backup::move_mod_logs(destination, game, 3)};
     expect(summary.errors.empty());
-    expect(summary.moved == 1_ul);
+    expect(summary.moved == 3_ul) << "beside the log, in edworld/ and in edworld_eht/";
+    expect(not std::filesystem::exists(game / "edworld" / "edworld.20261124T020000Z.log")) << "taken out of edworld/";
     expect(not std::filesystem::exists(game / "edworld.20261005T004556Z.log")) << "taken out of the game's directory";
+    expect(not std::filesystem::exists(game / "edworld_eht" / "edworld_eht.20261124T013956Z.log")) << "taken out of edworld_eht/";
+    expect(std::filesystem::exists(game / "edworld_eht" / "notes.txt"));
+    expect(std::filesystem::exists(destination / "mod-logs" / "edworld_eht.20261124T013956Z.log.zst"));
     expect(std::filesystem::exists(game / "edworld.log"));
     expect(std::filesystem::exists(game / "Update.log"));
     std::filesystem::path const packed{destination / "mod-logs" / "edworld.20261005T004556Z.log.zst"};
@@ -166,6 +175,20 @@ auto main() -> int
     expect(ZSTD_decompress(back.data(), back.size(), bytes.data(), bytes.size()) == text.size());
     expect(back == text);
     expect(backup::move_mod_logs(destination, game, 3).moved == 0_ul) << "nothing left to move";
+
+    // a file where a directory of sessions would be, and a link to another directory: left alone, no error
+    std::filesystem::path const other{root / "other"};
+    std::filesystem::create_directories(other);
+    std::ofstream{other / "edworld.20261124T021000Z.log"} << text;
+    std::filesystem::remove_all(game / "edworld_eht", ec);
+    std::ofstream{game / "edworld_eht"} << "a file";
+    std::filesystem::remove_all(game / "edworld", ec);
+    std::filesystem::create_directory_symlink(other, game / "edworld", ec);
+    expect(not ec) << "the link made";
+    auto const left{backup::move_mod_logs(destination, game, 3)};
+    expect(left.errors.empty() and left.moved == 0_ul) << "a file and a link are not directories of sessions";
+    expect(std::filesystem::exists(other / "edworld.20261124T021000Z.log")) << "another directory's log stays";
+    expect(std::filesystem::is_regular_file(game / "edworld_eht"));
     std::filesystem::remove_all(root, ec);
   };
     "settings kept"_test = []
